@@ -1,0 +1,265 @@
+# One command starts everything: docker compose up --build
+# Then open https://localhost (accept the local certificate) and choose "Use the demo account".
+#
+# Host ports stay clear of databases a developer may already run: PostgreSQL 55432, Redis 56379,
+# MongoDB 57017, HTTP 8080 (redirects to HTTPS). Override with POSTGRES_HOST_PORT, REDIS_HOST_PORT,
+# MONGO_HOST_PORT, HTTP_PORT and HTTPS_PORT. Everything listens on 127.0.0.1 only; set BIND_ADDR
+# (for example 0.0.0.0) to open the app to other machines.
+#
+# For a deployment: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# (production settings, no demo login, and every secret must be set).
+#
+# Road routing (OSRM) is optional for the Bengaluru demo, which uses the sample travel-time snapshot.
+# To route real places: docker compose --profile routing up --build  (first run prepares the map; minutes).
+
+x-api-env: &api-env
+  APP_ENV: ${APP_ENV:-development}
+  DATABASE_URL: postgresql+psycopg://reroute_app:${REROUTE_DB_PASSWORD:-reroute_app}@postgres:5432/reroute
+  REDIS_URL: redis://redis:6379/0
+  MONGO_URL: mongodb://mongo:27017/reroute
+  JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-dev-only-change-me}
+  DEMO_LOGIN: ${DEMO_LOGIN:-false}
+  SIMULATED_SERVICES: ${SIMULATED_SERVICES:-true}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  # Google Maps (README, "Google Maps"): Google's map, place search and Rico's guide. Empty keeps OpenStreetMap's.
+  GOOGLE_MAPS_API_KEY: ${GOOGLE_MAPS_API_KEY:-}
+  GOOGLE_MAPS_BROWSER_KEY: ${GOOGLE_MAPS_BROWSER_KEY:-}
+  RAASTA_BASE_URL: http://raasta:8001
+  # The worker's pass to Raasta's service rate limit; Raasta below has the same value.
+  RAASTA_SERVICE_TOKEN: ${RAASTA_SERVICE_TOKEN:-dev-only-service-token-change-me-0123456789}
+  TRAVEL_TIMES_SOURCE: ${TRAVEL_TIMES_SOURCE:-sample}
+  OSRM_CAR_URL: http://osrm-car:5000
+  OSRM_FOOT_URL: http://osrm-foot:5000
+  # Real roads for the map and the directions: FOSSGIS's public servers. Set both empty to turn routing off.
+  ROUTING_CAR_URL: ${ROUTING_CAR_URL-https://routing.openstreetmap.de/routed-car}
+  ROUTING_FOOT_URL: ${ROUTING_FOOT_URL-https://routing.openstreetmap.de/routed-foot}
+  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://localhost}
+  # The Android app's origin (it runs at https://localhost inside the phone); empty closes CORS.
+  CORS_ORIGINS: ${CORS_ORIGINS-https://localhost}
+  # Push notifications are on when a key is set (README, "Push notifications"): only the worker gets the key
+  # itself, so this tells the API, which tells the app.
+  FCM_PUSH: ${FCM_SERVICE_ACCOUNT:+true}
+  AI_HELPER_ENABLED: ${AI_HELPER_ENABLED:-false}
+  GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+  GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
+  ROO_AGENT_MODEL: ${ROO_AGENT_MODEL:-gemini-3.5-flash-lite}
+  # Browser tests only: Roo's scripted model in place of Gemini (refused in production).
+  ROO_FAKE_LLM: ${ROO_FAKE_LLM:-}
+  # Rico out loud (Gemini Live): the realtime model.
+  ROO_LIVE_MODEL: ${ROO_LIVE_MODEL:-gemini-3.8-live}
+  # Rico's check-ins: typical traffic by city and hour ("usual"), or "off".
+  TRAFFIC_SOURCE: ${TRAFFIC_SOURCE:-usual}
+  # Rico as a local guide: Wikivoyage's city guides and OpenStreetMap's Overpass; set one empty to turn it off.
+  WIKIVOYAGE_URL: ${WIKIVOYAGE_URL-https://en.wikivoyage.org/w/api.php}
+  OVERPASS_URL: ${OVERPASS_URL-https://overpass-api.de/api/interpreter}
+  # Rico's voice from Azure AI Speech; unset, Edge's free read-aloud service reads its lines.
+  AZURE_SPEECH_KEY: ${AZURE_SPEECH_KEY:-}
+  AZURE_SPEECH_REGION: ${AZURE_SPEECH_REGION:-}
+  RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
+  AUTH_RATE_LIMIT_PER_MINUTE: ${AUTH_RATE_LIMIT_PER_MINUTE:-10}
+  SESSION_RATE_LIMIT_PER_MINUTE: ${SESSION_RATE_LIMIT_PER_MINUTE:-60}
+
+services:
+  postgres:
+    restart: unless-stopped
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: reroute
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      REROUTE_DB_PASSWORD: ${REROUTE_DB_PASSWORD:-}
+      RAASTA_DB_PASSWORD: ${RAASTA_DB_PASSWORD:-}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+      - ./infra/postgres/set-passwords.sh:/docker-entrypoint-initdb.d/20-set-passwords.sh:ro
+    ports: ["127.0.0.1:${POSTGRES_HOST_PORT:-55432}:5432"]
+    healthcheck:
+      # Over TCP, as the services connect: on a new volume the first-time setup runs a server on the local socket
+      # only, which would pass a socket check before the real server is up (Raasta then failed to connect).
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U postgres -d reroute"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    restart: unless-stopped
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    ports: ["127.0.0.1:${REDIS_HOST_PORT:-56379}:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+
+  mongo:
+    restart: unless-stopped
+    image: mongo:7
+    volumes: [mongodata:/data/db]
+    ports: ["127.0.0.1:${MONGO_HOST_PORT:-57017}:27017"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      retries: 20
+
+  raasta:
+    restart: unless-stopped
+    build: ./raasta
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql+psycopg://raasta_app:${RAASTA_DB_PASSWORD:-raasta_app}@postgres:5432/reroute
+      REDIS_URL: redis://redis:6379/1
+      MONGO_URL: mongodb://mongo:27017
+      MONGO_DB: reroute
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-dev-only-change-me}
+      RAASTA_SERVICE_TOKEN: ${RAASTA_SERVICE_TOKEN:-dev-only-service-token-change-me-0123456789}
+      OSRM_URL: ${RAASTA_OSRM_URL:-}
+      EXAMPLES_DIR: /srv/examples/bengaluru
+      SEED_ON_START: "true"
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
+      CORS_ORIGINS: ${CORS_ORIGINS-https://localhost}
+    volumes:
+      - ./examples:/srv/examples:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      mongo: { condition: service_healthy }
+
+  api-1: &api
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["api"]
+    environment:
+      <<: *api-env
+      SEED_ON_START: "true"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      mongo: { condition: service_healthy }
+      raasta: { condition: service_healthy }
+
+  api-2:
+    <<: *api
+    environment:
+      <<: *api-env
+      RUN_MIGRATIONS: "false"
+    depends_on:
+      api-1: { condition: service_healthy }
+
+  worker:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["worker"]
+    environment:
+      <<: *api-env
+      # The worker sends the pushes, so only it gets the key (see secrets below).
+      FCM_CREDENTIALS_FILE: /run/secrets/fcm-service-account
+    secrets: [fcm-service-account]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, redis; redis.Redis.from_url(os.environ['REDIS_URL']).ping()"]
+      interval: 15s
+      retries: 10
+    depends_on:
+      api-1: { condition: service_healthy }
+
+  scheduler:
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["scheduler"]
+    environment: *api-env
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, redis; redis.Redis.from_url(os.environ['REDIS_URL']).ping()"]
+      interval: 15s
+      retries: 10
+    depends_on:
+      api-1: { condition: service_healthy }
+
+  web:
+    restart: unless-stopped
+    build:
+      context: ./frontend
+      args:
+        VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+
+  nginx:
+    restart: unless-stopped
+    image: nginx:1.27-alpine
+    entrypoint: ["/bin/sh", "/start.sh"]
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./infra/nginx/start.sh:/start.sh:ro
+      - certs:/etc/nginx/certs
+    ports: ["${BIND_ADDR:-127.0.0.1}:${HTTPS_PORT:-443}:443", "${BIND_ADDR:-127.0.0.1}:${HTTP_PORT:-8080}:80"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "--no-check-certificate", "https://127.0.0.1/v1/healthz"]
+      interval: 10s
+      retries: 30
+    depends_on:
+      api-1: { condition: service_healthy }
+      api-2: { condition: service_started }
+      raasta: { condition: service_healthy }
+      web: { condition: service_started }
+
+  # ---- Road routing (optional profile) ----
+  # The OSRM image has no wget or curl, so a curl container downloads the map first. An interrupted
+  # download resumes (-C -) and only a complete file is renamed into place.
+  osrm-download:
+    profiles: [routing]
+    image: curlimages/curl:8.10.1
+    user: "0:0" # the volume belongs to root
+    volumes: [osrm:/data]
+    environment:
+      OSM_EXTRACT_URL: ${OSM_EXTRACT_URL:-https://download.geofabrik.de/asia/india/southern-zone-latest.osm.pbf}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        if [ -f /data/region.osm.pbf ]; then echo "Map already downloaded."; exit 0; fi;
+        curl -fL --retry 5 -C - -o /data/region.osm.pbf.part "$$OSM_EXTRACT_URL"
+        && mv /data/region.osm.pbf.part /data/region.osm.pbf
+
+  osrm-prep:
+    profiles: [routing]
+    image: ghcr.io/project-osrm/osrm-backend:v5.27.1
+    volumes: [osrm:/data, ./infra/osrm:/scripts:ro]
+    entrypoint: ["/bin/sh", "/scripts/prepare.sh"]
+    depends_on:
+      osrm-download: { condition: service_completed_successfully }
+
+  osrm-car:
+    restart: unless-stopped
+    profiles: [routing]
+    image: ghcr.io/project-osrm/osrm-backend:v5.27.1
+    command: ["osrm-routed", "--algorithm", "mld", "/data/car/region.osrm"]
+    volumes: [osrm:/data]
+    depends_on:
+      osrm-prep: { condition: service_completed_successfully }
+
+  osrm-foot:
+    restart: unless-stopped
+    profiles: [routing]
+    image: ghcr.io/project-osrm/osrm-backend:v5.27.1
+    command: ["osrm-routed", "--algorithm", "mld", "/data/foot/region.osrm"]
+    volumes: [osrm:/data]
+    depends_on:
+      osrm-prep: { condition: service_completed_successfully }
+
+volumes:
+  pgdata:
+  redisdata:
+  mongodata:
+  certs:
+  osrm:
+
+secrets:
+  # A Google service account key for alerts as push notifications to the Android app (README, "Push
+  # notifications"): set FCM_SERVICE_ACCOUNT to its path. Without one, an empty placeholder: no pushes,
+  # and alerts come over the live stream only.
+  fcm-service-account:
+    file: ${FCM_SERVICE_ACCOUNT:-./infra/push/no-key.json}
