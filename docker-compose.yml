@@ -20,6 +20,7 @@ x-api-env: &api-env
   PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://localhost}
   AI_HELPER_ENABLED: "false"
   RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
+  AUTH_RATE_LIMIT_PER_MINUTE: ${AUTH_RATE_LIMIT_PER_MINUTE:-10}
 
 services:
   postgres:
