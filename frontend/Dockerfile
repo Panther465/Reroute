@@ -1,6 +1,6 @@
 # The Reroute web app: built with pnpm, served as static files by nginx (NGINX in front proxies /v1).
 # Build from the frontend folder: docker build -t reroute-web frontend
-FROM node:20-alpine AS build
+FROM node:22-alpine AS build
 WORKDIR /app
 RUN corepack enable && corepack prepare pnpm@10.22.0 --activate
 COPY package.json pnpm-lock.yaml ./

@@ -71,3 +71,4 @@ Details the briefs don't settle, the simplest choice that keeps every rule, and 
 - **Live events are read with `fetch`** because `EventSource` can't send the access token.
 - **Code splitting:** every screen except Today loads on demand; MapLibre alone is above the default chunk warning, so the limit is 1100 kB.
 - **Animated elements** (UI brief motion rules, with reduced-motion versions): the sign-in hero is a 2-second, one-shot preview of the reroute choreography on the sample day; on Today, a mode-coloured marker sits on the leg being ridden at the share of the leg already travelled and moves only when the clock does.
+- **Node.js 22 LTS, not 20.** The brief names Node.js 20 for work outside Docker, but Node 20 reached end of life in April 2026 and the current test toolchain (jsdom's HTTP client) needs Node 22. CI, the web image and `engines` all use 22.

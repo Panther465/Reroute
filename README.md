@@ -59,7 +59,7 @@ Phone (PWA) ──HTTPS──▶ NGINX ─┬─ /v1/raasta/* ──▶ Raasta A
 
 ## Working outside Docker
 
-Node.js 20 and Python 3.12 are only needed here.
+Node.js 22 (LTS) and Python 3.12 are only needed here.
 
 ```bash
 # Databases only
