@@ -1,0 +1,20 @@
+name: Load test
+
+# Run on demand: 500 virtual users, 95% of responses under 500 ms (definition of done, item 12).
+on:
+  workflow_dispatch:
+
+jobs:
+  k6:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Start the stack with a high per-user rate limit
+        env:
+          RATE_LIMIT_PER_MINUTE: "1000000"
+        run: docker compose up -d --build --wait --wait-timeout 600
+      - uses: grafana/setup-k6-action@v1
+      - name: k6
+        run: k6 run -e BASE_URL=https://localhost --insecure-skip-tls-verify tests/load/k6.js
+      - if: always()
+        run: docker compose down -v

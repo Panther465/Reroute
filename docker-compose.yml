@@ -19,6 +19,7 @@ x-api-env: &api-env
   OSRM_FOOT_URL: http://osrm-foot:5000
   PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://localhost}
   AI_HELPER_ENABLED: "false"
+  RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
 
 services:
   postgres:
@@ -70,6 +71,7 @@ services:
       OSRM_URL: ${RAASTA_OSRM_URL:-}
       EXAMPLES_DIR: /srv/examples/bengaluru
       SEED_ON_START: "true"
+      RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
     volumes:
       - ./examples:/srv/examples:ro
     depends_on:
