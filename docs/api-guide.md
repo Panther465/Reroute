@@ -11,7 +11,7 @@ The OpenAPI files in `shared/contracts/` are the contract; CI fails if they drif
 
 - **JSON is camelCase.** Times are ISO 8601 with the city's offset (`2026-10-14T11:45:00+05:30`); opening hours are local `"HH:MM"`; money is whole rupees; durations are whole minutes. Every time and fare is an estimate.
 - **Sign-in.** `POST /v1/auth/google` with a one-time Google code, or `POST /v1/auth/demo` locally. You get a 15-minute access token for the `Authorization: Bearer` header; the refresh token sits in an httpOnly cookie. `POST /v1/auth/refresh` needs the `X-CSRF-Token` header set to the `rr_csrf` cookie.
-- **Idempotency.** Every POST except sign-in carries `idempotencyKey` (8 to 128 characters). The same key and body replay the first response (header `Idempotent-Replayed: true`); the same key with a different body is 409 `IDEMPOTENCY_CONFLICT`. Keys last 24 hours. Retry a failed request with the same key.
+- **Idempotency.** Every POST except sign-in carries `idempotencyKey` (4 to 128 letters, digits, `.`, `_`, `:` or `-`). The same key and body replay the first response (header `Idempotent-Replayed: true`); the same key with a different body is 409 `IDEMPOTENCY_CONFLICT`. Keys last 24 hours. Retry a failed request with the same key.
 - **Errors** always look like `{"error": {"code", "message", "traceId"}}`: 400/422 bad input, 401/403 sign-in or role, 404 unknown ID, 409 conflict, 410 revoked share link, 413 body too large, 429 rate limit (with `Retry-After`). Send `X-Request-ID` to set the trace ID.
 - **Lists** use `?cursor=&limit=` and return `nextCursor`.
 

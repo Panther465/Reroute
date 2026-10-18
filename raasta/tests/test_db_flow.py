@@ -199,8 +199,10 @@ def test_fare_reports_change_the_shown_fare_after_review(client):
 
 
 def test_stale_route_comes_back_with_two_riders(client, engine):
+    # Go stale as of the real clock: the confirmations below happen now, and only those made
+    # after the route went stale count towards verifying it again.
     with Session(engine) as s:
-        changed = mark_stale(s, NOW + timedelta(days=200))
+        changed = mark_stale(s, datetime.now(UTC), days=0)
     assert "sample-kor-jay" in changed
     assert client.get("/v1/raasta/routes/sample-kor-jay").json()["status"] == "stale"
     client.post("/v1/raasta/routes/sample-kor-jay/confirmations", json={"idempotencyKey": "conf-aaaaaaaa"}, headers=auth("r1"))

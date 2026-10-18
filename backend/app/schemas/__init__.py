@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_vali
 from pydantic.alias_generators import to_camel
 
 Hhmm = Annotated[str, StringConstraints(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")]
-IdempotencyKey = Annotated[str, StringConstraints(min_length=8, max_length=128, pattern=r"^[A-Za-z0-9._:-]+$")]
+IdempotencyKey = Annotated[str, StringConstraints(min_length=4, max_length=128, pattern=r"^[A-Za-z0-9._:-]+$")]
 Mode = Literal["walk", "metro", "shared_auto", "e_rickshaw", "tempo", "cab"]
 T = TypeVar("T")
 ReasonCode = Literal[

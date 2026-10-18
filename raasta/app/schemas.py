@@ -14,7 +14,7 @@ RouteSource = Literal["stands_tapped", "gps_ride", "import"]
 ContributionStatus = Literal["waiting", "verified", "rejected", "merged"]
 FareReportStatus = Literal["waiting", "accepted", "rejected"]
 HHMM = Annotated[str, Field(pattern=r"^([01]\d|2[0-3]):[0-5]\d$", examples=["21:30"])]
-IdempotencyKey = Annotated[str, Field(min_length=8, max_length=128, examples=["con-7f3a91c2"])]
+IdempotencyKey = Annotated[str, Field(min_length=4, max_length=128, pattern=r"^[A-Za-z0-9._:-]+$", examples=["con-7f3a91c2"])]
 Fare = Annotated[int, Field(ge=0, le=2000)]
 T = TypeVar("T")
 

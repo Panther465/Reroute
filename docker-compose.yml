@@ -127,23 +127,19 @@ services:
       args:
         VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
 
-  certs:
-    image: alpine:3.20
-    command: >
-      sh -c "test -f /certs/localhost.crt || (apk add --no-cache openssl >/dev/null &&
-      openssl req -x509 -newkey rsa:2048 -nodes -days 825 -subj '/CN=localhost'
-      -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1'
-      -keyout /certs/localhost.key -out /certs/localhost.crt)"
-    volumes: [certs:/certs]
-
   nginx:
     image: nginx:1.27-alpine
+    entrypoint: ["/bin/sh", "/start.sh"]
     volumes:
       - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - certs:/etc/nginx/certs:ro
+      - ./infra/nginx/start.sh:/start.sh:ro
+      - certs:/etc/nginx/certs
     ports: ["80:80", "443:443"]
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "--no-check-certificate", "https://127.0.0.1/v1/healthz"]
+      interval: 10s
+      retries: 30
     depends_on:
-      certs: { condition: service_completed_successfully }
       api-1: { condition: service_healthy }
       api-2: { condition: service_started }
       raasta: { condition: service_healthy }
