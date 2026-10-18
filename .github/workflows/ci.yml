@@ -89,7 +89,7 @@ jobs:
           package_json_file: frontend/package.json
       - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -112,7 +112,7 @@ jobs:
           package_json_file: frontend/package.json
       - uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 22
       - name: Playwright with axe
         working-directory: frontend
         env:
