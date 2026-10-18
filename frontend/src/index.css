@@ -1,0 +1,263 @@
+@import 'tailwindcss';
+@import './styles/tokens.css';
+
+@theme inline {
+  --color-*: initial;
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-sunken: var(--surface-sunken);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--muted);
+  --color-green: var(--green);
+  --color-green-ink: var(--green-ink);
+  --color-green-tint: var(--green-tint);
+  --color-yellow: var(--yellow);
+  --color-red: var(--red);
+  --color-red-ink: var(--red-ink);
+  --color-red-tint: var(--red-tint);
+  --color-blue: var(--blue);
+  --color-blue-tint: var(--blue-tint);
+  --color-focus: var(--focus);
+  --color-on-green: var(--on-green);
+  --color-on-ink: var(--on-ink);
+  --color-on-yellow: var(--on-yellow);
+  --color-scrim: var(--scrim);
+  --color-transparent: transparent;
+
+  --font-sans: 'Atkinson Hyperlegible', 'Noto Sans Devanagari', ui-sans-serif, sans-serif;
+  --font-display: 'Archivo', 'Noto Sans Devanagari', ui-sans-serif, sans-serif;
+
+  --radius-tag: 8px;
+  --radius-control: 14px;
+  --radius-card: 16px;
+  --radius-sheet: 22px;
+
+}
+
+@layer base {
+  html {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+  :focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 2px;
+  }
+  button,
+  [role='button'],
+  label[for],
+  summary {
+    cursor: pointer;
+  }
+  ::selection {
+    background: var(--green-tint);
+    color: var(--green-ink);
+  }
+}
+
+/* Type scale (section 6.2). rem keeps text zoom working. */
+@layer components {
+  .t-display-1,
+  .t-display-2,
+  .t-time-lg,
+  .t-time,
+  .t-money {
+    font-family: var(--font-display);
+    font-stretch: 75%;
+    letter-spacing: -0.01em;
+  }
+  .t-display-1 {
+    font-weight: 800;
+    font-size: 2rem;
+    line-height: 2.125rem;
+  }
+  .t-display-2 {
+    font-weight: 800;
+    font-size: 1.625rem;
+    line-height: 1.75rem;
+  }
+  .t-time-lg {
+    font-weight: 700;
+    font-size: 2.5rem;
+    line-height: 2.5rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .t-time {
+    font-weight: 700;
+    font-size: 1.3125rem;
+    line-height: 1.5rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .t-money {
+    font-weight: 800;
+    font-size: 1.625rem;
+    line-height: 1.75rem;
+    font-variant-numeric: tabular-nums;
+  }
+  .t-title {
+    font-weight: 700;
+    font-size: 1.0625rem;
+    line-height: 1.5rem;
+  }
+  .t-body {
+    font-weight: 400;
+    font-size: 1rem;
+    line-height: 1.5rem;
+  }
+  .t-small {
+    font-weight: 400;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+  }
+  .t-caption {
+    font-weight: 700;
+    font-size: 0.8125rem;
+    line-height: 1.125rem;
+  }
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+  @media (min-width: 1024px) {
+    .t-display-1 {
+      font-size: 2.125rem;
+      line-height: 2.25rem;
+    }
+    .t-display-2 {
+      font-size: 1.75rem;
+      line-height: 1.875rem;
+    }
+    .t-time-lg {
+      font-size: 2.625rem;
+      line-height: 2.625rem;
+    }
+  }
+  .measure {
+    max-width: 72ch;
+  }
+  .pb-safe {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+/* Changed-time highlight (section 9, 900–2100 ms). Only opacity and text colour animate. */
+@keyframes rr-changed-bg {
+  0%,
+  42.8% {
+    opacity: 0;
+  }
+  42.9% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes rr-changed-text {
+  0%,
+  42.8% {
+    color: var(--ink);
+  }
+  42.9% {
+    color: var(--on-yellow);
+  }
+  100% {
+    color: var(--ink);
+  }
+}
+@keyframes rr-still-bg {
+  0%,
+  99% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+@keyframes rr-still-text {
+  0%,
+  99% {
+    color: var(--on-yellow);
+  }
+  100% {
+    color: var(--ink);
+  }
+}
+.rr-changed > .rr-changed-bg {
+  animation: rr-changed-bg 2100ms var(--ease-out) both;
+}
+.rr-changed {
+  animation: rr-changed-text 2100ms var(--ease-out) both;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rr-changed > .rr-changed-bg {
+    animation: rr-still-bg 2000ms linear both;
+  }
+  .rr-changed {
+    animation: rr-still-text 2000ms linear both;
+  }
+}
+
+/* Radix toast enter, exit and swipe. */
+@keyframes rr-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+@keyframes rr-toast-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+.rr-toast[data-state='open'] {
+  animation: rr-toast-in var(--dur-base) var(--ease-out);
+}
+.rr-toast[data-state='closed'] {
+  animation: rr-toast-out var(--dur-quick) var(--ease-in) forwards;
+}
+.rr-toast[data-swipe='move'] {
+  transform: translateY(var(--radix-toast-swipe-move-y));
+}
+.rr-toast[data-swipe='cancel'] {
+  transform: translateY(0);
+  transition: transform var(--dur-quick) var(--ease-out);
+}
+.rr-toast[data-swipe='end'] {
+  animation: rr-toast-out var(--dur-quick) var(--ease-in) forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rr-toast[data-state='open'] {
+    animation: rr-toast-out var(--dur-quick) linear reverse;
+  }
+}
+
+/* Walking legs: a dotted ink line. */
+.rr-walk {
+  border-left: 6px dotted var(--ink);
+}
+.rr-dashed {
+  border-left: 6px dashed currentColor;
+}
+
+.maplibregl-ctrl-attrib {
+  font-size: 0.8125rem;
+}

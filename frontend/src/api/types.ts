@@ -1,0 +1,52 @@
+// Names for the generated API shapes. Regenerate the source with `pnpm gen:api` after the contracts change.
+import type { components as R } from './reroute'
+import type { components as Q } from './raasta'
+
+type S = R['schemas']
+type RS = Q['schemas']
+
+export type User = S['UserOut']
+export type Token = S['TokenOut']
+export type Place = S['PlaceOut']
+export type Trip = S['TripOut']
+export type TripSummary = S['TripSummaryOut']
+export type TripsPage = S['Page_TripSummaryOut_']
+export type Task = S['TaskOut']
+export type TaskIn = S['TaskIn']
+export type TaskPatch = S['TaskPatch']
+export type TripIn = S['TripIn']
+export type Plan = S['PlanOut']
+export type Leg = S['LegOut']
+export type Moved = S['MovedOut']
+export type Option = S['OptionOut']
+export type OptionSet = S['OptionSetOut']
+export type LogEntry = S['LogEntryOut']
+export type CheckinIn = S['CheckinIn']
+export type CheckinResult = S['CheckinOut']
+export type JobAccepted = S['JobAccepted']
+export type Job = S['JobOut']
+export type ShareLink = S['ShareLinkOut']
+export type SharedTrip = S['SharedTripOut']
+export type SharedStop = S['SharedStopOut']
+export type SharedLeg = S['SharedLegOut']
+export type Summary = S['SummaryOut']
+export type TaskDraft = S['TaskDraftOut']
+export type TaskEdit = S['TaskEditOut']
+export type ReasonCode = Plan['reasonCodes'][number]
+export type Mode = Leg['mode']
+
+export type RaastaRoute = RS['RouteOut']
+export type RaastaLegOption = RS['LegOptionOut']
+export type RaastaLegOptions = RS['LegOptionsOut']
+export type StandNear = RS['StandNear']
+export type StandsPage = RS['Page_StandNear_']
+export type Contribution = RS['ContributionOut']
+export type ContributionIn = RS['ContributionIn']
+export type ContributionsPage = RS['Page_ContributionOut_']
+export type ContributionDecision = RS['ContributionDecision']
+export type FareReport = RS['FareReportOut']
+export type VehicleType = RaastaRoute['vehicleType']
+export type RouteStatus = RaastaRoute['status']
+
+/** Request bodies without the idempotency key: the client adds it. */
+export type Body<T> = Omit<T, 'idempotencyKey'>
