@@ -37,7 +37,16 @@ def make(tasks, snapshot, start=None, **kw) -> PlannerInput:
 
 
 def task(task_id, place, duration=30, fixed=None, window=None, priority=2, **kw) -> PlanTask:
-    return PlanTask(task_id=task_id, title=task_id.title(), place_id=place, duration_min=duration, fixed_start=fixed, window=Window(opens=window[0], closes=window[1]) if window else None, priority=priority, **kw)
+    return PlanTask(
+        task_id=task_id,
+        title=task_id.title(),
+        place_id=place,
+        duration_min=duration,
+        fixed_start=fixed,
+        window=Window(opens=window[0], closes=window[1]) if window else None,
+        priority=priority,
+        **kw,
+    )
 
 
 # ---------- fixed times and the 10-minute buffer ----------
@@ -107,7 +116,9 @@ def test_window_task_must_finish_by_closing_time():
 
 
 def test_task_that_cant_fit_is_named_not_dropped_silently(demo_input):
-    late_start = demo_input.model_copy(update={"start": Start(place_id=WF, ready_at=t(13), kind="after_task"), "tasks": demo_input.tasks[1:], "objective": Objective(allow_unplace=True)})
+    late_start = demo_input.model_copy(
+        update={"start": Start(place_id=WF, ready_at=t(13), kind="after_task"), "tasks": demo_input.tasks[1:], "objective": Objective(allow_unplace=True)}
+    )
     plan = plan_day(late_start)
     assert plan.feasible
     unplaced = [m for m in plan.moved if m.kind == "unplaced"]
@@ -143,7 +154,7 @@ def _brute_force_best(inp: PlannerInput) -> float | None:
             option_lists.append([o.option_id for o in lookup.get((prev, p), ())])
             prev = p
         for choice in itertools.product(*option_lists):
-            order = [(x.task_id, c) for x, c in zip(perm, choice)] + [(None, choice[-1])]
+            order = [(x.task_id, c) for x, c in zip(perm, choice, strict=False)] + [(None, choice[-1])]
             plan, failure, _ = simulate(inp, order)
             if plan is not None and (best is None or plan.cost < best):
                 best = plan.cost
@@ -160,7 +171,13 @@ def test_cheapest_order_matches_brute_force_on_small_cases(seed):
         for b in places:
             if a != b:
                 m = rng.randint(10, 60)
-                pairs.append(PairOptions(from_place=a, to_place=b, options=(opt(f"{a}{b}m", m, rng.randint(10, 60)), opt(f"{a}{b}c", max(5, m - rng.randint(5, 25)), rng.randint(150, 500), Mode.CAB))))
+                pairs.append(
+                    PairOptions(
+                        from_place=a,
+                        to_place=b,
+                        options=(opt(f"{a}{b}m", m, rng.randint(10, 60)), opt(f"{a}{b}c", max(5, m - rng.randint(5, 25)), rng.randint(150, 500), Mode.CAB)),
+                    )
+                )
     snap = TravelSnapshot(snapshot_id=f"rand-{seed}", pairs=tuple(pairs))
     tasks = [
         task("a", "a", duration=rng.randint(20, 90), fixed=t(10)),
@@ -242,7 +259,11 @@ def _raasta_snapshot(last: int, status: str = "verified") -> TravelSnapshot:
         snapshot_id="raasta",
         pairs=(
             PairOptions(from_place="home", to_place="a", options=(opt("home-a", 10, 20),)),
-            PairOptions(from_place="a", to_place="b", options=(opt("auto-ab", 30, 25, Mode.SHARED_AUTO, first=t(7), last=last, raasta=status), opt("cab-ab", 20, 250, Mode.CAB))),
+            PairOptions(
+                from_place="a",
+                to_place="b",
+                options=(opt("auto-ab", 30, 25, Mode.SHARED_AUTO, first=t(7), last=last, raasta=status), opt("cab-ab", 20, 250, Mode.CAB)),
+            ),
             PairOptions(from_place="b", to_place="home", options=(opt("b-home", 10, 20),)),
         ),
     )

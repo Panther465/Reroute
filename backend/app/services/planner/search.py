@@ -330,8 +330,7 @@ def _why_not(ctx: _Ctx, t: PlanTask) -> str:
     """Name why a task can't fit, using the earliest arrival the rules allow."""
     inp = ctx.inp
     relaxed_tasks = tuple(
-        x.model_copy(update={"window": x.window.model_copy(update={"closes": 48 * 60})}) if x.task_id == t.task_id and x.window else x
-        for x in inp.tasks
+        x.model_copy(update={"window": x.window.model_copy(update={"closes": 48 * 60})}) if x.task_id == t.task_id and x.window else x for x in inp.tasks
     )
     objective = inp.objective.model_copy(update={"allow_unplace": True, "min_left_out": 0, "max_left_out": None, "must_include": frozenset({t.task_id})})
     relaxed = inp.model_copy(update={"tasks": relaxed_tasks, "objective": objective})
@@ -364,7 +363,9 @@ def _blocked(ctx: _Ctx) -> Blocked:
         fastest = min((o.travel_min for o in opts), default=0)
         arrival = earliest_leave + fastest
         if arrival > t.fixed_start - rule.fixed_buffer_min:  # type: ignore[operator]
-            return Blocked(task_id=t.task_id, title=t.title, reason=f"The {lower_first(t.title)} starts at {hhmm(t.fixed_start)}; the earliest arrival is {hhmm(arrival)}")  # type: ignore[arg-type]
+            return Blocked(
+                task_id=t.task_id, title=t.title, reason=f"The {lower_first(t.title)} starts at {hhmm(t.fixed_start)}; the earliest arrival is {hhmm(arrival)}"
+            )  # type: ignore[arg-type]
     for t in sorted(ctx.tasks, key=_order_key):
         if _left_out_kind(inp, t) is None:
             return Blocked(task_id=t.task_id, title=t.title, reason=_why_not(ctx, t))

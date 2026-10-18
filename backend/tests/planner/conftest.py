@@ -71,7 +71,9 @@ def replan_input(base: PlannerInput, delay_min: int, automatic: bool = False) ->
     )
 
 
-def opt(option_id: str, minutes: int, fare: int, mode: Mode = Mode.METRO, first: int | None = None, last: int | None = None, raasta: str | None = None) -> LegOption:
+def opt(
+    option_id: str, minutes: int, fare: int, mode: Mode = Mode.METRO, first: int | None = None, last: int | None = None, raasta: str | None = None
+) -> LegOption:
     ref = TransitRef(kind="raasta", ref_id=option_id, status=raasta) if raasta else None
     return LegOption(
         option_id=option_id,

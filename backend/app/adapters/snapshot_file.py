@@ -18,7 +18,9 @@ from app.services.planner.util import to_minutes
 SAMPLE_RAASTA_SERVICE = {"sample-kor-jay": ("07:00", "21:30"), "sample-jay-kor": ("07:00", "21:30")}
 
 
-def parse_snapshot(data: dict[str, Any], raasta_status: dict[str, str] | None = None, raasta_service: dict[str, tuple[str, str]] | None = None) -> TravelSnapshot:
+def parse_snapshot(
+    data: dict[str, Any], raasta_status: dict[str, str] | None = None, raasta_service: dict[str, tuple[str, str]] | None = None
+) -> TravelSnapshot:
     metro = data.get("service", {}).get("metro")
     raasta_service = raasta_service if raasta_service is not None else SAMPLE_RAASTA_SERVICE
     pairs = []

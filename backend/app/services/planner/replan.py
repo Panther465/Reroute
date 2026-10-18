@@ -106,10 +106,12 @@ def _build_option(inp: ReplanInput, kind: OptionKind, plan: PlanResult, base_far
     saved = max(0, base_end - plan.end_time) if base_end is not None and plan.end_time is not None else 0
     moved = [m for m in plan.moved if m.kind == "moved"]
     skipped = [m for m in plan.moved if m.kind == "skipped"]
-    codes: set[ReasonCode] = {c for c in plan.reason_codes if c in (ReasonCode.RAASTA_VERIFIED, ReasonCode.RAASTA_UNVERIFIED, ReasonCode.HOURS_UNKNOWN, ReasonCode.LAST_TRIP_PASSED)}
+    codes: set[ReasonCode] = {
+        c for c in plan.reason_codes if c in (ReasonCode.RAASTA_VERIFIED, ReasonCode.RAASTA_UNVERIFIED, ReasonCode.HOURS_UNKNOWN, ReasonCode.LAST_TRIP_PASSED)
+    }
     if kind == "faster_mode":
         leg = _first_changed_leg(inp, plan)
-        uses_cab = any(l.option.mode is Mode.CAB for l in plan.legs)
+        uses_cab = any(leg.option.mode is Mode.CAB for leg in plan.legs)
         label = explain.faster_label(_title(inp, leg.task_id) if leg else None, uses_cab)
         consequence = explain.faster_consequence(inp.today_task_count)
         text = explain.faster_explanation(inp.today_task_count, extra, uses_cab)
