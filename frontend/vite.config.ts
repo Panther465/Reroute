@@ -1,0 +1,95 @@
+/// <reference types="vitest/config" />
+import { defineConfig } from 'vite'
+import react from '@vitejs/plugin-react'
+import tailwindcss from '@tailwindcss/vite'
+import path from 'node:path'
+import { VitePWA } from 'vite-plugin-pwa'
+
+// Vite config — https://vitejs.dev/config/
+export default defineConfig(({ mode }) => ({
+  base: '/',
+  build: {
+    sourcemap: mode === 'development' ? 'inline' : false,
+    // MapLibre is one large library, loaded only when a map is on screen.
+    chunkSizeWarningLimit: 1100,
+    rollupOptions: {
+      output: {
+        // Keep the app shell small: the heavy libraries load in their own cacheable chunks.
+        manualChunks(id) {
+          if (id.includes('maplibre-gl')) return 'maplibre'
+          if (id.includes('node_modules/motion') || id.includes('node_modules/framer-motion')) return 'motion'
+          if (id.includes('node_modules/@radix-ui')) return 'radix'
+          if (id.includes('node_modules/react') || id.includes('node_modules/scheduler') || id.includes('node_modules/@tanstack')) return 'react'
+          return undefined
+        },
+      },
+    },
+  },
+  plugins: [
+    react(),
+    tailwindcss(),
+    VitePWA({
+      registerType: 'autoUpdate',
+      injectRegister: 'auto',
+      includeAssets: ['favicon.svg', 'apple-touch-icon.png'],
+      manifest: {
+        name: 'Reroute',
+        short_name: 'Reroute',
+        description: "Running late? We'll reroute your day.",
+        theme_color: '#0B7A4B',
+        background_color: '#EDF0EB',
+        display: 'standalone',
+        start_url: '/',
+        scope: '/',
+        icons: [
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
+          { src: 'icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+        ],
+      },
+      workbox: {
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
+        navigateFallback: 'index.html',
+        // API responses are cached by the persisted query cache, not the service worker.
+        navigateFallbackDenylist: [/^\/v1\//],
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'google-fonts-css' },
+          },
+          {
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            handler: 'CacheFirst',
+            options: { cacheName: 'google-fonts', expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 }, cacheableResponse: { statuses: [0, 200] } },
+          },
+          {
+            urlPattern: /^https:\/\/tiles\.openfreemap\.org\/.*/i,
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'map-tiles', expiration: { maxEntries: 600, maxAgeSeconds: 60 * 60 * 24 * 14 }, cacheableResponse: { statuses: [0, 200] } },
+          },
+        ],
+      },
+    }),
+  ],
+  resolve: {
+    alias: {
+      '@': path.resolve(__dirname, './src'),
+    },
+  },
+  server: {
+    port: 5173,
+    proxy: {
+      // Raasta first: its prefix is more specific than /v1.
+      '/v1/raasta': { target: 'http://localhost:8001', changeOrigin: true },
+      '/v1': { target: 'http://localhost:8000', changeOrigin: true },
+    },
+  },
+  test: {
+    environment: 'jsdom',
+    pool: 'threads',
+    include: ['src/**/*.test.{ts,tsx}'],
+  },
+}))

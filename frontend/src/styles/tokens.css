@@ -1,0 +1,110 @@
+/* Reroute design tokens. Components reference these through the Tailwind theme; never use raw hex in components. */
+:root {
+  color-scheme: light;
+  --ground: #edf0eb;
+  --surface: #ffffff;
+  --surface-sunken: #e3e8e1;
+  --line: #d5dbd3;
+  --line-strong: #aeb7ae;
+  --ink: #1a2230;
+  --ink-2: #3d4757;
+  --muted: #566173;
+  --green: #0b7a4b;
+  --green-ink: #0a5c39;
+  --green-tint: #dcefe4;
+  --yellow: #f2c12e;
+  --red: #c8102e;
+  --red-ink: #9e0c24;
+  --red-tint: #fbe3e6;
+  --blue: #2d5bd0;
+  --blue-tint: #e3eafb;
+  --focus: #2d5bd0;
+  --on-green: #ffffff;
+  --on-ink: #ffffff;
+  --on-yellow: #1a2230;
+
+  --scrim: rgba(16, 22, 31, 0.45);
+  --shadow-sheet: 0 -8px 32px rgba(16, 22, 31, 0.18);
+  --shadow-toast: 0 8px 24px rgba(16, 22, 31, 0.24);
+
+  --dur-instant: 90ms;
+  --dur-quick: 160ms;
+  --dur-base: 240ms;
+  --dur-slow: 400ms;
+  --dur-hero: 900ms;
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+}
+
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --ground: #10161f;
+  --surface: #18202b;
+  --surface-sunken: #0c1118;
+  --line: #2a3442;
+  --line-strong: #3b4757;
+  --ink: #eef1ec;
+  --ink-2: #c3cbd5;
+  --muted: #9aa5b3;
+  --green: #34b27b;
+  --green-ink: #8fe0b8;
+  --green-tint: #12382a;
+  --yellow: #f2c12e;
+  --red: #ff5c6f;
+  --red-ink: #ffb3bc;
+  --red-tint: #3a141b;
+  --blue: #7096ff;
+  --blue-tint: #18264a;
+  --focus: #7096ff;
+  --on-green: #10161f;
+  --on-ink: #10161f;
+  --on-yellow: #1a2230;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --ground: #10161f;
+    --surface: #18202b;
+    --surface-sunken: #0c1118;
+    --line: #2a3442;
+    --line-strong: #3b4757;
+    --ink: #eef1ec;
+    --ink-2: #c3cbd5;
+    --muted: #9aa5b3;
+    --green: #34b27b;
+    --green-ink: #8fe0b8;
+    --green-tint: #12382a;
+    --yellow: #f2c12e;
+    --red: #ff5c6f;
+    --red-ink: #ffb3bc;
+    --red-tint: #3a141b;
+    --blue: #7096ff;
+    --blue-tint: #18264a;
+    --focus: #7096ff;
+    --on-green: #10161f;
+    --on-ink: #10161f;
+    --on-yellow: #1a2230;
+  }
+}
+
+/* Google sign-in button colours, per Google's branding guidelines. */
+:root {
+  --google-bg: #ffffff;
+  --google-border: #747775;
+  --google-text: #1f1f1f;
+}
+:root[data-theme='dark'] {
+  --google-bg: #131314;
+  --google-border: #8e918f;
+  --google-text: #e3e3e3;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --google-bg: #131314;
+    --google-border: #8e918f;
+    --google-text: #e3e3e3;
+  }
+}
