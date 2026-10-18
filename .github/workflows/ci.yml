@@ -104,6 +104,9 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Start everything with one command
+        # The browser tests sign in once per test from one IP, so the sign-in limit is raised here only.
+        env:
+          AUTH_RATE_LIMIT_PER_MINUTE: "1000"
         run: docker compose up -d --build --wait --wait-timeout 600
       - name: Postman collection (Newman)
         run: npx --yes newman@6 run postman/reroute.postman_collection.json --insecure --reporters cli
@@ -121,6 +124,13 @@ jobs:
           pnpm install --frozen-lockfile
           pnpm exec playwright install --with-deps chromium
           pnpm e2e
+      - name: Keep the browser test results
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-results
+          path: frontend/test-results
+          retention-days: 7
       - name: Logs on failure
         if: failure()
         run: docker compose logs --tail=200
