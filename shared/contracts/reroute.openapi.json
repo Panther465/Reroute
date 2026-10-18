@@ -1860,7 +1860,7 @@
           "idempotencyKey": {
             "type": "string",
             "maxLength": 128,
-            "minLength": 8,
+            "minLength": 4,
             "pattern": "^[A-Za-z0-9._:-]+$",
             "title": "Idempotencykey"
           }
@@ -1876,7 +1876,7 @@
           "idempotencyKey": {
             "type": "string",
             "maxLength": 128,
-            "minLength": 8,
+            "minLength": 4,
             "pattern": "^[A-Za-z0-9._:-]+$",
             "title": "Idempotencykey"
           }
@@ -1915,7 +1915,7 @@
           "idempotencyKey": {
             "type": "string",
             "maxLength": 128,
-            "minLength": 8,
+            "minLength": 4,
             "pattern": "^[A-Za-z0-9._:-]+$",
             "title": "Idempotencykey"
           },
@@ -1938,7 +1938,7 @@
           "idempotencyKey": {
             "type": "string",
             "maxLength": 128,
-            "minLength": 8,
+            "minLength": 4,
             "pattern": "^[A-Za-z0-9._:-]+$",
             "title": "Idempotencykey"
           },
@@ -2087,7 +2087,7 @@
           "idempotencyKey": {
             "type": "string",
             "maxLength": 128,
-            "minLength": 8,
+            "minLength": 4,
             "pattern": "^[A-Za-z0-9._:-]+$",
             "title": "Idempotencykey"
           },
@@ -2884,7 +2884,7 @@
           "idempotencyKey": {
             "type": "string",
             "maxLength": 128,
-            "minLength": 8,
+            "minLength": 4,
             "pattern": "^[A-Za-z0-9._:-]+$",
             "title": "Idempotencykey"
           },
@@ -2912,7 +2912,7 @@
           "idempotencyKey": {
             "type": "string",
             "maxLength": 128,
-            "minLength": 8,
+            "minLength": 4,
             "pattern": "^[A-Za-z0-9._:-]+$",
             "title": "Idempotencykey"
           }
@@ -2955,7 +2955,7 @@
           "idempotencyKey": {
             "type": "string",
             "maxLength": 128,
-            "minLength": 8,
+            "minLength": 4,
             "pattern": "^[A-Za-z0-9._:-]+$",
             "title": "Idempotencykey"
           }
@@ -3483,7 +3483,7 @@
           "idempotencyKey": {
             "type": "string",
             "maxLength": 128,
-            "minLength": 8,
+            "minLength": 4,
             "pattern": "^[A-Za-z0-9._:-]+$",
             "title": "Idempotencykey"
           },
@@ -3855,7 +3855,7 @@
           "idempotencyKey": {
             "type": "string",
             "maxLength": 128,
-            "minLength": 8,
+            "minLength": 4,
             "pattern": "^[A-Za-z0-9._:-]+$",
             "title": "Idempotencykey"
           },

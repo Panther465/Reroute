@@ -141,7 +141,7 @@ def test_access_tokens_round_trip_and_expire():
             "idempotencyKey": "k-0000001",
         },
         {"title": "Bank", "placeId": "p", "durationMin": 30, "window": {"opensAt": "16:00", "closesAt": "10:00"}, "idempotencyKey": "k-0000001"},
-        {"title": "Bank", "placeId": "p", "durationMin": 30, "idempotencyKey": "short"},
+        {"title": "Bank", "placeId": "p", "durationMin": 30, "idempotencyKey": "abc"},
     ],
 )
 def test_task_validation(body):

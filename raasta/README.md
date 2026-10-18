@@ -52,7 +52,7 @@ All paths start with `/v1/raasta`. Reads are open data; writes need a Reroute ac
 Conventions shared with the Reroute API:
 
 - JSON is camelCase. Times of day are `HH:MM`; timestamps are ISO 8601 with `+05:30`; money is whole rupees.
-- Every POST takes an `idempotencyKey` (8 to 128 characters) in its body. The same key with the same
+- Every POST takes an `idempotencyKey` (4 to 128 characters) in its body. The same key with the same
   body returns the first response again, with `Idempotent-Replayed: true`. The same key with a
   different body returns 409 `IDEMPOTENCY_CONFLICT`. Keys are kept for 24 hours.
 - Errors: `{"error": {"code": "...", "message": "...", "traceId": "..."}}`. Send `X-Request-ID`
