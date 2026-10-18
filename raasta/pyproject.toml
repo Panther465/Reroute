@@ -1,0 +1,50 @@
+[project]
+name = "raasta-api"
+version = "0.1.0"
+description = "Raasta API: crowdsourced shared-auto, e-rickshaw and tempo routes, moderation and GTFS export."
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.32",
+  "pydantic>=2.9,<3",
+  "pydantic-settings>=2.6",
+  "sqlalchemy>=2.0.36",
+  "psycopg[binary]>=3.2",
+  "alembic>=1.14",
+  "geoalchemy2>=0.16",
+  "redis>=5.2",
+  "pymongo>=4.10",
+  "httpx>=0.28",
+  "pyjwt[crypto]>=2.10",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3",
+  "pytest-cov>=6.0",
+  "fakeredis>=2.26",
+  "ruff>=0.8",
+]
+
+[build-system]
+requires = ["setuptools>=75"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["app*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+markers = ["db: needs a PostgreSQL + PostGIS database (TEST_DATABASE_URL)"]
+
+[tool.coverage.run]
+source = ["app"]
+
+[tool.ruff]
+line-length = 160
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = ["B008"]

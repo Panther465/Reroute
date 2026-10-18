@@ -1,0 +1,45 @@
+"""Settings. Every value comes from an environment variable documented in .env.example."""
+
+from __future__ import annotations
+
+from functools import lru_cache
+from typing import Literal
+
+from pydantic import Field, model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    app_env: Literal["development", "test", "production"] = "development"
+    database_url: str = "postgresql+psycopg://raasta_app:raasta_app@localhost:5432/reroute"
+    redis_url: str = "redis://localhost:6379/1"
+    mongo_url: str = "mongodb://localhost:27017"
+    mongo_db: str = "reroute"
+    jwt_secret: str = Field(default="dev-only-change-me", min_length=16)
+    jwt_issuer: str = "reroute"
+    jwt_audience: str = "reroute-api"
+    osrm_url: str | None = None
+    osrm_profile: str = "driving"
+    osrm_timeout_s: float = 4.0
+    max_body_bytes: int = 1024 * 1024
+    city_utc_offset: str = "+05:30"
+    walk_radius_m: int = 800
+    walk_speed_m_per_min: int = 80
+    stand_reuse_radius_m: int = 30
+    rate_limit_per_minute: int = 60
+    contributions_per_day: int = 10
+    examples_dir: str = "../examples/bengaluru"
+    log_level: str = "INFO"
+
+    @model_validator(mode="after")
+    def _no_dev_secret_in_production(self) -> Settings:
+        if self.app_env == "production" and self.jwt_secret == "dev-only-change-me":
+            raise ValueError("JWT_SECRET must be set in production")
+        return self
+
+
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
