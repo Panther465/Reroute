@@ -1,0 +1,38 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+dev-dist/
+*.tsbuildinfo
+.vite/
+playwright-report/
+test-results/
+
+# Environment and secrets: only the .env.example files are committed
+.env
+.env.*
+!.env.example
+
+# Data prepared at runtime
+infra/osrm/data/
+*.osm.pbf
+
+# Editors and OS
+.idea/
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+Thumbs.db
+*.log
