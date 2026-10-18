@@ -17,6 +17,15 @@ Honest gaps in this build. Each is a deliberate scope choice or waits on the tea
 - **Location is not collected.** The re-plan loop works from check-ins and the clock; the `location_timeline` collection and its deletion endpoint are in place for when the team adds location sharing.
 - **Leave-now browser notifications** need the traveller's permission, asked from the Me screen.
 
+## API gaps the web app works around
+
+- **A trip's city, dates and place of stay can't be edited** after creation (no `PATCH /v1/trips/:id`); the Plan screen shows them read-only.
+- **A share link's token is shown once** (only its hash is stored). After a reload the app can't show the link again without creating a new one.
+- **Raasta has no "my contributions" list or contributor names**, so the Raasta tab doesn't list your own routes and the moderator queue shows a short rider ID.
+- **Nearby stands don't carry their route IDs**, so tapping one fills the search instead of opening a route.
+- **Written directions are generated in the app** from leg segments and route stands; the API has no directions field.
+- **Raasta route options carry no ride minutes**, only fare, frequency and walking time.
+
 ## Operations
 
 - **The NGINX certificate is self-signed** for local use. Deploy with a real certificate.
