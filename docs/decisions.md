@@ -32,7 +32,7 @@ Details the briefs don't settle, the simplest choice that keeps every rule, and 
 
 18. **Auth routes are exempt from idempotency.** Replaying a sign-in or refresh would hand out stored credentials. Every other POST requires `idempotencyKey`; a test walks the OpenAPI file to enforce it.
 19. **Idempotency keys are scoped to the caller** (the verified token's subject, or the IP when anonymous) and to the path.
-20. **Added endpoints** (documented in the OpenAPI file and Postman): `GET /v1/places` (place search for the task form), `GET /v1/trips/:id/share-links`, and three demo-only routes under `/v1/trips/:id/demo/` (`clock`, `check`, `reset`) that exist only with `DEMO_LOGIN=true`. **Needs team sign-off** (the brief asks before adding endpoints).
+20. **Added endpoints** (documented in the OpenAPI file and Postman): `GET /v1/places` (place search for the task form), `GET /v1/trips/:id/share-links`, `DELETE /v1/trips/:id/tasks/:taskId` (only for a task without check-ins, so the record stays complete), and three demo-only routes under `/v1/trips/:id/demo/` (`clock`, `check`, `reset`) that exist only with `DEMO_LOGIN=true`. **Needs team sign-off** (the brief asks before adding endpoints).
 21. **Calendar import returns draft tasks and saves nothing.** Events without a time, or whose location doesn't match a known place, come back with `placeId: null` for the traveller to fix.
 22. **Window times** (`opensAt`, `closesAt`) are local times of day (`"10:00"`), not full timestamps; fixed starts are full ISO 8601 with the offset.
 23. **Live events need the access token in a header**, so the web app reads the stream with `fetch`, not `EventSource`.
@@ -45,11 +45,29 @@ Details the briefs don't settle, the simplest choice that keeps every rule, and 
 27. **If Raasta is unreachable**, its routes count as unverified, so they can only be labelled extras and the plan still works with metro, walking and cabs.
 28. **The travel-time snapshot ID** includes a hash of the Raasta statuses and service hours it used, so replays stay exact.
 
+## Raasta
+
+29. **A route serves a leg** when its boarding stand comes before its alighting stand and each is within `WALK_RADIUS_M` (800 m) of the ends. Walking is estimated at 80 m/min and the expected wait at half the frequency, rounded up.
+30. **`GET /routes` returns `rideDistanceM`**, not ride minutes: the Raasta route contract has no travel time, so travel minutes come from the travel-time snapshot (and OSRM when enabled).
+31. **Before its first trip** a route is still listed and the planner's service-hours rule makes the traveller wait; only "after the last trip" leaves it out (`lastTripPassed`).
+32. **A stale route goes back to verification** as a waiting `freshness_check` contribution in the moderator queue. Rejecting a new route or a freshness check removes the route.
+33. **Taps within 30 m of an existing stand reuse it.** Without OSRM, route paths fall back to straight lines between stands, or to the trimmed ride points.
+34. **GTFS** uses `route_type` 1501 (share taxi) and one frequency-based template trip per route; the calendar runs one year from the export date, which the request handler passes in, and the feed includes `feed_info.txt`.
+35. **`/readyz` answers 500 `INTERNAL`** when a dependency is down, because the brief's error list has no 503. Raasta's Redis keys live in database 1.
+
 ## Infrastructure
 
-29. **OSRM is an optional Compose profile.** The Bengaluru demo uses the sample snapshot (`TRAVEL_TIMES_SOURCE=sample`), so `docker compose up` works without preparing a map. `--profile routing` downloads and prepares the southern India extract for car and foot.
-30. **Tests run jobs inline** (`QUEUE_SYNC=true`) on in-memory Redis; the setting is refused in production.
+36. **OSRM is an optional Compose profile.** The Bengaluru demo uses the sample snapshot (`TRAVEL_TIMES_SOURCE=sample`), so `docker compose up` works without preparing a map. `--profile routing` downloads and prepares the southern India extract for car and foot.
+37. **Tests run jobs inline** (`QUEUE_SYNC=true`) on in-memory Redis; the setting is refused in production.
 
 ## Frontend
 
-31. **The existing Figma Make app is the starting point.** It was ported to the real APIs; the client-side planner was removed so there is exactly one planner.
+38. **The existing Figma Make app is the starting point.** It was ported to the real APIs; the client-side planner was removed so there is exactly one planner.
+- **One planner.** The client-side planner from the prototype is gone; the web app renders the server's plan. `src/lib/timeline.ts` turns the trip into the timeline view model and is unit-tested against the golden plan.
+- **The app's clock is the server's `now`**, never the device clock, so the demo clock drives every screen.
+- **Where the traveller is, on screen:** a leg counts as being ridden between its leave-by and arrival times; "Check in" targets the current task, else the next one. "Start this leg" is local only.
+- **Window tags read "Open till HH:MM"**: the API doesn't distinguish "open till" from "closes".
+- **Offline:** the TanStack Query cache persists for 7 days, so the active plan renders after an offline reload. Check-ins made offline are queued with their idempotency keys and sent when the phone is back online; a 4xx answer drops one, a 5xx or no connection keeps it.
+- **Live events are read with `fetch`** because `EventSource` can't send the access token.
+- **Code splitting:** every screen except Today loads on demand; MapLibre alone is above the default chunk warning, so the limit is 1100 kB.
+- **Animated elements** (UI brief motion rules, with reduced-motion versions): the sign-in hero is a 2-second, one-shot preview of the reroute choreography on the sample day; on Today, a mode-coloured marker sits on the leg being ridden at the share of the leg already travelled and moves only when the clock does.
