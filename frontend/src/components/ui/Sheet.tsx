@@ -1,7 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 import { AnimatePresence, motion, useDragControls, useReducedMotion, type PanInfo } from 'motion/react'
-import type { ReactNode } from 'react'
+import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { useIsDesktop } from '@/lib/hooks'
 
 const sheetSpring = { type: 'spring' as const, stiffness: 420, damping: 40 }
@@ -25,6 +25,18 @@ export function Sheet({ open, onOpenChange, title, description, children, footer
   const desktop = useIsDesktop()
   const reduce = useReducedMotion()
   const drag = useDragControls()
+  // Sheets opened from app state (not a Radix trigger) still return focus to where it was (UI brief 11).
+  const returnTo = useRef<HTMLElement | null>(null)
+  useLayoutEffect(() => {
+    if (open) returnTo.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  }, [open])
+  const restoreFocus = (e: Event) => {
+    const el = returnTo.current
+    if (el && el.isConnected) {
+      e.preventDefault()
+      el.focus()
+    }
+  }
 
   const onDragEnd = (_: unknown, info: PanInfo) => {
     if (info.offset.y > 140 || info.velocity.y > 600) onOpenChange(false)
@@ -43,7 +55,7 @@ export function Sheet({ open, onOpenChange, title, description, children, footer
                 exit={{ opacity: 0, transition: { duration: 0.24 } }}
               />
             </Dialog.Overlay>
-            <Dialog.Content asChild forceMount aria-describedby={description ? undefined : undefined}>
+            <Dialog.Content asChild forceMount onCloseAutoFocus={restoreFocus}>
               {desktop ? (
                 <motion.div
                   className="fixed left-1/2 top-1/2 z-50 flex max-h-[88vh] w-[min(560px,calc(100vw-64px))] flex-col rounded-sheet bg-surface text-ink shadow-[var(--shadow-toast)] outline-none"

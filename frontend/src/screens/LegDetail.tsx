@@ -59,14 +59,15 @@ function StandLine({ board, alight, alightNote, mode }: { board: string; alight:
 function Fact({ icon, term, children }: { icon: ReactNode; term: string; children: ReactNode }) {
   const t = useT()
   return (
-    <div className="flex gap-3 py-3">
-      <span className="mt-0.5 shrink-0 text-muted" aria-hidden="true">
-        {icon}
-      </span>
-      <div className="min-w-0">
-        <dt className="t-small text-muted">{t(term)}</dt>
-        <dd className="t-body text-ink tnum">{children}</dd>
-      </div>
+    // dt and dd must sit directly in the div that groups them (axe: definition-list, dlitem).
+    <div className="relative py-3 pl-8">
+      <dt className="t-small text-muted">
+        <span className="absolute left-0 top-3.5 text-muted" aria-hidden="true">
+          {icon}
+        </span>
+        {t(term)}
+      </dt>
+      <dd className="min-w-0 t-body text-ink tnum">{children}</dd>
     </div>
   )
 }
