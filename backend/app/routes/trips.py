@@ -226,6 +226,22 @@ def edit_task(task_id: str, body: TaskPatch, trip: OwnedTrip, db: Db) -> TaskEdi
     return TaskEditOut(task=task_out(task), job_id=job_id)
 
 
+@router.delete("/trips/{trip_id}/tasks/{task_id}", status_code=204, summary="Remove a task that hasn't been planned or done")
+def delete_task(task_id: str, trip: OwnedTrip, db: Db) -> Response:
+    task = db.get(Task, task_id)
+    if task is None or task.trip_id != trip.trip_id:
+        raise ApiError(404, "Task not found.")
+    if task.state == "done" or db.scalar(select(Checkin.checkin_id).where(Checkin.task_id == task_id).limit(1)):
+        raise ApiError(409, "This task has check-ins, so it stays in the record. Skip it instead.")
+    active = plan_store.active_plan(db, trip.trip_id)
+    in_plan = active is not None and any(leg.get("taskId") == task_id for leg in [*active.legs, *(active.done_legs or [])])
+    db.delete(task)
+    db.commit()
+    if in_plan:
+        get_queue().enqueue(jobs.plan_trip, trip.trip_id, "edited")
+    return Response(status_code=204)
+
+
 # ---------- plans and jobs ----------
 
 
