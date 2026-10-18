@@ -1,0 +1,45 @@
+[project]
+name = "reroute-api"
+version = "0.1.0"
+description = "Reroute API: trips, tasks, the planner, the re-plan loop and live updates."
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115,<1",
+  "uvicorn[standard]>=0.32",
+  "pydantic>=2.9,<3",
+  "pydantic-settings>=2.6",
+  "sqlalchemy>=2.0.36",
+  "psycopg[binary]>=3.2",
+  "alembic>=1.14",
+  "geoalchemy2>=0.16",
+  "redis>=5.2",
+  "rq>=2.0",
+  "pymongo>=4.10",
+  "httpx>=0.28",
+  "pyjwt[crypto]>=2.10",
+  "sse-starlette>=2.1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.3",
+  "pytest-cov>=6.0",
+  "fakeredis>=2.26",
+  "ruff>=0.8",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["app/workers/run_*.py"]
+
+[tool.ruff]
+line-length = 160
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = ["B008"]

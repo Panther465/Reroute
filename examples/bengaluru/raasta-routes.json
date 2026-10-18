@@ -1,0 +1,23 @@
+{
+  "sample": true,
+  "note": "Sample Raasta data for the Bengaluru demo. Not surveyed. The Koramangala to Jayanagar route comes from the briefs; the others exist only to demonstrate the unverified, stale and e-rickshaw states, and are labelled as sample.",
+  "citySlug": "bengaluru",
+  "stands": [
+    { "standId": "std-kor5", "name": "Koramangala 5th Block stand", "lng": 77.6185, "lat": 12.934 },
+    { "standId": "std-forum", "name": "Forum Mall", "lng": 77.6112, "lat": 12.9346 },
+    { "standId": "std-dairy", "name": "Dairy Circle", "lng": 77.6013, "lat": 12.9375 },
+    { "standId": "std-jay4", "name": "Jayanagar 4th Block stand", "lng": 77.583, "lat": 12.929 },
+    { "standId": "std-btm", "name": "BTM Layout water tank", "lng": 77.6101, "lat": 12.9166 },
+    { "standId": "std-ind100", "name": "Indiranagar 100 Feet Road stand", "lng": 77.6408, "lat": 12.9784 },
+    { "standId": "std-mg", "name": "MG Road metro stand", "lng": 77.607, "lat": 12.9756 },
+    { "standId": "std-maj", "name": "Majestic bus stand gate 3", "lng": 77.5727, "lat": 12.9774 },
+    { "standId": "std-mall8", "name": "Malleshwaram 8th Cross", "lng": 77.57, "lat": 13.0035 }
+  ],
+  "routes": [
+    { "routeId": "sample-kor-jay", "standIds": ["std-kor5", "std-forum", "std-dairy", "std-jay4"], "vehicleType": "shared_auto", "fareInr": 30, "frequencyMin": 10, "firstTrip": "07:00", "lastTrip": "21:30", "status": "verified", "source": "import", "confirmedDaysAgo": 3, "confirmations": 4 },
+    { "routeId": "sample-jay-kor", "standIds": ["std-jay4", "std-dairy", "std-forum", "std-kor5"], "vehicleType": "shared_auto", "fareInr": 30, "frequencyMin": 10, "firstTrip": "07:00", "lastTrip": "21:30", "status": "verified", "source": "import", "confirmedDaysAgo": 3, "confirmations": 4 },
+    { "routeId": "sample-ind-mg", "standIds": ["std-ind100", "std-mg"], "vehicleType": "e_rickshaw", "fareInr": 20, "frequencyMin": 8, "firstTrip": "07:30", "lastTrip": "22:00", "status": "verified", "source": "import", "confirmedDaysAgo": 1, "confirmations": 7 },
+    { "routeId": "sample-jay-btm", "standIds": ["std-jay4", "std-btm"], "vehicleType": "shared_auto", "fareInr": 25, "frequencyMin": 15, "firstTrip": "08:00", "lastTrip": "20:45", "status": "unverified", "source": "gps_ride", "confirmedDaysAgo": 12, "confirmations": 1 },
+    { "routeId": "sample-maj-mall", "standIds": ["std-maj", "std-mall8"], "vehicleType": "tempo", "fareInr": 20, "frequencyMin": 20, "firstTrip": "06:30", "lastTrip": "21:00", "status": "stale", "source": "stands_tapped", "confirmedDaysAgo": 96, "confirmations": 2 }
+  ]
+}

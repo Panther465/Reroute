@@ -1,0 +1,27 @@
+{
+  "sample": true,
+  "note": "Sample Bengaluru demo trip (project brief, section 16). IDs match the API examples.",
+  "trip": {
+    "tripId": "trip-001",
+    "citySlug": "bengaluru",
+    "cityName": "Bengaluru",
+    "startDate": "2026-10-14",
+    "endDate": "2026-10-15",
+    "utcOffset": "+05:30",
+    "stayPlaceId": "hotel-majestic",
+    "stayLabel": "Hotel near Majestic"
+  },
+  "places": [
+    { "placeId": "hotel-majestic", "name": "Hotel near Majestic", "area": "Majestic", "lng": 77.5713, "lat": 12.9767, "sample": true },
+    { "placeId": "whitefield-office", "name": "ITPL Road office", "area": "Whitefield", "lng": 77.7318, "lat": 12.9855, "sample": true },
+    { "placeId": "koramangala-bank", "name": "Bank, 80 Feet Road", "area": "Koramangala", "lng": 77.6195, "lat": 12.9352, "sample": true },
+    { "placeId": "jayanagar-office", "name": "University admin office", "area": "Jayanagar", "lng": 77.5838, "lat": 12.9255, "sample": true },
+    { "placeId": "ksr-station", "name": "KSR Bengaluru City station", "area": "KSR Bengaluru", "lng": 77.5694, "lat": 12.9779, "sample": true }
+  ],
+  "tasks": [
+    { "taskId": "task-meet", "title": "Meeting", "placeId": "whitefield-office", "durationMin": 60, "fixedStart": "2026-10-14T10:00:00+05:30", "priority": 1 },
+    { "taskId": "task-bank", "title": "Bank", "placeId": "koramangala-bank", "durationMin": 150, "window": { "opensAt": "10:00", "closesAt": "16:00" }, "priority": 1 },
+    { "taskId": "task-office", "title": "University office", "placeId": "jayanagar-office", "durationMin": 45, "window": { "opensAt": "10:00", "closesAt": "17:00" }, "priority": 1 },
+    { "taskId": "task-train", "title": "Train home", "placeId": "ksr-station", "durationMin": 30, "fixedStart": "2026-10-15T21:00:00+05:30", "priority": 1 }
+  ]
+}

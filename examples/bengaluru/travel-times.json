@@ -1,0 +1,83 @@
+{
+  "sample": true,
+  "note": "Sample travel-time snapshot for the Bengaluru demo (project brief, section 16). Times include walking and the expected wait. Every value is an estimate. Pairs not listed have no leg option.",
+  "snapshotId": "blr-sample-2026-10-14",
+  "citySlug": "bengaluru",
+  "service": {
+    "metro": { "first": "05:00", "last": "23:00" }
+  },
+  "pairs": [
+    {
+      "from": "hotel-majestic",
+      "to": "whitefield-office",
+      "options": [
+        { "optionId": "hotel-whitefield-transit", "mode": "metro", "label": "Metro, then shared auto", "segments": [{ "mode": "metro", "minutes": 45 }, { "mode": "shared_auto", "minutes": 15 }], "travelMin": 60, "fareInr": 70, "transitRef": { "kind": "metro", "refId": "purple-line" } },
+        { "optionId": "hotel-whitefield-cab", "mode": "cab", "label": "Cab", "segments": [{ "mode": "cab", "minutes": 75 }], "travelMin": 75, "fareInr": 600 }
+      ]
+    },
+    {
+      "from": "hotel-majestic",
+      "to": "koramangala-bank",
+      "options": [
+        { "optionId": "hotel-koramangala-metro", "mode": "metro", "label": "Metro", "segments": [{ "mode": "metro", "minutes": 35 }], "travelMin": 35, "fareInr": 30, "transitRef": { "kind": "metro", "refId": "purple-line" } },
+        { "optionId": "hotel-koramangala-cab", "mode": "cab", "label": "Cab", "segments": [{ "mode": "cab", "minutes": 40 }], "travelMin": 40, "fareInr": 300 }
+      ]
+    },
+    {
+      "from": "hotel-majestic",
+      "to": "jayanagar-office",
+      "options": [
+        { "optionId": "hotel-jayanagar-metro", "mode": "metro", "label": "Metro", "segments": [{ "mode": "metro", "minutes": 20 }], "travelMin": 20, "fareInr": 30, "transitRef": { "kind": "metro", "refId": "green-line" } },
+        { "optionId": "hotel-jayanagar-cab", "mode": "cab", "label": "Cab", "segments": [{ "mode": "cab", "minutes": 35 }], "travelMin": 35, "fareInr": 250 }
+      ]
+    },
+    {
+      "from": "whitefield-office",
+      "to": "koramangala-bank",
+      "options": [
+        { "optionId": "whitefield-koramangala-transit", "mode": "metro", "label": "Metro, then shared auto", "segments": [{ "mode": "metro", "minutes": 55 }, { "mode": "shared_auto", "minutes": 25 }], "travelMin": 80, "fareInr": 80, "transitRef": { "kind": "metro", "refId": "purple-line" } },
+        { "optionId": "whitefield-koramangala-cab", "mode": "cab", "label": "Cab", "segments": [{ "mode": "cab", "minutes": 50 }], "travelMin": 50, "fareInr": 430 }
+      ]
+    },
+    {
+      "from": "whitefield-office",
+      "to": "jayanagar-office",
+      "options": [
+        { "optionId": "whitefield-jayanagar-transit", "mode": "metro", "label": "Metro, then shared auto", "segments": [{ "mode": "metro", "minutes": 75 }, { "mode": "shared_auto", "minutes": 25 }], "travelMin": 100, "fareInr": 90, "transitRef": { "kind": "metro", "refId": "purple-line" } },
+        { "optionId": "whitefield-jayanagar-cab", "mode": "cab", "label": "Cab", "segments": [{ "mode": "cab", "minutes": 70 }], "travelMin": 70, "fareInr": 550 }
+      ]
+    },
+    {
+      "from": "koramangala-bank",
+      "to": "jayanagar-office",
+      "options": [
+        { "optionId": "koramangala-jayanagar-raasta", "mode": "shared_auto", "label": "Shared auto", "segments": [{ "mode": "shared_auto", "minutes": 40 }], "travelMin": 40, "fareInr": 30, "transitRef": { "kind": "raasta", "refId": "sample-kor-jay" } },
+        { "optionId": "koramangala-jayanagar-cab", "mode": "cab", "label": "Cab", "segments": [{ "mode": "cab", "minutes": 30 }], "travelMin": 30, "fareInr": 250 }
+      ]
+    },
+    {
+      "from": "jayanagar-office",
+      "to": "koramangala-bank",
+      "options": [
+        { "optionId": "jayanagar-koramangala-raasta", "mode": "shared_auto", "label": "Shared auto", "segments": [{ "mode": "shared_auto", "minutes": 40 }], "travelMin": 40, "fareInr": 30, "transitRef": { "kind": "raasta", "refId": "sample-jay-kor" } },
+        { "optionId": "jayanagar-koramangala-cab", "mode": "cab", "label": "Cab", "segments": [{ "mode": "cab", "minutes": 30 }], "travelMin": 30, "fareInr": 250 }
+      ]
+    },
+    {
+      "from": "koramangala-bank",
+      "to": "hotel-majestic",
+      "options": [
+        { "optionId": "koramangala-hotel-metro", "mode": "metro", "label": "Metro", "segments": [{ "mode": "walk", "minutes": 5 }, { "mode": "metro", "minutes": 30 }], "travelMin": 35, "fareInr": 30, "transitRef": { "kind": "metro", "refId": "purple-line" } },
+        { "optionId": "koramangala-hotel-cab", "mode": "cab", "label": "Cab", "segments": [{ "mode": "cab", "minutes": 40 }], "travelMin": 40, "fareInr": 300 }
+      ]
+    },
+    {
+      "from": "jayanagar-office",
+      "to": "hotel-majestic",
+      "options": [
+        { "optionId": "jayanagar-hotel-metro", "mode": "metro", "label": "Metro", "segments": [{ "mode": "metro", "minutes": 20 }], "travelMin": 20, "fareInr": 30, "transitRef": { "kind": "metro", "refId": "green-line" } },
+        { "optionId": "jayanagar-hotel-cab", "mode": "cab", "label": "Cab", "segments": [{ "mode": "cab", "minutes": 35 }], "travelMin": 35, "fareInr": 250 }
+      ]
+    }
+  ]
+}
