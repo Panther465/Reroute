@@ -1,0 +1,4120 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Reroute API",
+    "description": "Plans a work day in a new city and re-plans it when the traveller runs late. Every time and fare is an estimate.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/v1/auth/google": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Google",
+        "operationId": "google_v1_auth_google_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleSignIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/demo": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Demo sign-in (only when DEMO_LOGIN=true)",
+        "operationId": "demo_v1_auth_demo_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoSignIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/refresh": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Refresh",
+        "operationId": "refresh_v1_auth_refresh_post",
+        "parameters": [
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "name": "rr_refresh",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Rr Refresh"
+            }
+          },
+          {
+            "name": "rr_csrf",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Rr Csrf"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/logout": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Logout",
+        "operationId": "logout_v1_auth_logout_post",
+        "parameters": [
+          {
+            "name": "x-csrf-token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Csrf-Token"
+            }
+          },
+          {
+            "name": "rr_refresh",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Rr Refresh"
+            }
+          },
+          {
+            "name": "rr_csrf",
+            "in": "cookie",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Rr Csrf"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me": {
+      "get": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Me",
+        "operationId": "me_v1_me_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/location-history": {
+      "delete": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Delete Location History",
+        "operationId": "delete_location_history_v1_me_location_history_delete",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/places": {
+      "get": {
+        "tags": [
+          "places"
+        ],
+        "summary": "Search places in a city",
+        "operationId": "search_v1_places_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 80,
+              "title": "Q"
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9-]{1,39}$",
+              "default": "bengaluru",
+              "title": "City"
+            }
+          },
+          {
+            "name": "cityName",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 80,
+              "default": "Bengaluru",
+              "title": "Cityname"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlaceOut"
+                  },
+                  "title": "Response Search V1 Places Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips": {
+      "post": {
+        "tags": [
+          "trips"
+        ],
+        "summary": "Create Trip",
+        "operationId": "create_trip_v1_trips_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TripIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "trips"
+        ],
+        "summary": "List Trips",
+        "operationId": "list_trips_v1_trips_get",
+        "parameters": [
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_TripSummaryOut_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}": {
+      "get": {
+        "tags": [
+          "trips"
+        ],
+        "summary": "Get Trip",
+        "operationId": "get_trip_v1_trips__trip_id__get",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/tasks": {
+      "post": {
+        "tags": [
+          "trips"
+        ],
+        "summary": "Add Task",
+        "operationId": "add_task_v1_trips__trip_id__tasks_post",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/tasks/{task_id}": {
+      "patch": {
+        "tags": [
+          "trips"
+        ],
+        "summary": "Edit Task",
+        "operationId": "edit_task_v1_trips__trip_id__tasks__task_id__patch",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          },
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TaskPatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskEditOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/plans": {
+      "post": {
+        "tags": [
+          "trips"
+        ],
+        "summary": "Start Planning",
+        "operationId": "start_planning_v1_trips__trip_id__plans_post",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PlanRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobAccepted"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/jobs/{job_id}": {
+      "get": {
+        "tags": [
+          "trips"
+        ],
+        "summary": "Job Status",
+        "operationId": "job_status_v1_jobs__job_id__get",
+        "parameters": [
+          {
+            "name": "job_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Job Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/plans/{version}": {
+      "get": {
+        "tags": [
+          "trips"
+        ],
+        "summary": "Get Plan",
+        "operationId": "get_plan_v1_trips__trip_id__plans__version__get",
+        "parameters": [
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Version"
+            }
+          },
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/plans/{version}/activate": {
+      "post": {
+        "tags": [
+          "trips"
+        ],
+        "summary": "Undo: make an earlier version active again",
+        "operationId": "activate_version_v1_trips__trip_id__plans__version__activate_post",
+        "parameters": [
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Version"
+            }
+          },
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ActivateIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/options/{option_id}/accept": {
+      "post": {
+        "tags": [
+          "trips"
+        ],
+        "summary": "Accept Option",
+        "operationId": "accept_option_v1_trips__trip_id__options__option_id__accept_post",
+        "parameters": [
+          {
+            "name": "option_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Option Id"
+            }
+          },
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/checkins": {
+      "post": {
+        "tags": [
+          "trips"
+        ],
+        "summary": "Checkin",
+        "operationId": "checkin_v1_trips__trip_id__checkins_post",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CheckinIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckinOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/summary": {
+      "get": {
+        "tags": [
+          "trips"
+        ],
+        "summary": "Summary",
+        "operationId": "summary_v1_trips__trip_id__summary_get",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "day",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Day"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SummaryOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/calendar-import": {
+      "post": {
+        "tags": [
+          "trips"
+        ],
+        "summary": "Read appointments as draft tasks; saves nothing",
+        "operationId": "calendar_import_v1_trips__trip_id__calendar_import_post",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CalendarImportIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskDraftOut"
+                  },
+                  "title": "Response Calendar Import V1 Trips  Trip Id  Calendar Import Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/demo/clock": {
+      "post": {
+        "tags": [
+          "trips"
+        ],
+        "summary": "Demo: set the simulated time (DEMO_LOGIN only)",
+        "operationId": "demo_clock_v1_trips__trip_id__demo_clock_post",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DemoClockIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/demo/check": {
+      "post": {
+        "tags": [
+          "trips"
+        ],
+        "summary": "Demo: run the 5-minute check now (DEMO_LOGIN only)",
+        "operationId": "demo_check_v1_trips__trip_id__demo_check_post",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CheckinOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/demo/reset": {
+      "post": {
+        "tags": [
+          "trips"
+        ],
+        "summary": "Demo: restore the sample day (DEMO_LOGIN only)",
+        "operationId": "demo_reset_v1_trips__trip_id__demo_reset_post",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TripOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/share-links": {
+      "post": {
+        "tags": [
+          "sharing"
+        ],
+        "summary": "Create Link",
+        "operationId": "create_link_v1_trips__trip_id__share_links_post",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShareLinkIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ShareLinkOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "sharing"
+        ],
+        "summary": "List Links",
+        "operationId": "list_links_v1_trips__trip_id__share_links_get",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ShareLinkOut"
+                  },
+                  "title": "Response List Links V1 Trips  Trip Id  Share Links Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/share-links/{share_id}": {
+      "delete": {
+        "tags": [
+          "sharing"
+        ],
+        "summary": "Revoke Link",
+        "operationId": "revoke_link_v1_share_links__share_id__delete",
+        "parameters": [
+          {
+            "name": "share_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Share Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/shared/{token}": {
+      "get": {
+        "tags": [
+          "sharing"
+        ],
+        "summary": "Family view of a shared trip (no sign-in)",
+        "operationId": "shared_trip_v1_shared__token__get",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedTripOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/live": {
+      "get": {
+        "tags": [
+          "live"
+        ],
+        "summary": "Live updates (text/event-stream)",
+        "operationId": "live_v1_trips__trip_id__live_get",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AcceptIn": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Idempotencykey"
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotencyKey"
+        ],
+        "title": "AcceptIn"
+      },
+      "ActivateIn": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Idempotencykey"
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotencyKey"
+        ],
+        "title": "ActivateIn"
+      },
+      "BlockedOut": {
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "title": "Taskid"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "taskId",
+          "title",
+          "reason"
+        ],
+        "title": "BlockedOut"
+      },
+      "CalendarImportIn": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Idempotencykey"
+          },
+          "code": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 10,
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotencyKey",
+          "code"
+        ],
+        "title": "CalendarImportIn"
+      },
+      "CheckinIn": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Idempotencykey"
+          },
+          "taskId": {
+            "type": "string",
+            "title": "Taskid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "done",
+              "skipped",
+              "delay"
+            ],
+            "title": "Kind"
+          },
+          "delayMin": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 240.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delaymin"
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotencyKey",
+          "taskId",
+          "kind"
+        ],
+        "title": "CheckinIn"
+      },
+      "CheckinOut": {
+        "properties": {
+          "checkinId": {
+            "type": "string",
+            "title": "Checkinid"
+          },
+          "planId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planid"
+          },
+          "result": {
+            "type": "string",
+            "enum": [
+              "on_time",
+              "shifted",
+              "options",
+              "no_feasible_plan",
+              "recorded",
+              "pending"
+            ],
+            "title": "Result"
+          },
+          "reasonCodes": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "ON_TIME",
+                "BEHIND_SCHEDULE",
+                "SHIFT_ONLY",
+                "FIXED_TASK_AT_RISK",
+                "WINDOW_CLOSES_SOON",
+                "FASTER_MODE",
+                "TASK_MOVED_TOMORROW",
+                "TASK_SKIPPED",
+                "RAASTA_VERIFIED",
+                "RAASTA_UNVERIFIED",
+                "LAST_TRIP_PASSED",
+                "HOURS_UNKNOWN",
+                "NO_FEASIBLE_PLAN"
+              ]
+            },
+            "type": "array",
+            "title": "Reasoncodes",
+            "default": []
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation",
+            "default": ""
+          },
+          "plan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/OptionOut"
+            },
+            "type": "array",
+            "title": "Options",
+            "default": []
+          },
+          "blocked": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BlockedOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "checkinId",
+          "planId",
+          "result"
+        ],
+        "title": "CheckinOut"
+      },
+      "DemoClockIn": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Idempotencykey"
+          },
+          "now": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Now"
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotencyKey",
+          "now"
+        ],
+        "title": "DemoClockIn"
+      },
+      "DemoSignIn": {
+        "properties": {
+          "as": {
+            "type": "string",
+            "enum": [
+              "traveller",
+              "moderator"
+            ],
+            "title": "As",
+            "default": "traveller"
+          }
+        },
+        "type": "object",
+        "title": "DemoSignIn"
+      },
+      "GoogleSignIn": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 2048,
+            "minLength": 10,
+            "title": "Code"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code"
+        ],
+        "title": "GoogleSignIn"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "JobAccepted": {
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "title": "Jobid"
+          },
+          "status": {
+            "type": "string",
+            "const": "queued",
+            "title": "Status",
+            "default": "queued"
+          }
+        },
+        "type": "object",
+        "required": [
+          "jobId"
+        ],
+        "title": "JobAccepted"
+      },
+      "JobOut": {
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "title": "Jobid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "queued",
+              "started",
+              "finished",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "planVersion": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planversion"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "jobId",
+          "status"
+        ],
+        "title": "JobOut"
+      },
+      "LegExtraOut": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "walk",
+              "metro",
+              "shared_auto",
+              "e_rickshaw",
+              "tempo",
+              "cab"
+            ],
+            "title": "Mode"
+          },
+          "travelMin": {
+            "type": "integer",
+            "title": "Travelmin"
+          },
+          "fareInr": {
+            "type": "integer",
+            "title": "Fareinr"
+          },
+          "transitRef": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TransitRefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "mode",
+          "travelMin",
+          "fareInr"
+        ],
+        "title": "LegExtraOut"
+      },
+      "LegOut": {
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          },
+          "taskId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taskid"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "walk",
+              "metro",
+              "shared_auto",
+              "e_rickshaw",
+              "tempo",
+              "cab"
+            ],
+            "title": "Mode"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentOut"
+            },
+            "type": "array",
+            "title": "Segments"
+          },
+          "fromPlaceId": {
+            "type": "string",
+            "title": "Fromplaceid"
+          },
+          "toPlaceId": {
+            "type": "string",
+            "title": "Toplaceid"
+          },
+          "leaveBy": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Leaveby"
+          },
+          "arriveAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Arriveat"
+          },
+          "taskStart": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Taskstart"
+          },
+          "taskEnd": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Taskend"
+          },
+          "travelMin": {
+            "type": "integer",
+            "title": "Travelmin"
+          },
+          "waitMin": {
+            "type": "integer",
+            "title": "Waitmin"
+          },
+          "fareInr": {
+            "type": "integer",
+            "title": "Fareinr"
+          },
+          "optionId": {
+            "type": "string",
+            "title": "Optionid"
+          },
+          "transitRef": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TransitRefOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "extras": {
+            "items": {
+              "$ref": "#/components/schemas/LegExtraOut"
+            },
+            "type": "array",
+            "title": "Extras",
+            "default": []
+          },
+          "estimate": {
+            "type": "boolean",
+            "title": "Estimate",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "seq",
+          "taskId",
+          "mode",
+          "label",
+          "segments",
+          "fromPlaceId",
+          "toPlaceId",
+          "leaveBy",
+          "arriveAt",
+          "taskStart",
+          "taskEnd",
+          "travelMin",
+          "waitMin",
+          "fareInr",
+          "optionId"
+        ],
+        "title": "LegOut"
+      },
+      "LogEntryOut": {
+        "properties": {
+          "logId": {
+            "type": "string",
+            "title": "Logid"
+          },
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "automatic": {
+            "type": "boolean",
+            "title": "Automatic"
+          },
+          "planId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planid"
+          },
+          "previousPlanId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previousplanid"
+          },
+          "previousVersion": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previousversion"
+          },
+          "reasonCodes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasoncodes"
+          },
+          "undone": {
+            "type": "boolean",
+            "title": "Undone"
+          },
+          "canUndo": {
+            "type": "boolean",
+            "title": "Canundo",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "logId",
+          "at",
+          "kind",
+          "text",
+          "automatic",
+          "planId",
+          "previousPlanId",
+          "reasonCodes",
+          "undone"
+        ],
+        "title": "LogEntryOut"
+      },
+      "MovedOut": {
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "title": "Taskid"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "moved",
+              "skipped",
+              "unplaced"
+            ],
+            "title": "Kind"
+          },
+          "toDayStart": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Todaystart"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "taskId",
+          "title",
+          "kind",
+          "reason"
+        ],
+        "title": "MovedOut"
+      },
+      "OptionOut": {
+        "properties": {
+          "optionId": {
+            "type": "string",
+            "title": "Optionid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "faster_mode",
+              "move_task",
+              "skip_task"
+            ],
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "consequence": {
+            "type": "string",
+            "title": "Consequence"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "timeSavedMin": {
+            "type": "integer",
+            "title": "Timesavedmin"
+          },
+          "extraFareInr": {
+            "type": "integer",
+            "title": "Extrafareinr"
+          },
+          "movedTasks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Movedtasks"
+          },
+          "skippedTasks": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Skippedtasks"
+          },
+          "reasonCodes": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "ON_TIME",
+                "BEHIND_SCHEDULE",
+                "SHIFT_ONLY",
+                "FIXED_TASK_AT_RISK",
+                "WINDOW_CLOSES_SOON",
+                "FASTER_MODE",
+                "TASK_MOVED_TOMORROW",
+                "TASK_SKIPPED",
+                "RAASTA_VERIFIED",
+                "RAASTA_UNVERIFIED",
+                "LAST_TRIP_PASSED",
+                "HOURS_UNKNOWN",
+                "NO_FEASIBLE_PLAN"
+              ]
+            },
+            "type": "array",
+            "title": "Reasoncodes"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/PlanOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "optionId",
+          "kind",
+          "label",
+          "consequence",
+          "explanation",
+          "timeSavedMin",
+          "extraFareInr",
+          "movedTasks",
+          "skippedTasks",
+          "reasonCodes",
+          "plan"
+        ],
+        "title": "OptionOut"
+      },
+      "OptionSetOut": {
+        "properties": {
+          "optionSetId": {
+            "type": "string",
+            "title": "Optionsetid"
+          },
+          "reasonCodes": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "ON_TIME",
+                "BEHIND_SCHEDULE",
+                "SHIFT_ONLY",
+                "FIXED_TASK_AT_RISK",
+                "WINDOW_CLOSES_SOON",
+                "FASTER_MODE",
+                "TASK_MOVED_TOMORROW",
+                "TASK_SKIPPED",
+                "RAASTA_VERIFIED",
+                "RAASTA_UNVERIFIED",
+                "LAST_TRIP_PASSED",
+                "HOURS_UNKNOWN",
+                "NO_FEASIBLE_PLAN"
+              ]
+            },
+            "type": "array",
+            "title": "Reasoncodes"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "options": {
+            "items": {
+              "$ref": "#/components/schemas/OptionOut"
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "type": "object",
+        "required": [
+          "optionSetId",
+          "reasonCodes",
+          "explanation",
+          "options"
+        ],
+        "title": "OptionSetOut"
+      },
+      "Page_TripSummaryOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TripSummaryOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextcursor"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "Page[TripSummaryOut]"
+      },
+      "PlaceOut": {
+        "properties": {
+          "placeId": {
+            "type": "string",
+            "title": "Placeid"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "area": {
+            "type": "string",
+            "title": "Area"
+          },
+          "lng": {
+            "type": "number",
+            "title": "Lng"
+          },
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          },
+          "sample": {
+            "type": "boolean",
+            "title": "Sample",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "placeId",
+          "name",
+          "area",
+          "lng",
+          "lat"
+        ],
+        "title": "PlaceOut"
+      },
+      "PlanOut": {
+        "properties": {
+          "planId": {
+            "type": "string",
+            "title": "Planid"
+          },
+          "tripId": {
+            "type": "string",
+            "title": "Tripid"
+          },
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "proposed",
+              "active",
+              "superseded"
+            ],
+            "title": "Status"
+          },
+          "trigger": {
+            "type": "string",
+            "enum": [
+              "created",
+              "late",
+              "skipped",
+              "edited"
+            ],
+            "title": "Trigger"
+          },
+          "checkinId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checkinid"
+          },
+          "inputsHash": {
+            "type": "string",
+            "title": "Inputshash"
+          },
+          "ruleVersion": {
+            "type": "string",
+            "title": "Ruleversion"
+          },
+          "travelTimeSnapshotId": {
+            "type": "string",
+            "title": "Traveltimesnapshotid"
+          },
+          "legs": {
+            "items": {
+              "$ref": "#/components/schemas/LegOut"
+            },
+            "type": "array",
+            "title": "Legs"
+          },
+          "doneLegs": {
+            "items": {
+              "$ref": "#/components/schemas/LegOut"
+            },
+            "type": "array",
+            "title": "Donelegs",
+            "default": []
+          },
+          "moved": {
+            "items": {
+              "$ref": "#/components/schemas/MovedOut"
+            },
+            "type": "array",
+            "title": "Moved",
+            "default": []
+          },
+          "totals": {
+            "$ref": "#/components/schemas/TotalsOut"
+          },
+          "reasonCodes": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "ON_TIME",
+                "BEHIND_SCHEDULE",
+                "SHIFT_ONLY",
+                "FIXED_TASK_AT_RISK",
+                "WINDOW_CLOSES_SOON",
+                "FASTER_MODE",
+                "TASK_MOVED_TOMORROW",
+                "TASK_SKIPPED",
+                "RAASTA_VERIFIED",
+                "RAASTA_UNVERIFIED",
+                "LAST_TRIP_PASSED",
+                "HOURS_UNKNOWN",
+                "NO_FEASIBLE_PLAN"
+              ]
+            },
+            "type": "array",
+            "title": "Reasoncodes"
+          },
+          "explanation": {
+            "type": "string",
+            "title": "Explanation"
+          },
+          "approximate": {
+            "type": "boolean",
+            "title": "Approximate",
+            "default": false
+          },
+          "cost": {
+            "type": "number",
+            "title": "Cost"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "planId",
+          "tripId",
+          "day",
+          "version",
+          "status",
+          "trigger",
+          "checkinId",
+          "inputsHash",
+          "ruleVersion",
+          "travelTimeSnapshotId",
+          "legs",
+          "totals",
+          "reasonCodes",
+          "explanation",
+          "cost",
+          "createdAt"
+        ],
+        "title": "PlanOut"
+      },
+      "PlanRequest": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Idempotencykey"
+          },
+          "day": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotencyKey"
+        ],
+        "title": "PlanRequest"
+      },
+      "PostBody": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Idempotencykey"
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotencyKey"
+        ],
+        "title": "PostBody",
+        "description": "Every POST carries an idempotency key (section 13)."
+      },
+      "SegmentOut": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "walk",
+              "metro",
+              "shared_auto",
+              "e_rickshaw",
+              "tempo",
+              "cab"
+            ],
+            "title": "Mode"
+          },
+          "minutes": {
+            "type": "integer",
+            "title": "Minutes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode",
+          "minutes"
+        ],
+        "title": "SegmentOut"
+      },
+      "ShareLinkIn": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Idempotencykey"
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotencyKey"
+        ],
+        "title": "ShareLinkIn"
+      },
+      "ShareLinkOut": {
+        "properties": {
+          "shareId": {
+            "type": "string",
+            "title": "Shareid"
+          },
+          "tripId": {
+            "type": "string",
+            "title": "Tripid"
+          },
+          "token": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token",
+            "description": "Shown once, when the link is created."
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expiresat"
+          },
+          "revokedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Revokedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "shareId",
+          "tripId",
+          "expiresAt"
+        ],
+        "title": "ShareLinkOut"
+      },
+      "SharedLegOut": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "walk",
+              "metro",
+              "shared_auto",
+              "e_rickshaw",
+              "tempo",
+              "cab"
+            ],
+            "title": "Mode"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentOut"
+            },
+            "type": "array",
+            "title": "Segments"
+          },
+          "leaveBy": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Leaveby"
+          },
+          "arriveAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Arriveat"
+          },
+          "travelMin": {
+            "type": "integer",
+            "title": "Travelmin"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "done",
+              "active",
+              "upcoming"
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "mode",
+          "segments",
+          "leaveBy",
+          "arriveAt",
+          "travelMin",
+          "status"
+        ],
+        "title": "SharedLegOut"
+      },
+      "SharedStopOut": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "area": {
+            "type": "string",
+            "title": "Area"
+          },
+          "time": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Time"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "done",
+              "now",
+              "upcoming",
+              "skipped",
+              "moved"
+            ],
+            "title": "Status"
+          },
+          "fixed": {
+            "type": "boolean",
+            "title": "Fixed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "area",
+          "time",
+          "end",
+          "status",
+          "fixed"
+        ],
+        "title": "SharedStopOut"
+      },
+      "SharedTripOut": {
+        "properties": {
+          "travellerFirstName": {
+            "type": "string",
+            "title": "Travellerfirstname"
+          },
+          "cityName": {
+            "type": "string",
+            "title": "Cityname"
+          },
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Updatedat"
+          },
+          "now": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Now"
+          },
+          "stops": {
+            "items": {
+              "$ref": "#/components/schemas/SharedStopOut"
+            },
+            "type": "array",
+            "title": "Stops"
+          },
+          "legs": {
+            "items": {
+              "$ref": "#/components/schemas/SharedLegOut"
+            },
+            "type": "array",
+            "title": "Legs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "travellerFirstName",
+          "cityName",
+          "day",
+          "updatedAt",
+          "now",
+          "stops",
+          "legs"
+        ],
+        "title": "SharedTripOut"
+      },
+      "SummaryLegOut": {
+        "properties": {
+          "fromName": {
+            "type": "string",
+            "title": "Fromname"
+          },
+          "toName": {
+            "type": "string",
+            "title": "Toname"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "walk",
+              "metro",
+              "shared_auto",
+              "e_rickshaw",
+              "tempo",
+              "cab"
+            ],
+            "title": "Mode"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentOut"
+            },
+            "type": "array",
+            "title": "Segments"
+          },
+          "travelMin": {
+            "type": "integer",
+            "title": "Travelmin"
+          },
+          "fareInr": {
+            "type": "integer",
+            "title": "Fareinr"
+          }
+        },
+        "type": "object",
+        "required": [
+          "fromName",
+          "toName",
+          "label",
+          "mode",
+          "segments",
+          "travelMin",
+          "fareInr"
+        ],
+        "title": "SummaryLegOut"
+      },
+      "SummaryOut": {
+        "properties": {
+          "tripId": {
+            "type": "string",
+            "title": "Tripid"
+          },
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "cityName": {
+            "type": "string",
+            "title": "Cityname"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/SummaryTaskOut"
+            },
+            "type": "array",
+            "title": "Tasks"
+          },
+          "legs": {
+            "items": {
+              "$ref": "#/components/schemas/SummaryLegOut"
+            },
+            "type": "array",
+            "title": "Legs"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/TotalsOut"
+          },
+          "reroutes": {
+            "items": {
+              "type": "string",
+              "format": "date-time"
+            },
+            "type": "array",
+            "title": "Reroutes"
+          },
+          "headline": {
+            "type": "string",
+            "title": "Headline"
+          },
+          "slipText": {
+            "type": "string",
+            "title": "Sliptext"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tripId",
+          "day",
+          "cityName",
+          "tasks",
+          "legs",
+          "totals",
+          "reroutes",
+          "headline",
+          "slipText"
+        ],
+        "title": "SummaryOut"
+      },
+      "SummaryTaskOut": {
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "title": "Taskid"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "area": {
+            "type": "string",
+            "title": "Area"
+          },
+          "state": {
+            "type": "string",
+            "title": "State"
+          },
+          "start": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start"
+          },
+          "end": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "End"
+          },
+          "movedTo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Movedto"
+          }
+        },
+        "type": "object",
+        "required": [
+          "taskId",
+          "title",
+          "area",
+          "state",
+          "start",
+          "end"
+        ],
+        "title": "SummaryTaskOut"
+      },
+      "TaskDraftOut": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "placeText": {
+            "type": "string",
+            "title": "Placetext"
+          },
+          "placeId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Placeid"
+          },
+          "durationMin": {
+            "type": "integer",
+            "title": "Durationmin"
+          },
+          "fixedStart": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fixedstart"
+          },
+          "window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WindowOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "priority": {
+            "type": "integer",
+            "enum": [
+              1,
+              2,
+              3
+            ],
+            "title": "Priority",
+            "default": 2
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "calendar",
+              "ai_helper"
+            ],
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "placeText",
+          "durationMin",
+          "source"
+        ],
+        "title": "TaskDraftOut"
+      },
+      "TaskEditOut": {
+        "properties": {
+          "task": {
+            "$ref": "#/components/schemas/TaskOut"
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "task"
+        ],
+        "title": "TaskEditOut"
+      },
+      "TaskIn": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Idempotencykey"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "placeId": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Placeid"
+          },
+          "durationMin": {
+            "type": "integer",
+            "maximum": 720.0,
+            "minimum": 5.0,
+            "title": "Durationmin"
+          },
+          "fixedStart": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fixedstart"
+          },
+          "window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WindowIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "priority": {
+            "type": "integer",
+            "enum": [
+              1,
+              2,
+              3
+            ],
+            "title": "Priority",
+            "default": 2
+          },
+          "hoursUnknown": {
+            "type": "boolean",
+            "title": "Hoursunknown",
+            "default": false
+          },
+          "day": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotencyKey",
+          "title",
+          "placeId",
+          "durationMin"
+        ],
+        "title": "TaskIn"
+      },
+      "TaskOut": {
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "title": "Taskid"
+          },
+          "tripId": {
+            "type": "string",
+            "title": "Tripid"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "placeId": {
+            "type": "string",
+            "title": "Placeid"
+          },
+          "place": {
+            "$ref": "#/components/schemas/PlaceOut"
+          },
+          "durationMin": {
+            "type": "integer",
+            "title": "Durationmin"
+          },
+          "fixedStart": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fixedstart"
+          },
+          "window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WindowOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "priority": {
+            "type": "integer",
+            "title": "Priority"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "in_progress",
+              "done",
+              "skipped",
+              "moved"
+            ],
+            "title": "State"
+          },
+          "hoursUnknown": {
+            "type": "boolean",
+            "title": "Hoursunknown"
+          },
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          }
+        },
+        "type": "object",
+        "required": [
+          "taskId",
+          "tripId",
+          "title",
+          "placeId",
+          "place",
+          "durationMin",
+          "fixedStart",
+          "window",
+          "priority",
+          "state",
+          "hoursUnknown",
+          "day"
+        ],
+        "title": "TaskOut"
+      },
+      "TaskPatch": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "placeId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Placeid"
+          },
+          "durationMin": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 720.0,
+                "minimum": 5.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Durationmin"
+          },
+          "fixedStart": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fixedstart"
+          },
+          "window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WindowIn"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "timing": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "fixed",
+                  "window",
+                  "anytime"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timing"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "enum": [
+                  1,
+                  2,
+                  3
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "hoursUnknown": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hoursunknown"
+          }
+        },
+        "type": "object",
+        "title": "TaskPatch"
+      },
+      "TokenOut": {
+        "properties": {
+          "accessToken": {
+            "type": "string",
+            "title": "Accesstoken"
+          },
+          "tokenType": {
+            "type": "string",
+            "const": "Bearer",
+            "title": "Tokentype",
+            "default": "Bearer"
+          },
+          "expiresIn": {
+            "type": "integer",
+            "title": "Expiresin"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserOut"
+          }
+        },
+        "type": "object",
+        "required": [
+          "accessToken",
+          "expiresIn",
+          "user"
+        ],
+        "title": "TokenOut"
+      },
+      "TotalsOut": {
+        "properties": {
+          "travelMin": {
+            "type": "integer",
+            "title": "Travelmin"
+          },
+          "fareInr": {
+            "type": "integer",
+            "title": "Fareinr"
+          },
+          "waitMin": {
+            "type": "integer",
+            "title": "Waitmin"
+          }
+        },
+        "type": "object",
+        "required": [
+          "travelMin",
+          "fareInr",
+          "waitMin"
+        ],
+        "title": "TotalsOut"
+      },
+      "TransitRefOut": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "raasta",
+              "metro"
+            ],
+            "title": "Kind"
+          },
+          "refId": {
+            "type": "string",
+            "title": "Refid"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "verified",
+                  "unverified",
+                  "stale"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "refId"
+        ],
+        "title": "TransitRefOut"
+      },
+      "TripIn": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Idempotencykey"
+          },
+          "citySlug": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9-]{1,39}$",
+            "title": "Cityslug"
+          },
+          "cityName": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Cityname"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "title": "Startdate"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date",
+            "title": "Enddate"
+          },
+          "stayPlaceId": {
+            "type": "string",
+            "title": "Stayplaceid"
+          },
+          "stayLabel": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Staylabel"
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotencyKey",
+          "citySlug",
+          "cityName",
+          "startDate",
+          "endDate",
+          "stayPlaceId",
+          "stayLabel"
+        ],
+        "title": "TripIn"
+      },
+      "TripOut": {
+        "properties": {
+          "tripId": {
+            "type": "string",
+            "title": "Tripid"
+          },
+          "citySlug": {
+            "type": "string",
+            "title": "Cityslug"
+          },
+          "cityName": {
+            "type": "string",
+            "title": "Cityname"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "title": "Startdate"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date",
+            "title": "Enddate"
+          },
+          "stayLabel": {
+            "type": "string",
+            "title": "Staylabel"
+          },
+          "sample": {
+            "type": "boolean",
+            "title": "Sample"
+          },
+          "utcOffset": {
+            "type": "string",
+            "title": "Utcoffset"
+          },
+          "stayPlace": {
+            "$ref": "#/components/schemas/PlaceOut"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TaskOut"
+            },
+            "type": "array",
+            "title": "Tasks"
+          },
+          "activePlan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlanOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "openOptions": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OptionSetOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "log": {
+            "items": {
+              "$ref": "#/components/schemas/LogEntryOut"
+            },
+            "type": "array",
+            "title": "Log"
+          },
+          "now": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Now"
+          },
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "dayIndex": {
+            "type": "integer",
+            "title": "Dayindex"
+          },
+          "dayCount": {
+            "type": "integer",
+            "title": "Daycount"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tripId",
+          "citySlug",
+          "cityName",
+          "startDate",
+          "endDate",
+          "stayLabel",
+          "sample",
+          "utcOffset",
+          "stayPlace",
+          "tasks",
+          "activePlan",
+          "openOptions",
+          "log",
+          "now",
+          "day",
+          "dayIndex",
+          "dayCount"
+        ],
+        "title": "TripOut"
+      },
+      "TripSummaryOut": {
+        "properties": {
+          "tripId": {
+            "type": "string",
+            "title": "Tripid"
+          },
+          "citySlug": {
+            "type": "string",
+            "title": "Cityslug"
+          },
+          "cityName": {
+            "type": "string",
+            "title": "Cityname"
+          },
+          "startDate": {
+            "type": "string",
+            "format": "date",
+            "title": "Startdate"
+          },
+          "endDate": {
+            "type": "string",
+            "format": "date",
+            "title": "Enddate"
+          },
+          "stayLabel": {
+            "type": "string",
+            "title": "Staylabel"
+          },
+          "sample": {
+            "type": "boolean",
+            "title": "Sample"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tripId",
+          "citySlug",
+          "cityName",
+          "startDate",
+          "endDate",
+          "stayLabel",
+          "sample"
+        ],
+        "title": "TripSummaryOut"
+      },
+      "UserOut": {
+        "properties": {
+          "userId": {
+            "type": "string",
+            "title": "Userid"
+          },
+          "email": {
+            "type": "string",
+            "title": "Email"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "traveller",
+              "moderator",
+              "admin"
+            ],
+            "title": "Role"
+          },
+          "isDemo": {
+            "type": "boolean",
+            "title": "Isdemo",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "userId",
+          "email",
+          "name",
+          "role"
+        ],
+        "title": "UserOut"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      },
+      "WindowIn": {
+        "properties": {
+          "opensAt": {
+            "type": "string",
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Opensat"
+          },
+          "closesAt": {
+            "type": "string",
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Closesat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "opensAt",
+          "closesAt"
+        ],
+        "title": "WindowIn"
+      },
+      "WindowOut": {
+        "properties": {
+          "opensAt": {
+            "type": "string",
+            "title": "Opensat"
+          },
+          "closesAt": {
+            "type": "string",
+            "title": "Closesat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "opensAt",
+          "closesAt"
+        ],
+        "title": "WindowOut"
+      }
+    }
+  }
+}

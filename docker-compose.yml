@@ -1,0 +1,180 @@
+# One command starts everything: docker compose up --build
+# Then open https://localhost (accept the local certificate) and choose "Use the demo account".
+#
+# Road routing (OSRM) is optional for the Bengaluru demo, which uses the sample travel-time snapshot.
+# To route real places: docker compose --profile routing up --build  (first run prepares the map; minutes).
+
+x-api-env: &api-env
+  APP_ENV: ${APP_ENV:-development}
+  DATABASE_URL: postgresql+psycopg://reroute_app:${REROUTE_DB_PASSWORD:-reroute_app}@postgres:5432/reroute
+  REDIS_URL: redis://redis:6379/0
+  MONGO_URL: mongodb://mongo:27017/reroute
+  JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-dev-only-change-me}
+  DEMO_LOGIN: ${DEMO_LOGIN:-true}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
+  RAASTA_BASE_URL: http://raasta:8001
+  TRAVEL_TIMES_SOURCE: ${TRAVEL_TIMES_SOURCE:-sample}
+  OSRM_CAR_URL: http://osrm-car:5000
+  OSRM_FOOT_URL: http://osrm-foot:5000
+  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://localhost}
+  AI_HELPER_ENABLED: "false"
+
+services:
+  postgres:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_DB: reroute
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      REROUTE_DB_PASSWORD: ${REROUTE_DB_PASSWORD:-}
+      RAASTA_DB_PASSWORD: ${RAASTA_DB_PASSWORD:-}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
+      - ./infra/postgres/set-passwords.sh:/docker-entrypoint-initdb.d/20-set-passwords.sh:ro
+    ports: ["127.0.0.1:5432:5432"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d reroute"]
+      interval: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    ports: ["127.0.0.1:6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 20
+
+  mongo:
+    image: mongo:7
+    volumes: [mongodata:/data/db]
+    ports: ["127.0.0.1:27017:27017"]
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 10s
+      retries: 20
+
+  raasta:
+    build: ./raasta
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      DATABASE_URL: postgresql+psycopg://raasta_app:${RAASTA_DB_PASSWORD:-raasta_app}@postgres:5432/reroute
+      REDIS_URL: redis://redis:6379/1
+      MONGO_URL: mongodb://mongo:27017
+      MONGO_DB: reroute
+      JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-dev-only-change-me}
+      OSRM_URL: ${RAASTA_OSRM_URL:-}
+      EXAMPLES_DIR: /srv/examples/bengaluru
+      SEED_ON_START: "true"
+    volumes:
+      - ./examples:/srv/examples:ro
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      mongo: { condition: service_healthy }
+
+  api-1: &api
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["api"]
+    environment:
+      <<: *api-env
+      SEED_ON_START: "true"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      mongo: { condition: service_healthy }
+      raasta: { condition: service_healthy }
+
+  api-2:
+    <<: *api
+    environment:
+      <<: *api-env
+      RUN_MIGRATIONS: "false"
+    depends_on:
+      api-1: { condition: service_healthy }
+
+  worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["worker"]
+    environment: *api-env
+    healthcheck: { disable: true }
+    depends_on:
+      api-1: { condition: service_healthy }
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    command: ["scheduler"]
+    environment: *api-env
+    healthcheck: { disable: true }
+    depends_on:
+      api-1: { condition: service_healthy }
+
+  web:
+    build:
+      context: ./frontend
+      args:
+        VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+
+  certs:
+    image: alpine:3.20
+    command: >
+      sh -c "test -f /certs/localhost.crt || (apk add --no-cache openssl >/dev/null &&
+      openssl req -x509 -newkey rsa:2048 -nodes -days 825 -subj '/CN=localhost'
+      -addext 'subjectAltName=DNS:localhost,IP:127.0.0.1'
+      -keyout /certs/localhost.key -out /certs/localhost.crt)"
+    volumes: [certs:/certs]
+
+  nginx:
+    image: nginx:1.27-alpine
+    volumes:
+      - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - certs:/etc/nginx/certs:ro
+    ports: ["80:80", "443:443"]
+    depends_on:
+      certs: { condition: service_completed_successfully }
+      api-1: { condition: service_healthy }
+      api-2: { condition: service_started }
+      raasta: { condition: service_healthy }
+      web: { condition: service_started }
+
+  # ---- Road routing (optional profile) ----
+  osrm-prep:
+    profiles: [routing]
+    image: ghcr.io/project-osrm/osrm-backend:v5.27.1
+    volumes: [osrm:/data, ./infra/osrm:/scripts:ro]
+    entrypoint: ["/bin/sh", "/scripts/prepare.sh"]
+    environment:
+      OSM_EXTRACT_URL: ${OSM_EXTRACT_URL:-https://download.geofabrik.de/asia/india/southern-zone-latest.osm.pbf}
+
+  osrm-car:
+    profiles: [routing]
+    image: ghcr.io/project-osrm/osrm-backend:v5.27.1
+    command: ["osrm-routed", "--algorithm", "mld", "/data/car/region.osrm"]
+    volumes: [osrm:/data]
+    depends_on:
+      osrm-prep: { condition: service_completed_successfully }
+
+  osrm-foot:
+    profiles: [routing]
+    image: ghcr.io/project-osrm/osrm-backend:v5.27.1
+    command: ["osrm-routed", "--algorithm", "mld", "/data/foot/region.osrm"]
+    volumes: [osrm:/data]
+    depends_on:
+      osrm-prep: { condition: service_completed_successfully }
+
+volumes:
+  pgdata:
+  redisdata:
+  mongodata:
+  certs:
+  osrm:

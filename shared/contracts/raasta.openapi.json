@@ -1,0 +1,1827 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Raasta API",
+    "description": "\nCrowdsourced shared-auto, e-rickshaw and tempo routes: stands, fares, how often vehicles come\nand when the last one leaves.\n\n- Reads are open data and need no sign-in. Writes need a Reroute access token.\n- Every POST takes an `idempotencyKey` in the body. The same key with the same body returns the\n  first response again; with a different body it returns 409.\n- Errors always look like `{\"error\": {\"code\", \"message\", \"traceId\"}}`.\n- Sample routes are labelled `sample: true`.\n",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/v1/raasta/healthz": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "The process is up",
+        "operationId": "healthz_v1_raasta_healthz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/raasta/readyz": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "summary": "The database and Redis answer",
+        "operationId": "readyz_v1_raasta_readyz_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/raasta/routes": {
+      "get": {
+        "tags": [
+          "Routes and stands"
+        ],
+        "summary": "Shared-auto options for one leg",
+        "operationId": "leg_options_v1_raasta_routes_get",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Start as \"lng,lat\".",
+              "examples": [
+                "77.6195,12.9352"
+              ],
+              "title": "From"
+            },
+            "description": "Start as \"lng,lat\"."
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Destination as \"lng,lat\".",
+              "examples": [
+                "77.5838,12.9255"
+              ],
+              "title": "To"
+            },
+            "description": "Destination as \"lng,lat\"."
+          },
+          {
+            "name": "at",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Departure time, ISO 8601. Defaults to now.",
+              "title": "At"
+            },
+            "description": "Departure time, ISO 8601. Defaults to now."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LegOptionsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/raasta/routes/{route_id}": {
+      "get": {
+        "tags": [
+          "Routes and stands"
+        ],
+        "summary": "One route with its stands",
+        "operationId": "get_route_v1_raasta_routes__route_id__get",
+        "parameters": [
+          {
+            "name": "route_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Route Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RouteOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/raasta/stands": {
+      "get": {
+        "tags": [
+          "Routes and stands"
+        ],
+        "summary": "Stands near a point",
+        "operationId": "stands_near_v1_raasta_stands_get",
+        "parameters": [
+          {
+            "name": "near",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "description": "Centre as \"lng,lat\".",
+              "examples": [
+                "77.6195,12.9352"
+              ],
+              "title": "Near"
+            },
+            "description": "Centre as \"lng,lat\"."
+          },
+          {
+            "name": "radius",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 5000,
+              "minimum": 10,
+              "description": "Metres.",
+              "default": 500,
+              "title": "Radius"
+            },
+            "description": "Metres."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 512
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_StandNear_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/raasta/cities/{slug}/gtfs.zip": {
+      "get": {
+        "tags": [
+          "Routes and stands"
+        ],
+        "summary": "Download the city's verified routes as GTFS",
+        "operationId": "gtfs_v1_raasta_cities__slug__gtfs_zip_get",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Slug"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A GTFS feed of verified routes.",
+            "content": {
+              "application/zip": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/raasta/contributions": {
+      "post": {
+        "tags": [
+          "Contributions and moderation"
+        ],
+        "summary": "Add a route or a GPS ride",
+        "operationId": "add_contribution_v1_raasta_contributions_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContributionIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContributionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Contributions and moderation"
+        ],
+        "summary": "The moderator queue",
+        "operationId": "list_contributions_v1_raasta_contributions_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "waiting",
+                "verified",
+                "rejected",
+                "merged"
+              ],
+              "type": "string",
+              "default": "waiting",
+              "title": "Status"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 512
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_ContributionOut_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/raasta/contributions/{contribution_id}": {
+      "patch": {
+        "tags": [
+          "Contributions and moderation"
+        ],
+        "summary": "Moderator decision: approve, edit or reject",
+        "operationId": "decide_contribution_v1_raasta_contributions__contribution_id__patch",
+        "parameters": [
+          {
+            "name": "contribution_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Contribution Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ContributionDecision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ContributionOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/raasta/routes/{route_id}/confirmations": {
+      "post": {
+        "tags": [
+          "Contributions and moderation"
+        ],
+        "summary": "Confirm that a route still runs",
+        "operationId": "confirm_v1_raasta_routes__route_id__confirmations_post",
+        "parameters": [
+          {
+            "name": "route_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Route Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmationIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConfirmationOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/raasta/routes/{route_id}/fare-reports": {
+      "post": {
+        "tags": [
+          "Contributions and moderation"
+        ],
+        "summary": "Report a fare",
+        "operationId": "report_fare_v1_raasta_routes__route_id__fare_reports_post",
+        "parameters": [
+          {
+            "name": "route_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Route Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FareReportIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FareReportOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/raasta/fare-reports": {
+      "get": {
+        "tags": [
+          "Contributions and moderation"
+        ],
+        "summary": "Fare reports waiting for review",
+        "operationId": "list_fare_reports_v1_raasta_fare_reports_get",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "waiting",
+                "accepted",
+                "rejected"
+              ],
+              "type": "string",
+              "default": "waiting",
+              "title": "Status"
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 512
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Page_FareReportOut_"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/raasta/fare-reports/{fare_report_id}": {
+      "patch": {
+        "tags": [
+          "Contributions and moderation"
+        ],
+        "summary": "Moderator decision on a fare report",
+        "operationId": "decide_fare_report_v1_raasta_fare_reports__fare_report_id__patch",
+        "parameters": [
+          {
+            "name": "fare_report_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Fare Report Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FareReportDecision"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FareReportOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "ConfirmationIn": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Idempotencykey",
+            "examples": [
+              "con-7f3a91c2"
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "idempotencyKey"
+        ],
+        "title": "ConfirmationIn"
+      },
+      "ConfirmationOut": {
+        "properties": {
+          "routeId": {
+            "type": "string",
+            "title": "Routeid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "unverified",
+              "verified",
+              "stale"
+            ],
+            "title": "Status"
+          },
+          "lastConfirmedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastconfirmedat"
+          },
+          "confirmationsCount": {
+            "type": "integer",
+            "title": "Confirmationscount"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "routeId",
+          "status",
+          "lastConfirmedAt",
+          "confirmationsCount"
+        ],
+        "title": "ConfirmationOut"
+      },
+      "ContributionDecision": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "approve",
+              "edit",
+              "reject"
+            ],
+            "title": "Action"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500,
+                "minLength": 3
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "vehicleType": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "shared_auto",
+                  "e_rickshaw",
+                  "tempo"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vehicletype"
+          },
+          "fareInr": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 2000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fareinr"
+          },
+          "frequencyMin": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 180.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Frequencymin"
+          },
+          "firstTrip": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                "examples": [
+                  "21:30"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firsttrip"
+          },
+          "lastTrip": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+                "examples": [
+                  "21:30"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lasttrip"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "title": "ContributionDecision"
+      },
+      "ContributionIn": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Idempotencykey",
+            "examples": [
+              "con-7f3a91c2"
+            ]
+          },
+          "citySlug": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 2,
+            "pattern": "^[a-z0-9-]+$",
+            "title": "Cityslug",
+            "default": "bengaluru"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "stands_tapped",
+              "gps_ride"
+            ],
+            "title": "Kind"
+          },
+          "vehicleType": {
+            "type": "string",
+            "enum": [
+              "shared_auto",
+              "e_rickshaw",
+              "tempo"
+            ],
+            "title": "Vehicletype"
+          },
+          "fareInr": {
+            "type": "integer",
+            "maximum": 2000.0,
+            "minimum": 0.0,
+            "title": "Fareinr"
+          },
+          "frequencyMin": {
+            "type": "integer",
+            "maximum": 180.0,
+            "minimum": 1.0,
+            "title": "Frequencymin"
+          },
+          "firstTrip": {
+            "type": "string",
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Firsttrip",
+            "examples": [
+              "21:30"
+            ]
+          },
+          "lastTrip": {
+            "type": "string",
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Lasttrip",
+            "examples": [
+              "21:30"
+            ]
+          },
+          "stands": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/TappedStand"
+                },
+                "type": "array",
+                "maxItems": 40
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stands"
+          },
+          "points": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/GpsPoint"
+                },
+                "type": "array",
+                "maxItems": 20000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Points"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "idempotencyKey",
+          "kind",
+          "vehicleType",
+          "fareInr",
+          "frequencyMin",
+          "firstTrip",
+          "lastTrip"
+        ],
+        "title": "ContributionIn"
+      },
+      "ContributionOut": {
+        "properties": {
+          "contributionId": {
+            "type": "string",
+            "title": "Contributionid"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "waiting",
+              "verified",
+              "rejected",
+              "merged"
+            ],
+            "title": "Status"
+          },
+          "routeId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Routeid"
+          },
+          "contributorId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contributorid"
+          },
+          "rejectReason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rejectreason"
+          },
+          "createdAt": {
+            "type": "string",
+            "title": "Createdat"
+          },
+          "decidedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decidedat"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "route": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RouteOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "suggestedStands": {
+            "items": {
+              "$ref": "#/components/schemas/Location"
+            },
+            "type": "array",
+            "title": "Suggestedstands",
+            "description": "Places a recorded ride stood still for 30 s or more."
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "contributionId",
+          "kind",
+          "status",
+          "routeId",
+          "contributorId",
+          "rejectReason",
+          "createdAt",
+          "decidedAt",
+          "payload"
+        ],
+        "title": "ContributionOut"
+      },
+      "FareReportDecision": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "accept",
+              "reject"
+            ],
+            "title": "Action"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "action"
+        ],
+        "title": "FareReportDecision"
+      },
+      "FareReportIn": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Idempotencykey",
+            "examples": [
+              "con-7f3a91c2"
+            ]
+          },
+          "fareInr": {
+            "type": "integer",
+            "maximum": 2000.0,
+            "minimum": 0.0,
+            "title": "Fareinr"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "idempotencyKey",
+          "fareInr"
+        ],
+        "title": "FareReportIn"
+      },
+      "FareReportOut": {
+        "properties": {
+          "fareReportId": {
+            "type": "string",
+            "title": "Farereportid"
+          },
+          "routeId": {
+            "type": "string",
+            "title": "Routeid"
+          },
+          "userId": {
+            "type": "string",
+            "title": "Userid"
+          },
+          "fareInr": {
+            "type": "integer",
+            "title": "Fareinr"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "waiting",
+              "accepted",
+              "rejected"
+            ],
+            "title": "Status"
+          },
+          "at": {
+            "type": "string",
+            "title": "At"
+          },
+          "decidedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decidedat"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "fareReportId",
+          "routeId",
+          "userId",
+          "fareInr",
+          "status",
+          "at",
+          "decidedAt"
+        ],
+        "title": "FareReportOut"
+      },
+      "GpsPoint": {
+        "properties": {
+          "lat": {
+            "type": "number",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Lat"
+          },
+          "lng": {
+            "type": "number",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Lng"
+          },
+          "t": {
+            "type": "string",
+            "format": "date-time",
+            "title": "T"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "lat",
+          "lng",
+          "t"
+        ],
+        "title": "GpsPoint"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "Health": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "const": "ok",
+            "title": "Status"
+          },
+          "service": {
+            "type": "string",
+            "const": "raasta",
+            "title": "Service"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "status",
+          "service"
+        ],
+        "title": "Health"
+      },
+      "LegOptionOut": {
+        "properties": {
+          "routeId": {
+            "type": "string",
+            "title": "Routeid"
+          },
+          "vehicleType": {
+            "type": "string",
+            "enum": [
+              "shared_auto",
+              "e_rickshaw",
+              "tempo"
+            ],
+            "title": "Vehicletype"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "unverified",
+              "verified",
+              "stale"
+            ],
+            "title": "Status"
+          },
+          "fareInr": {
+            "type": "integer",
+            "title": "Fareinr"
+          },
+          "frequencyMin": {
+            "type": "integer",
+            "title": "Frequencymin"
+          },
+          "firstTrip": {
+            "type": "string",
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Firsttrip",
+            "examples": [
+              "21:30"
+            ]
+          },
+          "lastTrip": {
+            "type": "string",
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Lasttrip",
+            "examples": [
+              "21:30"
+            ]
+          },
+          "board": {
+            "$ref": "#/components/schemas/StandRef"
+          },
+          "alight": {
+            "$ref": "#/components/schemas/StandRef"
+          },
+          "stopsBetween": {
+            "type": "integer",
+            "title": "Stopsbetween"
+          },
+          "walkFromM": {
+            "type": "number",
+            "title": "Walkfromm"
+          },
+          "walkToM": {
+            "type": "number",
+            "title": "Walktom"
+          },
+          "walkFromMin": {
+            "type": "integer",
+            "title": "Walkfrommin"
+          },
+          "walkToMin": {
+            "type": "integer",
+            "title": "Walktomin"
+          },
+          "expectedWaitMin": {
+            "type": "integer",
+            "title": "Expectedwaitmin"
+          },
+          "rideDistanceM": {
+            "type": "number",
+            "title": "Ridedistancem"
+          },
+          "sample": {
+            "type": "boolean",
+            "title": "Sample"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "routeId",
+          "vehicleType",
+          "status",
+          "fareInr",
+          "frequencyMin",
+          "firstTrip",
+          "lastTrip",
+          "board",
+          "alight",
+          "stopsBetween",
+          "walkFromM",
+          "walkToM",
+          "walkFromMin",
+          "walkToMin",
+          "expectedWaitMin",
+          "rideDistanceM",
+          "sample"
+        ],
+        "title": "LegOptionOut"
+      },
+      "LegOptionsOut": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LegOptionOut"
+            },
+            "type": "array",
+            "title": "Items",
+            "description": "Verified, current routes. Only these may be a main option."
+          },
+          "extras": {
+            "items": {
+              "$ref": "#/components/schemas/LegOptionOut"
+            },
+            "type": "array",
+            "title": "Extras",
+            "description": "Unverified or stale routes, shown only as labelled extras."
+          },
+          "lastTripPassed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Lasttrippassed",
+            "description": "Routes that serve both ends but whose last trip has gone."
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextcursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "extras",
+          "lastTripPassed"
+        ],
+        "title": "LegOptionsOut"
+      },
+      "Location": {
+        "properties": {
+          "lat": {
+            "type": "number",
+            "maximum": 90.0,
+            "minimum": -90.0,
+            "title": "Lat"
+          },
+          "lng": {
+            "type": "number",
+            "maximum": 180.0,
+            "minimum": -180.0,
+            "title": "Lng"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "lat",
+          "lng"
+        ],
+        "title": "Location"
+      },
+      "Page_ContributionOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ContributionOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextcursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "title": "Page[ContributionOut]"
+      },
+      "Page_FareReportOut_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/FareReportOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextcursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "title": "Page[FareReportOut]"
+      },
+      "Page_StandNear_": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/StandNear"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextcursor"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items",
+          "nextCursor"
+        ],
+        "title": "Page[StandNear]"
+      },
+      "RouteOut": {
+        "properties": {
+          "routeId": {
+            "type": "string",
+            "title": "Routeid"
+          },
+          "citySlug": {
+            "type": "string",
+            "title": "Cityslug"
+          },
+          "stands": {
+            "items": {
+              "$ref": "#/components/schemas/RouteStandOut"
+            },
+            "type": "array",
+            "title": "Stands"
+          },
+          "path": {
+            "items": {
+              "$ref": "#/components/schemas/Location"
+            },
+            "type": "array",
+            "title": "Path"
+          },
+          "vehicleType": {
+            "type": "string",
+            "enum": [
+              "shared_auto",
+              "e_rickshaw",
+              "tempo"
+            ],
+            "title": "Vehicletype"
+          },
+          "fareInr": {
+            "type": "integer",
+            "title": "Fareinr",
+            "description": "The most common accepted fare reported in the last 30 days, else the route's own fare."
+          },
+          "frequencyMin": {
+            "type": "integer",
+            "title": "Frequencymin"
+          },
+          "firstTrip": {
+            "type": "string",
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Firsttrip",
+            "examples": [
+              "21:30"
+            ]
+          },
+          "lastTrip": {
+            "type": "string",
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Lasttrip",
+            "examples": [
+              "21:30"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "unverified",
+              "verified",
+              "stale"
+            ],
+            "title": "Status"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "stands_tapped",
+              "gps_ride",
+              "import"
+            ],
+            "title": "Source"
+          },
+          "confidence": {
+            "type": "number",
+            "title": "Confidence"
+          },
+          "lastConfirmedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lastconfirmedat"
+          },
+          "confirmationsCount": {
+            "type": "integer",
+            "title": "Confirmationscount"
+          },
+          "sample": {
+            "type": "boolean",
+            "title": "Sample"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "routeId",
+          "citySlug",
+          "stands",
+          "path",
+          "vehicleType",
+          "fareInr",
+          "frequencyMin",
+          "firstTrip",
+          "lastTrip",
+          "status",
+          "source",
+          "confidence",
+          "lastConfirmedAt",
+          "confirmationsCount",
+          "sample"
+        ],
+        "title": "RouteOut"
+      },
+      "RouteStandOut": {
+        "properties": {
+          "standId": {
+            "type": "string",
+            "title": "Standid"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "location": {
+            "$ref": "#/components/schemas/Location"
+          },
+          "sample": {
+            "type": "boolean",
+            "title": "Sample",
+            "default": false
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "standId",
+          "name",
+          "location",
+          "seq"
+        ],
+        "title": "RouteStandOut"
+      },
+      "StandNear": {
+        "properties": {
+          "standId": {
+            "type": "string",
+            "title": "Standid"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "location": {
+            "$ref": "#/components/schemas/Location"
+          },
+          "sample": {
+            "type": "boolean",
+            "title": "Sample",
+            "default": false
+          },
+          "distanceM": {
+            "type": "number",
+            "title": "Distancem"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "standId",
+          "name",
+          "location",
+          "distanceM"
+        ],
+        "title": "StandNear"
+      },
+      "StandRef": {
+        "properties": {
+          "standId": {
+            "type": "string",
+            "title": "Standid"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          },
+          "location": {
+            "$ref": "#/components/schemas/Location"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "standId",
+          "name",
+          "seq",
+          "location"
+        ],
+        "title": "StandRef"
+      },
+      "TappedStand": {
+        "properties": {
+          "standId": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Standid"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 160,
+                "minLength": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Location"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "TappedStand",
+        "description": "An existing stand by ID, or a new one by name and location."
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
