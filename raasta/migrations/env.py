@@ -35,7 +35,11 @@ def run_migrations_offline() -> None:
 def run_migrations_online() -> None:
     engine = create_engine(get_settings().database_url)
     with engine.connect() as connection:
-        connection.execute(text(f"CREATE SCHEMA IF NOT EXISTS {SCHEMA}"))
+        # Only when missing: CREATE SCHEMA IF NOT EXISTS still needs CREATE on the database, which the
+        # raasta_app role doesn't have (infra/postgres/init.sql creates the schema for it).
+        connection.execute(
+            text(f"DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = '{SCHEMA}') THEN CREATE SCHEMA {SCHEMA}; END IF; END $$;")
+        )
         connection.commit()
         context.configure(
             connection=connection,

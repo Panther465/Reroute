@@ -19,7 +19,8 @@ TS = sa.DateTime(timezone=True)
 
 
 def upgrade() -> None:
-    op.execute("CREATE EXTENSION IF NOT EXISTS postgis")
+    # Only when missing: application roles can't create extensions; infra/postgres/init.sql does it.
+    op.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'postgis') THEN CREATE EXTENSION postgis; END IF; END $$;")
 
     op.create_table(
         "users",

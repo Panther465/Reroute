@@ -19,8 +19,8 @@ S = "raasta"
 
 
 def upgrade() -> None:
-    op.execute("CREATE EXTENSION IF NOT EXISTS postgis")
-    op.execute(f"CREATE SCHEMA IF NOT EXISTS {S}")
+    op.execute("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_extension WHERE extname = 'postgis') THEN CREATE EXTENSION postgis; END IF; END $$;")
+    op.execute(f"DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_namespace WHERE nspname = '{S}') THEN CREATE SCHEMA {S}; END IF; END $$;")
 
     op.create_table(
         "stands",
