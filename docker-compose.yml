@@ -107,7 +107,10 @@ services:
       dockerfile: backend/Dockerfile
     command: ["worker"]
     environment: *api-env
-    healthcheck: { disable: true }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, redis; redis.Redis.from_url(os.environ['REDIS_URL']).ping()"]
+      interval: 15s
+      retries: 10
     depends_on:
       api-1: { condition: service_healthy }
 
@@ -117,7 +120,10 @@ services:
       dockerfile: backend/Dockerfile
     command: ["scheduler"]
     environment: *api-env
-    healthcheck: { disable: true }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os, redis; redis.Redis.from_url(os.environ['REDIS_URL']).ping()"]
+      interval: 15s
+      retries: 10
     depends_on:
       api-1: { condition: service_healthy }
 
