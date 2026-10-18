@@ -6,7 +6,23 @@ import ast
 from pathlib import Path
 
 PLANNER = Path(__file__).resolve().parents[2] / "app" / "services" / "planner"
-FORBIDDEN_MODULES = {"socket", "http", "urllib", "requests", "httpx", "sqlalchemy", "redis", "pymongo", "time", "random", "os", "asyncio", "app.adapters", "app.db", "app.models"}
+FORBIDDEN_MODULES = {
+    "socket",
+    "http",
+    "urllib",
+    "requests",
+    "httpx",
+    "sqlalchemy",
+    "redis",
+    "pymongo",
+    "time",
+    "random",
+    "os",
+    "asyncio",
+    "app.adapters",
+    "app.db",
+    "app.models",
+}
 FORBIDDEN_CALLS = {"now", "today", "utcnow", "time", "perf_counter", "monotonic"}
 
 

@@ -70,7 +70,11 @@ def skipped_consequence(titles: list[str]) -> str:
 
 def skipped_explanation(titles: list[str], extra: int) -> str:
     cost = "at no extra cost" if extra <= 0 else f"for {rupees(extra)} more"
-    return f"Skipping the {lower_first(titles[0])} keeps every other stop {cost}." if len(titles) == 1 else f"Skipping {count_word(len(titles))} low-priority tasks keeps every other stop {cost}."
+    return (
+        f"Skipping the {lower_first(titles[0])} keeps every other stop {cost}."
+        if len(titles) == 1
+        else f"Skipping {count_word(len(titles))} low-priority tasks keeps every other stop {cost}."
+    )
 
 
 def created(n_tasks: int, approximate: bool) -> str:
