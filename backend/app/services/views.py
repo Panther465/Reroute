@@ -269,6 +269,7 @@ def shared_out(db: Session, trip: Trip, traveller_name: str, now: datetime, upda
     return SharedTripOut(
         traveller_first_name=traveller_name.split(" ")[0] if traveller_name else "Traveller",
         city_name=trip.city_name,
+        utc_offset=trip.utc_offset,
         day=day,
         updated_at=updated or (plan.activated_at if plan and plan.activated_at else now),
         now=now,

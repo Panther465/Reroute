@@ -405,6 +405,7 @@ class SharedLegOut(Api):
 class SharedTripOut(Api):
     traveller_first_name: str
     city_name: str
+    utc_offset: str
     day: date
     updated_at: datetime
     now: datetime

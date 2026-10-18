@@ -755,6 +755,64 @@
             }
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "trips"
+        ],
+        "summary": "Remove a task that hasn't been planned or done",
+        "operationId": "delete_task_v1_trips__trip_id__tasks__task_id__delete",
+        "parameters": [
+          {
+            "name": "task_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Task Id"
+            }
+          },
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/trips/{trip_id}/plans": {
@@ -3092,6 +3150,10 @@
             "type": "string",
             "title": "Cityname"
           },
+          "utcOffset": {
+            "type": "string",
+            "title": "Utcoffset"
+          },
           "day": {
             "type": "string",
             "format": "date",
@@ -3126,6 +3188,7 @@
         "required": [
           "travellerFirstName",
           "cityName",
+          "utcOffset",
           "day",
           "updatedAt",
           "now",

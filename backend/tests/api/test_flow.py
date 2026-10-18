@@ -208,3 +208,13 @@ def test_refresh_rotates_and_needs_csrf(client):
     csrf = c.cookies.get("rr_csrf")
     ok = c.post("/v1/auth/refresh", headers={"X-CSRF-Token": csrf})
     assert ok.status_code == 200 and ok.json()["accessToken"]
+
+
+def test_a_task_can_be_removed_until_it_has_check_ins(client):
+    plan_v1(client)
+    assert client.delete("/v1/trips/trip-001/tasks/task-office").status_code == 204
+    tasks = {t["taskId"] for t in client.get("/v1/trips/trip-001").json()["tasks"]}
+    assert "task-office" not in tasks
+    clock(client, "11:00")
+    client.post("/v1/trips/trip-001/checkins", json={"taskId": "task-meet", "kind": "done", "idempotencyKey": key()})
+    assert client.delete("/v1/trips/trip-001/tasks/task-meet").status_code == 409
