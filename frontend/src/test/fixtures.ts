@@ -94,6 +94,7 @@ export function goldenTrip(now = '10:55', overrides: Partial<Trip> = {}): Trip {
     openOptions: null,
     log: [],
     now: iso(now),
+    clockSimulated: true,
     day: D,
     dayIndex: 1,
     dayCount: 2,

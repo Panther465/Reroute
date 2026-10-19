@@ -84,7 +84,7 @@ export default function Today() {
   const trip = tripQ.data
   const baseView = useDay(trip)
   const serverNow = trip ? localMinutes(trip.now, trip.day, trip.utcOffset) : null
-  const clock = useTripClock(serverNow) ?? 0
+  const clock = useTripClock(serverNow, tripQ.dataUpdatedAt, trip?.clockSimulated ?? false) ?? 0
   const view = baseView
   const change = useStore((s) => s.change)
   const reveal = useStore((s) => s.reveal)

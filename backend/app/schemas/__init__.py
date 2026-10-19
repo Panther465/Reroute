@@ -357,6 +357,8 @@ class TripOut(TripSummaryOut):
     open_options: OptionSetOut | None
     log: list[LogEntryOut]
     now: datetime
+    #: The demo clock holds still at the time it was set; a real clock keeps running after `now`.
+    clock_simulated: bool = False
     day: date
     day_index: int
     day_count: int
