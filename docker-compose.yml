@@ -28,6 +28,7 @@ x-api-env: &api-env
 
 services:
   postgres:
+    restart: unless-stopped
     image: postgis/postgis:16-3.4
     environment:
       POSTGRES_DB: reroute
@@ -46,6 +47,7 @@ services:
       retries: 20
 
   redis:
+    restart: unless-stopped
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
     volumes: [redisdata:/data]
@@ -56,6 +58,7 @@ services:
       retries: 20
 
   mongo:
+    restart: unless-stopped
     image: mongo:7
     volumes: [mongodata:/data/db]
     ports: ["127.0.0.1:${MONGO_HOST_PORT:-57017}:27017"]
@@ -65,6 +68,7 @@ services:
       retries: 20
 
   raasta:
+    restart: unless-stopped
     build: ./raasta
     environment:
       APP_ENV: ${APP_ENV:-development}
@@ -85,6 +89,7 @@ services:
       mongo: { condition: service_healthy }
 
   api-1: &api
+    restart: unless-stopped
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -107,6 +112,7 @@ services:
       api-1: { condition: service_healthy }
 
   worker:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -120,6 +126,7 @@ services:
       api-1: { condition: service_healthy }
 
   scheduler:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: backend/Dockerfile
@@ -133,12 +140,14 @@ services:
       api-1: { condition: service_healthy }
 
   web:
+    restart: unless-stopped
     build:
       context: ./frontend
       args:
         VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
 
   nginx:
+    restart: unless-stopped
     image: nginx:1.27-alpine
     entrypoint: ["/bin/sh", "/start.sh"]
     volumes:
@@ -166,6 +175,7 @@ services:
       OSM_EXTRACT_URL: ${OSM_EXTRACT_URL:-https://download.geofabrik.de/asia/india/southern-zone-latest.osm.pbf}
 
   osrm-car:
+    restart: unless-stopped
     profiles: [routing]
     image: ghcr.io/project-osrm/osrm-backend:v5.27.1
     command: ["osrm-routed", "--algorithm", "mld", "/data/car/region.osrm"]
@@ -174,6 +184,7 @@ services:
       osrm-prep: { condition: service_completed_successfully }
 
   osrm-foot:
+    restart: unless-stopped
     profiles: [routing]
     image: ghcr.io/project-osrm/osrm-backend:v5.27.1
     command: ["osrm-routed", "--algorithm", "mld", "/data/foot/region.osrm"]

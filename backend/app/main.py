@@ -6,14 +6,17 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+from rq import Worker
 from sqlalchemy import text
 
 from app import errors
 from app.config import get_settings
 from app.db import engine
 from app.middleware import GuardMiddleware, TraceIdMiddleware
-from app.redis_client import get_redis
+from app.redis_client import get_redis, get_redis_bytes
 from app.routes import auth, live, me, places, share, trips
+
+log = logging.getLogger("reroute")
 
 
 def create_app() -> FastAPI:
@@ -54,7 +57,14 @@ def create_app() -> FastAPI:
             checks["redis"] = "ok"
         except Exception:
             checks["redis"] = "down"
-        ready = all(v == "ok" for v in checks.values())
+        try:
+            # Planning only happens in a worker: with none alive, plans would wait forever.
+            checks["workers"] = "ok" if Worker.count(connection=get_redis_bytes()) > 0 else "down"
+        except Exception:
+            checks["workers"] = "unknown"
+        ready = checks["database"] == "ok" and checks["redis"] == "ok"
+        if checks["workers"] != "ok":
+            log.warning("No planning worker is running")
         return JSONResponse({"status": "ok" if ready else "degraded", "checks": checks}, status_code=200 if ready else 503)
 
     return app
