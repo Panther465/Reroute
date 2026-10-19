@@ -1,7 +1,7 @@
 // Check-ins made offline wait here with their idempotency keys and go out when the phone is back
 // online. Idempotency makes the retry safe: the server answers a repeated key with the first result.
 import { useSyncExternalStore } from 'react'
-import { ApiError } from '@/api/client'
+import { ApiError, isSignedOutError } from '@/api/client'
 
 export interface QueuedCheckin {
   tripId: string
@@ -68,6 +68,8 @@ export async function flush(send: (item: QueuedCheckin) => Promise<unknown>): Pr
       sent++
     } catch (err) {
       if (err instanceof ApiError && err.offline) break
+      // Signed out: keep it, and send it once the traveller is back in.
+      if (isSignedOutError(err)) break
       if (err instanceof ApiError && err.status >= 400 && err.status < 500) dropped++
       else break
     }
@@ -76,9 +78,16 @@ export async function flush(send: (item: QueuedCheckin) => Promise<unknown>): Pr
   return { sent, dropped }
 }
 
-/** For tests. */
-export function resetQueue() {
+/** Forget every waiting check-in (sign-out). */
+export function clearQueue() {
   cache = null
-  localStorage.removeItem(KEY)
+  try {
+    localStorage.removeItem(KEY)
+  } catch {
+    /* ignore */
+  }
   listeners.forEach((l) => l())
 }
+
+/** For tests. */
+export const resetQueue = clearQueue

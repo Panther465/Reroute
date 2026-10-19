@@ -49,6 +49,7 @@ function FlipTime({ value, changed, index, reduce }: { value: string; changed: b
  * "The day that reroutes itself": the sign-in screen's one-shot preview of the signature choreography.
  * The sample day draws as a line, the leg to the bank fades and turns dashed, a cab route draws in its
  * place and the changed times flip. About 2 seconds, once. Reduced motion shows the final state.
+ * Sign in loads it after first paint inside a figure that holds its caption, so it doesn't hold up the page.
  */
 export function RerouteHero() {
   const reduce = !!useReducedMotion()
@@ -64,59 +65,54 @@ export function RerouteHero() {
   const dashIn = reduce ? { initial: false as const, animate: { opacity: 0.3 } } : { initial: { opacity: 0 }, animate: { opacity: 0.3 }, transition: { delay: 0.86, duration: 0.2 } }
 
   return (
-    <figure className="relative">
-      <div className="relative aspect-[5/2] w-full" aria-hidden="true">
-        <svg viewBox="0 0 300 120" className="absolute inset-0 size-full overflow-visible" fill="none" strokeLinecap="round">
-          {/* Hotel to meeting: metro, then shared auto */}
-          <motion.path d={`M${H} ${Y}H${M - 25}`} stroke="var(--blue)" strokeWidth="6" {...draw(0, 0.22)} />
-          <motion.path d={`M${M - 25} ${Y}H${M}`} stroke="var(--green)" strokeWidth="6" {...draw(0.2, 0.1)} />
-          {/* Meeting to bank: the leg that changes */}
-          <motion.g {...fadeOld}>
-            <motion.path d={`M${M} ${Y}H${B - 28}`} stroke="var(--blue)" strokeWidth="6" {...draw(0.28, 0.22)} />
-            <motion.path d={`M${B - 28} ${Y}H${B}`} stroke="var(--green)" strokeWidth="6" {...draw(0.48, 0.1)} />
-          </motion.g>
-          <motion.path d={`M${M} ${Y}H${B}`} stroke="var(--ink)" strokeWidth="6" strokeDasharray="5 7" {...dashIn} />
-          {/* Bank to office: verified shared auto */}
-          <motion.path d={`M${B} ${Y}H${O}`} stroke="var(--green)" strokeWidth="6" {...draw(0.56, 0.24)} />
-          {/* The reroute: a cab arcs over the old leg */}
-          <motion.path d={`M${M} ${Y}C${M + 22} ${Y - 46} ${B - 22} ${Y - 46} ${B} ${Y}`} stroke="var(--ink)" strokeWidth="6" {...draw(1.0, 0.6)} />
-          {STATIONS.map((s, i) => (
-            <motion.circle
-              key={s.name}
-              cx={s.x}
-              cy={Y}
-              r="7"
-              fill={i === 1 ? 'var(--yellow)' : 'var(--surface)'}
-              stroke="var(--ink)"
-              strokeWidth="3"
-              style={{ transformOrigin: `${s.x}px ${Y}px` }}
-              initial={reduce ? false : { scale: 0.6, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              transition={{ delay: 0.05 + i * 0.14, duration: 0.24, ease: EASE_OUT }}
-            />
-          ))}
-        </svg>
+    <div className="relative aspect-[5/2] w-full" aria-hidden="true">
+      <svg viewBox="0 0 300 120" className="absolute inset-0 size-full overflow-visible" fill="none" strokeLinecap="round">
+        {/* Hotel to meeting: metro, then shared auto */}
+        <motion.path d={`M${H} ${Y}H${M - 25}`} stroke="var(--blue)" strokeWidth="6" {...draw(0, 0.22)} />
+        <motion.path d={`M${M - 25} ${Y}H${M}`} stroke="var(--green)" strokeWidth="6" {...draw(0.2, 0.1)} />
+        {/* Meeting to bank: the leg that changes */}
+        <motion.g {...fadeOld}>
+          <motion.path d={`M${M} ${Y}H${B - 28}`} stroke="var(--blue)" strokeWidth="6" {...draw(0.28, 0.22)} />
+          <motion.path d={`M${B - 28} ${Y}H${B}`} stroke="var(--green)" strokeWidth="6" {...draw(0.48, 0.1)} />
+        </motion.g>
+        <motion.path d={`M${M} ${Y}H${B}`} stroke="var(--ink)" strokeWidth="6" strokeDasharray="5 7" {...dashIn} />
+        {/* Bank to office: verified shared auto */}
+        <motion.path d={`M${B} ${Y}H${O}`} stroke="var(--green)" strokeWidth="6" {...draw(0.56, 0.24)} />
+        {/* The reroute: a cab arcs over the old leg */}
+        <motion.path d={`M${M} ${Y}C${M + 22} ${Y - 46} ${B - 22} ${Y - 46} ${B} ${Y}`} stroke="var(--ink)" strokeWidth="6" {...draw(1.0, 0.6)} />
         {STATIONS.map((s, i) => (
-          <div key={s.name} className="absolute flex -translate-x-1/2 flex-col items-center text-center" style={{ left: `${(s.x / 300) * 100}%`, top: `${((Y + 14) / 120) * 100}%` }}>
-            <span className="t-caption text-ink">
-              <FlipTime value={flipped ? s.after : s.before} changed={flipped && s.after !== s.before} index={i - 2} reduce={reduce} />
-            </span>
-            <span className="t-small text-ink-2">{s.name}</span>
-          </div>
+          <motion.circle
+            key={s.name}
+            cx={s.x}
+            cy={Y}
+            r="7"
+            fill={i === 1 ? 'var(--yellow)' : 'var(--surface)'}
+            stroke="var(--ink)"
+            strokeWidth="3"
+            style={{ transformOrigin: `${s.x}px ${Y}px` }}
+            initial={reduce ? false : { scale: 0.6, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ delay: 0.05 + i * 0.14, duration: 0.24, ease: EASE_OUT }}
+          />
         ))}
-        <motion.span
-          className="absolute rounded-tag bg-ink px-2 py-0.5 t-caption text-on-ink"
-          style={{ left: `${((M + B) / 2 / 300) * 100}%`, top: '-4%', x: '-50%' }}
-          initial={reduce ? false : { opacity: 0, y: 6 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 1.35, duration: 0.24, ease: EASE_OUT }}
-        >
-          Cab, +₹350
-        </motion.span>
-      </div>
-      <figcaption className="mt-3 t-small text-muted">
-        Running 40 min late at 10:55? A cab keeps all three tasks. <span className="sr-only">The bank moves to 12:35 and the office to 15:50.</span>
-      </figcaption>
-    </figure>
+      </svg>
+      {STATIONS.map((s, i) => (
+        <div key={s.name} className="absolute flex -translate-x-1/2 flex-col items-center text-center" style={{ left: `${(s.x / 300) * 100}%`, top: `${((Y + 14) / 120) * 100}%` }}>
+          <span className="t-caption text-ink">
+            <FlipTime value={flipped ? s.after : s.before} changed={flipped && s.after !== s.before} index={i - 2} reduce={reduce} />
+          </span>
+          <span className="t-small text-ink-2">{s.name}</span>
+        </div>
+      ))}
+      <motion.span
+        className="absolute rounded-tag bg-ink px-2 py-0.5 t-caption text-on-ink"
+        style={{ left: `${((M + B) / 2 / 300) * 100}%`, top: '-4%', x: '-50%' }}
+        initial={reduce ? false : { opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 1.35, duration: 0.24, ease: EASE_OUT }}
+      >
+        Cab, +₹350
+      </motion.span>
+    </div>
   )
 }

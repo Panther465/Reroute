@@ -1,12 +1,12 @@
-import { motion, type HTMLMotionProps } from 'motion/react'
-import { forwardRef, useEffect, useState, type ReactNode } from 'react'
+import { forwardRef, useEffect, useState, type ButtonHTMLAttributes, type ReactNode } from 'react'
 import { Link, type LinkProps } from 'react-router'
 import { Spinner } from './Spinner'
 
 export type ButtonVariant = 'primary' | 'secondary' | 'tertiary' | 'destructive'
 
+// The press (scale 0.97 over 90 ms) is plain CSS, so pages with buttons don't need the animation library.
 const base =
-  'relative inline-flex items-center justify-center gap-2 select-none whitespace-normal text-center t-title transition-colors duration-[var(--dur-quick)] disabled:cursor-not-allowed disabled:opacity-60'
+  'relative inline-flex items-center justify-center gap-2 select-none whitespace-normal text-center t-title transition-[color,background-color,border-color,scale] duration-[var(--dur-quick)] motion-safe:[&:active:enabled:not([aria-busy])]:scale-[0.97] motion-safe:[&:active:enabled:not([aria-busy])]:duration-[90ms] disabled:cursor-not-allowed disabled:opacity-60'
 
 const variants: Record<ButtonVariant, string> = {
   primary: 'bg-green text-on-green rounded-control px-5 [@media(hover:hover)]:hover:enabled:bg-green-ink',
@@ -19,17 +19,14 @@ export function buttonClass(variant: ButtonVariant = 'primary', size: 'lg' | 'md
   return [base, variants[variant], size === 'lg' ? 'min-h-[52px]' : 'min-h-12', full ? 'w-full' : ''].join(' ')
 }
 
-const press = { scale: 0.97 }
-const pressTransition = { duration: 0.09 }
-
-interface ButtonProps extends Omit<HTMLMotionProps<'button'>, 'children'> {
+interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, 'children'> {
   variant?: ButtonVariant
   size?: 'lg' | 'md'
   full?: boolean
   icon?: ReactNode
   loading?: boolean
   /** Shown with a spinner once the action has taken longer than 300 ms. */
-  loadingLabel?: string
+  loadingLabel?: ReactNode
   children: ReactNode
 }
 
@@ -48,11 +45,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
   }, [loading])
   const busy = loading && slow
   return (
-    <motion.button
+    <button
       ref={ref}
       type={type}
-      whileTap={disabled || loading ? undefined : press}
-      transition={pressTransition}
       className={`${buttonClass(variant, size, full)} ${className}`}
       disabled={disabled}
       aria-busy={loading || undefined}
@@ -67,7 +62,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     >
       {busy ? <Spinner /> : icon}
       <span>{busy && loadingLabel ? loadingLabel : children}</span>
-    </motion.button>
+    </button>
   )
 })
 

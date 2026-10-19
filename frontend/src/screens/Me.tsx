@@ -1,5 +1,5 @@
 import { ChevronRight, History, Languages, LogOut, Moon, ShieldCheck, Sun, SunMoon } from 'lucide-react'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { api, ApiError } from '@/api/client'
 import { useCurrentTripId, useMe, useTrip } from '@/api/queries'
@@ -8,15 +8,19 @@ import { Button } from '@/components/ui/Button'
 import { Segmented, Switch } from '@/components/ui/Choice'
 import { Sheet } from '@/components/ui/Sheet'
 import { ErrorState, Skeleton } from '@/components/ui/States'
-import { useOnline } from '@/lib/hooks'
-import { useT } from '@/lib/i18n'
+import { useDocumentTitle, useOnline } from '@/lib/hooks'
+import { T, useTl } from '@/lib/i18n'
 import { signOut } from '@/lib/session'
 import { setState, showToast, useStore, type Lang, type Theme } from '@/lib/store'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
+  const heading = useTl()(title)
+  const id = useId()
   return (
-    <section className="mt-8" aria-label={title}>
-      <h2 className="mb-3 t-title text-ink">{title}</h2>
+    <section className="mt-8" aria-labelledby={id}>
+      <h2 id={id} lang={heading.lang} className="mb-3 t-title text-ink">
+        {heading.text}
+      </h2>
       {children}
     </section>
   )
@@ -25,7 +29,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 const notificationsSupported = typeof window !== 'undefined' && 'Notification' in window
 
 export default function Me() {
-  const t = useT()
+  const tl = useTl()
   const navigate = useNavigate()
   const me = useMe()
   const current = useCurrentTripId()
@@ -40,13 +44,19 @@ export default function Me() {
   const rowLink = 'flex min-h-14 items-center gap-3 px-4 py-3 t-title text-ink [@media(hover:hover)]:hover:bg-sunken/60'
   const user = me.data
   const moderator = user?.role === 'moderator' || user?.role === 'admin'
+  useDocumentTitle('Me')
 
   const toggleAlerts = async (on: boolean) => {
     if (!on) return setState({ leaveAlerts: false })
-    const permission = await Notification.requestPermission()
+    let permission: NotificationPermission = 'denied'
+    try {
+      permission = await Notification.requestPermission()
+    } catch {
+      /* some browsers only allow asking from an installed app */
+    }
     if (permission === 'granted') {
       setState({ leaveAlerts: true })
-      showToast({ title: "You'll get a notification 10 minutes before each leave-by time." })
+      showToast({ title: 'Leave-by alerts are on. They show while Reroute is open or in the background on this phone.' })
     } else {
       setState({ leaveAlerts: false })
       showToast({ title: 'Notifications are off for Reroute in your browser settings. Leave-by alerts still show in the app.' })
@@ -68,9 +78,11 @@ export default function Me() {
 
   return (
     <div className="mx-auto max-w-[560px] px-5 pb-10 pt-6 lg:max-w-[720px] lg:px-8 lg:pt-8">
-      <h1 className="t-display-1 text-ink">{t('Me')}</h1>
+      <h1 tabIndex={-1} className="t-display-1 text-ink">
+        <T k="Me" />
+      </h1>
 
-      <Section title={t('Profile')}>
+      <Section title="Profile">
         {me.isPending ? (
           <Skeleton className="h-20 w-full rounded-card" />
         ) : me.isError && !user ? (
@@ -96,9 +108,10 @@ export default function Me() {
         )}
       </Section>
 
-      <Section title={t('Language')}>
+      <Section title="Language">
         <Segmented<Lang>
-          label={t('Language')}
+          label={tl('Language').text}
+          labelLang={tl('Language').lang}
           hideLabel
           value={lang}
           onChange={(v) => setState({ lang: v })}
@@ -109,24 +122,31 @@ export default function Me() {
         />
       </Section>
 
-      <Section title={t('Theme')}>
+      <Section title="Theme">
         <Segmented<Theme>
-          label={t('Theme')}
+          label={tl('Theme').text}
+          labelLang={tl('Theme').lang}
           hideLabel
           value={theme}
           onChange={(v) => setState({ theme: v })}
           options={[
-            { value: 'system', label: t('System'), icon: <SunMoon size={20} strokeWidth={1.75} aria-hidden="true" /> },
-            { value: 'light', label: t('Light'), icon: <Sun size={20} strokeWidth={1.75} aria-hidden="true" /> },
-            { value: 'dark', label: t('Dark'), icon: <Moon size={20} strokeWidth={1.75} aria-hidden="true" /> },
+            { value: 'system', label: <T k="System" />, icon: <SunMoon size={20} strokeWidth={1.75} aria-hidden="true" /> },
+            { value: 'light', label: <T k="Light" />, icon: <Sun size={20} strokeWidth={1.75} aria-hidden="true" /> },
+            { value: 'dark', label: <T k="Dark" />, icon: <Moon size={20} strokeWidth={1.75} aria-hidden="true" /> },
           ]}
         />
       </Section>
 
       {notificationsSupported && (
-        <Section title={t('Notifications')}>
+        <Section title="Notifications">
           <div className="rounded-card border border-line bg-surface px-4">
-            <Switch label="Time to leave" description="A notification 10 minutes before each leave-by time, when Reroute isn't on screen" checked={alerts} onChange={(v) => void toggleAlerts(v)} />
+            <Switch
+              label={tl('Time to leave').text}
+              lang={tl('Time to leave').lang}
+              description="A notification about 10 minutes before each leave-by time. Alerts appear while Reroute is open or in the background on this phone, not after it's closed."
+              checked={alerts}
+              onChange={(v) => void toggleAlerts(v)}
+            />
           </div>
         </Section>
       )}
@@ -136,7 +156,9 @@ export default function Me() {
           <li>
             <button type="button" onClick={() => setLog(true)} className={`${rowLink} w-full text-left`}>
               <History size={20} strokeWidth={1.75} aria-hidden="true" className="text-muted" />
-              <span className="flex-1">{t('Reroute log')}</span>
+              <span className="flex-1">
+                <T k="Reroute log" />
+              </span>
               <ChevronRight size={20} strokeWidth={1.75} aria-hidden="true" className="text-muted" />
             </button>
           </li>
@@ -154,7 +176,7 @@ export default function Me() {
 
       <div className="mt-10 flex flex-col items-start gap-3">
         <Button variant="destructive" onClick={() => setConfirm(true)} disabled={!online}>
-          {t('Delete my location history')}
+          <T k="Delete my location history" />
         </Button>
         <Button
           variant="secondary"
@@ -164,7 +186,7 @@ export default function Me() {
             navigate('/signin')
           }}
         >
-          {t('Sign out')}
+          <T k="Sign out" />
         </Button>
       </div>
 

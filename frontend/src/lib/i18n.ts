@@ -1,5 +1,5 @@
 // A small i18n layer. English is the source; Hindi covers the chrome and core flows.
-import { useCallback } from 'react'
+import { createElement, Fragment, useCallback } from 'react'
 import { useStore } from './store'
 
 const hi: Record<string, string> = {
@@ -55,6 +55,38 @@ const hi: Record<string, string> = {
   'Day summary': 'दिन का सार',
   'Your day is done': 'आपका दिन पूरा हुआ',
   'Profile': 'प्रोफ़ाइल',
+  "You're offline. Try again when you have signal.": 'आप ऑफ़लाइन हैं। सिग्नल मिलने पर फिर कोशिश करें।',
+  'Done with the {task}': '{task} पूरा हुआ',
+  'Check in at the {task}': '{task} पर चेक इन करें',
+  'Check in now': 'अभी चेक इन करें',
+  'Not yet': 'अभी नहीं',
+  'Choose how to fix your day': 'अपना दिन ठीक करने का तरीका चुनें',
+  'Edit the {task}': '{task} बदलें',
+  'Skip the {task}': '{task} छोड़ें',
+  'Skip it': 'छोड़ दें',
+  Cancel: 'रद्द करें',
+  Edit: 'बदलें',
+  'Saving…': 'सेव हो रहा है…',
+  'Re-planning…': 'फिर से प्लान हो रहा है…',
+  'Save changes': 'बदलाव सेव करें',
+  'Add this task': 'यह काम जोड़ें',
+  'Edit this task': 'यह काम बदलें',
+  'Share your trip': 'अपनी यात्रा साझा करें',
+  'Share live trip': 'लाइव यात्रा साझा करें',
+  'Stop sharing': 'साझा करना बंद करें',
+  Copy: 'कॉपी करें',
+  'See the options': 'विकल्प देखें',
+  Dismiss: 'हटाएं',
+  'Something went wrong on this screen.': 'इस स्क्रीन पर कुछ गड़बड़ हो गई।',
+  Reload: 'फिर से लोड करें',
+  'Skip to content': 'मुख्य सामग्री पर जाएं',
+  'See the day summary': 'दिन का सार देखें',
+  'Find routes': 'रास्ते खोजें',
+  'Submit for checking': 'जांच के लिए भेजें',
+  'Send the fare': 'किराया भेजें',
+  'Your trip': 'आपकी यात्रा',
+  'Your activity': 'आपकी गतिविधि',
+  'Time to leave': 'निकलने का समय',
 }
 
 export function useT() {
@@ -67,6 +99,32 @@ export function useT() {
     },
     [lang],
   )
+}
+
+/** Text and its language: `lang` is "hi" only when a Hindi string was found. */
+export interface Translated {
+  text: string
+  lang?: 'hi'
+}
+
+/** Like useT, but says which language came back, for props such as a sheet's titleLang. */
+export function useTl() {
+  const lang = useStore((s) => s.lang)
+  return useCallback(
+    (en: string, vars?: Record<string, string | number>): Translated => {
+      const found = lang === 'hi' ? hi[en] : undefined
+      let text = found ?? en
+      if (vars) for (const [k, v] of Object.entries(vars)) text = text.replace(`{${k}}`, String(v))
+      return found ? { text, lang: 'hi' } : { text }
+    },
+    [lang],
+  )
+}
+
+/** Translated UI text. Hindi renders in a span with lang="hi" (UI brief 11); English renders as plain text. */
+export function T({ k, vars }: { k: string; vars?: Record<string, string | number> }) {
+  const { text, lang } = useTl()(k, vars)
+  return lang ? createElement('span', { lang }, text) : createElement(Fragment, null, text)
 }
 
 /** Props for text that may render in Hindi. */

@@ -3,14 +3,14 @@ import type { Trip } from '@/api/types'
 import { Sheet } from '@/components/ui/Sheet'
 import { undo } from '@/lib/actions'
 import { hhmm } from '@/lib/format'
-import { useT } from '@/lib/i18n'
+import { T, useTl } from '@/lib/i18n'
 import { localMinutes } from '@/lib/timeline'
 
 export function RerouteLog({ trip, open, onOpenChange }: { trip: Trip | undefined; open: boolean; onOpenChange: (o: boolean) => void }) {
   const log = trip?.log ?? []
-  const t = useT()
+  const title = useTl()('Reroute log')
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title={t('Reroute log')} description="What Reroute changed in your day, and when. You can undo the latest change.">
+    <Sheet open={open} onOpenChange={onOpenChange} title={title.text} titleLang={title.lang} description="What Reroute changed in your day, and when. You can undo the latest change.">
       {log.length === 0 || !trip ? (
         <div className="py-4">
           <History size={24} strokeWidth={1.75} aria-hidden="true" className="text-muted" />
@@ -36,7 +36,7 @@ export function RerouteLog({ trip, open, onOpenChange }: { trip: Trip | undefine
                   className="flex min-h-12 shrink-0 items-center gap-2 rounded-control px-3 t-title text-ink underline decoration-2 underline-offset-4 [@media(hover:hover)]:hover:bg-sunken"
                 >
                   <Undo2 size={20} strokeWidth={1.75} aria-hidden="true" />
-                  {t('Undo')}
+                  <T k="Undo" />
                 </button>
               )}
             </li>

@@ -1,10 +1,12 @@
 // TanStack Query hooks for both APIs. The query cache is persisted, so the active plan still renders offline.
 import { QueryClient, useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
+import { useQueued } from '@/lib/offlineQueue'
 import { useStore } from '@/lib/store'
 import { buildDay } from '@/lib/timeline'
 import { api, ApiError } from './client'
 import type { Contribution, ContributionsPage, Job, Place, RaastaLegOptions, RaastaRoute, SharedTrip, StandsPage, Summary, Trip, TripsPage, User } from './types'
+import { useSessionStatus } from '@/lib/session'
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -49,15 +51,17 @@ export function useTrips(enabled = true) {
 
 /** The trip the app shows: the most recent one. */
 export function useCurrentTripId(): { tripId: string | null; isPending: boolean; isError: boolean; error: unknown; refetch: () => void } {
-  const q = useTrips()
+  // Nothing is fetched until the session is known: an unauthenticated request would only bounce.
+  const q = useTrips(useSessionStatus() === 'signedIn')
   return { tripId: q.data?.items[0]?.tripId ?? null, isPending: q.isPending, isError: q.isError, error: q.error, refetch: () => void q.refetch() }
 }
 
 export function useTrip(tripId: string | null) {
+  const signedIn = useSessionStatus() === 'signedIn'
   return useQuery({
     queryKey: keys.trip(tripId ?? 'none'),
     queryFn: () => api.get<Trip>(`/v1/trips/${tripId}`),
-    enabled: !!tripId,
+    enabled: !!tripId && signedIn,
     // The saved copy renders at once (and offline); on every load, confirm it with the server.
     refetchOnMount: 'always',
     // Live events invalidate this; the interval is a safety net for missed events.
@@ -65,15 +69,27 @@ export function useTrip(tripId: string | null) {
   })
 }
 
-/** The day view for a trip, with optimistic check-ins applied. */
-export function useDay(trip: Trip | undefined) {
-  const optimistic = useStore((s) => s.optimisticDone)
+/**
+ * The day view for a trip, with check-ins the server hasn't confirmed yet applied: the ones in flight
+ * (or inside their Undo window) and the ones queued offline, which survive a reload. `clock` is the
+ * running trip clock, so where the traveller is and what runs late follow it between fetches.
+ */
+export function useDay(trip: Trip | undefined, clock?: number | null) {
+  const inFlight = useStore((s) => s.optimisticDone)
+  const waiting = useQueued(trip?.tripId)
+  const key = [...inFlight, ...waiting.map((q) => `${q.kind}:${q.taskId}`)].join('|')
   return useMemo(() => {
     if (!trip) return null
-    if (!optimistic.length) return buildDay(trip)
-    const tasks = trip.tasks.map((t) => (optimistic.includes(t.taskId) && t.state !== 'done' ? { ...t, state: 'done' as const } : t))
-    return buildDay({ ...trip, tasks })
-  }, [trip, optimistic])
+    const now = clock ?? undefined
+    const states = new Map<string, Trip['tasks'][number]['state']>()
+    waiting.forEach((q) => q.kind !== 'delay' && states.set(q.taskId, q.kind === 'skipped' ? 'skipped' : 'done'))
+    inFlight.forEach((id) => states.set(id, 'done'))
+    if (!states.size) return buildDay(trip, now)
+    const tasks = trip.tasks.map((t) => (states.has(t.taskId) && t.state !== 'done' && t.state !== 'skipped' ? { ...t, state: states.get(t.taskId)! } : t))
+    return buildDay({ ...trip, tasks }, now)
+    // `key` stands for the optimistic sets by value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [trip, key, clock])
 }
 
 export function useSummary(tripId: string | null) {
@@ -90,11 +106,12 @@ export function useShared(token: string) {
   })
 }
 
-export function usePlaceSearch(q: string, city: string, cityName: string) {
+/** Place search in the trip's city. The server knows each city's name, and answers 422 for a city it doesn't cover. */
+export function usePlaceSearch(q: string, city: string) {
   const query = q.trim()
   return useQuery({
     queryKey: keys.places(query.toLowerCase(), city),
-    queryFn: () => api.get<Place[]>('/v1/places', { query: { q: query, city, cityName } }),
+    queryFn: () => api.get<Place[]>('/v1/places', { query: { q: query, city } }),
     enabled: query.length >= 2,
     staleTime: 5 * 60_000,
   })

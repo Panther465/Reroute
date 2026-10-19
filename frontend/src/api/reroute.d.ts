@@ -457,6 +457,8 @@ export interface components {
         AcceptIn: {
             /** Idempotencykey */
             idempotencyKey: string;
+            /** Optionsetid */
+            optionSetId?: string | null;
         };
         /** ActivateIn */
         ActivateIn: {
@@ -1503,7 +1505,11 @@ export interface operations {
             query: {
                 q: string;
                 city?: string;
-                cityName?: string;
+                /**
+                 * @deprecated
+                 * @description Ignored: the server knows each city's name.
+                 */
+                cityName?: string | null;
             };
             header?: {
                 authorization?: string | null;

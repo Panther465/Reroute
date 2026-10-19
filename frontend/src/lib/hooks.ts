@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { isReachable, onReachableChange } from '@/api/client'
 import type { Trip } from '@/api/types'
 import { hhmm } from './format'
 import { useStore } from './store'
@@ -29,8 +30,10 @@ export function useOnline() {
     },
     () => navigator.onLine,
   )
+  // Online for the browser but nothing getting through (a weak signal) counts as offline too.
+  const reachable = useSyncExternalStore(onReachableChange, isReachable)
   const forced = useStore((s) => s.demo.offline)
-  return browser && !forced
+  return browser && reachable && !forced
 }
 
 /**
@@ -89,4 +92,11 @@ export function useDelayed<T>(value: T, delayMs: number, key: string): T {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key])
   return delayMs <= 0 ? value : shown.value
+}
+
+/** The tab title for a screen: "Today in Bengaluru, Reroute". Plain words, no separators or arrows. */
+export function useDocumentTitle(title: string | null | undefined) {
+  useEffect(() => {
+    document.title = title ? `${title}, Reroute` : 'Reroute'
+  }, [title])
 }

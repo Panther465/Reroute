@@ -4,6 +4,10 @@ import { defineConfig, devices } from '@playwright/test'
 export default defineConfig({
   testDir: 'e2e',
   timeout: 60_000,
+  // Every test drives the same seeded demo trip (trip-001), and the flow test resets it, so tests
+  // run one at a time: in parallel they would change the trip under each other.
+  workers: 1,
+  fullyParallel: false,
   retries: process.env.CI ? 1 : 0,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {

@@ -1,22 +1,27 @@
 import * as Toast from '@radix-ui/react-toast'
 import { X } from 'lucide-react'
 import { undo } from '@/lib/actions'
-import { useT } from '@/lib/i18n'
-import { dismissToast, useToasts } from '@/lib/store'
+import { T } from '@/lib/i18n'
+import { dismissToast, settleToast, useToasts } from '@/lib/store'
 
 /** Inverted toast (ink background) with Undo. Radix pauses it on hover or focus and supports swipe. */
 export function Toaster({ tripId }: { tripId: string | null }) {
   const toasts = useToasts()
-  const t = useT()
   return (
     <Toast.Provider duration={8000} swipeDirection="down" label="Notification">
       {toasts.map((item) => {
-        const canUndo = tripId !== null && item.undoVersion != null
+        const serverUndo = tripId !== null && item.undoVersion != null
+        const canUndo = serverUndo || !!item.onUndo
         return (
           <Toast.Root
             key={item.id}
             type="background"
-            onOpenChange={(open) => !open && setTimeout(() => dismissToast(item.id), 200)}
+            duration={item.duration}
+            onOpenChange={(open) => {
+              if (open) return
+              settleToast(item.id, 'close')
+              setTimeout(() => dismissToast(item.id), 200)
+            }}
             className="rr-toast flex w-full items-center gap-2 rounded-card bg-ink py-2 pl-4 pr-2 text-on-ink shadow-[var(--shadow-toast)]"
           >
             <Toast.Description className="min-w-0 flex-1 py-2 t-body">{item.title}</Toast.Description>
@@ -25,12 +30,13 @@ export function Toaster({ tripId }: { tripId: string | null }) {
                 <button
                   type="button"
                   onClick={() => {
+                    if (item.onUndo) settleToast(item.id, 'undo')
                     dismissToast(item.id)
-                    void undo(tripId!, item.undoVersion!)
+                    if (serverUndo) void undo(tripId!, item.undoVersion!)
                   }}
                   className="min-h-12 rounded-control px-3 t-title text-on-ink underline decoration-2 underline-offset-4 outline-offset-0 focus-visible:outline-on-ink"
                 >
-                  {t('Undo')}
+                  <T k="Undo" />
                 </button>
               </Toast.Action>
             )}

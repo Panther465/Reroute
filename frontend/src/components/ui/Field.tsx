@@ -15,19 +15,21 @@ export function FieldError({ id, children }: { id: string; children: ReactNode }
 
 interface FieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'id'> {
   label: string
+  /** "hi" when the label is a Hindi string. */
+  labelLang?: string
   hint?: string
   error?: string
   trailing?: ReactNode
 }
 
-export function Field({ label, hint, error, trailing, className = '', ...rest }: FieldProps) {
+export function Field({ label, labelLang, hint, error, trailing, className = '', ...rest }: FieldProps) {
   const id = useId()
   const hintId = `${id}-hint`
   const errId = `${id}-err`
   const described = [hint ? hintId : '', error ? errId : ''].filter(Boolean).join(' ') || undefined
   return (
     <div className={className}>
-      <label htmlFor={id} className="mb-2 block t-title text-ink">
+      <label htmlFor={id} lang={labelLang} className="mb-2 block t-title text-ink">
         {label}
       </label>
       {hint && (

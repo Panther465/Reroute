@@ -13,13 +13,12 @@ import { Sheet } from '@/components/ui/Sheet'
 import { Banner, EmptyState, ErrorState, LoadingRegion, Skeleton } from '@/components/ui/States'
 import { Tag } from '@/components/ui/Tag'
 import { duration, lowerFirst, rupees } from '@/lib/format'
-import { legLines, routeLine, type LngLat, type MapLine } from '@/lib/geo'
-import { useIsDesktop } from '@/lib/hooks'
-import { useT } from '@/lib/i18n'
+import { legLines, placeIndex, routeLine, type LngLat, type MapLine } from '@/lib/geo'
+import { useDocumentTitle, useIsDesktop } from '@/lib/hooks'
+import { T } from '@/lib/i18n'
 import { setState, showToast, useStore } from '@/lib/store'
 import type { LegView } from '@/lib/timeline'
 import type { Mode } from '@/lib/types'
-import { placeIndex } from './Today'
 
 const MapCard = lazy(() => import('@/components/MapCard'))
 
@@ -57,7 +56,6 @@ function StandLine({ board, alight, alightNote, mode }: { board: string; alight:
 }
 
 function Fact({ icon, term, children }: { icon: ReactNode; term: string; children: ReactNode }) {
-  const t = useT()
   return (
     // dt and dd must sit directly in the div that groups them (axe: definition-list, dlitem).
     <div className="relative py-3 pl-8">
@@ -65,7 +63,7 @@ function Fact({ icon, term, children }: { icon: ReactNode; term: string; childre
         <span className="absolute left-0 top-3.5 text-muted" aria-hidden="true">
           {icon}
         </span>
-        {t(term)}
+        <T k={term} />
       </dt>
       <dd className="min-w-0 t-body text-ink tnum">{children}</dd>
     </div>
@@ -172,11 +170,10 @@ export function modelForRoute(route: RaastaRoute): DetailModel {
 }
 
 export function StatusTag({ status }: { status: RaastaRoute['status'] }) {
-  const t = useT()
   if (status === 'verified')
     return (
       <Tag tone="green" icon={<ShieldCheck size={14} strokeWidth={1.75} aria-hidden="true" />}>
-        {t('Verified')}
+        <T k="Verified" />
       </Tag>
     )
   if (status === 'stale')
@@ -185,18 +182,24 @@ export function StatusTag({ status }: { status: RaastaRoute['status'] }) {
         Not confirmed lately
       </Tag>
     )
-  return <Tag tone="grey-outline">{t('Unverified')}</Tag>
+  return (
+    <Tag tone="grey-outline">
+      <T k="Unverified" />
+    </Tag>
+  )
 }
 
 export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailModel; embedded?: boolean; onBack?: () => void; nowIso?: string }) {
-  const t = useT()
   const navigate = useNavigate()
   const [confirmed, setConfirmed] = useState<number | null>(null)
   const [report, setReport] = useState(false)
   const [fare, setFare] = useState('')
   const [fareError, setFareError] = useState<string>()
   const [busy, setBusy] = useState(false)
-  const [keysFor] = useState(() => ({ confirm: newKey('cnf'), fare: newKey('fare') }))
+  const [sendingFare, setSendingFare] = useState(false)
+  const [confirmKey] = useState(() => newKey('cnf'))
+  // One key per fare report: a retry of the same report reuses it; the next report gets a new one.
+  const [fareKey, setFareKey] = useState(() => newKey('fare'))
   const r = model.route
   const leg = model.leg
   const started = useStore((s) => s.startedSeq)
@@ -212,7 +215,7 @@ export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailM
     if (!r) return
     setBusy(true)
     try {
-      const res = await api.post<{ confirmationsCount: number }>(`/v1/raasta/routes/${r.routeId}/confirmations`, {}, { idempotencyKey: keysFor.confirm })
+      const res = await api.post<{ confirmationsCount: number }>(`/v1/raasta/routes/${r.routeId}/confirmations`, {}, { idempotencyKey: confirmKey })
       setConfirmed(res.confirmationsCount)
       void queryClient.invalidateQueries({ queryKey: keys.route(r.routeId) })
       showToast({ title: 'Thanks. You confirmed this route still runs.' })
@@ -227,14 +230,18 @@ export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailM
     if (!r) return
     const n = Number(fare)
     if (!fare || !Number.isInteger(n) || n <= 0 || n > 2000) return setFareError('Enter the fare you paid, in whole rupees, between 1 and 2,000.')
+    setSendingFare(true)
     try {
-      await api.post(`/v1/raasta/routes/${r.routeId}/fare-reports`, { fareInr: n }, { idempotencyKey: keysFor.fare })
+      await api.post(`/v1/raasta/routes/${r.routeId}/fare-reports`, { fareInr: n }, { idempotencyKey: fareKey })
+      setFareKey(newKey('fare'))
       setReport(false)
       setFare('')
       setFareError(undefined)
       showToast({ title: `Thanks. We'll check the ${rupees(n)} fare.` })
     } catch (err) {
       setFareError(err instanceof ApiError ? err.message : "Couldn't send the fare. Try again.")
+    } finally {
+      setSendingFare(false)
     }
   }
 
@@ -247,7 +254,13 @@ export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailM
           </button>
         )}
         <div className="min-w-0 pt-1">
-          {embedded ? <h2 className="t-display-2 text-ink">{model.title}</h2> : <h1 className="t-display-1 text-ink">{model.title}</h1>}
+          {embedded ? (
+            <h2 className="t-display-2 text-ink">{model.title}</h2>
+          ) : (
+            <h1 tabIndex={-1} className="t-display-1 text-ink">
+              {model.title}
+            </h1>
+          )}
           <p className="mt-1 flex items-center gap-2 t-body text-ink-2">
             <ModeChain segments={model.segments} />
             {model.subtitle}
@@ -329,19 +342,19 @@ export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailM
       <div className="mt-6 flex flex-wrap gap-3">
         {r && (
           <Button variant="secondary" disabled={confirmed !== null} loading={busy} loadingLabel="Sending…" onClick={confirm}>
-            {confirmed !== null ? 'Confirmed' : t('It still runs')}
+            {confirmed !== null ? 'Confirmed' : <T k="It still runs" />}
           </Button>
         )}
         {leg && leg.status !== 'done' && (
           <Button variant="primary" icon={<Navigation size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={start} disabled={started === leg.seq}>
-            {started === leg.seq ? 'Leg started' : t('Start this leg')}
+            {started === leg.seq ? 'Leg started' : <T k="Start this leg" />}
           </Button>
         )}
       </div>
       {r && (
         <p className="mt-3">
           <Button variant="tertiary" size="md" className="-ml-2" onClick={() => setReport(true)}>
-            {t('Report a fare')}
+            <T k="Report a fare" />
           </Button>
         </p>
       )}
@@ -356,12 +369,12 @@ export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailM
 
       <Sheet
         open={report}
-        onOpenChange={setReport}
-        title="Report a fare"
+        onOpenChange={(o) => !sendingFare && setReport(o)}
+        title={<T k="Report a fare" />}
         description={`What did you pay on ${lowerFirst(model.title)}? A moderator checks reports before the fare changes.`}
         footer={
-          <Button full onClick={sendFare}>
-            Send the fare
+          <Button full onClick={sendFare} loading={sendingFare} loadingLabel="Sending…">
+            <T k="Send the fare" />
           </Button>
         }
       >
@@ -417,6 +430,7 @@ export default function LegDetail() {
   const route = useRaastaRoute(leg?.raasta?.routeId)
   const back = () => (window.history.state?.idx > 0 ? navigate(-1) : navigate('/'))
   const model = useMemo(() => (leg && tripQ.data ? modelForLeg(tripQ.data, leg, route.data) : null), [leg, tripQ.data, route.data])
+  useDocumentTitle(model?.title ?? 'Leg')
   return (
     <PushedScreen>
       {tripQ.isPending || (leg?.raasta && route.isPending) ? (

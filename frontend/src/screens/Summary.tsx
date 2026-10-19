@@ -7,7 +7,7 @@ import { modeBgClass } from '@/components/icons'
 import { ButtonLink } from '@/components/ui/Button'
 import { EmptyState, ErrorState, LoadingRegion, Skeleton } from '@/components/ui/States'
 import { hhmm } from '@/lib/format'
-import { useOnline } from '@/lib/hooks'
+import { useDocumentTitle, useOnline } from '@/lib/hooks'
 import { localMinutes, weekday } from '@/lib/timeline'
 import { PushedScreen } from './LegDetail'
 
@@ -46,6 +46,7 @@ export default function Summary() {
   const navigate = useNavigate()
   const back = () => (window.history.state?.idx > 0 ? navigate(-1) : navigate('/'))
   const offset = trip.data?.utcOffset ?? '+05:30'
+  useDocumentTitle(q.data?.legs.length ? `${weekday(q.data.day)} in ${q.data.cityName}` : 'Day summary')
 
   const header = (title: string, line?: string) => (
     <header className="flex items-start gap-2">
@@ -53,7 +54,9 @@ export default function Summary() {
         <ChevronLeft size={24} strokeWidth={1.75} aria-hidden="true" />
       </button>
       <div className="pt-1">
-        <h1 className="t-display-1 text-ink">{title}</h1>
+        <h1 tabIndex={-1} className="t-display-1 text-ink">
+          {title}
+        </h1>
         {line && <p className="mt-1 t-body text-ink-2">{line}</p>}
       </div>
     </header>
