@@ -12,7 +12,9 @@ async function noSeriousIssues(page: Page, name: string) {
   })
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
   const serious = results.violations.filter((v) => v.impact === 'critical' || v.impact === 'serious')
-  expect(serious.map((v) => `${name}: ${v.id} (${v.nodes.length})`)).toEqual([])
+  // Name each failing element and why, so a failure in CI explains itself.
+  const found = serious.flatMap((v) => v.nodes.slice(0, 5).map((n) => `${name}: ${v.id} at ${n.target.join(' ')}: ${n.any[0]?.message ?? n.failureSummary ?? ''}`))
+  expect(found).toEqual([])
 }
 
 async function signInAsDemo(page: Page) {
