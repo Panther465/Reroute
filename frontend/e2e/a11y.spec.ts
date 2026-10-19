@@ -6,9 +6,17 @@ test.skip(!process.env.E2E_BASE_URL, 'Set E2E_BASE_URL to run against a running 
 
 async function noSeriousIssues(page: Page, name: string) {
   // Let the screen's fade-in finish: axe measures contrast with the opacity of the moment.
+  // CSS and Web Animations show up in getAnimations(); Motion's JavaScript-driven fades only show
+  // as an inline opacity between 0 and 1, and every one of them ends at 0 or 1 (the Now pulse,
+  // marked data-looping, is the one that never ends).
   await page.waitForFunction(() => {
     const main = document.getElementById('main')
-    return (!main || getComputedStyle(main).opacity === '1') && document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getComputedTiming().iterations === Infinity)
+    const cssSettled = document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getComputedTiming().iterations === Infinity)
+    const motionSettled = [...document.querySelectorAll<HTMLElement>('[style*="opacity"]:not([data-looping])')].every((el) => {
+      const o = Number.parseFloat(el.style.opacity)
+      return Number.isNaN(o) || o === 0 || o === 1
+    })
+    return (!main || getComputedStyle(main).opacity === '1') && cssSettled && motionSettled
   })
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
   const serious = results.violations.filter((v) => v.impact === 'critical' || v.impact === 'serious')

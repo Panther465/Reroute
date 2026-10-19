@@ -143,6 +143,8 @@ function Station({ status, pulse, justDone, reduce, hollow, delay, reveal }: { s
       {pulse && !reduce && (
         <motion.span
           aria-hidden="true"
+          // The one animation allowed to loop (UI brief 6.5); tests skip it when waiting for a settled screen.
+          data-looping=""
           className="absolute inset-0 rounded-full bg-yellow"
           initial={{ opacity: 0.6, scale: 1 }}
           animate={{ opacity: 0, scale: 1.8 }}
