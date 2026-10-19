@@ -12,7 +12,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    app_env: Literal["development", "test", "production"] = "development"
+    #: Unset means production, so a forgotten setting fails closed.
+    app_env: Literal["development", "test", "production"] = "production"
     database_url: str = "postgresql+psycopg://raasta_app:raasta_app@localhost:5432/reroute"
     redis_url: str = "redis://localhost:6379/1"
     mongo_url: str = "mongodb://localhost:27017"
@@ -35,8 +36,8 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _no_dev_secret_in_production(self) -> Settings:
-        if self.app_env == "production" and self.jwt_secret == "dev-only-change-me":
-            raise ValueError("JWT_SECRET must be set in production")
+        if self.app_env == "production" and (self.jwt_secret.startswith(("dev-only", "change-me")) or len(self.jwt_secret.encode()) < 32):
+            raise ValueError("Set a real JWT_SECRET (32 or more random bytes) in production")
         return self
 
 

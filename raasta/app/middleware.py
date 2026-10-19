@@ -141,7 +141,7 @@ class BodyLimitAndIdempotencyMiddleware:
         except ValueError:
             parsed = None
         key = parsed.get("idempotencyKey") if isinstance(parsed, dict) else None
-        if not isinstance(key, str) or not 8 <= len(key) <= 128:
+        if not isinstance(key, str) or not 4 <= len(key) <= 128:
             # Validation reports the missing or malformed key with the usual 422.
             await self.app(scope, _replay(body), send)
             return
@@ -150,7 +150,9 @@ class BodyLimitAndIdempotencyMiddleware:
         user = decode_access_token(token, get_settings()) if token else None
         owner = user.user_id if user else "anon"
         redis_key = f"idem:{self.namespace}:{owner}:{key}"
-        body_hash = hashlib.sha256(json.dumps(parsed, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+        # The method and path are part of the request: the same key and body sent to another route is a different request.
+        signature = f"{scope.get('method', '')} {scope.get('path', '')}\n" + json.dumps(parsed, sort_keys=True, separators=(",", ":"))
+        body_hash = hashlib.sha256(signature.encode()).hexdigest()
 
         try:
             redis = self.redis_getter()
