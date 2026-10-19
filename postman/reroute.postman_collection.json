@@ -617,7 +617,7 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "setTimeout(() => {}, 1500);"
+                  "setTimeout(() => {}, 500);"
                 ]
               }
             },
@@ -627,7 +627,16 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('finished', () => pm.expect(pm.response.json().status).to.eql('finished'));"
+                  "// Poll like a real client: ask again (up to 30 times) while the worker is still planning.",
+                  "const status = pm.response.json().status;",
+                  "const polls = Number(pm.collectionVariables.get('jobPolls') || 0);",
+                  "if ((status === 'queued' || status === 'started') && polls < 30) {",
+                  "  pm.collectionVariables.set('jobPolls', polls + 1);",
+                  "  postman.setNextRequest('Planning job status');",
+                  "} else {",
+                  "  pm.collectionVariables.set('jobPolls', 0);",
+                  "  pm.test('finished', () => pm.expect(status).to.eql('finished'));",
+                  "}"
                 ]
               }
             }
