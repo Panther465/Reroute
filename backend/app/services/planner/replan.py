@@ -171,6 +171,9 @@ def replan(inp: ReplanInput) -> ReplanResult:
     elif failure == "service":
         codes.append(ReasonCode.LAST_TRIP_PASSED)
         at = None
+    elif failure == "unavailable":
+        codes.append(ReasonCode.RAASTA_UNVERIFIED)
+        at = None
     else:
         at = None
 

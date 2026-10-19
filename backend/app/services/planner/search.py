@@ -394,19 +394,25 @@ def simulate(inp: PlannerInput, order: list[tuple[str | None, str]] | tuple[tupl
     """Re-time a fixed task order with fixed leg options ("shift only").
 
     Returns (plan, None, None), or (None, failure, task_id) where failure is "fixed", "window",
-    "service" or "missing" and task_id names the task that broke.
+    "service", "unavailable" or "missing" and task_id names the task that broke.
+
+    Only main options count: a leg whose route is now unverified, stale or unconfirmed by Raasta is
+    "unavailable", so the loop offers choices instead of shifting onto it (section 10 guardrails).
     """
     ctx = _build_ctx(inp.model_copy(update={"objective": inp.objective.model_copy(update={"allowed_modes": None})}))
     by_id = {t.task_id: t for t in ctx.tasks}
-    all_opts = {o.option_id: o for p in inp.snapshot.pairs for o in p.options}
+    main_opts = {o.option_id: o for opts in ctx.options.values() for o in opts}
+    known = {o.option_id for p in inp.snapshot.pairs for o in p.options}
     rule = inp.rule
     place, ready, from_stay = inp.start.place_id, inp.start.ready_at, inp.start.kind == "stay"
     steps: list[Step] = []
     for task_id, option_id in order:
         t = by_id.get(task_id) if task_id else None
-        opt = all_opts.get(option_id)
-        if (task_id and t is None) or opt is None:
+        if task_id and t is None:
             return None, "missing", task_id
+        opt = main_opts.get(option_id)
+        if opt is None:
+            return None, ("unavailable" if option_id in known else "missing"), task_id
         to = t.place_id if t else inp.stay_place_id
         timing = time_leg(rule, ready, from_stay, t, opt)
         if not timing.ok:

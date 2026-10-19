@@ -463,3 +463,41 @@ def test_rupee_formatting_uses_indian_grouping():
 
 def test_demo_places_are_the_brief_places(demo_input):
     assert {HOTEL, WF, KOR, JAY} == {p.from_place for p in demo_input.snapshot.pairs} | {p.to_place for p in demo_input.snapshot.pairs}
+
+
+@pytest.mark.parametrize("status", ["unverified", "stale"])
+def test_never_shifts_onto_a_route_that_is_no_longer_verified(demo_input, status):
+    """Raasta stopped confirming the shared auto after the plan was made: the loop must ask, not shift."""
+    r = replan_input(demo_input, 15)
+    pairs = tuple(
+        p.model_copy(
+            update={
+                "options": tuple(
+                    o.model_copy(update={"transit_ref": o.transit_ref.model_copy(update={"status": status})}) if o.is_raasta else o for o in p.options
+                )
+            }
+        )
+        for p in r.planner.snapshot.pairs
+    )
+    planner = r.planner.model_copy(update={"snapshot": r.planner.snapshot.model_copy(update={"pairs": pairs})})
+    result = replan(r.model_copy(update={"planner": planner}))
+    assert result.result == "options"
+    assert ReasonCode.RAASTA_UNVERIFIED in result.reason_codes
+    for option in result.options:
+        assert all(not leg.option.is_raasta for leg in option.plan.legs)
+
+
+def test_never_shifts_a_shared_auto_past_its_last_trip(demo_input):
+    """A late enough delay pushes the Raasta leg past 21:30: options, never a silent shift."""
+    r = replan_input(demo_input, 40)
+    pairs = tuple(
+        p.model_copy(update={"options": tuple(o.model_copy(update={"service_last": t(15, 0)}) if o.is_raasta else o for o in p.options)})
+        for p in r.planner.snapshot.pairs
+    )
+    planner = r.planner.model_copy(update={"snapshot": r.planner.snapshot.model_copy(update={"pairs": pairs})})
+    result = replan(
+        r.model_copy(update={"planner": planner, "behind_min": 15}).model_copy(
+            update={"planner": planner.model_copy(update={"start": planner.start.model_copy(update={"ready_at": t(11, 15)})})}
+        )
+    )
+    assert result.result != "shifted"
