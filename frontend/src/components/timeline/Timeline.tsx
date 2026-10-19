@@ -1,10 +1,10 @@
 import { Ban, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'motion/react'
-import { Fragment, type ReactNode } from 'react'
+import { Fragment, useId, type ReactNode } from 'react'
 import { MODE_META, ModeIcon } from '@/components/icons'
 import { Tag } from '@/components/ui/Tag'
 import { duration, hhmm, rupees, spokenDuration } from '@/lib/format'
-import { useT } from '@/lib/i18n'
+import { T, useTl } from '@/lib/i18n'
 import type { Change } from '@/lib/store'
 import type { DayView, LegView, StopView, TomorrowItem } from '@/lib/timeline'
 import type { Mode, Segment } from '@/lib/types'
@@ -219,12 +219,11 @@ function Connector({ segments, at, change, reduce }: { segments?: Segment[]; at:
 }
 
 export function NowBar({ clock }: { clock: number }) {
-  const t = useT()
   return (
     <motion.div layoutId="now-bar" transition={{ layout: { duration: 0.4, ease: EASE_IN_OUT } }} className="relative my-3 flex h-6 items-center" aria-hidden="true">
       <span className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 bg-yellow" />
       <span className="relative inline-flex h-6 items-center rounded-full bg-yellow px-2.5 t-caption text-on-yellow tnum">
-        {t('Now')} {hhmm(clock)}
+        <T k="Now" /> {hhmm(clock)}
       </span>
     </motion.div>
   )
@@ -264,7 +263,8 @@ interface TimelineProps {
 
 export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedSeq, readOnly, tomorrowLabel }: TimelineProps) {
   const reduce = !!useReducedMotion()
-  const t = useT()
+  const listLabel = useTl()('Today')
+  const listLabelId = useId()
   const { stops, legs } = view
   const legTo = new Map(legs.map((l) => [l.toId, l]))
   const legFrom = new Map(legs.map((l) => [l.fromId, l]))
@@ -291,7 +291,11 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
             transition={{ duration: 0.6, ease: EASE_OUT }}
           />
         )}
-        <ol aria-label={t('Today')} className="relative">
+        {/* Labelled by a hidden span so a Hindi label carries lang="hi" without marking the stops as Hindi. */}
+        <span id={listLabelId} hidden lang={listLabel.lang}>
+          {listLabel.text}
+        </span>
+        <ol aria-labelledby={listLabelId} className="relative">
           {stops.map((stop, i) => {
             const inLeg = legTo.get(stop.id)
             const outLeg = legFrom.get(stop.id)
@@ -384,10 +388,12 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
                           <span className="mt-2 flex">
                             {outLeg.raasta.status === 'verified' ? (
                               <Tag tone="green" icon={<ShieldCheck size={14} strokeWidth={1.75} aria-hidden="true" />}>
-                                {t('Verified')}
+                                <T k="Verified" />
                               </Tag>
                             ) : (
-                              <Tag tone="grey-outline">{t('Unverified')}</Tag>
+                              <Tag tone="grey-outline">
+                                <T k="Unverified" />
+                              </Tag>
                             )}
                           </span>
                         )}

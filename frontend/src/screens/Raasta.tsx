@@ -10,8 +10,9 @@ import { Field, FieldError } from '@/components/ui/Field'
 import { Banner, EmptyState, ErrorState, LoadingRegion, Skeleton } from '@/components/ui/States'
 import { Tag } from '@/components/ui/Tag'
 import { rupees } from '@/lib/format'
-import { useOnline } from '@/lib/hooks'
-import { useT } from '@/lib/i18n'
+import { useDocumentTitle, useOnline, useTripClock } from '@/lib/hooks'
+import { T, useTl } from '@/lib/i18n'
+import { localMinutes } from '@/lib/timeline'
 import { DetailBody, DetailSkeleton, modelForRoute, PushedScreen, StatusTag } from './LegDetail'
 
 function distanceLabel(m: number) {
@@ -48,18 +49,21 @@ function OptionRow({ o, extra }: { o: RaastaLegOption; extra?: boolean }) {
 }
 
 /** Turn typed text into a point: the first place search match in the trip's city. */
-async function resolve(text: string, city: string, cityName: string): Promise<Place | null> {
-  const found = await api.get<Place[]>('/v1/places', { query: { q: text, city, cityName } })
+async function resolve(text: string, city: string): Promise<Place | null> {
+  const found = await api.get<Place[]>('/v1/places', { query: { q: text, city } })
   return found[0] ?? null
 }
 
 export default function RaastaHome() {
-  const t = useT()
+  const tl = useTl()
   const online = useOnline()
   const current = useCurrentTripId()
   const tripQ = useTrip(current.tripId)
   const trip = tripQ.data
-  const view = useDay(trip)
+  const serverNow = trip ? localMinutes(trip.now, trip.day, trip.utcOffset) : null
+  const clock = useTripClock(serverNow, tripQ.dataUpdatedAt, trip?.clockSimulated ?? false)
+  const view = useDay(trip, clock)
+  useDocumentTitle('Raasta')
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [fromPoint, setFromPoint] = useState<{ name: string; lng: number; lat: number } | null>(null)
@@ -84,13 +88,15 @@ export default function RaastaHome() {
     setError(undefined)
     setSearching(true)
     try {
-      const a = fromPoint && fromPoint.name === from ? fromPoint : await resolve(from, city, cityName)
-      const b = await resolve(to, city, cityName)
+      const a = fromPoint && fromPoint.name === from ? fromPoint : await resolve(from, city)
+      const b = await resolve(to, city)
       if (!a || !b) {
         setError(`We couldn't find ${!a ? from : to} in ${cityName}. Try an area name, like Koramangala.`)
         return
       }
-      const data = await api.get<RaastaLegOptions>('/v1/raasta/routes', { query: { from: `${a.lng},${a.lat}`, to: `${b.lng},${b.lat}`, at: new Date().toISOString() } })
+      // "Last one has gone" follows the trip clock (the demo clock too), not the phone's.
+      const at = trip && serverNow !== null && clock !== null ? new Date(Date.parse(trip.now) + (clock - serverNow) * 60_000).toISOString() : new Date().toISOString()
+      const data = await api.get<RaastaLegOptions>('/v1/raasta/routes', { query: { from: `${a.lng},${a.lat}`, to: `${b.lng},${b.lat}`, at } })
       setResults({ from: a.name, to: b.name, data })
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Couldn't search. Try again.")
@@ -101,7 +107,9 @@ export default function RaastaHome() {
 
   return (
     <div className="mx-auto max-w-[560px] px-5 pb-10 pt-6 lg:max-w-[720px] lg:px-8 lg:pt-8">
-      <h1 className="t-display-1 text-ink">{t('Raasta')}</h1>
+      <h1 tabIndex={-1} className="t-display-1 text-ink">
+        <T k="Raasta" />
+      </h1>
       <p className="measure mt-1 t-body text-ink-2">Shared autos, e-rickshaws and tempos, mapped and checked by riders.</p>
       {!online && (
         <div className="mt-4">
@@ -111,12 +119,12 @@ export default function RaastaHome() {
 
       <form className="mt-6 rounded-card border border-line bg-surface p-5" role="search" onSubmit={find}>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={t('Where from?')} value={from} onChange={(e) => setFrom(e.target.value)} autoComplete="off" hint="A stand or area, like Koramangala" />
-          <Field label={t('Where to?')} value={to} onChange={(e) => setTo(e.target.value)} autoComplete="off" hint="Like Jayanagar" />
+          <Field label={tl('Where from?').text} labelLang={tl('Where from?').lang} value={from} onChange={(e) => setFrom(e.target.value)} autoComplete="off" hint="A stand or area, like Koramangala" />
+          <Field label={tl('Where to?').text} labelLang={tl('Where to?').lang} value={to} onChange={(e) => setTo(e.target.value)} autoComplete="off" hint="Like Jayanagar" />
         </div>
         {error && <FieldError id="raasta-err">{error}</FieldError>}
         <Button type="submit" className="mt-4" loading={searching} loadingLabel="Finding routes…" icon={<Search size={20} strokeWidth={1.75} aria-hidden="true" />} disabled={!online}>
-          Find routes
+          <T k="Find routes" />
         </Button>
       </form>
 
@@ -148,14 +156,18 @@ export default function RaastaHome() {
             </>
           )}
           {results.data.items.length === 0 && results.data.extras.length === 0 && (
-            <EmptyState title="Nobody has added this route yet" body="If you know the shared auto or e-rickshaw, add it. Riders check every route before it's verified." action={<ButtonLink to="/raasta/add">{t('Add a route')}</ButtonLink>} />
+            <EmptyState title="Nobody has added this route yet" body="If you know the shared auto or e-rickshaw, add it. Riders check every route before it's verified." action={
+                <ButtonLink to="/raasta/add">
+                  <T k="Add a route" />
+                </ButtonLink>
+              } />
           )}
         </section>
       )}
 
       <section className="mt-8" aria-labelledby="nearby-h">
         <h2 id="nearby-h" className="t-display-2 text-ink">
-          {t('Nearby stands')}
+          <T k="Nearby stands" />
         </h2>
         {here && <p className="mt-1 t-small text-muted">Near {here.name}. Tap one to search from it.</p>}
         {stands.isPending && here ? (
@@ -194,7 +206,7 @@ export default function RaastaHome() {
 
       <div className="mt-8">
         <ButtonLink to="/raasta/add" variant="primary" icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />}>
-          {t('Add a route')}
+          <T k="Add a route" />
         </ButtonLink>
       </div>
     </div>
@@ -206,6 +218,7 @@ export function RaastaRoute() {
   const q = useRaastaRoute(routeId)
   const navigate = useNavigate()
   const model = useMemo(() => (q.data ? modelForRoute(q.data) : null), [q.data])
+  useDocumentTitle(model?.title ?? 'Raasta route')
   const back = () => (window.history.state?.idx > 0 ? navigate(-1) : navigate('/raasta'))
   const notFound = q.error instanceof ApiError && q.error.status === 404
   return (

@@ -13,7 +13,7 @@ import { hhmm } from '@/lib/format'
 import { setState, showToast, useStore } from '@/lib/store'
 import { buildDay, localMinutes } from '@/lib/timeline'
 
-/** Developer-only Simulate panel (?demo=1, or the demo account). Drives the API's demo clock. */
+/** Developer-only Simulate panel (?demo=1, or the demo account). Drives the API's demo clock. On desktop its button sits bottom right, clear of the action bar. */
 export function DemoPanel({ trip, onLate }: { trip: Trip | undefined; onLate: (delay: number | null, mode?: 'late' | 'options') => void }) {
   const demo = useStore((s) => s.demo)
   const [open, setOpen] = useState(false)
@@ -78,7 +78,7 @@ export function DemoPanel({ trip, onLate }: { trip: Trip | undefined; onLate: (d
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button type="button" className="fixed bottom-[calc(148px+env(safe-area-inset-bottom))] right-4 z-40 flex min-h-12 items-center gap-2 rounded-full border-2 border-ink bg-surface px-4 t-title text-ink lg:bottom-6 lg:left-6 lg:right-auto">
+        <button type="button" className="fixed bottom-[calc(148px+env(safe-area-inset-bottom))] right-4 z-40 flex min-h-12 items-center gap-2 rounded-full border-2 border-ink bg-surface px-4 t-title text-ink lg:bottom-6 lg:right-6">
           <SlidersHorizontal size={20} strokeWidth={1.75} aria-hidden="true" />
           Simulate
         </button>

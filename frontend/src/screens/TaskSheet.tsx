@@ -1,30 +1,16 @@
 import { Ban, Clock, MapPin } from 'lucide-react'
 import { useState } from 'react'
-import { api, ApiError } from '@/api/client'
-import { waitForJob } from '@/api/queries'
-import type { Body, Task, TaskEdit, TaskIn, TaskPatch, Trip } from '@/api/types'
+import { ApiError } from '@/api/client'
+import type { Body, Task, TaskIn, Trip } from '@/api/types'
 import { Button } from '@/components/ui/Button'
 import { Sheet } from '@/components/ui/Sheet'
 import { Tag } from '@/components/ui/Tag'
-import { applyServerChange, skipTask } from '@/lib/actions'
+import { applyServerChange, playLater, playTaskEdit, saveTaskEdit, sendSkip, SKIP_TOAST } from '@/lib/actions'
 import { duration, hhmm } from '@/lib/format'
+import { T } from '@/lib/i18n'
 import { showToast } from '@/lib/store'
 import type { DayView, StopView } from '@/lib/timeline'
 import { TaskFormSheet } from './TaskForm'
-
-/** Turn a full task body into the PATCH shape, with an explicit timing switch. */
-export function toPatch(body: Body<TaskIn>): TaskPatch {
-  return {
-    title: body.title,
-    placeId: body.placeId,
-    durationMin: body.durationMin,
-    priority: body.priority,
-    hoursUnknown: body.hoursUnknown,
-    timing: body.fixedStart ? 'fixed' : body.window ? 'window' : 'anytime',
-    fixedStart: body.fixedStart ?? null,
-    window: body.window ?? null,
-  }
-}
 
 /** Tap a stop: see it, edit it or skip it. */
 export function TaskSheet({ trip, view, stop, onClose }: { trip: Trip; view: DayView; stop: StopView | null; onClose: () => void }) {
@@ -33,51 +19,45 @@ export function TaskSheet({ trip, view, stop, onClose }: { trip: Trip; view: Day
   const task = stop?.task
   const apiTask = trip.tasks.find((t) => t.taskId === task?.taskId) ?? null
 
-  const save = async (body: Body<TaskIn>) => {
+  // The form stays open ("Saving…", then "Re-planning…") until the day is ready; a failed re-plan shows in the form.
+  const save = async (body: Body<TaskIn>, _initial: Task | null, stage: (s: 'replanning') => void) => {
     if (!apiTask) return
-    const res = await api.patch<TaskEdit>(`/v1/trips/${trip.tripId}/tasks/${apiTask.taskId}`, toPatch(body))
+    const outcome = await saveTaskEdit(trip.tripId, apiTask.taskId, body, () => stage('replanning'))
     setEditing(null)
-    if (res.jobId) {
-      const job = await waitForJob(res.jobId)
-      if (job.status === 'failed' || job.error) {
-        showToast({ title: job.error ?? "Couldn't re-plan after that edit. Your earlier plan stays." })
-        await applyServerChange(trip.tripId, view, { kind: 'checkin' })
-        return
-      }
-      await applyServerChange(trip.tripId, view, { kind: 'reroute', toast: 'Day rerouted. Your times are updated.', undo: true })
-    } else {
-      await applyServerChange(trip.tripId, view, { kind: 'checkin', toast: 'Task saved.' })
-    }
+    onClose()
+    playLater(() => playTaskEdit(trip.tripId, view, outcome))
   }
 
   const skip = async () => {
     if (!task) return
     setSkipping(true)
     try {
-      onClose()
-      await skipTask(trip.tripId, task.taskId, view)
+      await sendSkip(trip.tripId, task.taskId)
     } catch (err) {
       showToast({ title: err instanceof ApiError ? err.message : "Couldn't skip it. Try again." })
-    } finally {
       setSkipping(false)
+      return
     }
+    setSkipping(false)
+    onClose()
+    playLater(() => applyServerChange(trip.tripId, view, { kind: 'reroute', toast: SKIP_TOAST, undo: true }))
   }
 
   return (
     <>
       <Sheet
         open={!!stop && !editing}
-        onOpenChange={(o) => !o && onClose()}
+        onOpenChange={(o) => !o && !skipping && onClose()}
         title={stop?.title ?? ''}
         footer={
           task &&
           stop?.status === 'upcoming' && (
             <div className="grid grid-cols-2 gap-3">
-              <Button variant="secondary" onClick={() => setEditing(apiTask)}>
-                Edit
+              <Button variant="secondary" onClick={() => setEditing(apiTask)} disabled={skipping}>
+                <T k="Edit" />
               </Button>
               <Button variant="destructive" loading={skipping} loadingLabel="Skipping…" icon={<Ban size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={skip}>
-                Skip it
+                <T k="Skip it" />
               </Button>
             </div>
           )

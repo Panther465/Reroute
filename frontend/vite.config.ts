@@ -16,10 +16,11 @@ export default defineConfig(({ mode }) => ({
       output: {
         // Keep the app shell small: the heavy libraries load in their own cacheable chunks.
         manualChunks(id) {
+          // Motion and Radix are left to the bundler (a manual chunk would also pull in their shared
+          // dependencies, React included), so Sign in loads neither up front: its hero animation
+          // loads after first paint.
           if (id.includes('maplibre-gl')) return 'maplibre'
-          if (id.includes('node_modules/motion') || id.includes('node_modules/framer-motion')) return 'motion'
-          if (id.includes('node_modules/@radix-ui')) return 'radix'
-          if (id.includes('node_modules/react') || id.includes('node_modules/scheduler') || id.includes('node_modules/@tanstack')) return 'react'
+          if (/node_modules\/(react|react-dom|react-router|scheduler|@tanstack\/[^/]+)\//.test(id)) return 'react'
           return undefined
         },
       },
@@ -54,16 +55,13 @@ export default defineConfig(({ mode }) => ({
         navigateFallback: 'index.html',
         // API responses are cached by the persisted query cache, not the service worker.
         navigateFallbackDenylist: [/^\/v1\//],
+        // MapLibre is large and its map needs a connection anyway: cache it the first time a map opens.
+        globIgnores: ['**/maplibre*'],
         runtimeCaching: [
           {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'google-fonts-css' },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            urlPattern: ({ url }) => url.pathname.startsWith('/assets/maplibre'),
             handler: 'CacheFirst',
-            options: { cacheName: 'google-fonts', expiration: { maxEntries: 30, maxAgeSeconds: 60 * 60 * 24 * 365 }, cacheableResponse: { statuses: [0, 200] } },
+            options: { cacheName: 'maplibre', expiration: { maxEntries: 8 } },
           },
           {
             urlPattern: /^https:\/\/tiles\.openfreemap\.org\/.*/i,
@@ -91,5 +89,6 @@ export default defineConfig(({ mode }) => ({
     environment: 'jsdom',
     pool: 'threads',
     include: ['src/**/*.test.{ts,tsx}'],
+    setupFiles: ['src/test/setup.ts'],
   },
 }))

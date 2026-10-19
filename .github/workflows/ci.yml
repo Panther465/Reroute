@@ -42,6 +42,8 @@ jobs:
       - name: Tests (planner, golden test, API flow) with coverage
         run: pytest --cov=app --cov-report=term-missing --cov-fail-under=70
       - name: OpenAPI file matches the code
+        env:
+          APP_ENV: test
         run: |
           python -c "import json; from app.main import app; print(json.dumps(app.openapi(), indent=2, ensure_ascii=False))" > /tmp/reroute.openapi.json
           diff -q /tmp/reroute.openapi.json ../shared/contracts/reroute.openapi.json
@@ -104,9 +106,11 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Start everything with one command
-        # The browser tests sign in once per test from one IP, so the sign-in limit is raised here only.
+        # Every browser test signs in as the one demo user from one IP, so the per-user and sign-in
+        # limits are raised for this run only.
         env:
           AUTH_RATE_LIMIT_PER_MINUTE: "1000"
+          RATE_LIMIT_PER_MINUTE: "1000"
         run: docker compose up -d --build --wait --wait-timeout 600
       - name: Postman collection (Newman)
         run: npx --yes newman@6 run postman/reroute.postman_collection.json --insecure --reporters cli

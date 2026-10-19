@@ -4,20 +4,20 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { api, ApiError, newKey } from '@/api/client'
 import { keys, queryClient, useCurrentTripId, usePlaceSearch, useTrip, waitForJob } from '@/api/queries'
-import type { Body, JobAccepted, Place, Task, TaskDraft, TaskEdit, TaskIn, Trip, TripIn } from '@/api/types'
+import type { Body, JobAccepted, Place, Task, TaskDraft, TaskIn, Trip, TripIn } from '@/api/types'
 import { Button } from '@/components/ui/Button'
 import { Field, FieldError } from '@/components/ui/Field'
 import { Sheet } from '@/components/ui/Sheet'
 import { Banner, ErrorState, LoadingRegion, Skeleton } from '@/components/ui/States'
 import { Tag } from '@/components/ui/Tag'
+import { saveTaskEdit } from '@/lib/actions'
 import { duration, hhmm } from '@/lib/format'
 import { CALENDAR_SCOPE, googleEnabled, requestGoogleCode } from '@/lib/google'
-import { useOnline } from '@/lib/hooks'
-import { useT } from '@/lib/i18n'
+import { useDocumentTitle, useOnline } from '@/lib/hooks'
+import { T } from '@/lib/i18n'
 import { nextToken, setState, showToast } from '@/lib/store'
 import { dayLabel, localMinutes, weekday } from '@/lib/timeline'
-import { TaskFormSheet } from './TaskForm'
-import { toPatch } from './TaskSheet'
+import { placeSearchError, TaskFormSheet } from './TaskForm'
 
 function TaskTags({ task, trip }: { task: Task; trip: Trip }) {
   return (
@@ -58,14 +58,14 @@ export function DrawLine({ className = '' }: { className?: string }) {
   )
 }
 
-function PlacePicker({ label, city, cityName, value, onChange, error }: { label: string; city: string; cityName: string; value: Place | null; onChange: (p: Place | null) => void; error?: string }) {
+function PlacePicker({ label, city, value, onChange, error }: { label: string; city: string; value: Place | null; onChange: (p: Place | null) => void; error?: string }) {
   const [q, setQ] = useState('')
   const [debounced, setDebounced] = useState('')
   useEffect(() => {
     const id = setTimeout(() => setDebounced(q), 300)
     return () => clearTimeout(id)
   }, [q])
-  const search = usePlaceSearch(debounced, city, cityName)
+  const search = usePlaceSearch(debounced, city)
   if (value)
     return (
       <div>
@@ -88,6 +88,7 @@ function PlacePicker({ label, city, cityName, value, onChange, error }: { label:
       {debounced.trim().length >= 2 && (
         <ul aria-label="Places found" className="mt-2 divide-y divide-line overflow-hidden rounded-control border border-line bg-surface">
           {search.isPending && <li className="px-4 py-3 t-small text-ink-2">Searching…</li>}
+          {search.isError && <li className="px-4 py-3 t-small text-ink-2">{placeSearchError(search.error)}</li>}
           {search.data?.length === 0 && <li className="px-4 py-3 t-small text-ink-2">No places match. Try the area name.</li>}
           {search.data?.map((p) => (
             <li key={p.placeId}>
@@ -145,7 +146,7 @@ function NewTripForm({ onCreated }: { onCreated: (trip: Trip) => void }) {
         <Field label="First day" type="date" value={start} onChange={(e) => setStart(e.target.value)} error={errors.start} />
         <Field label="Last day" type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)} error={errors.end} />
       </div>
-      <PlacePicker label="Staying at" city="bengaluru" cityName="Bengaluru" value={stay} onChange={setStay} error={errors.stay} />
+      <PlacePicker label="Staying at" city="bengaluru" value={stay} onChange={setStay} error={errors.stay} />
       <Field label="What you call it" hint="Optional, like Hotel near Majestic" value={label} onChange={(e) => setLabel(e.target.value)} />
       {errors.form && <FieldError id="trip-err">{errors.form}</FieldError>}
       <Button full onClick={create} loading={busy} loadingLabel="Creating…">
@@ -160,13 +161,19 @@ function ImportSheet({ trip, open, onOpenChange, onAdded }: { trip: Trip; open: 
   const [picked, setPicked] = useState<number[]>([])
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
+  // One key per read and one per appointment, kept while the sheet lives, so a retry never adds a task twice.
+  const [readKey, setReadKey] = useState(() => newKey('cal'))
+  const [draftKeys, setDraftKeys] = useState<string[]>([])
 
   const read = async () => {
     setBusy(true)
     setError(undefined)
     try {
       const code = await requestGoogleCode(CALENDAR_SCOPE)
-      setDrafts(await api.post<TaskDraft[]>(`/v1/trips/${trip.tripId}/calendar-import`, { code }))
+      const found = await api.post<TaskDraft[]>(`/v1/trips/${trip.tripId}/calendar-import`, { code }, { idempotencyKey: readKey })
+      setDraftKeys(found.map(() => newKey('imp')))
+      setReadKey(newKey('cal'))
+      setDrafts(found)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't read your calendar.")
     } finally {
@@ -182,7 +189,7 @@ function ImportSheet({ trip, open, onOpenChange, onAdded }: { trip: Trip; open: 
         const d = drafts[i]
         if (!d.placeId) continue
         const day = d.fixedStart ? d.fixedStart.slice(0, 10) : trip.startDate
-        await api.post<Task>(`/v1/trips/${trip.tripId}/tasks`, { title: d.title, placeId: d.placeId, durationMin: d.durationMin, fixedStart: d.fixedStart, priority: d.priority, day })
+        await api.post<Task>(`/v1/trips/${trip.tripId}/tasks`, { title: d.title, placeId: d.placeId, durationMin: d.durationMin, fixedStart: d.fixedStart, priority: d.priority, day }, { idempotencyKey: draftKeys[i] })
       }
       onAdded(picked.length)
       setDrafts(null)
@@ -240,7 +247,6 @@ function ImportSheet({ trip, open, onOpenChange, onAdded }: { trip: Trip; open: 
 }
 
 export default function PlanDay() {
-  const t = useT()
   const navigate = useNavigate()
   const current = useCurrentTripId()
   const tripQ = useTrip(current.tripId)
@@ -252,6 +258,13 @@ export default function PlanDay() {
   const [planning, setPlanning] = useState<'idle' | 'busy' | 'drawing'>('idle')
   const [error, setError] = useState<string>()
   const [planKey, setPlanKey] = useState(() => newKey('plan'))
+  // One key per "Add a task" form: retries of the same submission never create the task twice.
+  const [createKey, setCreateKey] = useState(() => newKey('task'))
+  useDocumentTitle(trip?.activePlan ? 'Your trip' : 'New trip')
+  const openForm = (task: Task | null) => {
+    if (!task) setCreateKey(newKey('task'))
+    setForm({ open: true, task })
+  }
 
   if (current.isPending || (current.tripId && tripQ.isPending)) {
     return (
@@ -269,7 +282,9 @@ export default function PlanDay() {
   if ((current.isError || tripQ.isError) && !trip) {
     return (
       <div className="mx-auto max-w-[560px] px-5 pt-6">
-        <h1 className="t-display-1 text-ink">{t('New trip')}</h1>
+        <h1 tabIndex={-1} className="t-display-1 text-ink">
+          <T k="New trip" />
+        </h1>
         <div className="mt-6">
           {online ? <ErrorState message="Couldn't load your trip. Check your connection and try again." onRetry={() => current.refetch()} /> : <Banner tone="offline">You're offline. Connect to start a new trip.</Banner>}
         </div>
@@ -287,7 +302,9 @@ export default function PlanDay() {
   if (!trip || creating) {
     return (
       <div className="mx-auto max-w-[560px] px-5 pb-10 pt-6 lg:max-w-[720px] lg:px-8 lg:pt-8">
-        <h1 className="t-display-1 text-ink">{t('New trip')}</h1>
+        <h1 tabIndex={-1} className="t-display-1 text-ink">
+          <T k="New trip" />
+        </h1>
         {!online ? (
           <div className="mt-6">
             <Banner tone="offline">You're offline. Connect to start a new trip.</Banner>
@@ -309,16 +326,17 @@ export default function PlanDay() {
   const today = trip.tasks.filter((x) => x.day === trip.day)
   const open = trip.tasks.filter((x) => x.state !== 'done' && x.state !== 'skipped')
 
-  const saveTask = async (body: Body<TaskIn>, initial: Task | null) => {
+  // The form stays open until the save (and any re-plan) is done; a failed re-plan shows in the form.
+  const saveTask = async (body: Body<TaskIn>, initial: Task | null, stage: (s: 'replanning') => void) => {
+    let pending = false
     if (initial) {
-      const res = await api.patch<TaskEdit>(`/v1/trips/${trip.tripId}/tasks/${initial.taskId}`, toPatch(body))
-      if (res.jobId) await waitForJob(res.jobId).catch(() => undefined)
+      pending = (await saveTaskEdit(trip.tripId, initial.taskId, body, () => stage('replanning'))) === 'pending'
     } else {
-      await api.post<Task>(`/v1/trips/${trip.tripId}/tasks`, body)
+      await api.post<Task>(`/v1/trips/${trip.tripId}/tasks`, body, { idempotencyKey: createKey })
     }
     await queryClient.invalidateQueries({ queryKey: keys.trip(trip.tripId) })
     setForm({ open: false, task: null })
-    showToast({ title: initial ? 'Task saved.' : 'Task added.' })
+    showToast({ title: pending ? 'Task saved. Planning is taking longer than usual; your timeline updates when it finishes.' : initial ? 'Task saved.' : 'Task added.' })
   }
 
   const removeTask = async (task: Task) => {
@@ -352,7 +370,9 @@ export default function PlanDay() {
 
   return (
     <div className="mx-auto max-w-[560px] px-5 pb-10 pt-6 lg:max-w-[720px] lg:px-8 lg:pt-8">
-      <h1 className="t-display-1 text-ink">{trip.activePlan ? 'Your trip' : t('New trip')}</h1>
+      <h1 tabIndex={-1} className="t-display-1 text-ink">
+        <T k={trip.activePlan ? 'Your trip' : 'New trip'} />
+      </h1>
       <dl className="mt-6 grid gap-x-6 gap-y-3 rounded-card border border-line bg-surface p-4 sm:grid-cols-3">
         <div>
           <dt className="t-small text-muted">City</dt>
@@ -377,7 +397,7 @@ export default function PlanDay() {
       <section className="mt-8" aria-labelledby="tasks-h">
         <div className="flex items-end justify-between gap-3">
           <h2 id="tasks-h" className="t-display-2 text-ink">
-            {t('Your tasks')}
+            <T k="Your tasks" />
           </h2>
           {trip.tasks.length > 0 && <span className="t-small text-muted">{open.length} to do</span>}
         </div>
@@ -385,15 +405,15 @@ export default function PlanDay() {
           <div className="mt-4 rounded-card border border-line bg-surface p-5">
             <p className="t-title text-ink">No tasks yet</p>
             <p className="mt-1 t-body text-ink-2">Add your first one, like a meeting or a bank visit.</p>
-            <Button className="mt-4" icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={() => setForm({ open: true, task: null })} disabled={!online}>
-              {t('Add a task')}
+            <Button className="mt-4" icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={() => openForm(null)} disabled={!online}>
+              <T k="Add a task" />
             </Button>
           </div>
         ) : (
           <ul className="mt-4 divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
             {trip.tasks.map((task) => (
               <li key={task.taskId}>
-                <button type="button" disabled={task.state === 'done' || !online} onClick={() => setForm({ open: true, task })} className="block w-full px-4 py-4 text-left disabled:cursor-default [@media(hover:hover)]:hover:enabled:bg-sunken/60">
+                <button type="button" disabled={task.state === 'done' || !online} onClick={() => openForm(task)} className="block w-full px-4 py-4 text-left disabled:cursor-default [@media(hover:hover)]:hover:enabled:bg-sunken/60">
                   <span className="block t-title text-ink">{task.title}</span>
                   <span className="block t-small text-muted">
                     {task.place.name}, {task.place.area}
@@ -406,8 +426,8 @@ export default function PlanDay() {
         )}
         <div className="mt-4 flex flex-wrap gap-3">
           {trip.tasks.length > 0 && (
-            <Button variant="secondary" size="md" icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={() => setForm({ open: true, task: null })} disabled={!online}>
-              {t('Add a task')}
+            <Button variant="secondary" size="md" icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={() => openForm(null)} disabled={!online}>
+              <T k="Add a task" />
             </Button>
           )}
           {googleEnabled && (
@@ -423,11 +443,13 @@ export default function PlanDay() {
         {planning === 'drawing' ? (
           <div role="status" className="flex min-h-[52px] items-center gap-4 rounded-control bg-surface px-5">
             <DrawLine />
-            <span className="t-title text-ink">{t('Planning your day…')}</span>
+            <span className="t-title text-ink">
+              <T k="Planning your day…" />
+            </span>
           </div>
         ) : (
-          <Button full loading={planning === 'busy'} loadingLabel={t('Planning your day…')} onClick={plan} disabled={!online}>
-            {trip.activePlan ? 'Plan my day again' : t('Plan my day')}
+          <Button full loading={planning === 'busy'} loadingLabel={<T k="Planning your day…" />} onClick={plan} disabled={!online}>
+            {trip.activePlan ? 'Plan my day again' : <T k="Plan my day" />}
           </Button>
         )}
         {error && (

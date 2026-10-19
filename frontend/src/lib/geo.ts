@@ -1,5 +1,6 @@
 // Map geometry for legs and Raasta routes. Lines are drawn between real coordinates from the API;
 // the gentle bend only makes a straight-line estimate read as a route, not a ruler.
+import type { Trip } from '@/api/types'
 import type { Mode } from './types'
 import type { LegView } from './timeline'
 
@@ -12,6 +13,13 @@ export interface MapLine {
 }
 
 export type PlaceIndex = Map<string, LngLat>
+
+/** Every place in the trip (the stay and each task's place), by placeId. */
+export function placeIndex(trip: Trip): PlaceIndex {
+  const index: PlaceIndex = new Map([[trip.stayPlace.placeId, [trip.stayPlace.lng, trip.stayPlace.lat]]])
+  for (const t of trip.tasks) index.set(t.placeId, [t.place.lng, t.place.lat])
+  return index
+}
 
 function lerp(a: LngLat, b: LngLat, t: number): LngLat {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t]

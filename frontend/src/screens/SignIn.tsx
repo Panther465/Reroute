@@ -1,12 +1,16 @@
 import { TriangleAlert } from 'lucide-react'
-import { useState } from 'react'
+import { lazy, Suspense, useState } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router'
 import { ApiError } from '@/api/client'
 import { RouteMark } from '@/components/icons'
-import { RerouteHero } from '@/components/RerouteHero'
 import { Button } from '@/components/ui/Button'
+import { loadShell, loadToday } from '@/app/lazy'
 import { googleEnabled, requestGoogleCode } from '@/lib/google'
+import { useDocumentTitle } from '@/lib/hooks'
 import { signInDemo, signInWithGoogle, useSessionStatus } from '@/lib/session'
+
+// The animated hero (and the animation library) loads after the page is up; its box holds the space meanwhile.
+const RerouteHero = lazy(() => import('@/components/RerouteHero').then((m) => ({ default: m.RerouteHero })))
 
 function GoogleG() {
   return (
@@ -28,12 +32,16 @@ export default function SignIn() {
   // The demo account exists only where the server allows it (DEMO_LOGIN=true); a 404 hides the button.
   const [demoAvailable, setDemoAvailable] = useState(true)
   const from = (location.state as { from?: string } | null)?.from ?? '/'
+  useDocumentTitle('Sign in')
 
   if (status === 'signedIn') return <Navigate to={from} replace />
 
   const run = async (kind: 'google' | 'demo') => {
     setBusy(kind)
     setError(undefined)
+    // Fetch the app while signing in, so Today opens straight after.
+    void loadShell().catch(() => undefined)
+    void loadToday().catch(() => undefined)
     try {
       if (kind === 'google') await signInWithGoogle(await requestGoogleCode())
       else await signInDemo('traveller')
@@ -58,7 +66,14 @@ export default function SignIn() {
         </div>
         <p className="mt-6 t-body text-ink-2">Plan your work day in a new city. We'll reroute it when you run late.</p>
         <div className="mt-8">
-          <RerouteHero />
+          <figure className="relative">
+            <Suspense fallback={<div className="aspect-[5/2] w-full" aria-hidden="true" />}>
+              <RerouteHero />
+            </Suspense>
+            <figcaption className="mt-3 t-small text-muted">
+              Running 40 min late at 10:55? A cab keeps all three tasks. <span className="sr-only">The bank moves to 12:35 and the office to 15:50.</span>
+            </figcaption>
+          </figure>
         </div>
         <div className="mt-10 flex flex-col gap-3">
           {googleEnabled && (

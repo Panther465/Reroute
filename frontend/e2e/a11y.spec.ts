@@ -5,6 +5,11 @@ import { expect, test, type Page } from '@playwright/test'
 test.skip(!process.env.E2E_BASE_URL, 'Set E2E_BASE_URL to run against a running stack')
 
 async function noSeriousIssues(page: Page, name: string) {
+  // Let the screen's fade-in finish: axe measures contrast with the opacity of the moment.
+  await page.waitForFunction(() => {
+    const main = document.getElementById('main')
+    return (!main || getComputedStyle(main).opacity === '1') && document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getComputedTiming().iterations === Infinity)
+  })
   const results = await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']).analyze()
   const serious = results.violations.filter((v) => v.impact === 'critical' || v.impact === 'serious')
   expect(serious.map((v) => `${name}: ${v.id} (${v.nodes.length})`)).toEqual([])

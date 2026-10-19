@@ -2,11 +2,10 @@ import { CircleCheck } from 'lucide-react'
 import { ModeChain } from '@/components/timeline/ModeChain'
 import { ButtonLink } from '@/components/ui/Button'
 import { duration, lowerFirst, rupees } from '@/lib/format'
-import { useT } from '@/lib/i18n'
+import { T } from '@/lib/i18n'
 import type { DayView } from '@/lib/timeline'
 
 export function NextCard({ view, clock, started = false }: { view: DayView; clock: number; started?: boolean }) {
-  const t = useT()
   const leg = view.nextLeg
   if (view.done || !leg) {
     const end = view.stops[view.stops.length - 1]
@@ -14,7 +13,7 @@ export function NextCard({ view, clock, started = false }: { view: DayView; cloc
       <section aria-labelledby="next-title" className="rounded-card border border-line bg-surface p-5">
         <p className="flex items-center gap-2 t-caption text-green-ink">
           <CircleCheck size={20} strokeWidth={1.75} aria-hidden="true" />
-          {t('Your day is done')}
+          <T k="Your day is done" />
         </p>
         <h2 id="next-title" className="mt-2 t-display-2 text-ink">
           Back at {end ? lowerFirst(end.title).replace(/^hotel/, 'the hotel') : 'your stay'}
@@ -31,7 +30,7 @@ export function NextCard({ view, clock, started = false }: { view: DayView; cloc
   const dest = started ? `On the way to ${where}` : `Leave for ${where}`
   return (
     <section aria-labelledby="next-title" className="rounded-card border border-line bg-surface p-5">
-      <p className="t-caption text-ink-2">{started ? 'Arrive by' : soon ? t('Leave now') : t('Leave by')}</p>
+      <p className="t-caption text-ink-2">{started ? 'Arrive by' : <T k={soon ? 'Leave now' : 'Leave by'} />}</p>
       <p className="mt-1">
         <span className={`inline-block rounded-tag t-time-lg tnum transition-colors duration-[var(--dur-base)] ${soon ? 'bg-yellow px-2 text-on-yellow' : 'text-ink'}`}>
           <span className="sr-only">{started ? 'Arrive by ' : soon ? 'Leave now, by ' : 'Leave by '}</span>

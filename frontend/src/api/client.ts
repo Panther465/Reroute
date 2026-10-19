@@ -27,8 +27,32 @@ let forcedOffline = false
 export function setForcedOffline(value: boolean) {
   forcedOffline = value
 }
-let refreshing: Promise<boolean> | null = null
+export type RefreshResult = 'ok' | 'rejected' | 'unreachable'
+let refreshing: Promise<RefreshResult> | null = null
+/** How long a refresh may take before the app treats the server as out of reach (a weak signal, not a sign-out). */
+const REFRESH_TIMEOUT_MS = 6000
 const authListeners = new Set<(signedIn: boolean) => void>()
+
+/**
+ * Whether the server answered lately. A weak connection can leave the browser "online" while
+ * nothing gets through; the app then behaves as offline until a request succeeds again.
+ */
+let reachable = true
+const reachListeners = new Set<() => void>()
+function setReachable(value: boolean) {
+  if (reachable === value) return
+  reachable = value
+  reachListeners.forEach((l) => l())
+}
+export function isReachable() {
+  return reachable
+}
+export function onReachableChange(listener: () => void) {
+  reachListeners.add(listener)
+  return () => {
+    reachListeners.delete(listener)
+  }
+}
 
 export function setAccessToken(token: string | null) {
   accessToken = token
@@ -50,7 +74,7 @@ export function newKey(prefix = 'rr') {
   return `${prefix}-${crypto.randomUUID()}`
 }
 
-function cookie(name: string) {
+export function cookie(name: string) {
   const hit = document.cookie.split('; ').find((c) => c.startsWith(`${name}=`))
   return hit ? decodeURIComponent(hit.slice(name.length + 1)) : ''
 }
@@ -72,31 +96,63 @@ async function parseError(res: Response): Promise<ApiError> {
   return new ApiError(res.status, code, message, traceId)
 }
 
-/** Ask for a new access token with the refresh cookie. Concurrent callers share one attempt. */
-export function refreshSession(): Promise<boolean> {
-  refreshing ??= (async () => {
-    try {
-      if (forcedOffline) return false
-      const res = await fetch(`${BASE}/v1/auth/refresh`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'X-CSRF-Token': cookie('rr_csrf'), 'X-Request-ID': crypto.randomUUID() },
-      })
-      if (!res.ok) {
-        setAccessToken(null)
-        return false
-      }
-      const body = (await res.json()) as { accessToken: string }
-      setAccessToken(body.accessToken)
-      return true
-    } catch {
-      return false
-    } finally {
-      refreshing = null
-    }
-  })()
-  return refreshing
+/**
+ * Ask for a new access token with the refresh cookie. Concurrent callers share one attempt.
+ * - 'ok': a new token is in place.
+ * - 'rejected': the server refused the cookie; the session is over and the traveller signs in again.
+ * - 'unreachable': no answer within 6 s, a rate limit or a server error. The session may still be fine.
+ */
+export function refreshSession(): Promise<RefreshResult> {
+  if (refreshing) return refreshing
+  const attempt = attemptRefresh()
+  refreshing = attempt
+  // Clear the shared slot only once this attempt has settled and is still the one stored, so an
+  // attempt that finishes without awaiting can't leave a stale result behind for later callers.
+  void attempt.finally(() => {
+    if (refreshing === attempt) refreshing = null
+  })
+  return attempt
 }
+
+async function attemptRefresh(): Promise<RefreshResult> {
+  if (forcedOffline) return 'unreachable'
+  // No CSRF cookie on the same origin means there was never a session here (a first visit): skip a
+  // request that could only be refused. (On another API origin the cookie isn't readable.)
+  if (!BASE && !cookie('rr_csrf')) return 'rejected'
+  const ctrl = new AbortController()
+  const timer = setTimeout(() => ctrl.abort(), REFRESH_TIMEOUT_MS)
+  try {
+    const res = await fetch(`${BASE}/v1/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'X-CSRF-Token': cookie('rr_csrf'), 'X-Request-ID': crypto.randomUUID() },
+      signal: ctrl.signal,
+    })
+    setReachable(true)
+    // Only a refused cookie ends the session. A rate limit (429) or a server error is a passing problem.
+    if (res.status === 401 || res.status === 403) {
+      setAccessToken(null)
+      return 'rejected'
+    }
+    if (!res.ok) return 'unreachable'
+    const body = (await res.json()) as { accessToken: string }
+    setAccessToken(body.accessToken)
+    return 'ok'
+  } catch {
+    setReachable(false)
+    return 'unreachable'
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/** True when an error means the session is gone and the traveller must sign in again. */
+export function isSignedOutError(err: unknown) {
+  return err instanceof ApiError && err.status === 401
+}
+
+/** For failed calls: nothing was saved, so nothing will sync later. */
+export const OFFLINE_MESSAGE = "You're offline. Try again when you have signal."
 
 export interface RequestOptions {
   body?: unknown
@@ -129,16 +185,25 @@ export async function request<T>(method: string, path: string, opts: RequestOpti
     return fetch(url, { method, headers, body, credentials: 'include', signal: opts.signal })
   }
 
-  let res: Response
-  try {
-    if (forcedOffline) throw new TypeError('offline')
-    res = await send()
-  } catch (err) {
-    if ((err as Error).name === 'AbortError') throw err
-    throw new ApiError(0, 'OFFLINE', "You're offline. Your plan still works, and changes sync when you're back.")
+  const attempt = async () => {
+    try {
+      if (forcedOffline) throw new TypeError('offline')
+      const res = await send()
+      setReachable(true)
+      return res
+    } catch (err) {
+      if ((err as Error).name === 'AbortError') throw err
+      if (!forcedOffline) setReachable(false)
+      throw new ApiError(0, 'OFFLINE', OFFLINE_MESSAGE)
+    }
   }
-  if (res.status === 401 && !opts.noRefresh && (await refreshSession())) {
-    res = await send()
+
+  let res = await attempt()
+  if (res.status === 401 && !opts.noRefresh) {
+    const refreshed = await refreshSession()
+    if (refreshed === 'ok') res = await attempt()
+    // The token may still be good once the signal is back: report it as offline, not as signed out.
+    else if (refreshed === 'unreachable') throw new ApiError(0, 'OFFLINE', OFFLINE_MESSAGE)
   }
   if (!res.ok) throw await parseError(res)
   if (opts.raw) return res as unknown as T

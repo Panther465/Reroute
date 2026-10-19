@@ -9,8 +9,10 @@ export function Segmented<T extends string>({
   options,
   full = true,
   hideLabel,
+  labelLang,
 }: {
   label: string
+  labelLang?: string
   value: T
   onChange: (v: T) => void
   options: { value: T; label: ReactNode; icon?: ReactNode; lang?: string }[]
@@ -20,7 +22,7 @@ export function Segmented<T extends string>({
   const labelId = useId()
   return (
     <div>
-      <p className={hideLabel ? 'sr-only' : 'mb-2 t-title text-ink'} id={labelId}>
+      <p className={hideLabel ? 'sr-only' : 'mb-2 t-title text-ink'} id={labelId} lang={labelLang}>
         {label}
       </p>
       <ToggleGroup.Root

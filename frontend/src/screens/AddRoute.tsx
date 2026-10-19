@@ -1,7 +1,7 @@
 import * as Tabs from '@radix-ui/react-tabs'
 import { ArrowDown, ArrowUp, ChevronLeft, Flag, MapPin, Plus, X } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useBlocker, useNavigate } from 'react-router'
 import { api, ApiError, newKey } from '@/api/client'
 import { useCurrentTripId, useStands, useTrip } from '@/api/queries'
 import type { Body, Contribution, ContributionIn, VehicleType } from '@/api/types'
@@ -9,9 +9,11 @@ import { AutoRickshaw, ERickshaw } from '@/components/icons'
 import { Button } from '@/components/ui/Button'
 import { Segmented } from '@/components/ui/Choice'
 import { Field, FieldError } from '@/components/ui/Field'
+import { Sheet } from '@/components/ui/Sheet'
 import { Banner, Skeleton } from '@/components/ui/States'
 import { routeLine, type LngLat } from '@/lib/geo'
-import { useOnline } from '@/lib/hooks'
+import { useDocumentTitle, useOnline } from '@/lib/hooks'
+import { T } from '@/lib/i18n'
 import { showToast } from '@/lib/store'
 import { PushedScreen } from './LegDetail'
 
@@ -32,7 +34,12 @@ function metres(a: { lat: number; lng: number }, b: { lat: number; lng: number }
   return Math.hypot(dx, dy)
 }
 
-function RouteFields({ onSubmit, standCount, busy }: { onSubmit: (d: Details) => void; standCount: number; busy: boolean }) {
+function RouteFields({ onSubmit, standCount, busy, error }: { onSubmit: (d: Details) => void; standCount: number; busy: boolean; error?: string }) {
+  // A failed send shows next to the button and takes focus, so it isn't missed at the bottom of a long form.
+  const errorRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (error) errorRef.current?.focus()
+  }, [error])
   const [vehicle, setVehicle] = useState<VehicleType>('shared_auto')
   const [fare, setFare] = useState('')
   const [freq, setFreq] = useState('10')
@@ -72,14 +79,21 @@ function RouteFields({ onSubmit, standCount, busy }: { onSubmit: (d: Details) =>
         <Field label="Last one" type="time" value={last} onChange={(e) => setLast(e.target.value)} error={errors.last} />
       </div>
       <p className="rounded-control bg-sunken px-4 py-3 t-small text-ink">We trim the first and last 200 m of every ride.</p>
-      <Button full onClick={submit} loading={busy} loadingLabel="Sending…">
-        Submit for checking
-      </Button>
+      <div>
+        <Button full onClick={submit} loading={busy} loadingLabel="Sending…">
+          <T k="Submit for checking" />
+        </Button>
+        {error && (
+          <div ref={errorRef} tabIndex={-1} role="alert" className="outline-none">
+            <FieldError id="add-route-err">{error}</FieldError>
+          </div>
+        )}
+      </div>
     </div>
   )
 }
 
-function TapStands({ near, onSubmit, busy }: { near: string | null; onSubmit: (stands: PickedStand[], d: Details) => void; busy: boolean }) {
+function TapStands({ near, onSubmit, busy, error }: { near: string | null; onSubmit: (stands: PickedStand[], d: Details) => void; busy: boolean; error?: string }) {
   const [picked, setPicked] = useState<PickedStand[]>([])
   const [pending, setPending] = useState<{ lng: number; lat: number } | null>(null)
   const [newName, setNewName] = useState('')
@@ -186,7 +200,7 @@ function TapStands({ near, onSubmit, busy }: { near: string | null; onSubmit: (s
           </ul>
         </details>
       )}
-      <RouteFields standCount={picked.length} busy={busy} onSubmit={(d) => onSubmit(picked, d)} />
+      <RouteFields standCount={picked.length} busy={busy} error={error} onSubmit={(d) => onSubmit(picked, d)} />
     </div>
   )
 }
@@ -202,7 +216,7 @@ interface GpsPoint {
 }
 
 /** Record a ride with the phone's GPS. Location is used only while recording, and only with permission. */
-function RecordRide({ onSubmit, busy }: { onSubmit: (points: GpsPoint[], marks: PickedStand[], d: Details) => void; busy: boolean }) {
+function RecordRide({ onSubmit, busy, error, onDirty }: { onSubmit: (points: GpsPoint[], marks: PickedStand[], d: Details) => void; busy: boolean; error?: string; onDirty: (dirty: boolean) => void }) {
   const [phase, setPhase] = useState<'idle' | 'recording' | 'done'>('idle')
   const [secs, setSecs] = useState(0)
   const [points, setPoints] = useState<GpsPoint[]>([])
@@ -223,6 +237,10 @@ function RecordRide({ onSubmit, busy }: { onSubmit: (points: GpsPoint[], marks: 
     },
     [],
   )
+
+  // Recording, or a finished ride that hasn't been sent: leaving would lose it.
+  const dirty = phase === 'recording' || (phase === 'done' && points.length >= 2)
+  useEffect(() => onDirty(dirty), [dirty, onDirty])
 
   const km = useMemo(() => points.reduce((n, p, i) => (i ? n + metres(points[i - 1], p) : 0), 0) / 1000, [points])
 
@@ -306,7 +324,7 @@ function RecordRide({ onSubmit, busy }: { onSubmit: (points: GpsPoint[], marks: 
           ))}
         </ol>
       )}
-      {phase === 'done' && (points.length < 2 ? <p className="mt-4 t-body text-ink-2">We didn't get enough GPS points for this ride. Try again outdoors, or tap the stands instead.</p> : <RouteFields standCount={Math.max(2, marks.length)} busy={busy} onSubmit={(d) => onSubmit(points, marks, d)} />)}
+      {phase === 'done' && (points.length < 2 ? <p className="mt-4 t-body text-ink-2">We didn't get enough GPS points for this ride. Try again outdoors, or tap the stands instead.</p> : <RouteFields standCount={Math.max(2, marks.length)} busy={busy} error={error} onSubmit={(d) => onSubmit(points, marks, d)} />)}
     </div>
   )
 }
@@ -321,12 +339,29 @@ export default function AddRoute() {
   const [error, setError] = useState<string>()
   const [key] = useState(() => newKey('con'))
   const [tab, setTab] = useState('tap')
+  const [rideDirty, setRideDirty] = useState(false)
+  const sent = useRef(false)
+  useDocumentTitle('Add a route')
+
+  // Ask before leaving with a ride being recorded or one that hasn't been sent.
+  const blocker = useBlocker(({ currentLocation, nextLocation }) => rideDirty && !sent.current && currentLocation.pathname !== nextLocation.pathname)
+  useEffect(() => {
+    if (!rideDirty) return
+    const warn = (e: BeforeUnloadEvent) => {
+      if (sent.current) return
+      e.preventDefault()
+      e.returnValue = ''
+    }
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [rideDirty])
 
   const send = async (body: Body<ContributionIn>) => {
     setBusy(true)
     setError(undefined)
     try {
       await api.post<Contribution>('/v1/raasta/contributions', body, { idempotencyKey: key })
+      sent.current = true
       showToast({ title: "Sent for checking. We'll show it once it's verified." })
       navigate('/raasta')
     } catch (err) {
@@ -345,16 +380,13 @@ export default function AddRoute() {
         <button type="button" onClick={() => navigate('/raasta')} aria-label="Back" className="-ml-3 flex size-12 shrink-0 items-center justify-center rounded-control text-ink [@media(hover:hover)]:hover:bg-sunken">
           <ChevronLeft size={24} strokeWidth={1.75} aria-hidden="true" />
         </button>
-        <h1 className="pt-2 t-display-1 text-ink">Add a route</h1>
+        <h1 tabIndex={-1} className="pt-2 t-display-1 text-ink">
+          <T k="Add a route" />
+        </h1>
       </header>
       {!online && (
         <div className="mt-4">
           <Banner tone="offline">You're offline. You can add a route once you're back.</Banner>
-        </div>
-      )}
-      {error && (
-        <div className="mt-4">
-          <FieldError id="add-route-err">{error}</FieldError>
         </div>
       )}
       {/* Both panels stay mounted, so switching tabs never stops a recording. */}
@@ -370,12 +402,30 @@ export default function AddRoute() {
           ))}
         </Tabs.List>
         <Tabs.Content value="tap" forceMount hidden={tab !== 'tap'} className="outline-none">
-          <TapStands near={near} busy={busy} onSubmit={(stands, d) => void send({ citySlug: city, kind: 'stands_tapped', ...d, stands: stands.map(asStand), points: null })} />
+          <TapStands near={near} busy={busy} error={tab === 'tap' ? error : undefined} onSubmit={(stands, d) => void send({ citySlug: city, kind: 'stands_tapped', ...d, stands: stands.map(asStand), points: null })} />
         </Tabs.Content>
         <Tabs.Content value="record" forceMount hidden={tab !== 'record'} className="outline-none">
-          <RecordRide busy={busy} onSubmit={(points, marks, d) => void send({ citySlug: city, kind: 'gps_ride', ...d, points, stands: marks.length >= 2 ? marks.map(asStand) : null })} />
+          <RecordRide busy={busy} error={tab === 'record' ? error : undefined} onDirty={setRideDirty} onSubmit={(points, marks, d) => void send({ citySlug: city, kind: 'gps_ride', ...d, points, stands: marks.length >= 2 ? marks.map(asStand) : null })} />
         </Tabs.Content>
       </Tabs.Root>
+      <Sheet
+        open={blocker.state === 'blocked'}
+        onOpenChange={(o) => !o && blocker.state === 'blocked' && blocker.reset()}
+        title="Leave this ride?"
+        description="Your ride isn't sent. If you leave now, it's lost."
+        footer={
+          <div className="flex flex-col gap-2">
+            <Button variant="destructive" full onClick={() => blocker.state === 'blocked' && blocker.proceed()}>
+              Leave without sending
+            </Button>
+            <Button variant="tertiary" size="md" className="self-center" onClick={() => blocker.state === 'blocked' && blocker.reset()}>
+              Stay
+            </Button>
+          </div>
+        }
+      >
+        <p className="t-small text-ink-2">Recording stops when you leave this screen.</p>
+      </Sheet>
     </PushedScreen>
   )
 }

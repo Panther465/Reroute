@@ -1,7 +1,5 @@
-import * as Tooltip from '@radix-ui/react-tooltip'
 import { createSyncStoragePersister } from '@tanstack/query-sync-storage-persister'
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
-import { MotionConfig } from 'motion/react'
 import { RouterProvider } from 'react-router'
 import { router } from '@/app/routes'
 import { persistable, queryClient } from '@/api/queries'
@@ -24,11 +22,8 @@ export default function App() {
         dehydrateOptions: { shouldDehydrateQuery: (q) => q.state.status === 'success' && persistable(q.queryKey) },
       }}
     >
-      <MotionConfig reducedMotion="user">
-        <Tooltip.Provider delayDuration={400}>
-          <RouterProvider router={router} />
-        </Tooltip.Provider>
-      </MotionConfig>
+      {/* MotionConfig (reduced motion) sits in the app shell and the family view: Sign in loads no animation library up front. */}
+      <RouterProvider router={router} />
     </PersistQueryClientProvider>
   )
 }

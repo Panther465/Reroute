@@ -3,8 +3,8 @@ import * as Tabs from '@radix-ui/react-tabs'
 import { ChevronLeft, Download } from 'lucide-react'
 import { lazy, Suspense, useMemo, useState } from 'react'
 import { Navigate, useNavigate, useOutletContext } from 'react-router'
-import { api, ApiError } from '@/api/client'
-import { queryClient, useQueue } from '@/api/queries'
+import { api, ApiError, apiBase } from '@/api/client'
+import { queryClient, useQueue, useRaastaRoute } from '@/api/queries'
 import type { Contribution, ContributionDecision, FareReport, VehicleType } from '@/api/types'
 import { MODE_META, ModeIcon, modeTextClass } from '@/components/icons'
 import { Button, buttonClass } from '@/components/ui/Button'
@@ -14,7 +14,7 @@ import { EmptyState, ErrorState, LoadingRegion, Skeleton } from '@/components/ui
 import { Tag } from '@/components/ui/Tag'
 import { rupees } from '@/lib/format'
 import { routeLine, type LngLat } from '@/lib/geo'
-import { useIsDesktop } from '@/lib/hooks'
+import { useDocumentTitle, useIsDesktop } from '@/lib/hooks'
 import { showToast } from '@/lib/store'
 
 const MapCard = lazy(() => import('@/components/MapCard'))
@@ -205,6 +205,41 @@ function Panel({ c, onClose }: { c: Contribution; onClose?: () => void }) {
   )
 }
 
+/** A fare report names its route by its stands, not its ID. */
+function FareReportRow({ r, onDecide }: { r: FareReport; onDecide: (id: string, action: 'accept' | 'reject') => Promise<void> }) {
+  const route = useRaastaRoute(r.routeId)
+  const [busy, setBusy] = useState<'accept' | 'reject' | null>(null)
+  const stands = route.data?.stands ?? []
+  const name = stands.length >= 2 ? `${stands[0].name} to ${stands[stands.length - 1].name}` : route.isPending ? 'Loading the route…' : 'A route no longer on Raasta'
+  const decide = async (action: 'accept' | 'reject') => {
+    setBusy(action)
+    try {
+      await onDecide(r.fareReportId, action)
+    } finally {
+      setBusy(null)
+    }
+  }
+  return (
+    <li className="flex flex-wrap items-center gap-3 px-4 py-3">
+      <span className="min-w-0 flex-1">
+        <span className="block t-title text-ink">
+          {rupees(r.fareInr)} on {name}
+        </span>
+        <span className="block t-small text-muted">
+          {route.data ? `Now ${rupees(route.data.fareInr)}, ` : ''}
+          {when(r.at).toLowerCase()}
+        </span>
+      </span>
+      <Button size="md" loading={busy === 'accept'} disabled={busy !== null} onClick={() => void decide('accept')}>
+        Accept
+      </Button>
+      <Button size="md" variant="destructive" loading={busy === 'reject'} disabled={busy !== null} onClick={() => void decide('reject')}>
+        Reject
+      </Button>
+    </li>
+  )
+}
+
 function FareReports() {
   const q = useQuery({ queryKey: ['raasta', 'fare-reports'], queryFn: () => api.get<{ items: FareReport[] }>('/v1/raasta/fare-reports', { query: { status: 'waiting', limit: 50 } }) })
   const decide = async (id: string, action: 'accept' | 'reject') => {
@@ -222,20 +257,7 @@ function FareReports() {
   return (
     <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
       {q.data.items.map((r) => (
-        <li key={r.fareReportId} className="flex flex-wrap items-center gap-3 px-4 py-3">
-          <span className="min-w-0 flex-1">
-            <span className="block t-title text-ink">
-              {rupees(r.fareInr)} on {r.routeId}
-            </span>
-            <span className="block t-small text-muted">{when(r.at)}</span>
-          </span>
-          <Button size="md" onClick={() => void decide(r.fareReportId, 'accept')}>
-            Accept
-          </Button>
-          <Button size="md" variant="destructive" onClick={() => void decide(r.fareReportId, 'reject')}>
-            Reject
-          </Button>
-        </li>
+        <FareReportRow key={r.fareReportId} r={r} onDecide={decide} />
       ))}
     </ul>
   )
@@ -250,6 +272,7 @@ export default function Moderator() {
   const apiStatus = filter === 'stale' ? 'waiting' : filter
   const q = useQueue(apiStatus, moderator)
   const verified = useQueue('merged', moderator && filter === 'verified')
+  useDocumentTitle('Route checks')
   if (!moderator) return <Navigate to="/me" replace />
   const all = [...(q.data?.items ?? []), ...(filter === 'verified' ? (verified.data?.items ?? []) : [])]
   const rows = all.filter((c) => (filter === 'stale' ? c.kind === 'freshness_check' : filter === 'waiting' ? c.kind !== 'freshness_check' : true))
@@ -335,11 +358,13 @@ export default function Moderator() {
             <ChevronLeft size={24} strokeWidth={1.75} aria-hidden="true" />
           </button>
           <div className="pt-1">
-            <h1 className="t-display-1 text-ink">Route checks</h1>
+            <h1 tabIndex={-1} className="t-display-1 text-ink">
+              Route checks
+            </h1>
             <p className="mt-1 t-body text-ink-2">Check rider routes before they show as verified.</p>
           </div>
         </div>
-        <a href="/v1/raasta/cities/bengaluru/gtfs.zip" download className={buttonClass('secondary')}>
+        <a href={`${apiBase}/v1/raasta/cities/bengaluru/gtfs.zip`} download className={buttonClass('secondary')}>
           <Download size={20} strokeWidth={1.75} aria-hidden="true" />
           <span>Download verified routes (GTFS)</span>
         </a>

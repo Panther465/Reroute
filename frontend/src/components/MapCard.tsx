@@ -116,6 +116,10 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
   const [failed, setFailed] = useState(false)
   const clickRef = useRef(onMapClick)
   clickRef.current = onMapClick
+  // Markers read the latest points (and their click handlers) from here, so they're rebuilt only when the points change.
+  const pointsRef = useRef(points)
+  pointsRef.current = points
+  const frame = useRef(0)
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
 
   useEffect(() => {
@@ -168,13 +172,14 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
         const step = (t: number) => {
           const p = Math.min(1, (t - t0) / 600)
           ;(map.getSource('route') as GeoJSONSource | undefined)?.setData(toFC(lines, 1 - Math.pow(1 - p, 3)))
-          if (p < 1) requestAnimationFrame(step)
+          if (p < 1) frame.current = requestAnimationFrame(step)
         }
-        requestAnimationFrame(step)
+        frame.current = requestAnimationFrame(step)
       }
     })
     return () => {
       clearTimeout(timeout)
+      cancelAnimationFrame(frame.current)
       markers.current.forEach((m) => m.remove())
       map.remove()
       mapRef.current = null
@@ -189,7 +194,9 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
     if (ready && src) src.setData(toFC(lines))
   }, [lines, ready])
 
-  // Markers: stands and stops as rings, the traveller as a yellow "now" dot.
+  // Markers: stands and stops as rings, the traveller as a yellow "now" dot. A new array with the
+  // same points (every render of the parent) keeps the markers; only a change in the points rebuilds them.
+  const pointsKey = points.map((p) => `${p.id}:${p.lngLat.join(',')}:${p.kind}:${p.number ?? ''}:${p.label}:${p.onClick ? 1 : 0}`).join('|')
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
@@ -218,7 +225,7 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
         button.appendChild(dot)
         button.addEventListener('click', (e) => {
           e.stopPropagation()
-          p.onClick!()
+          pointsRef.current.find((x) => x.id === p.id)?.onClick?.()
         })
         node = button
       } else {
@@ -227,7 +234,9 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
       }
       return new maplibregl.Marker({ element: node }).setLngLat(p.lngLat).addTo(map)
     })
-  }, [points, ready])
+    // pointsKey stands for the points by value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pointsKey, ready])
 
   // Fly to the active leg (800 ms, in-out).
   const focusKey = JSON.stringify(focus)
@@ -245,7 +254,12 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
 
   return (
     <div className={`relative overflow-hidden rounded-card border border-line bg-sunken ${className}`}>
-      <div ref={el} className="absolute inset-0" aria-label={label} role="region" />
+      {/* MapLibre's stylesheet sets .maplibregl-map { position: relative } on the element it
+          mounts into, which would cancel `absolute inset-0` there and collapse it to 0 px. The
+          wrapper does the positioning; the map fills it. */}
+      <div className="absolute inset-0">
+        <div ref={el} className="h-full w-full" aria-label={label} role="region" />
+      </div>
       {failed && (
         <div className="absolute inset-0 flex flex-col justify-center bg-surface p-5">
           <p className="t-title text-ink">The map didn't load</p>

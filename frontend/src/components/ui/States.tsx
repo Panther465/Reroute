@@ -1,6 +1,6 @@
 import { Ban, Route, TriangleAlert, WifiOff } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { useT } from '@/lib/i18n'
+import { T } from '@/lib/i18n'
 import { Button } from './Button'
 
 export function Skeleton({ className = '' }: { className?: string }) {
@@ -26,8 +26,7 @@ export function EmptyState({ title, body, action }: { title: string; body: strin
   )
 }
 
-export function ErrorState({ message, onRetry }: { message: string; onRetry: () => void }) {
-  const t = useT()
+export function ErrorState({ message, onRetry }: { message: ReactNode; onRetry: () => void }) {
   return (
     <div role="alert" className="rounded-card border border-line bg-surface p-5">
       <p className="flex items-start gap-3 t-body text-ink">
@@ -35,7 +34,7 @@ export function ErrorState({ message, onRetry }: { message: string; onRetry: () 
         <span>{message}</span>
       </p>
       <Button variant="secondary" size="md" className="mt-4" onClick={onRetry}>
-        {t('Try again')}
+        <T k="Try again" />
       </Button>
     </div>
   )

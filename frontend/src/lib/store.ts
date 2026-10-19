@@ -21,8 +21,10 @@ export interface UiState {
   // Transient, never persisted
   change: Change | null
   reveal: number
-  autoBanner: { text: string; previousVersion: number | null } | null
-  leaveNow: { text: string; at: number } | null
+  /** The automatic-shift banner. It clears once the plan moves on from `version`, or on the next check-in. */
+  autoBanner: { text: string; previousVersion: number | null; version: number | null } | null
+  /** "Leave now" from the live stream, for leg `seq`. It expires once that leg's leave-by time has passed. */
+  leaveNow: { text: string; at: number; seq: number | null } | null
   pendingDelay: number | null
   /** Optimistic check-ins, shown before the server confirms them. */
   optimisticDone: string[]
@@ -56,6 +58,8 @@ function load(): UiState {
     if (raw) {
       const saved = JSON.parse(raw) as Partial<UiState>
       for (const k of PERSISTED) if (saved[k] !== undefined) (base as unknown as Record<string, unknown>)[k] = saved[k]
+      // "Go offline" is a demo switch for this visit only: a reload always starts online.
+      base.demo = { enabled: !!saved.demo?.enabled, offline: false }
     }
   } catch {
     /* ignore corrupt storage */
@@ -72,6 +76,7 @@ const listeners = new Set<() => void>()
 function persist() {
   const out: Partial<UiState> = {}
   for (const k of PERSISTED) (out as Record<string, unknown>)[k] = state[k]
+  out.demo = { enabled: state.demo.enabled, offline: false }
   try {
     localStorage.setItem(KEY, JSON.stringify(out))
   } catch {
@@ -109,6 +114,12 @@ export interface ToastItem {
   title: string
   /** The version Undo makes active again. */
   undoVersion?: number | null
+  /** A local Undo (a check-in not sent yet). */
+  onUndo?: () => void
+  /** Runs once when the toast closes for any reason other than Undo. */
+  onClose?: () => void
+  /** Milliseconds before it closes (default 8 s). */
+  duration?: number
 }
 let toasts: ToastItem[] = []
 const toastListeners = new Set<() => void>()
@@ -121,13 +132,29 @@ export function useToasts() {
     () => toasts,
   )
 }
+export function getToasts() {
+  return toasts
+}
 export function showToast(t: Omit<ToastItem, 'id'>) {
-  toasts = [...toasts.slice(-2), { ...t, id: uid() }]
+  const id = uid()
+  // A toast pushed out by newer ones still runs its close action.
+  const dropped = toasts.slice(0, -2)
+  toasts = [...toasts.slice(-2), { ...t, id }]
   toastListeners.forEach((l) => l())
+  dropped.forEach((d) => settleToast(d.id, 'close', d))
+  return id
 }
 export function dismissToast(id: string) {
   toasts = toasts.filter((t) => t.id !== id)
   toastListeners.forEach((l) => l())
+}
+// Each toast's Undo or close action runs once, however it closes (button, timeout, swipe, pushed out).
+const settled = new Set<string>()
+export function settleToast(id: string, how: 'undo' | 'close', item = toasts.find((t) => t.id === id)) {
+  if (!item || settled.has(id)) return
+  settled.add(id)
+  if (how === 'undo') item.onUndo?.()
+  else item.onClose?.()
 }
 
 // ---------- Announcer ----------
@@ -170,7 +197,7 @@ interface PlayOpts {
 export function playChange({ kind, before, after, toast, undoVersion, banner }: PlayOpts) {
   if (before && after) {
     const diff = diffDays(before, after)
-    setState({ change: { ...diff, token: nextToken(), kind, before, pillDelayMs: kind === 'reroute' ? 1000 : 0 }, pendingDelay: null, optimisticDone: [] })
+    setState({ change: { ...diff, token: nextToken(), kind, before, pillDelayMs: kind === 'reroute' ? 1000 : 0 }, pendingDelay: null })
     if (toast) {
       const delay = kind === 'reroute' && !prefersReducedMotion() ? 1200 : 0
       setTimeout(() => showToast({ title: toast, undoVersion: undoVersion ?? null }), delay)
@@ -180,5 +207,5 @@ export function playChange({ kind, before, after, toast, undoVersion, banner }: 
     showToast({ title: toast, undoVersion: undoVersion ?? null })
     announce(toast)
   }
-  if (banner) setState({ autoBanner: { text: banner, previousVersion: undoVersion ?? null } })
+  if (banner) setState({ autoBanner: { text: banner, previousVersion: undoVersion ?? null, version: after?.version ?? null } })
 }

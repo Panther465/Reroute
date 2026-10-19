@@ -1,5 +1,6 @@
 // Live updates: GET /v1/trips/:id/live as server-sent events, read with fetch so the request can carry
-// the Authorization header (EventSource can't). Reconnects with backoff; the trip query refetches on events.
+// the Authorization header (EventSource can't). Reconnects with jittered backoff and refetches the trip after
+// a reconnect, since events sent while the stream was down are lost; the trip query also refetches on events.
 import { useEffect } from 'react'
 import { apiBase, getAccessToken, refreshSession } from '@/api/client'
 import { keys, queryClient } from '@/api/queries'
@@ -33,6 +34,29 @@ export function parseSse(buffer: string): { events: LiveEvent[]; rest: string } 
   return { events, rest }
 }
 
+/**
+ * Show a system notification without ever throwing: Android Chrome refuses `new Notification()`
+ * (only the service worker may show one), and a throw here would end the live stream.
+ */
+export async function notify(title: string, options: NotificationOptions) {
+  try {
+    if ('serviceWorker' in navigator) {
+      const reg = await Promise.race([navigator.serviceWorker.ready, new Promise<null>((r) => setTimeout(() => r(null), 3000))])
+      if (reg) {
+        await reg.showNotification(title, options)
+        return
+      }
+    }
+  } catch {
+    /* fall through to the page notification */
+  }
+  try {
+    new Notification(title, options)
+  } catch {
+    /* no notifications here: the in-app banner still shows */
+  }
+}
+
 function handle(tripId: string, e: LiveEvent) {
   if (e.event === 'plan_updated' || e.event === 'options_ready' || e.event === 'checkin_recorded' || e.event === 'trip_ended') {
     void queryClient.invalidateQueries({ queryKey: keys.trip(tripId) })
@@ -40,17 +64,25 @@ function handle(tripId: string, e: LiveEvent) {
   }
   if (e.event === 'plan_updated' && e.data.trigger === 'late' && e.data.notify && !getState().pendingDelay) {
     // An automatic shift from the 5-minute check: show the banner. Its Undo comes from the trip's log.
-    setState({ autoBanner: { text: String(e.data.explanation ?? 'Reroute moved your later stops.'), previousVersion: null } })
+    const version = typeof e.data.version === 'number' ? e.data.version : null
+    setState({ autoBanner: { text: String(e.data.explanation ?? 'Reroute moved your later stops.'), previousVersion: null, version } })
   }
   if (e.event === 'leave_now') {
     const label = String(e.data.label ?? 'your next leg')
     const inMin = Number(e.data.inMin ?? 0)
     const text = inMin > 0 ? `Leave in ${inMin} min. ${label}.` : `Leave now. ${label}.`
-    setState({ leaveNow: { text, at: Date.now() } })
+    const seq = typeof e.data.seq === 'number' ? e.data.seq : null
+    setState({ leaveNow: { text, at: Date.now(), seq } })
     if (getState().leaveAlerts && 'Notification' in window && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
-      new Notification('Reroute', { body: text, tag: `leave-${String(e.data.seq)}` })
+      void notify('Reroute', { body: text, tag: `leave-${String(e.data.seq)}` })
     }
   }
+}
+
+/** Exponential backoff, capped at 30 s, with jitter so phones don't all reconnect at once after an outage. */
+export function backoff(attempt: number, random = Math.random) {
+  const cap = Math.min(30_000, 1000 * 2 ** attempt)
+  return Math.round(cap / 2 + random() * (cap / 2))
 }
 
 export function useLive(tripId: string | null, enabled: boolean) {
@@ -58,6 +90,8 @@ export function useLive(tripId: string | null, enabled: boolean) {
     if (!tripId || !enabled) return
     const ctrl = new AbortController()
     let attempt = 0
+    let connected = false
+    let minWait = 0
 
     async function connect(): Promise<void> {
       while (!ctrl.signal.aborted) {
@@ -68,11 +102,20 @@ export function useLive(tripId: string | null, enabled: boolean) {
             signal: ctrl.signal,
           })
           if (res.status === 401) {
-            if (!(await refreshSession())) return
-            continue
+            const refreshed = await refreshSession()
+            // Refused: the session has ended and the app goes to Sign in; the stream starts again from there.
+            if (refreshed === 'rejected') return
+            if (refreshed === 'ok') continue
+            throw new Error('live: refresh unreachable')
           }
+          // 429: too many open streams for this traveller (other tabs). Back off like any error, at
+          // least as long as the server asks, so the stream never spins.
+          if (res.status === 429) minWait = Math.max(0, Number(res.headers.get('Retry-After') ?? 0)) * 1000
           if (!res.ok || !res.body) throw new Error(`live ${res.status}`)
           attempt = 0
+          // Anything sent while the stream was down is lost: catch up from the trip itself.
+          if (connected) void queryClient.invalidateQueries({ queryKey: keys.trip(tripId!) })
+          connected = true
           const reader = res.body.pipeThrough(new TextDecoderStream()).getReader()
           let buffer = ''
           for (;;) {
@@ -80,13 +123,20 @@ export function useLive(tripId: string | null, enabled: boolean) {
             if (done) break
             const parsed = parseSse(buffer + value)
             buffer = parsed.rest
-            parsed.events.forEach((e) => handle(tripId!, e))
+            for (const e of parsed.events) {
+              try {
+                handle(tripId!, e)
+              } catch {
+                /* one bad event must not end the stream */
+              }
+            }
           }
         } catch {
           if (ctrl.signal.aborted) return
         }
         attempt++
-        await new Promise((r) => setTimeout(r, Math.min(30_000, 1000 * 2 ** attempt)))
+        await new Promise((r) => setTimeout(r, Math.max(minWait, backoff(attempt))))
+        minWait = 0
       }
     }
     void connect()

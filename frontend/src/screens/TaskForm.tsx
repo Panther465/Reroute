@@ -1,5 +1,5 @@
 import { MapPin, Minus, Plus, Search } from 'lucide-react'
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { ApiError } from '@/api/client'
 import { usePlaceSearch } from '@/api/queries'
 import type { Body, Place, Task, TaskIn, Trip } from '@/api/types'
@@ -8,6 +8,7 @@ import { Segmented } from '@/components/ui/Choice'
 import { Field, FieldError } from '@/components/ui/Field'
 import { Sheet } from '@/components/ui/Sheet'
 import { duration, hhmm } from '@/lib/format'
+import { T, useTl } from '@/lib/i18n'
 import { addDays, localMinutes, weekday } from '@/lib/timeline'
 
 type Timing = 'fixed' | 'hours' | 'any'
@@ -25,14 +26,15 @@ interface FormState {
   hoursUnknown: boolean
 }
 
-function fromTask(trip: Trip, t: Task | null): FormState {
-  if (!t) return { title: '', place: null, durationMin: 60, timing: 'any', fixedStart: '', opensAt: '', closesAt: '', priority: 2, day: trip.day, hoursUnknown: false }
+/** The form's starting values. Takes the trip's day and offset as plain values, so a refetched trip object can't reset the form. */
+export function fromTask(day: string, utcOffset: string, t: Task | null): FormState {
+  if (!t) return { title: '', place: null, durationMin: 60, timing: 'any', fixedStart: '', opensAt: '', closesAt: '', priority: 2, day, hoursUnknown: false }
   return {
     title: t.title,
     place: t.place,
     durationMin: t.durationMin,
     timing: t.fixedStart ? 'fixed' : t.window ? 'hours' : 'any',
-    fixedStart: t.fixedStart ? hhmm(localMinutes(t.fixedStart, t.day, trip.utcOffset)) : '',
+    fixedStart: t.fixedStart ? hhmm(localMinutes(t.fixedStart, t.day, utcOffset)) : '',
     opensAt: t.window?.opensAt ?? '',
     closesAt: t.window?.closesAt ?? '',
     priority: t.priority as 1 | 2 | 3,
@@ -48,6 +50,12 @@ function useDebounced<T>(value: T, ms: number) {
     return () => clearTimeout(id)
   }, [value, ms])
   return v
+}
+
+/** Why place search failed: no signal, or a city Reroute doesn't cover (the server says which). */
+export function placeSearchError(err: unknown) {
+  if (err instanceof ApiError && err.status === 422) return err.message
+  return "Place search needs a connection. Try again when you're online."
 }
 
 export function tripDays(trip: Trip) {
@@ -69,25 +77,40 @@ export function TaskFormSheet({
   open: boolean
   onOpenChange: (o: boolean) => void
   initial?: Task | null
-  onSave: (body: Body<TaskIn>, initial: Task | null) => Promise<void>
+  /** Resolves when the save (and any re-plan it starts) is done; the form stays open until then. Call `stage('replanning')` once the save is in and the day is being re-planned. */
+  onSave: (body: Body<TaskIn>, initial: Task | null, stage: (s: 'replanning') => void) => Promise<void>
   /** Shown only for a saved task that hasn't been checked in. */
   onRemove?: (task: Task) => Promise<void>
 }) {
-  const [form, setForm] = useState<FormState>(() => fromTask(trip, initial ?? null))
+  const tl = useTl()
+  const [form, setForm] = useState<FormState>(() => fromTask(trip.day, trip.utcOffset, initial ?? null))
   const [query, setQuery] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
-  const [saving, setSaving] = useState(false)
+  const [saving, setSaving] = useState<false | 'saving' | 'replanning'>(false)
+  const errRef = useRef<HTMLDivElement>(null)
   const [removing, setRemoving] = useState(false)
   const durId = useId()
   const debounced = useDebounced(query, 300)
-  const search = usePlaceSearch(debounced, trip.citySlug, trip.cityName)
+  const search = usePlaceSearch(debounced, trip.citySlug)
 
+  // Reset when the form opens or switches to another task, never because the trip refetched
+  // (the 60 s refresh, window focus, a live event): that would wipe what the traveller typed.
+  const day = trip.day
+  const offset = trip.utcOffset
+  const taskId = initial?.taskId
   useEffect(() => {
     if (!open) return
-    setForm(fromTask(trip, initial ?? null))
+    setForm(fromTask(day, offset, initial ?? null))
     setQuery('')
     setErrors({})
-  }, [open, initial, trip])
+    // Only opening or a different task resets; `initial` is read for its values at that moment.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, taskId])
+
+  // A save error takes focus, so it is heard and seen.
+  useEffect(() => {
+    if (errors.form) errRef.current?.focus()
+  }, [errors.form])
 
   const set = (p: Partial<FormState>) => setForm((f) => ({ ...f, ...p }))
 
@@ -112,9 +135,9 @@ export function TaskFormSheet({
       window: form.timing === 'hours' ? { opensAt: form.opensAt, closesAt: form.closesAt } : null,
       hoursUnknown: form.timing === 'any' && form.hoursUnknown,
     }
-    setSaving(true)
+    setSaving('saving')
     try {
-      await onSave(body, initial ?? null)
+      await onSave(body, initial ?? null, () => setSaving('replanning'))
     } catch (err) {
       setErrors({ form: err instanceof ApiError ? err.message : "Couldn't save the task. Try again." })
     } finally {
@@ -123,17 +146,24 @@ export function TaskFormSheet({
   }
 
   const days = tripDays(trip)
+  const title = tl(initial ? 'Edit this task' : 'Add a task')
 
   return (
     <Sheet
       open={open}
-      onOpenChange={onOpenChange}
-      title={initial ? 'Edit this task' : 'Add a task'}
+      // Closing mid-save would hide whether the change went through.
+      onOpenChange={(o) => !saving && onOpenChange(o)}
+      title={title.text}
+      titleLang={title.lang}
       footer={
         <div className="flex flex-col gap-2">
-          {errors.form && <FieldError id="task-form-err">{errors.form}</FieldError>}
-          <Button full onClick={save} loading={saving} loadingLabel="Saving…">
-            {initial ? 'Save changes' : 'Add this task'}
+          {errors.form && (
+            <div ref={errRef} tabIndex={-1} role="alert" className="outline-none">
+              <FieldError id="task-form-err">{errors.form}</FieldError>
+            </div>
+          )}
+          <Button full onClick={save} loading={!!saving} loadingLabel={<T k={saving === 'replanning' ? 'Re-planning…' : 'Saving…'} />}>
+            <T k={initial ? 'Save changes' : 'Add this task'} />
           </Button>
           {initial && onRemove && initial.state === 'planned' && (
             <Button
@@ -191,7 +221,7 @@ export function TaskFormSheet({
               {debounced.trim().length >= 2 && (
                 <ul aria-label="Places found" aria-busy={search.isFetching} className="mt-2 divide-y divide-line overflow-hidden rounded-control border border-line bg-surface">
                   {search.isPending && <li className="px-4 py-3 t-small text-ink-2">Searching…</li>}
-                  {search.isError && <li className="px-4 py-3 t-small text-ink-2">Place search needs a connection. Try again when you're online.</li>}
+                  {search.isError && <li className="px-4 py-3 t-small text-ink-2">{placeSearchError(search.error)}</li>}
                   {search.data?.length === 0 && <li className="px-4 py-3 t-small text-ink-2">No places match. Try the area name, like Koramangala.</li>}
                   {search.data?.map((p) => (
                     <li key={p.placeId}>
