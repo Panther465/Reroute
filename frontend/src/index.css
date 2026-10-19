@@ -1,4 +1,11 @@
 @import 'tailwindcss';
+/* Fonts are self-hosted (no third-party request, cached by the service worker for offline use).
+   Archivo carries its width axis, so font-stretch: 75% works. */
+@import '@fontsource-variable/archivo/wdth.css';
+@import '@fontsource/atkinson-hyperlegible/latin-400.css';
+@import '@fontsource/atkinson-hyperlegible/latin-700.css';
+@import '@fontsource/noto-sans-devanagari/devanagari-400.css';
+@import '@fontsource/noto-sans-devanagari/devanagari-700.css';
 @import './styles/tokens.css';
 
 @theme inline {
@@ -28,7 +35,7 @@
   --color-transparent: transparent;
 
   --font-sans: 'Atkinson Hyperlegible', 'Noto Sans Devanagari', ui-sans-serif, sans-serif;
-  --font-display: 'Archivo', 'Noto Sans Devanagari', ui-sans-serif, sans-serif;
+  --font-display: 'Archivo Variable', 'Noto Sans Devanagari', ui-sans-serif, sans-serif;
 
   --radius-tag: 8px;
   --radius-control: 14px;
@@ -54,6 +61,11 @@
   :focus-visible {
     outline: 3px solid var(--focus);
     outline-offset: 2px;
+  }
+  /* Headings and the main region take focus after navigation so screen readers start there; they aren't controls. */
+  h1[tabindex='-1']:focus,
+  main[tabindex='-1']:focus {
+    outline: none;
   }
   button,
   [role='button'],

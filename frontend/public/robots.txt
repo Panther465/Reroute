@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /$
+Allow: /signin
+Disallow: /shared/
+Disallow: /v1/
