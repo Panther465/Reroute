@@ -73,6 +73,23 @@ def test_same_key_with_a_different_body_is_409(redis):
     assert r.json()["error"]["code"] == "IDEMPOTENCY_CONFLICT"
 
 
+def test_the_same_key_on_another_route_is_not_replayed(redis):
+    """A fare report for route B with the key and body used for route A must not get A's answer."""
+    client = TestClient(_echo_app([]))
+    client.post("/echo", json={"idempotencyKey": "chk-00000009", "n": 1})
+    r = client.post("/boom", json={"idempotencyKey": "chk-00000009", "n": 1})
+    assert r.status_code == 409
+    assert r.json()["error"]["code"] == "IDEMPOTENCY_CONFLICT"
+
+
+def test_short_brief_style_keys_are_still_idempotent(redis):
+    calls: list[int] = []
+    client = TestClient(_echo_app(calls))
+    client.post("/echo", json={"idempotencyKey": "acc-001", "n": 3})
+    client.post("/echo", json={"idempotencyKey": "acc-001", "n": 3})
+    assert calls == [3]
+
+
 def test_keys_are_scoped_to_the_user(redis):
     calls: list[int] = []
     client = TestClient(_echo_app(calls))
