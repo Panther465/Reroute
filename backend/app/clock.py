@@ -28,6 +28,11 @@ def now_for(trip_id: str | None = None) -> datetime:
     return datetime.now(UTC)
 
 
+def is_simulated(trip_id: str) -> bool:
+    """True when the trip runs on the demo clock, which stays where it was set instead of running."""
+    return get_settings().demo_login and bool(get_redis().exists(demo_key(trip_id)))
+
+
 def set_demo_now(trip_id: str, now: datetime) -> None:
     get_redis().set(demo_key(trip_id), now.isoformat(), ex=7 * 24 * 3600)
 

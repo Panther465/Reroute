@@ -1,6 +1,10 @@
 # One command starts everything: docker compose up --build
 # Then open https://localhost (accept the local certificate) and choose "Use the demo account".
 #
+# Host ports stay clear of databases a developer may already run: PostgreSQL 55432, Redis 56379,
+# MongoDB 57017, HTTP 8080 (redirects to HTTPS). Override with POSTGRES_HOST_PORT, REDIS_HOST_PORT,
+# MONGO_HOST_PORT, HTTP_PORT and HTTPS_PORT.
+#
 # Road routing (OSRM) is optional for the Bengaluru demo, which uses the sample travel-time snapshot.
 # To route real places: docker compose --profile routing up --build  (first run prepares the map; minutes).
 
@@ -35,7 +39,7 @@ services:
       - pgdata:/var/lib/postgresql/data
       - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/10-init.sql:ro
       - ./infra/postgres/set-passwords.sh:/docker-entrypoint-initdb.d/20-set-passwords.sh:ro
-    ports: ["127.0.0.1:5432:5432"]
+    ports: ["127.0.0.1:${POSTGRES_HOST_PORT:-55432}:5432"]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres -d reroute"]
       interval: 5s
@@ -45,7 +49,7 @@ services:
     image: redis:7-alpine
     command: ["redis-server", "--appendonly", "yes"]
     volumes: [redisdata:/data]
-    ports: ["127.0.0.1:6379:6379"]
+    ports: ["127.0.0.1:${REDIS_HOST_PORT:-56379}:6379"]
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -54,7 +58,7 @@ services:
   mongo:
     image: mongo:7
     volumes: [mongodata:/data/db]
-    ports: ["127.0.0.1:27017:27017"]
+    ports: ["127.0.0.1:${MONGO_HOST_PORT:-57017}:27017"]
     healthcheck:
       test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
       interval: 10s
@@ -141,7 +145,7 @@ services:
       - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./infra/nginx/start.sh:/start.sh:ro
       - certs:/etc/nginx/certs
-    ports: ["80:80", "443:443"]
+    ports: ["${HTTPS_PORT:-443}:443", "${HTTP_PORT:-8080}:80"]
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "--no-check-certificate", "https://127.0.0.1/v1/healthz"]
       interval: 10s

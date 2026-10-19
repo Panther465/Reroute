@@ -34,19 +34,22 @@ export function useOnline() {
 }
 
 /**
- * The trip clock in minutes, ticking every 30 s from the server's `now` between fetches.
- * The server's clock may be simulated (demo), so the app never reads the device time directly.
+ * The trip clock in minutes. It runs from the server's `now`, counting the time since the server
+ * sent it (`fetchedAt`, which survives an offline reload), so a plan reopened hours later still
+ * knows the time. A simulated (demo) clock holds still where it was set. The app never reads the
+ * device's time of day directly.
  */
-export function useTripClock(serverNow: number | null): number | null {
-  const [offset, setOffset] = useState(0)
-  const base = useRef({ now: serverNow, at: Date.now() })
+export function useTripClock(serverNow: number | null, fetchedAt: number, simulated: boolean): number | null {
+  const elapsed = () => (simulated || !fetchedAt ? 0 : Math.max(0, Math.floor((Date.now() - fetchedAt) / 60_000)))
+  const [offset, setOffset] = useState(elapsed)
   useEffect(() => {
-    base.current = { now: serverNow, at: Date.now() }
-    setOffset(0)
-    if (serverNow === null) return
-    const id = setInterval(() => setOffset(Math.floor((Date.now() - base.current.at) / 60_000)), 30_000)
+    setOffset(elapsed())
+    if (serverNow === null || simulated) return
+    const id = setInterval(() => setOffset(elapsed()), 30_000)
     return () => clearInterval(id)
-  }, [serverNow])
+    // elapsed reads only these inputs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [serverNow, fetchedAt, simulated])
   return serverNow === null ? null : serverNow + offset
 }
 

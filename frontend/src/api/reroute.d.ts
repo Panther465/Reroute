@@ -1214,6 +1214,11 @@ export interface components {
              */
             now: string;
             /**
+             * Clocksimulated
+             * @default false
+             */
+            clockSimulated: boolean;
+            /**
              * Day
              * Format: date
              */

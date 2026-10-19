@@ -28,6 +28,6 @@ Honest gaps in this build. Each is a deliberate scope choice or waits on the tea
 
 ## Operations
 
-- **The NGINX certificate is self-signed** for local use. Deploy with a real certificate.
+- **The NGINX certificate is self-signed** for local use, so browsers won't install the offline service worker until you trust it (mkcert works). Deploy with a real certificate.
 - **The k6 load test** runs on demand (`Load test` workflow) with a raised per-user rate limit, because all virtual users share the demo account.
 - **A manual NVDA screen-reader check** is required by the brief and isn't automated.

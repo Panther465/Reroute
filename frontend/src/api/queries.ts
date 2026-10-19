@@ -58,6 +58,8 @@ export function useTrip(tripId: string | null) {
     queryKey: keys.trip(tripId ?? 'none'),
     queryFn: () => api.get<Trip>(`/v1/trips/${tripId}`),
     enabled: !!tripId,
+    // The saved copy renders at once (and offline); on every load, confirm it with the server.
+    refetchOnMount: 'always',
     // Live events invalidate this; the interval is a safety net for missed events.
     refetchInterval: 60_000,
   })

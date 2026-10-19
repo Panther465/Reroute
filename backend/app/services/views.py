@@ -7,7 +7,7 @@ from datetime import date, datetime
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.clock import tz_for
+from app.clock import is_simulated, tz_for
 from app.models import Place, Plan, RerouteLog, Task, Trip
 from app.schemas import (
     LogEntryOut,
@@ -134,6 +134,7 @@ def trip_out(db: Session, trip: Trip, now: datetime) -> TripOut:
         open_options=options_out(open_options(db, trip.trip_id)),
         log=log_out(db, trip.trip_id),
         now=now.astimezone(tz_for(trip.utc_offset)),
+        clock_simulated=is_simulated(trip.trip_id),
         day=day,
         day_index=(day - trip.start_date).days + 1,
         day_count=(trip.end_date - trip.start_date).days + 1,

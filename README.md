@@ -18,7 +18,9 @@ cd Reroute
 docker compose up --build
 ```
 
-Open **https://localhost**, accept the local certificate, and choose **Use the demo account**. The demo trip is Bengaluru, Wednesday 14 October 2026, on a simulated clock.
+Open **https://localhost**, accept the local certificate, and choose **Use the demo account**.
+
+If ports are taken on your machine, the stack stays out of the way: PostgreSQL, Redis and MongoDB are published on 55432, 56379 and 57017, and plain HTTP on 8080. Change any of them with `POSTGRES_HOST_PORT`, `REDIS_HOST_PORT`, `MONGO_HOST_PORT`, `HTTP_PORT` or `HTTPS_PORT`. Browsers won't install the offline service worker over an untrusted certificate; to try offline mode locally, trust the certificate (for example with [mkcert](https://github.com/FiloSottile/mkcert), placed at `/etc/nginx/certs/localhost.{crt,key}` in the `certs` volume). The demo trip is Bengaluru, Wednesday 14 October 2026, on a simulated clock.
 
 Try the golden path:
 
@@ -62,7 +64,7 @@ Phone (PWA) ──HTTPS──▶ NGINX ─┬─ /v1/raasta/* ──▶ Raasta A
 Node.js 22 (LTS) and Python 3.12 are only needed here.
 
 ```bash
-# Databases only
+# Databases only (published on 55432, 56379 and 57017 so they don't clash with local installs)
 docker compose up -d postgres redis mongo
 
 # Reroute API (http://localhost:8000/v1/docs)

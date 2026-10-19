@@ -3981,6 +3981,11 @@
             "format": "date-time",
             "title": "Now"
           },
+          "clockSimulated": {
+            "type": "boolean",
+            "title": "Clocksimulated",
+            "default": false
+          },
           "day": {
             "type": "string",
             "format": "date",
