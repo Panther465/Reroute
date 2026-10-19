@@ -15,7 +15,9 @@ case "$role" in
     exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*' --workers "${API_WORKERS:-2}"
     ;;
   worker)
-    exec rq worker --url "$REDIS_URL" planning
+    # A short TTL keeps each blocking wait at about 45 s. With the default (405 s) the worker treated
+    # the end of a long idle wait as a lost Redis connection and quit every 6 3/4 minutes.
+    exec rq worker --url "$REDIS_URL" --worker-ttl 60 planning
     ;;
   scheduler)
     exec python -m app.workers.scheduler
