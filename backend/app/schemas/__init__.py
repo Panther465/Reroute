@@ -458,6 +458,10 @@ class CalendarImportIn(PostBody):
     code: Annotated[str, StringConstraints(min_length=10, max_length=2048)]
 
 
+class AiHelperIn(PostBody):
+    text: Annotated[str, StringConstraints(min_length=3, max_length=2000)]
+
+
 class TaskDraftOut(Api):
     title: str
     place_text: str

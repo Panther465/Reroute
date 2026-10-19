@@ -329,6 +329,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/trips/{trip_id}/task-drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Describe your day; get back draft tasks (AI helper) */
+        post: operations["ai_task_drafts_v1_trips__trip_id__task_drafts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/trips/{trip_id}/demo/clock": {
         parameters: {
             query?: never;
@@ -464,6 +481,13 @@ export interface components {
         ActivateIn: {
             /** Idempotencykey */
             idempotencyKey: string;
+        };
+        /** AiHelperIn */
+        AiHelperIn: {
+            /** Idempotencykey */
+            idempotencyKey: string;
+            /** Text */
+            text: string;
         };
         /** BlockedOut */
         BlockedOut: {
@@ -2014,6 +2038,43 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["CalendarImportIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskDraftOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_task_drafts_v1_trips__trip_id__task_drafts_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AiHelperIn"];
             };
         };
         responses: {
