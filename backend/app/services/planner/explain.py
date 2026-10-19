@@ -23,6 +23,8 @@ def must_choose(failure: str | None, title: str | None, at: int | None) -> str:
         return f"The {name} starts at {hhmm(at)}. Choose how to fix the rest of today."
     if failure == "service":
         return f"The last shared auto for the {name} will have gone. Choose how to fix the rest of today."
+    if failure == "unavailable":
+        return f"The shared auto route to the {name} isn't confirmed right now. Choose how to fix the rest of today."
     return "Your later stops no longer fit. Choose how to fix the rest of today."
 
 
