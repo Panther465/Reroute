@@ -28,6 +28,7 @@ from app.models import Checkin, Place, Plan, Task, Trip
 from app.schemas import (
     AcceptIn,
     ActivateIn,
+    AiHelperIn,
     Api,
     BlockedOut,
     CalendarImportIn,
@@ -384,6 +385,49 @@ def calendar_import(body: CalendarImportIn, trip: OwnedTrip, db: Db) -> list[Tas
                 duration_min=minutes,
                 fixed_start=ev.start.astimezone(tz),
                 source="calendar",
+            )
+        )
+    return drafts
+
+
+# ---------- AI helper ----------
+
+
+@router.post(
+    "/trips/{trip_id}/task-drafts",
+    response_model=list[TaskDraftOut],
+    response_model_by_alias=True,
+    summary="Describe your day; get back draft tasks (AI helper)",
+)
+async def ai_task_drafts(body: AiHelperIn, trip: OwnedTrip, db: Db) -> list[TaskDraftOut]:
+    if not get_settings().ai_helper_enabled:
+        raise ApiError(404, "The AI helper is not enabled on this server.")
+    from app.adapters.llm import extract_tasks_llm
+
+    raw = await extract_tasks_llm(body.text, trip.city_name, str(trip.start_date))
+    drafts: list[TaskDraftOut] = []
+    for t in raw:
+        place_text = t.get("placeText", "")
+        match = None
+        if place_text:
+            words = place_text.split(",")[0].strip()
+            match = db.scalar(
+                select(Place).where(Place.city_slug == trip.city_slug, or_(Place.name.ilike(f"%{words}%"), Place.area.ilike(f"%{words}%"))).limit(1)
+            )
+        fixed = None
+        if t.get("fixedStart"):
+            tz = tz_for(trip.utc_offset)
+            h, m = map(int, t["fixedStart"].split(":"))
+            fixed = datetime.combine(trip.start_date, dtime(h, m), tz)
+        drafts.append(
+            TaskDraftOut(
+                title=t["title"],
+                place_text=place_text,
+                place_id=match.place_id if match else None,
+                duration_min=t["durationMin"],
+                fixed_start=fixed,
+                priority=t.get("priority", 2),
+                source="ai_helper",
             )
         )
     return drafts

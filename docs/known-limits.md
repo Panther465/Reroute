@@ -12,7 +12,7 @@ Honest gaps in this build. Each is a deliberate scope choice or waits on the tea
 
 ## Features
 
-- **The optional AI helper** ("Describe your day") is off and its endpoint isn't built; the brief says to start it only when everything else works.
+- **The AI helper** ("Describe your day") is enabled by default. Without `ANTHROPIC_API_KEY` it falls back to a pattern-based parser that handles common day descriptions. Set a real key for Claude-powered natural-language task extraction.
 - **Google sign-in and Calendar import** need `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Without them the web app hides both buttons and the demo login works.
 - **Location is not collected.** The re-plan loop works from check-ins and the clock; the `location_timeline` collection and its deletion endpoint are in place for when the team adds location sharing.
 - **Leave-now browser notifications** need the traveller's permission, asked from the Me screen.

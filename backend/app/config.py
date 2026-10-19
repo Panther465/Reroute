@@ -46,6 +46,7 @@ class Settings(BaseSettings):
     public_base_url: str = "https://localhost"
 
     ai_helper_enabled: bool = False
+    anthropic_api_key: str = ""
     #: Tests run jobs inline. Never set in a deployment: planning must stay in the worker.
     queue_sync: bool = False
 

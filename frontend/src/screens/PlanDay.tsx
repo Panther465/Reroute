@@ -1,4 +1,4 @@
-import { CalendarPlus, MapPin, Plus, Search, TriangleAlert } from 'lucide-react'
+import { CalendarPlus, MapPin, Plus, Search, Sparkles, TriangleAlert } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router'
@@ -17,6 +17,7 @@ import { useDocumentTitle, useOnline } from '@/lib/hooks'
 import { T } from '@/lib/i18n'
 import { nextToken, setState, showToast } from '@/lib/store'
 import { dayLabel, localMinutes, weekday } from '@/lib/timeline'
+import { AiPlannerSheet } from './AiPlannerSheet'
 import { placeSearchError, TaskFormSheet } from './TaskForm'
 
 function TaskTags({ task, trip }: { task: Task; trip: Trip }) {
@@ -253,6 +254,7 @@ export default function PlanDay() {
   const trip = tripQ.data
   const online = useOnline()
   const [form, setForm] = useState<{ open: boolean; task: Task | null }>({ open: false, task: null })
+  const [aiOpen, setAiOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   const [planning, setPlanning] = useState<'idle' | 'busy' | 'drawing'>('idle')
@@ -402,11 +404,24 @@ export default function PlanDay() {
           {trip.tasks.length > 0 && <span className="t-small text-muted">{open.length} to do</span>}
         </div>
         {trip.tasks.length === 0 ? (
-          <div className="mt-4 rounded-card border border-line bg-surface p-5">
-            <p className="t-title text-ink">No tasks yet</p>
-            <p className="mt-1 t-body text-ink-2">Add your first one, like a meeting or a bank visit.</p>
-            <Button className="mt-4" icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={() => openForm(null)} disabled={!online}>
-              <T k="Add a task" />
+          <div className="mt-4 flex flex-col gap-4">
+            <button
+              type="button"
+              onClick={() => setAiOpen(true)}
+              disabled={!online}
+              className="group flex items-start gap-4 rounded-card border-2 border-dashed border-green bg-green-tint/50 p-5 text-left transition-colors duration-[var(--dur-quick)] [@media(hover:hover)]:hover:enabled:bg-green-tint disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <span className="mt-0.5 flex size-10 shrink-0 items-center justify-center rounded-full bg-green text-on-green">
+                <Sparkles size={22} strokeWidth={1.75} aria-hidden="true" />
+              </span>
+              <span>
+                <span className="block t-display-2 text-ink">Describe your day</span>
+                <span className="mt-1 block t-body text-ink-2">Tell me what you need to do and where. I'll turn it into tasks and work out the best route.</span>
+              </span>
+            </button>
+            <p className="text-center t-small text-muted">or</p>
+            <Button variant="secondary" icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={() => openForm(null)} disabled={!online}>
+              <T k="Add tasks one by one" />
             </Button>
           </div>
         ) : (
@@ -426,9 +441,14 @@ export default function PlanDay() {
         )}
         <div className="mt-4 flex flex-wrap gap-3">
           {trip.tasks.length > 0 && (
-            <Button variant="secondary" size="md" icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={() => openForm(null)} disabled={!online}>
-              <T k="Add a task" />
-            </Button>
+            <>
+              <Button variant="secondary" size="md" icon={<Sparkles size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={() => setAiOpen(true)} disabled={!online}>
+                Describe your day
+              </Button>
+              <Button variant="secondary" size="md" icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={() => openForm(null)} disabled={!online}>
+                <T k="Add a task" />
+              </Button>
+            </>
           )}
           {googleEnabled && (
             <Button variant="secondary" size="md" icon={<CalendarPlus size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={() => setImportOpen(true)} disabled={!online}>
@@ -477,6 +497,16 @@ export default function PlanDay() {
           }}
         />
       )}
+      <AiPlannerSheet
+        trip={trip}
+        open={aiOpen}
+        onOpenChange={setAiOpen}
+        onAdded={(n) => {
+          void queryClient.invalidateQueries({ queryKey: keys.trip(trip.tripId) })
+          setAiOpen(false)
+          showToast({ title: `Added ${n} ${n === 1 ? 'task' : 'tasks'} from your description.` })
+        }}
+      />
     </div>
   )
 }

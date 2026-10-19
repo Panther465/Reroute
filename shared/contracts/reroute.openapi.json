@@ -1386,6 +1386,78 @@
         }
       }
     },
+    "/v1/trips/{trip_id}/task-drafts": {
+      "post": {
+        "tags": [
+          "trips"
+        ],
+        "summary": "Describe your day; get back draft tasks (AI helper)",
+        "operationId": "ai_task_drafts_v1_trips__trip_id__task_drafts_post",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AiHelperIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TaskDraftOut"
+                  },
+                  "title": "Response Ai Task Drafts V1 Trips  Trip Id  Task Drafts Post"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/trips/{trip_id}/demo/clock": {
       "post": {
         "tags": [
@@ -1907,6 +1979,29 @@
           "idempotencyKey"
         ],
         "title": "ActivateIn"
+      },
+      "AiHelperIn": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 4,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Idempotencykey"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 3,
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotencyKey",
+          "text"
+        ],
+        "title": "AiHelperIn"
       },
       "BlockedOut": {
         "properties": {

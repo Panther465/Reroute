@@ -19,6 +19,7 @@ import { localMinutes } from '@/lib/timeline'
 // Loaded the first time they're needed, so the shell stays small.
 const RunningLateSheet = lazy(() => import('@/screens/RunningLateSheet').then((m) => ({ default: m.RunningLateSheet })))
 const DemoPanel = lazy(() => import('@/components/DemoPanel').then((m) => ({ default: m.DemoPanel })))
+const Roo = lazy(() => import('@/components/Roo').then((m) => ({ default: m.Roo })))
 
 const TABS = [
   { to: '/', label: 'Today', Icon: CalendarClock, end: true },
@@ -224,6 +225,9 @@ export default function AppShell() {
                 <DemoPanel trip={trip.data} onLate={openLate} />
               </Suspense>
             )}
+            <Suspense fallback={null}>
+              <Roo trip={trip.data ?? undefined} clock={clock ?? null} />
+            </Suspense>
             <Toaster tripId={current.tripId} />
             <Announcer />
             <ScrollRestoration />
