@@ -74,3 +74,21 @@ Details the briefs don't settle, the simplest choice that keeps every rule, and 
 - **Node.js 22 LTS, not 20.** The brief names Node.js 20 for work outside Docker, but Node 20 reached end of life in April 2026 and the current test toolchain (jsdom's HTTP client) needs Node 22. CI, the web image and `engines` all use 22.
 - **The app's clock runs from when the server sent `now`**, not from page load, so a plan reopened offline hours later still knows the time. The trip says whether its clock is simulated (`clockSimulated`); the demo clock holds still where it was set. The trip is always confirmed with the server on load.
 - **Host ports avoid local installs:** the stack publishes PostgreSQL, Redis and MongoDB on 55432, 56379 and 57017 and plain HTTP on 8080, all configurable, so it starts on machines that already run these databases.
+
+## Hardening after the launch audit (19 October 2026)
+
+- **Shift only uses main options.** If a leg in the active plan now relies on a Raasta route that is unverified, stale or unconfirmed (Raasta unreachable), the shift fails as "unavailable" and the traveller gets options (reason code RAASTA_UNVERIFIED). A shared auto is never kept past its last trip.
+- **A reported delay is remembered** (Redis, until the end of the day) as the time the current task will end, so the 5-minute check keeps it. Undo forgets it, so the check doesn't re-apply the undone change.
+- **The automatic check acts only when the traveller is behind** (more than 5 minutes past a leave-by, or a remembered delay). It never shifts while options are waiting; it replaces them when they change and drops them when they no longer apply.
+- **Accepting names the option set it saw.** `optionSetId` on accept; a replaced set answers 409 `OPTIONS_CHANGED`, an option whose first departure is more than 10 minutes gone answers 409 `OPTION_EXPIRED`.
+- **A finished day is left alone:** once every task is done, skipped or moved, the way home isn't re-timed and no further versions are created. The scheduler only watches trips running today in their own time zone; `trip_ended` fires once, on the last day, after its tasks are finished.
+- **A delay reported on the way to a fixed task** re-times the arrival; if it misses the fixed start (less the buffer), the result carries FIXED_TASK_AT_RISK and says when the traveller will arrive.
+- **Moved tasks are planned on their new day**; Undo only brings a task back on the day it was moved from.
+- **One trip, one writer:** planning, accepting and Undo take a row lock on the trip, so API copies and workers can't interleave.
+- **Live streams hold no database connection**; at most 4 open streams per traveller (429 beyond that).
+- **Fail closed:** an unset `APP_ENV` means production, which refuses demo login and any JWT secret starting `dev-only` or `change-me` or shorter than 32 bytes (both APIs). Docker Compose sets `APP_ENV=development` for the local demo.
+- **Redis is not a single point of failure:** rate limits and idempotency fail open when Redis is down (check-ins still have their database unique key); `/v1/readyz` reports the database and Redis.
+- **Supported cities** are listed on the server (`backend/app/cities.py`, Bengaluru today) with a bounding box. Place search takes the city name from that list and drops results outside the box; trips can only be created for listed cities.
+- **OSRM mode** caches road tables for 24 hours, adds Raasta legs through the transit adapter (ride time estimated at 250 m a minute, about 15 km/h, a sample assumption to replace with measured ride times), and falls back to the sample snapshot when OSRM can't be reached. The worker caches Raasta answers for 5 minutes.
+- **Raasta freshness** runs inside the Raasta API every 6 hours (a Redis lock keeps several copies from running it at once). Raasta's idempotency now includes the method and path, like Reroute's.
+- **Fonts are self-hosted** (Fontsource: Archivo with its width axis, Atkinson Hyperlegible, Noto Sans Devanagari loaded only for Devanagari text), so there is no third-party request, they work offline, and they don't block the first paint. MapLibre isn't precached by the service worker; it is cached the first time a map opens. Built files are gzipped at image build time.
