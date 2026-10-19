@@ -369,11 +369,21 @@
             "in": "query",
             "required": false,
             "schema": {
-              "type": "string",
-              "maxLength": 80,
-              "default": "Bengaluru",
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Ignored: the server knows each city's name.",
+              "deprecated": true,
               "title": "Cityname"
-            }
+            },
+            "description": "Ignored: the server knows each city's name.",
+            "deprecated": true
           },
           {
             "name": "authorization",
@@ -1863,6 +1873,17 @@
             "minLength": 4,
             "pattern": "^[A-Za-z0-9._:-]+$",
             "title": "Idempotencykey"
+          },
+          "optionSetId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Optionsetid"
           }
         },
         "type": "object",

@@ -173,7 +173,8 @@ def sync_tasks(db: Session, plan: Plan) -> None:
             if kind == "moved":
                 task.day = date.fromordinal(plan.day.toordinal() + 1)
             task.changed_by_plan_id = plan.plan_id
-        elif task.task_id in in_plan and task.state in ("moved", "skipped"):
+        elif task.task_id in in_plan and task.state in ("moved", "skipped") and task.planned_day == plan.day:
+            # Undo on the day the task was moved from brings it back.
             task.state = "planned"
             task.day = task.planned_day
             task.changed_by_plan_id = None

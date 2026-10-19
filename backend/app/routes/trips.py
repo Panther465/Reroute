@@ -19,6 +19,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app import events
 from app.adapters.google import calendar_events
+from app.cities import city as supported_city
 from app.clock import now_for, set_demo_now, tz_for
 from app.config import get_settings
 from app.deps import CurrentUser, Db, OwnedTrip
@@ -122,6 +123,8 @@ def _checkin_out(db, trip: Trip, checkin: Checkin, outcome: dict | None, job_id:
 
 @router.post("/trips", response_model=TripOut, response_model_by_alias=True, status_code=201)
 def create_trip(body: TripIn, user: CurrentUser, db: Db) -> TripOut:
+    if supported_city(body.city_slug) is None:
+        raise ApiError(422, "Reroute doesn't cover that city yet.", code="VALIDATION_ERROR")
     place = _place(db, body.stay_place_id, body.city_slug)
     trip = Trip(
         user_id=user.user_id,
@@ -209,6 +212,8 @@ def edit_task(task_id: str, body: TaskPatch, trip: OwnedTrip, db: Db) -> TaskEdi
     if timing == "fixed" or (timing is None and data.get("fixed_start")):
         if not body.fixed_start or body.fixed_start.tzinfo is None:
             raise ApiError(422, "Enter the start time with its UTC offset.", code="VALIDATION_ERROR")
+        if body.fixed_start.astimezone(tz_for(trip.utc_offset)).date() != task.day:
+            raise ApiError(422, "fixedStart must be on the task's day.", code="VALIDATION_ERROR")
         task.fixed_start, task.opens_at, task.closes_at = body.fixed_start, None, None
     elif timing == "window" or (timing is None and body.window is not None):
         if body.window is None:
@@ -281,7 +286,7 @@ def activate_version(version: int, body: ActivateIn, trip: OwnedTrip, db: Db) ->
 
 @router.post("/trips/{trip_id}/options/{option_id}/accept", response_model=PlanOut, response_model_by_alias=True)
 def accept_option(option_id: str, body: AcceptIn, trip: OwnedTrip, db: Db) -> PlanOut:
-    return plan_store.plan_out(loop.accept(db, trip, option_id, now_for(trip.trip_id)))
+    return plan_store.plan_out(loop.accept(db, trip, option_id, now_for(trip.trip_id), option_set_id=body.option_set_id))
 
 
 # ---------- check-ins ----------

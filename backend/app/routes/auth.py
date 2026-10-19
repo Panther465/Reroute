@@ -66,6 +66,9 @@ def refresh(
     rr_csrf: Annotated[str | None, Cookie(alias=CSRF_COOKIE)] = None,
     x_csrf_token: Annotated[str | None, Header()] = None,
 ) -> TokenOut:
+    if not rr_refresh:
+        # No session at all (a first visit): "sign in", not a CSRF failure.
+        raise ApiError(401, "Sign in to continue.")
     check_csrf(rr_csrf, x_csrf_token)
     user = rotate_refresh(db, rr_refresh, response)
     return _token(user)

@@ -12,14 +12,14 @@ from app.adapters.travel_times import make_adapter
 from app.clock import at_minutes, minutes_of_day, now_for, tz_for
 from app.db import session_scope
 from app.errors import ApiError
-from app.models import Plan, Trip
+from app.models import Plan, Task, Trip
 from app.redis_client import get_redis
 from app.services import loop
 from app.services.day import trip_day
 
 
 def default_adapter():
-    return make_adapter(RaastaHttpAdapter(), get_redis())
+    return make_adapter(RaastaHttpAdapter(redis_client=get_redis()), get_redis())
 
 
 #: Tests replace this with a fixed transit answer; deployments use Raasta over HTTP.
@@ -101,9 +101,12 @@ def send_leave_now_alerts(trip_id: str) -> None:
                             "label": leg["label"],
                         },
                     )
+        open_tasks = db.scalar(select(Task.task_id).where(Task.trip_id == trip_id, Task.day == trip.end_date, Task.state.notin_(("done", "skipped"))).limit(1))
         if (
-            now_min > minutes_of_day(datetime.fromisoformat(plan.legs[-1]["arriveAt"]), day, tz)
+            plan.day == trip.end_date
             and day == trip.end_date
+            and open_tasks is None
+            and now_min > minutes_of_day(datetime.fromisoformat(plan.legs[-1]["arriveAt"]), day, tz)
             and r.set(f"trip_ended:{trip_id}", "1", nx=True, ex=7 * 86400)
         ):
             events.publish(trip_id, "trip_ended", {"tripId": trip_id})

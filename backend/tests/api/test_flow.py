@@ -218,3 +218,139 @@ def test_a_task_can_be_removed_until_it_has_check_ins(client):
     clock(client, "11:00")
     client.post("/v1/trips/trip-001/checkins", json={"taskId": "task-meet", "kind": "done", "idempotencyKey": key()})
     assert client.delete("/v1/trips/trip-001/tasks/task-meet").status_code == 409
+
+
+# ---------- audit regressions: the re-plan loop under real conditions ----------
+
+
+def delay(c, minutes: int, key_: str | None = None):
+    return c.post("/v1/trips/trip-001/checkins", json={"taskId": "task-meet", "kind": "delay", "delayMin": minutes, "idempotencyKey": key_ or key()})
+
+
+def check(c):
+    return c.post("/v1/trips/trip-001/demo/check", json={"idempotencyKey": key()}).json()
+
+
+def versions() -> int:
+    with engine().connect() as conn:
+        return conn.execute(text("SELECT count(*) FROM plans WHERE trip_id = 'trip-001' AND version IS NOT NULL")).scalar()
+
+
+def test_a_reported_delay_survives_the_next_automatic_check(client):
+    plan_v1(client)
+    clock(client, "10:55")
+    options = delay(client, 40).json()
+    assert options["result"] == "options"
+    set_id = client.get("/v1/trips/trip-001").json()["openOptions"]["optionSetId"]
+    clock(client, "11:15")
+    after = check(client)
+    # Not shifted underneath the waiting options, and the traveller's choice still applies.
+    assert after["result"] == "options"
+    assert versions() == 1
+    open_now = client.get("/v1/trips/trip-001").json()["openOptions"]
+    accepted = client.post("/v1/trips/trip-001/options/opt-1/accept", json={"idempotencyKey": key(), "optionSetId": open_now["optionSetId"]})
+    assert accepted.status_code == 200, accepted.text
+    assert set_id  # the original set existed
+
+
+def test_accepting_from_a_replaced_option_set_is_refused(client):
+    plan_v1(client)
+    clock(client, "10:55")
+    delay(client, 40)
+    res = client.post("/v1/trips/trip-001/options/opt-1/accept", json={"idempotencyKey": key(), "optionSetId": "opts-not-the-current-one"})
+    assert res.status_code == 409
+    assert res.json()["error"]["code"] == "OPTIONS_CHANGED"
+    assert versions() == 1
+
+
+def test_an_expired_option_is_refused(client):
+    plan_v1(client)
+    clock(client, "10:55")
+    delay(client, 40)
+    clock(client, "12:30")  # opt-1 needed a 11:45 departure
+    res = client.post("/v1/trips/trip-001/options/opt-1/accept", json={"idempotencyKey": key()})
+    assert res.status_code == 409
+    assert res.json()["error"]["code"] == "OPTION_EXPIRED"
+
+
+def test_the_automatic_check_changes_nothing_when_on_time(client):
+    plan_v1(client)
+    clock(client, "11:03")  # meeting ended at 11:00, leave-by 11:05: not behind
+    assert check(client)["result"] == "on_time"
+    assert versions() == 1
+
+
+def test_a_finished_day_is_not_replanned_again_and_again(client):
+    plan_v1(client)
+    for hhmm_, task in (("11:00", "task-meet"), ("14:55", "task-bank"), ("16:25", "task-office")):
+        clock(client, hhmm_)
+        client.post("/v1/trips/trip-001/checkins", json={"taskId": task, "kind": "done", "idempotencyKey": key()})
+    before = versions()
+    for hhmm_ in ("17:30", "17:35", "22:00"):
+        clock(client, hhmm_)
+        assert check(client)["result"] == "on_time"
+    assert versions() == before
+
+
+def test_a_delay_on_the_way_to_a_fixed_task_says_it_is_at_risk(client):
+    plan_v1(client)
+    clock(client, "09:30")  # on the metro to the 10:00 meeting
+    body = delay(client, 40).json()
+    assert "FIXED_TASK_AT_RISK" in body["reasonCodes"], body
+    assert "after its 10:00 start" in body["explanation"]
+
+
+def test_a_task_moved_to_tomorrow_is_planned_tomorrow(client):
+    from app.models import Trip as TripModel
+    from app.services.day import sense
+
+    plan_v1(client)
+    clock(client, "10:55")
+    delay(client, 40)
+    client.post("/v1/trips/trip-001/options/opt-2/accept", json={"idempotencyKey": key()})
+    with session_scope() as db:
+        trip = db.get(TripModel, "trip-001")
+        from datetime import datetime as dt
+
+        ctx = sense(db, trip, dt.fromisoformat("2026-10-15T07:30:00+05:30"))
+        assert "task-office" in {t.task_id for t in ctx.planner_tasks()}
+
+
+def test_the_summary_of_an_earlier_day_keeps_its_legs(client):
+    plan_v1(client)
+    summary = client.get("/v1/trips/trip-001/summary?day=2026-10-14").json()
+    assert summary["totals"]["fareInr"] == 210
+    clock(client, "23:30")
+    assert client.get("/v1/trips/trip-001/summary?day=2026-10-14").json()["totals"]["fareInr"] == 210
+
+
+def test_refresh_without_a_session_is_401_not_a_csrf_error(database):
+    fresh = TestClient(app, base_url="https://testserver")
+    res = fresh.post("/v1/auth/refresh")
+    assert res.status_code == 401
+    assert res.json()["error"]["code"] == "UNAUTHENTICATED"
+
+
+def test_a_lost_refresh_response_does_not_sign_the_traveller_out(client):
+    """A reload mid-refresh: the browser sends the just-rotated token again within the grace period."""
+    c = TestClient(app, base_url="https://testserver")
+    c.post("/v1/auth/demo", json={"as": "traveller"})
+    old_refresh, csrf = c.cookies.get("rr_refresh"), c.cookies.get("rr_csrf")
+    assert c.post("/v1/auth/refresh", headers={"X-CSRF-Token": csrf}).status_code == 200
+    # The browser lost that response, so it still holds both old cookies.
+    c.cookies.clear()
+    c.cookies.set("rr_refresh", old_refresh, path="/v1/auth")
+    c.cookies.set("rr_csrf", csrf, path="/")
+    again = c.post("/v1/auth/refresh", headers={"X-CSRF-Token": csrf})
+    assert again.status_code == 200
+
+
+def test_a_signed_out_session_cannot_be_refreshed(client):
+    c = TestClient(app, base_url="https://testserver")
+    c.post("/v1/auth/demo", json={"as": "traveller"})
+    old_refresh, csrf = c.cookies.get("rr_refresh"), c.cookies.get("rr_csrf")
+    assert c.post("/v1/auth/logout", headers={"X-CSRF-Token": csrf}).status_code == 204
+    c.cookies.clear()
+    c.cookies.set("rr_refresh", old_refresh, path="/v1/auth")
+    c.cookies.set("rr_csrf", csrf, path="/")
+    assert c.post("/v1/auth/refresh", headers={"X-CSRF-Token": csrf}).status_code == 401

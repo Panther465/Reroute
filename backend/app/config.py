@@ -13,7 +13,8 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    app_env: Literal["development", "test", "production"] = "development"
+    #: Unset means production, so a forgotten setting fails closed (no demo login, real secrets only).
+    app_env: Literal["development", "test", "production"] = "production"
     database_url: str = "postgresql+psycopg://reroute_app:reroute_app@localhost:5432/reroute"
     redis_url: str = "redis://localhost:6379/0"
     mongo_url: str = "mongodb://localhost:27017/reroute"
@@ -53,8 +54,8 @@ class Settings(BaseSettings):
         if self.app_env == "production":
             if self.demo_login:
                 raise ValueError("DEMO_LOGIN=true is refused when APP_ENV=production.")
-            if self.jwt_secret.startswith("dev-only"):
-                raise ValueError("Set a real JWT_SECRET in production.")
+            if self.jwt_secret.startswith(("dev-only", "change-me")) or len(self.jwt_secret.encode()) < 32:
+                raise ValueError("Set a real JWT_SECRET (32 or more random bytes) in production.")
             if self.queue_sync:
                 raise ValueError("QUEUE_SYNC is for tests only.")
         return self

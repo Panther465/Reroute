@@ -7,11 +7,14 @@ Auth routes are exempt: replaying a sign-in or token refresh would hand out stor
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
+import logging
 import time
 import uuid
 
+import redis
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.requests import Request
 from starlette.responses import JSONResponse, Response
@@ -22,6 +25,8 @@ from app.errors import ApiError, error_body
 from app.hashing import canonical_body
 from app.redis_client import get_redis
 from app.security import decode_access_token
+
+log = logging.getLogger("reroute.guard")
 
 IDEMPOTENCY_EXEMPT = ("/v1/auth/",)
 #: Live streams must not be buffered or rate limited per event.
@@ -91,9 +96,14 @@ class GuardMiddleware(BaseHTTPMiddleware):
             bucket = ("auth:" + _subject_ip(request)) if is_auth else subject
             window = int(time.time() // 60)
             key = f"rl:{bucket}:{window}"
-            count = r.incr(key)
-            if count == 1:
-                r.expire(key, 70)
+            try:
+                count = r.incr(key)
+                if count == 1:
+                    r.expire(key, 70)
+            except redis.RedisError:
+                # Fail open: without Redis the limit can't be counted, but the app keeps working.
+                log.warning("Rate limiter unavailable", extra={"traceId": trace})
+                count = 0
             if count > limit:
                 return JSONResponse(
                     error_body("RATE_LIMITED", "Too many requests. Wait a minute and try again.", trace),
@@ -120,8 +130,15 @@ class GuardMiddleware(BaseHTTPMiddleware):
         body_hash = hashlib.sha256((path + "\n" + canonical_body(body)).encode()).hexdigest()
         store_key = f"idem:reroute:{subject}:{key}"
         lock_key = store_key + ":lock"
-        stored = r.get(store_key)
-        if stored is None and not r.set(lock_key, "1", nx=True, ex=30):
+        try:
+            stored = r.get(store_key)
+            locked = stored is not None or bool(r.set(lock_key, "1", nx=True, ex=30))
+        except redis.RedisError:
+            # Without Redis there is no replay store; the database's own unique keys still stop
+            # duplicate check-ins, so the request goes ahead rather than failing.
+            log.warning("Idempotency store unavailable", extra={"traceId": trace})
+            return await call_next(request)
+        if not locked:
             return JSONResponse(error_body("CONFLICT", "The same request is already being processed.", trace), status_code=409)
         if stored is not None:
             saved = json.loads(stored)
@@ -136,11 +153,19 @@ class GuardMiddleware(BaseHTTPMiddleware):
             chunks = [chunk async for chunk in response.body_iterator]  # type: ignore[attr-defined]
             content = b"".join(c if isinstance(c, bytes) else c.encode() for c in chunks)
             if response.status_code < 500:
-                r.set(store_key, json.dumps({"hash": body_hash, "status": response.status_code, "body": content.decode()}), ex=settings.idempotency_ttl_seconds)
+                try:
+                    r.set(
+                        store_key,
+                        json.dumps({"hash": body_hash, "status": response.status_code, "body": content.decode()}),
+                        ex=settings.idempotency_ttl_seconds,
+                    )
+                except redis.RedisError:
+                    log.warning("Couldn't store an idempotent response", extra={"traceId": trace})
             headers = {k: v for k, v in response.headers.items() if k.lower() not in ("content-length",)}
             return Response(content, status_code=response.status_code, headers=headers, media_type=response.media_type)
         finally:
-            r.delete(lock_key)
+            with contextlib.suppress(redis.RedisError):
+                r.delete(lock_key)
 
 
 def _subject_ip(request: Request) -> str:
