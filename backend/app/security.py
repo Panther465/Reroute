@@ -27,6 +27,8 @@ AUDIENCE = "reroute-api"
 REFRESH_COOKIE = "rr_refresh"
 CSRF_COOKIE = "rr_csrf"
 CSRF_HEADER = "X-CSRF-Token"
+#: A refresh token rotated this recently may be presented once more: its response was probably lost.
+REUSE_GRACE = timedelta(seconds=30)
 
 
 def sha256(value: str) -> str:
@@ -101,13 +103,21 @@ def rotate_refresh(db: Session, raw: str | None, response: Response) -> User:
     if token is None:
         raise ApiError(401, "Sign in to continue.")
     if token.revoked_at is not None:
-        # A rotated token came back: someone may have copied it. Revoke the whole family.
-        db.execute(update(RefreshToken).where(RefreshToken.family_id == token.family_id, RefreshToken.revoked_at.is_(None)).values(revoked_at=now))
-        db.commit()
-        raise ApiError(401, "Your session ended. Sign in again.")
+        live = db.scalar(select(RefreshToken.token_id).where(RefreshToken.family_id == token.family_id, RefreshToken.revoked_at.is_(None)).limit(1))
+        if live is None:
+            # The whole session was ended (sign-out or an earlier theft check).
+            raise ApiError(401, "Your session ended. Sign in again.")
+        if now - token.revoked_at > REUSE_GRACE:
+            # A rotated token came back long after: someone may have copied it. Revoke the whole family.
+            db.execute(update(RefreshToken).where(RefreshToken.family_id == token.family_id, RefreshToken.revoked_at.is_(None)).values(revoked_at=now))
+            db.commit()
+            raise ApiError(401, "Your session ended. Sign in again.")
+        # Just rotated: the browser most likely lost the response (a reload or a dropped connection
+        # mid-refresh) and never stored the new cookie. Rotate again within the same family.
     if token.expires_at <= now:
         raise ApiError(401, "Your session expired. Sign in again.")
-    token.revoked_at = now
+    if token.revoked_at is None:
+        token.revoked_at = now
     user = db.get(User, token.user_id)
     if user is None:
         raise ApiError(401, "Sign in to continue.")

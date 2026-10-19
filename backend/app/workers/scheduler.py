@@ -6,15 +6,14 @@ from __future__ import annotations
 
 import logging
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 
-from app.clock import now_for
+from app.clock import now_for, tz_for
 from app.db import session_scope
 from app.models import Plan, Trip
 from app.redis_client import get_redis
-from app.services.day import trip_day
 from app.workers.jobs import five_minute_check
 from app.workers.queue import get_queue
 
@@ -24,11 +23,18 @@ CHECK_EVERY_SECONDS = 5 * 60
 
 def due_trips() -> list[str]:
     with session_scope() as db:
-        rows = db.execute(select(Trip, Plan).join(Plan, Plan.trip_id == Trip.trip_id).where(Plan.status == "active")).all()
+        # A day of slack either side covers every time zone; the exact check is per trip below.
+        utc_today = datetime.now(UTC).date()
+        rows = db.execute(
+            select(Trip, Plan)
+            .join(Plan, Plan.trip_id == Trip.trip_id)
+            .where(Plan.status == "active", Trip.end_date >= utc_today - timedelta(days=1), Trip.start_date <= utc_today + timedelta(days=1))
+        ).all()
         due = []
         for trip, plan in rows:
-            now = now_for(trip.trip_id)
-            if trip.start_date <= now.date() <= trip.end_date or trip_day(trip, now) == plan.day:
+            local_today = now_for(trip.trip_id).astimezone(tz_for(trip.utc_offset)).date()
+            # Only trips running today: finished and future trips aren't checked every minute.
+            if trip.start_date <= local_today <= trip.end_date and plan.day == local_today:
                 due.append(trip.trip_id)
         return due
 

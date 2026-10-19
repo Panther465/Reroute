@@ -11,7 +11,7 @@ traveller taps Running late. It decides with the deterministic planner and acts 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -21,10 +21,11 @@ from app.adapters.travel_times import TravelTimeAdapter
 from app.clock import minutes_of_day
 from app.errors import ApiError
 from app.models import Plan, RerouteLog, Trip, new_id
+from app.redis_client import get_redis
 from app.services import plan_store
 from app.services.day import DayContext, planner_input, sense
 from app.services.planner import Objective, ReplanInput, ReplanResult, explain, plan_day, replan
-from app.services.planner.util import rupees
+from app.services.planner.util import hhmm, lower_first, rupees
 
 
 @dataclass
@@ -66,8 +67,14 @@ def _plan_event(plan: Plan, notify: bool) -> dict:
     }
 
 
+def lock_trip(db: Session, trip_id: str) -> None:
+    """Serialise changes to one trip's plans across API copies and workers (row lock until commit)."""
+    db.execute(select(Trip.trip_id).where(Trip.trip_id == trip_id).with_for_update())
+
+
 def create_plan(db: Session, trip: Trip, adapter: TravelTimeAdapter, now: datetime, trigger: str = "created", checkin_id: str | None = None) -> Plan:
     """Plan the rest of the day from scratch (a new trip, an edit or a skip) and make it active."""
+    lock_trip(db, trip.trip_id)
     ctx = sense(db, trip, now)
     inp = planner_input(db, ctx, adapter, Objective(allow_unplace=True))
     result = plan_day(inp)
@@ -125,18 +132,39 @@ def run(
     checkin_id: str | None = None,
     done_at: datetime | None = None,
 ) -> LoopOutcome:
+    lock_trip(db, trip.trip_id)
     ctx = sense(db, trip, now, delay_min=delay_min, done_at=done_at)
     if ctx.active is None:
         return LoopOutcome(result="on_time", reason_codes=["ON_TIME"], explanation="There's no plan for today yet.")
-    if not ctx.remaining_legs and ctx.current is None:
+    waiting = open_options(db, trip.trip_id)
+    if ctx.day_finished or (not ctx.remaining_legs and ctx.current is None):
+        # Every task is done, skipped or moved: the way home isn't re-timed again and again.
+        _close_options(db, trip.trip_id, waiting)
+        db.commit()
+        return LoopOutcome(result="on_time", reason_codes=["ON_TIME"], explanation="Your tasks for today are done.", plan=ctx.active)
+    if automatic and ctx.behind_min <= 0:
+        # Detect first: the automatic check changes nothing unless the traveller is behind.
         return LoopOutcome(result="on_time", reason_codes=["ON_TIME"], explanation=explain.on_time(), plan=ctx.active)
 
     inp = planner_input(db, ctx, adapter)
     decision: ReplanResult = replan(_replan_input(ctx, inp, automatic))
     codes = [c.value for c in decision.reason_codes]
+    explanation = decision.explanation
+    if ctx.fixed_at_risk is not None:
+        task, arrival = ctx.fixed_at_risk
+        if "FIXED_TASK_AT_RISK" not in codes:
+            codes.append("FIXED_TASK_AT_RISK")
+        starts = hhmm(minutes_of_day(task.fixed_start, ctx.day, ctx.tz))  # type: ignore[arg-type]
+        explanation = f"You'll reach the {lower_first(task.title)} at about {hhmm(arrival)}, after its {starts} start. {explanation}"
 
     if decision.result == "on_time":
-        return LoopOutcome(result="on_time", reason_codes=codes, explanation=decision.explanation, plan=ctx.active)
+        _close_options(db, trip.trip_id, waiting)
+        db.commit()
+        return LoopOutcome(result="on_time", reason_codes=codes, explanation=explanation, plan=ctx.active)
+
+    if decision.result == "shifted" and automatic and waiting:
+        # Options are waiting for the traveller: the automatic check never shifts underneath them.
+        return LoopOutcome(result="options", reason_codes=codes, explanation=explanation, options=waiting, option_set_id=waiting[0].option_set_id)
 
     if decision.result == "shifted":
         previous = ctx.active
@@ -145,26 +173,29 @@ def run(
             trip,
             ctx.day,
             inp,
-            decision.plan,
+            decision.plan,  # type: ignore[arg-type]
             status="proposed",
             trigger="late",
-            explanation=decision.explanation,  # type: ignore[arg-type]
+            explanation=explanation,
             done_legs=ctx.done_legs,
             checkin_id=checkin_id,
             reason_codes=plan_codes,
         )
-        plan_store.close_open_options(db, trip.trip_id)
+        _close_options(db, trip.trip_id, waiting)
         plan_store.add_plan(db, plan, legs)
         plan_store.activate(db, plan)
-        shifted_by = ctx.behind_min
-        moved_stops = len(decision.plan.legs)  # type: ignore[union-attr]
-        _log(db, trip, now, "shift", f"Shifted {moved_stops} stops by {shifted_by} min", automatic, plan, previous, codes)
+        old_leave = minutes_of_day(datetime.fromisoformat(ctx.remaining_legs[0]["leaveBy"]), ctx.day, ctx.tz) if ctx.remaining_legs else None
+        new_leave = decision.plan.legs[0].leave_by  # type: ignore[union-attr]
+        shifted_by = max(0, new_leave - old_leave) if old_leave is not None else ctx.behind_min
+        stops = len(decision.plan.legs)  # type: ignore[union-attr]
+        _log(db, trip, now, "shift", f"Shifted {stops} {'stop' if stops == 1 else 'stops'} by {shifted_by} min", automatic, plan, previous, codes)
         db.commit()
         events.publish(trip.trip_id, "plan_updated", _plan_event(plan, notify=(not automatic) or events.may_alert(trip.trip_id)))
-        return LoopOutcome(result="shifted", reason_codes=codes, explanation=decision.explanation, plan=plan)
+        return LoopOutcome(result="shifted", reason_codes=codes, explanation=explanation, plan=plan)
 
     if decision.result == "options":
-        plan_store.close_open_options(db, trip.trip_id)
+        # One open set per trip: a fresh run replaces it, so options that stopped being feasible drop out.
+        _close_options(db, trip.trip_id, waiting)
         set_id = new_id("opts")
         rows: list[Plan] = []
         for option in decision.options:
@@ -180,7 +211,7 @@ def run(
                 "skippedTasks": list(option.skipped_tasks),
                 "reasonCodes": [c.value for c in option.reason_codes],
                 "setReasonCodes": codes,
-                "setExplanation": decision.explanation,
+                "setExplanation": explanation,
                 "delayMin": delay_min,
             }
             trigger = "skipped" if option.kind == "skip_task" else "late"
@@ -201,25 +232,44 @@ def run(
             plan_store.add_plan(db, plan, legs)
             rows.append(plan)
         db.commit()
-        events.publish(trip.trip_id, "options_ready", {"optionSetId": set_id, "reasonCodes": codes, "explanation": decision.explanation, "count": len(rows)})
-        return LoopOutcome(result="options", reason_codes=codes, explanation=decision.explanation, options=rows, option_set_id=set_id)
+        events.publish(trip.trip_id, "options_ready", {"optionSetId": set_id, "reasonCodes": codes, "explanation": explanation, "count": len(rows)})
+        return LoopOutcome(result="options", reason_codes=codes, explanation=explanation, options=rows, option_set_id=set_id)
 
+    # Nothing keeps every fixed time: options that can no longer be met are dropped.
+    _close_options(db, trip.trip_id, waiting)
+    db.commit()
     blocked = decision.blocked.model_dump(mode="json") if decision.blocked else None
     if blocked:
         blocked = {"taskId": blocked["task_id"], "title": blocked["title"], "reason": blocked["reason"]}
-    return LoopOutcome(result="no_feasible_plan", reason_codes=codes, explanation=decision.explanation, blocked=blocked)
+    return LoopOutcome(result="no_feasible_plan", reason_codes=codes, explanation=explanation, blocked=blocked)
+
+
+def _close_options(db: Session, trip_id: str, waiting: list[Plan]) -> None:
+    if waiting:
+        plan_store.close_open_options(db, trip_id)
+        db.flush()
 
 
 def open_options(db: Session, trip_id: str) -> list[Plan]:
     return list(db.scalars(select(Plan).where(Plan.trip_id == trip_id, Plan.status == "proposed", Plan.option_set_id.is_not(None)).order_by(Plan.option_id)))
 
 
-def accept(db: Session, trip: Trip, option_id: str, now: datetime) -> Plan:
-    """The traveller chose an option: it becomes the next active version."""
+def accept(db: Session, trip: Trip, option_id: str, now: datetime, option_set_id: str | None = None) -> Plan:
+    """The traveller chose an option: it becomes the next active version.
+
+    The client names the option set it showed. If the 5-minute check has replaced the set since,
+    "opt-1" may now mean something else, so the choice is refused rather than applied.
+    """
+    lock_trip(db, trip.trip_id)
     options = open_options(db, trip.trip_id)
     chosen = next((p for p in options if p.option_id == option_id), None)
     if chosen is None:
         raise ApiError(409, "That option is no longer open. Check your timeline for the latest plan.", code="OPTION_CLOSED")
+    if option_set_id is not None and chosen.option_set_id != option_set_id:
+        raise ApiError(409, "Your options changed. Check them again before choosing.", code="OPTIONS_CHANGED")
+    first = chosen.legs[0] if chosen.legs else None
+    if first is not None and datetime.fromisoformat(first["leaveBy"]) < now - timedelta(minutes=10):
+        raise ApiError(409, "That option needed you to leave earlier. Report the delay again for fresh options.", code="OPTION_EXPIRED")
     previous = plan_store.active_plan(db, trip.trip_id)
     for p in options:
         if p.plan_id != chosen.plan_id:
@@ -244,6 +294,7 @@ def accept(db: Session, trip: Trip, option_id: str, now: datetime) -> Plan:
 
 def undo_to(db: Session, trip: Trip, version: int, now: datetime) -> Plan:
     """Make an earlier version active again; the current one becomes superseded."""
+    lock_trip(db, trip.trip_id)
     target = plan_store.get_version(db, trip.trip_id, version)
     current = plan_store.active_plan(db, trip.trip_id)
     if current is not None and current.plan_id == target.plan_id:
@@ -263,5 +314,13 @@ def undo_to(db: Session, trip: Trip, version: int, now: datetime) -> Plan:
         entry.undone_at = now
     _log(db, trip, now, "undo", f"Undid the change. Version {target.version} is back", False, target, current, [])
     db.commit()
+    # Undo means "not that change": forget the delay it was based on, or the next check re-applies it.
+    forget_reported_delays(trip.trip_id)
     events.publish(trip.trip_id, "plan_updated", _plan_event(target, notify=False))
     return target
+
+
+def forget_reported_delays(trip_id: str) -> None:
+    r = get_redis()
+    for key in r.scan_iter(match=f"reported_ready:{trip_id}:*"):
+        r.delete(key)

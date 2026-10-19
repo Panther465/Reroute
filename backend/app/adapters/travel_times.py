@@ -10,6 +10,7 @@ trip decide whether it may be used.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -24,8 +25,10 @@ import httpx
 from app.adapters.metro import MetroTimetable
 from app.adapters.snapshot_file import parse_snapshot
 from app.adapters.transit import TransitAdapter
+from app.cities import city as supported_city
 from app.config import get_settings
-from app.services.planner import LegOption, Mode, PairOptions, Segment, TravelSnapshot
+from app.services.planner import LegOption, Mode, PairOptions, Segment, TransitRef, TravelSnapshot
+from app.services.planner.util import to_minutes
 
 log = logging.getLogger("reroute.travel")
 
@@ -84,6 +87,13 @@ def _km(a: PlacePoint, b: PlacePoint) -> float:
 
 
 class OsrmSnapshotAdapter:
+    """Road times from OSRM (car and foot), cab fares from the city fare table, metro from the
+    timetable file, and verified Raasta routes from the transit adapter.
+
+    OSRM tables are cached in Redis by city, places and hour for 24 hours. If OSRM can't be reached,
+    the sample snapshot is used instead, so planning degrades rather than fails.
+    """
+
     def __init__(self, transit: TransitAdapter, redis_client=None, client: httpx.Client | None = None, examples_dir: Path | None = None):
         s = get_settings()
         self.transit = transit
@@ -99,29 +109,74 @@ class OsrmSnapshotAdapter:
             return json.loads(path.read_text(encoding="utf-8"))
         return {"baseInr": 100, "perKmInr": 20, "minimumInr": 100, "pickupMin": 5}
 
-    def _table(self, profile: str, points: list[PlacePoint]) -> list[list[float | None]]:
-        coords = ";".join(f"{p.lng},{p.lat}" for p in points)
+    def _table(self, city_slug: str, profile: str, points: list[PlacePoint], day: date) -> list[list[tuple[float | None, float | None]]]:
+        coords = ";".join(f"{p.lng:.6f},{p.lat:.6f}" for p in points)
+        key = f"tt:{city_slug}:{profile}:{day.isoformat()}:" + hashlib.sha256(coords.encode()).hexdigest()[:20]
+        if self.redis is not None:
+            try:
+                cached = self.redis.get(key)
+                if cached:
+                    return [[tuple(cell) for cell in row] for row in json.loads(cached)]  # type: ignore[misc]
+            except Exception:
+                pass
         res = self.client.get(f"{self.osrm[profile]}/table/v1/{profile}/{coords}", params={"annotations": "duration,distance"})
         res.raise_for_status()
         body = res.json()
-        return [[(d, k) for d, k in zip(drow, krow, strict=True)] for drow, krow in zip(body["durations"], body["distances"], strict=True)]  # type: ignore[misc]
+        table = [list(zip(drow, krow, strict=True)) for drow, krow in zip(body["durations"], body["distances"], strict=True)]
+        if self.redis is not None:
+            with contextlib.suppress(Exception):
+                self.redis.set(key, json.dumps(table), ex=24 * 3600)
+        return table
+
+    def _raasta_options(self, a: PlacePoint, b: PlacePoint, day: date, utc_offset: str) -> list[LegOption]:
+        options = []
+        for leg in self.transit.leg_options(a, b, day, utc_offset):
+            mode = Mode(leg.vehicle_type) if leg.vehicle_type in ("shared_auto", "e_rickshaw", "tempo") else Mode.SHARED_AUTO
+            segments = tuple(
+                x
+                for x in (
+                    Segment(mode=Mode.WALK, minutes=leg.walk_from_min),
+                    Segment(mode=mode, minutes=leg.wait_min + leg.ride_min),
+                    Segment(mode=Mode.WALK, minutes=leg.walk_to_min),
+                )
+                if x.minutes > 0
+            )
+            options.append(
+                LegOption(
+                    option_id=f"{a.place_id}-{b.place_id}-raasta-{leg.route_id}",
+                    mode=mode,
+                    label={"shared_auto": "Shared auto", "e_rickshaw": "E-rickshaw", "tempo": "Tempo"}[mode.value],
+                    segments=segments,
+                    travel_min=leg.travel_min,
+                    fare_inr=leg.fare_inr,
+                    service_first=to_minutes(leg.first_trip),
+                    service_last=to_minutes(leg.last_trip),
+                    transit_ref=TransitRef(kind="raasta", ref_id=leg.route_id, status=leg.status),
+                )
+            )
+        return options
 
     def snapshot(self, city_slug: str, places: list[PlacePoint], day: date) -> TravelSnapshot:
         if len(places) < 2:
             return TravelSnapshot(snapshot_id=f"{city_slug}-osrm-empty", pairs=())
+        try:
+            car = self._table(city_slug, "driving", places, day)
+            foot = self._table(city_slug, "foot", places, day)
+        except (httpx.HTTPError, KeyError, ValueError) as exc:
+            log.warning("OSRM unavailable, using the sample snapshot: %s", exc)
+            return SampleSnapshotAdapter(self.transit, self.examples_dir).snapshot(city_slug, places, day)
+        where = supported_city(city_slug)
+        utc_offset = where.utc_offset if where else "+05:30"
         fares = self._fares(city_slug)
         metro = MetroTimetable.load(self.examples_dir / city_slug / "metro.json")
-        car = self._table("driving", places)
-        foot = self._table("foot", places)
         pairs: list[PairOptions] = []
         for i, a in enumerate(places):
             for j, b in enumerate(places):
                 if i == j:
                     continue
                 options: list[LegOption] = []
-                car_cell, foot_cell = car[i][j], foot[i][j]
-                if car_cell and car_cell[0] is not None:
-                    secs, metres = car_cell  # type: ignore[misc]
+                secs, metres = car[i][j]
+                if secs is not None and metres is not None:
                     minutes = math.ceil(secs / 60) + int(fares.get("pickupMin", 5))
                     fare = max(int(fares["minimumInr"]), round(fares["baseInr"] + fares["perKmInr"] * metres / 1000))
                     options.append(
@@ -134,8 +189,9 @@ class OsrmSnapshotAdapter:
                             fare_inr=fare,
                         )
                     )
-                if _km(a, b) < WALK_LIMIT_KM and foot_cell and foot_cell[0] is not None:
-                    minutes = math.ceil(foot_cell[0] / 60)  # type: ignore[index]
+                walk_secs = foot[i][j][0]
+                if _km(a, b) < WALK_LIMIT_KM and walk_secs is not None:
+                    minutes = math.ceil(walk_secs / 60)
                     options.append(
                         LegOption(
                             option_id=f"{a.place_id}-{b.place_id}-walk",
@@ -147,6 +203,7 @@ class OsrmSnapshotAdapter:
                         )
                     )
                 options.extend(metro.options(a, b))
+                options.extend(self._raasta_options(a, b, day, utc_offset))
                 if options:
                     pairs.append(PairOptions(from_place=a.place_id, to_place=b.place_id, options=tuple(options)))
         digest = hashlib.sha256(json.dumps([p.model_dump(mode="json") for p in pairs], sort_keys=True).encode()).hexdigest()[:12]

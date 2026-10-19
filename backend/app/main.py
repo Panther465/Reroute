@@ -6,15 +6,18 @@ import logging
 
 from fastapi import FastAPI
 from fastapi.responses import JSONResponse
+from sqlalchemy import text
 
 from app import errors
 from app.config import get_settings
+from app.db import engine
 from app.middleware import GuardMiddleware, TraceIdMiddleware
+from app.redis_client import get_redis
 from app.routes import auth, live, me, places, share, trips
 
 
 def create_app() -> FastAPI:
-    settings = get_settings()  # validates: DEMO_LOGIN is refused in production
+    get_settings()  # validates: DEMO_LOGIN is refused in production
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     app = FastAPI(
         title="Reroute API",
@@ -33,7 +36,26 @@ def create_app() -> FastAPI:
 
     @app.get("/v1/healthz", tags=["health"], include_in_schema=False)
     def healthz() -> JSONResponse:
-        return JSONResponse({"status": "ok", "env": settings.app_env})
+        """Liveness: the process answers."""
+        return JSONResponse({"status": "ok"})
+
+    @app.get("/v1/readyz", tags=["health"], include_in_schema=False)
+    def readyz() -> JSONResponse:
+        """Readiness: the database and Redis answer."""
+        checks: dict[str, str] = {}
+        try:
+            with engine().connect() as conn:
+                conn.execute(text("SELECT 1"))
+            checks["database"] = "ok"
+        except Exception:
+            checks["database"] = "down"
+        try:
+            get_redis().ping()
+            checks["redis"] = "ok"
+        except Exception:
+            checks["redis"] = "down"
+        ready = all(v == "ok" for v in checks.values())
+        return JSONResponse({"status": "ok" if ready else "degraded", "checks": checks}, status_code=200 if ready else 503)
 
     return app
 

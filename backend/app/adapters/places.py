@@ -12,6 +12,7 @@ from typing import Protocol
 
 import httpx
 
+from app.cities import City
 from app.config import get_settings
 
 
@@ -26,7 +27,7 @@ class FoundPlace:
 
 
 class PlaceSearch(Protocol):
-    def search(self, query: str, city_name: str) -> list[FoundPlace]: ...
+    def search(self, query: str, where: City) -> list[FoundPlace]: ...
 
 
 class NominatimSearch:
@@ -36,22 +37,38 @@ class NominatimSearch:
         self.base = s.nominatim_url.rstrip("/")
         self.client = client or httpx.Client(timeout=6.0, headers={"User-Agent": s.nominatim_user_agent})
 
-    def _throttle(self) -> None:
-        # One request a second across every API copy: a Redis lock that expires after a second.
+    def _throttle(self) -> bool:
+        """One request a second across every API copy: a Redis lock that expires after a second.
+
+        Returns False when no slot came free within 3 s; the caller then skips Nominatim.
+        """
         for _ in range(30):
             if self.redis.set("nominatim:throttle", "1", nx=True, px=1000):
-                return
+                return True
             time.sleep(0.1)
+        return False
 
-    def search(self, query: str, city_name: str) -> list[FoundPlace]:
+    def search(self, query: str, where: City) -> list[FoundPlace]:
+        city_name = where.name
         q = f"{query.strip()}, {city_name}"
         cache_key = "nominatim:q:" + q.lower()
         cached = self.redis.get(cache_key)
         if cached is not None:
             return [FoundPlace(**x) for x in json.loads(cached)]
-        self._throttle()
+        if not self._throttle():
+            return []
         try:
-            res = self.client.get(f"{self.base}/search", params={"q": q, "format": "jsonv2", "addressdetails": 1, "limit": 5, "countrycodes": "in"})
+            west, south, east, north = where.bbox
+            params = {
+                "q": q,
+                "format": "jsonv2",
+                "addressdetails": 1,
+                "limit": 5,
+                "countrycodes": "in",
+                "viewbox": f"{west},{north},{east},{south}",
+                "bounded": 1,
+            }
+            res = self.client.get(f"{self.base}/search", params=params)
             res.raise_for_status()
         except httpx.HTTPError:
             return []

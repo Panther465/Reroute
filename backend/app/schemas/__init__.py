@@ -314,7 +314,8 @@ class CheckinOut(Api):
 
 
 class AcceptIn(PostBody):
-    pass
+    #: The option set the traveller saw. If the 5-minute check replaced it, the API answers 409.
+    option_set_id: str | None = None
 
 
 class ActivateIn(PostBody):

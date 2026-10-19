@@ -9,7 +9,9 @@ from geoalchemy2.elements import WKTElement
 from sqlalchemy import or_, select
 
 from app.adapters.places import NominatimSearch
+from app.cities import city as supported_city
 from app.deps import CurrentUser, Db
+from app.errors import ApiError
 from app.models import Place
 from app.redis_client import get_redis
 from app.schemas import PlaceOut
@@ -24,8 +26,11 @@ def search(
     user: CurrentUser,
     q: Annotated[str, Query(min_length=2, max_length=80)],
     city: Annotated[str, Query(pattern=r"^[a-z][a-z0-9-]{1,39}$")] = "bengaluru",
-    city_name: Annotated[str, Query(alias="cityName", max_length=80)] = "Bengaluru",
+    city_name: Annotated[str | None, Query(alias="cityName", max_length=80, deprecated=True, description="Ignored: the server knows each city's name.")] = None,
 ) -> list[PlaceOut]:
+    where = supported_city(city)
+    if where is None:
+        raise ApiError(422, "Reroute doesn't cover that city yet.", code="VALIDATION_ERROR")
     like = f"%{q.strip()}%"
     known = list(
         db.scalars(
@@ -34,8 +39,8 @@ def search(
     )
     if len(known) >= 3:
         return [place_out(p) for p in known]
-    for found in NominatimSearch(get_redis()).search(q, city_name):
-        if any(p.place_id == found.place_id for p in known):
+    for found in NominatimSearch(get_redis()).search(q, where):
+        if any(p.place_id == found.place_id for p in known) or not where.contains(found.lng, found.lat):
             continue
         place = db.get(Place, found.place_id)
         if place is None:

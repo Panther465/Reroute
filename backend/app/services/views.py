@@ -145,9 +145,22 @@ def _place_names(db: Session, ids: set[str]) -> dict[str, Place]:
     return {p.place_id: p for p in db.scalars(select(Place).where(Place.place_id.in_(ids)))} if ids else {}
 
 
+def _plan_for_day(db: Session, trip_id: str, day: date) -> Plan | None:
+    """The active plan if it's for that day, else the latest version that was active on that day."""
+    active = plan_store.active_plan(db, trip_id)
+    if active is not None and active.day == day:
+        return active
+    return db.scalar(
+        select(Plan)
+        .where(Plan.trip_id == trip_id, Plan.day == day, Plan.version.is_not(None), Plan.status != "proposed")
+        .order_by(Plan.version.desc())
+        .limit(1)
+    )
+
+
 def summary_out(db: Session, trip: Trip, day: date) -> SummaryOut:
-    plan = plan_store.active_plan(db, trip.trip_id)
-    legs = (list(plan.done_legs or []) + list(plan.legs)) if plan and plan.day == day else []
+    plan = _plan_for_day(db, trip.trip_id, day)
+    legs = (list(plan.done_legs or []) + list(plan.legs)) if plan else []
     places = _place_names(db, {x["fromPlaceId"] for x in legs} | {x["toPlaceId"] for x in legs})
 
     def name(pid: str) -> str:
@@ -183,6 +196,7 @@ def summary_out(db: Session, trip: Trip, day: date) -> SummaryOut:
         )
         for x in legs
     ]
+    tz_day = tz_for(trip.utc_offset)
     reroutes = [
         e.at
         for e in db.scalars(
@@ -190,6 +204,7 @@ def summary_out(db: Session, trip: Trip, day: date) -> SummaryOut:
             .where(RerouteLog.trip_id == trip.trip_id, RerouteLog.undone_at.is_(None), RerouteLog.kind.in_(("shift", "option")))
             .order_by(RerouteLog.at)
         )
+        if e.at.astimezone(tz_day).date() == day
     ]
     travel = sum(x.travel_min for x in summary_legs)
     fare = sum(x.fare_inr for x in summary_legs)

@@ -15,14 +15,23 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.adapters.travel_times import PlacePoint, TravelTimeAdapter
-from app.clock import minutes_of_day, tz_for
+from app.clock import at_minutes, minutes_of_day, tz_for
 from app.models import Place, Plan, Task, Trip
+from app.redis_client import get_redis
 from app.services.plan_store import active_plan
 from app.services.planner import Objective, PlannerInput, PlanTask, RuleSettings, Start, Window
 from app.services.planner.util import to_minutes
 
 RULE = RuleSettings()
+#: States that take a task out of the day it was planned for. A moved task is plannable again on its new day.
 GONE = ("done", "skipped", "moved")
+FINISHED = ("done", "skipped")
+#: A reported delay is remembered until the end of the day, so later automatic checks keep it.
+READY_TTL_SECONDS = 24 * 3600
+
+
+def _ready_key(trip_id: str, task_id: str) -> str:
+    return f"reported_ready:{trip_id}:{task_id}"
 
 
 def trip_day(trip: Trip, now: datetime) -> date:
@@ -45,17 +54,25 @@ class DayContext:
     done_legs: list[dict] = field(default_factory=list)
     start: Start | None = None
     behind_min: int = 0
+    #: A delay reported on the way to a fixed task: (task, expected arrival in minutes).
+    fixed_at_risk: tuple[Task, int] | None = None
 
     @property
     def today_tasks(self) -> list[Task]:
         return [t for t in self.tasks.values() if t.planned_day == self.day]
 
     def planner_tasks(self) -> list[Task]:
+        """Tasks still to plan today. A task moved here from an earlier day counts (its `day` is today)."""
         current_id = self.current.task_id if self.current else None
         return sorted(
-            (t for t in self.tasks.values() if t.day == self.day and t.state not in GONE and t.task_id != current_id),
+            (t for t in self.tasks.values() if t.day == self.day and t.state not in FINISHED and t.task_id != current_id),
             key=lambda t: t.task_id,
         )
+
+    @property
+    def day_finished(self) -> bool:
+        """Every task of the day is done, skipped or moved away: nothing is left to plan."""
+        return self.current is None and not self.planner_tasks()
 
 
 def _leg_min(leg: dict, key: str, ctx_day: date, tz: timezone) -> int:
@@ -94,14 +111,33 @@ def sense(db: Session, trip: Trip, now: datetime, delay_min: int = 0, done_at: d
         break
 
     if ctx.current is not None:
-        planned_end = _leg_min(ctx.current_leg, "taskEnd", day, tz)  # type: ignore[arg-type]
-        ready = max(now_min, planned_end + delay_min)
+        leg = ctx.current_leg
+        planned_start = _leg_min(leg, "taskStart", day, tz)  # type: ignore[arg-type]
+        planned_end = _leg_min(leg, "taskEnd", day, tz)  # type: ignore[arg-type]
+        arrive = _leg_min(leg, "arriveAt", day, tz)  # type: ignore[arg-type]
+        r = get_redis()
+        key = _ready_key(trip.trip_id, ctx.current.task_id)
+        if delay_min and now_min < planned_start:
+            # Reported on the way: the arrival is late. A fixed start can't move, so say it's at risk.
+            late_arrival = arrive + delay_min
+            begin = max(planned_start, late_arrival)
+            ready = begin + ctx.current.duration_min
+            if ctx.current.fixed_start is not None and late_arrival > planned_start - RULE.fixed_buffer_min:
+                ctx.fixed_at_risk = (ctx.current, late_arrival)
+        else:
+            ready = max(now_min, planned_end + delay_min)
+        # Remember the latest reported delay so the 5-minute check doesn't forget it.
+        stored = r.get(key)
+        if stored:
+            ready = max(ready, minutes_of_day(datetime.fromisoformat(stored), day, tz))
+        if delay_min:
+            r.set(key, at_minutes(day, ready, tz).isoformat(), ex=READY_TTL_SECONDS)
         # Detect: still not checked in done more than 5 minutes after the next leg's leave-by time.
         if ctx.remaining_legs:
             leave = _leg_min(ctx.remaining_legs[0], "leaveBy", day, tz)
             if now_min > leave + RULE.behind_threshold_min:
                 ctx.behind_min = now_min - leave
-        ctx.behind_min = max(ctx.behind_min, delay_min)
+        ctx.behind_min = max(ctx.behind_min, delay_min, (ready - planned_end) if stored or delay_min else 0)
         ctx.start = Start(place_id=ctx.current.place_id, ready_at=ready, kind="after_task")
         return ctx
 
