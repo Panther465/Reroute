@@ -1,7 +1,7 @@
 """LLM adapter for the AI day-planner helper.
 
-When ANTHROPIC_API_KEY is set, uses Claude. Otherwise, a simple pattern-based
-parser handles common day descriptions for the demo.
+When GEMINI_API_KEY is set, asks Google's Gemini API. Without a key, or when Gemini fails or the
+free-tier quota is used up, a pattern-based parser handles common day descriptions.
 """
 
 from __future__ import annotations
@@ -9,12 +9,31 @@ from __future__ import annotations
 import json
 import logging
 import re
-from datetime import datetime, time as dtime, timedelta
 from typing import Any
+
+import httpx
 
 from app.config import get_settings
 
 log = logging.getLogger("reroute.llm")
+
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+GEMINI_TIMEOUT_SECONDS = 20.0
+
+_TASKS_SCHEMA: dict[str, Any] = {
+    "type": "ARRAY",
+    "items": {
+        "type": "OBJECT",
+        "properties": {
+            "title": {"type": "STRING"},
+            "placeText": {"type": "STRING"},
+            "durationMin": {"type": "INTEGER"},
+            "fixedStart": {"type": "STRING", "nullable": True},
+            "priority": {"type": "INTEGER"},
+        },
+        "required": ["title", "placeText", "durationMin", "priority"],
+    },
+}
 
 SYSTEM_PROMPT = """\
 You are Roo, the travel planner inside Reroute. The traveller describes their \
@@ -36,37 +55,48 @@ Rules:
   fixedStart. Just set the duration.
 - If no duration is mentioned, estimate reasonably (meeting 60, bank 45, lunch 60, \
   shopping 90, office 120).
-- Respond with the JSON array only, no markdown fencing, no explanation.
+- Respond with the JSON array only, no explanation.
 """
 
 
-async def extract_tasks_llm(text: str, city: str, trip_date: str) -> list[dict[str, Any]]:
+async def extract_tasks_llm(text: str, city: str, trip_date: str, client: httpx.AsyncClient | None = None) -> list[dict[str, Any]]:
     settings = get_settings()
-    if not settings.anthropic_api_key:
+    if not settings.gemini_api_key:
         return _extract_tasks_pattern(text, city, trip_date)
 
     try:
-        import anthropic
-
-        client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
-        response = await client.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=2048,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": f"City: {city}. Date: {trip_date}.\n\n{text}"}],
-        )
-        raw = response.content[0].text.strip()
-        if raw.startswith("```"):
-            raw = re.sub(r"^```\w*\n?", "", raw)
-            raw = re.sub(r"\n?```$", "", raw)
+        raw = await _ask_gemini(f"City: {city}. Date: {trip_date}.\n\n{text}", settings.gemini_api_key, settings.gemini_model, client)
         tasks = json.loads(raw)
-        if not isinstance(tasks, list):
-            log.warning("LLM returned non-list: %s", type(tasks))
-            return []
-        return [_validate_task(t) for t in tasks if isinstance(t, dict) and _validate_task(t)]
-    except Exception:
-        log.exception("LLM call failed, falling back to pattern parser")
+    except httpx.HTTPStatusError as err:
+        # 429 means the free tier's per-minute or per-day quota is used up.
+        log.warning("Gemini answered %s; using the pattern parser", err.response.status_code)
         return _extract_tasks_pattern(text, city, trip_date)
+    except (httpx.HTTPError, ValueError, LookupError, TypeError):
+        log.warning("Gemini call failed; using the pattern parser", exc_info=True)
+        return _extract_tasks_pattern(text, city, trip_date)
+    if not isinstance(tasks, list):
+        log.warning("Gemini returned %s, not a list; using the pattern parser", type(tasks).__name__)
+        return _extract_tasks_pattern(text, city, trip_date)
+    return [v for t in tasks if isinstance(t, dict) and (v := _validate_task(t))]
+
+
+async def _ask_gemini(prompt: str, api_key: str, model: str, client: httpx.AsyncClient | None) -> str:
+    body = {
+        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json", "responseSchema": _TASKS_SCHEMA},
+    }
+    # The key goes in a header, not the URL, so it never lands in access or error logs.
+    url = GEMINI_URL.format(model=model)
+    headers = {"x-goog-api-key": api_key}
+    if client is None:
+        async with httpx.AsyncClient(timeout=GEMINI_TIMEOUT_SECONDS) as own:
+            res = await own.post(url, json=body, headers=headers)
+    else:
+        res = await client.post(url, json=body, headers=headers)
+    res.raise_for_status()
+    parts = res.json()["candidates"][0]["content"]["parts"]
+    return "".join(p.get("text", "") for p in parts if not p.get("thought"))
 
 
 def _validate_task(t: dict[str, Any]) -> dict[str, Any] | None:
@@ -196,7 +226,10 @@ def _extract_place(text: str) -> str:
     return ""
 
 
-_NOISE_WORDS = {"at", "from", "to", "for", "in", "near", "am", "pm", "around", "about", "by", "till", "until", "the", "my", "i", "have", "a", "an", "some", "go", "need", "want"}
+_NOISE_WORDS = {
+    "at", "from", "to", "for", "in", "near", "am", "pm", "around", "about", "by", "till", "until",
+    "the", "my", "i", "have", "a", "an", "some", "go", "need", "want",
+}  # fmt: skip
 _TIME_LIKE = re.compile(r"^\d{1,2}(?::\d{2})?(?:am|pm)?$", re.IGNORECASE)
 
 

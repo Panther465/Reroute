@@ -46,7 +46,9 @@ class Settings(BaseSettings):
     public_base_url: str = "https://localhost"
 
     ai_helper_enabled: bool = False
-    anthropic_api_key: str = ""
+    gemini_api_key: str = ""
+    #: Flash-Lite answers in a few seconds; full Flash spends ~30 s thinking first, too slow for a waiting traveller.
+    gemini_model: str = "gemini-3.5-flash-lite"
     #: Tests run jobs inline. Never set in a deployment: planning must stay in the worker.
     queue_sync: bool = False
 
