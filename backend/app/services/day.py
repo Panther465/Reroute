@@ -96,17 +96,21 @@ def sense(db: Session, trip: Trip, now: datetime, delay_min: int = 0, done_at: d
 
     legs = list(plan.legs)
     ctx.done_legs = list(plan.done_legs or [])
-    last_done_idx = -1
+    # Only a leg to a task checked in done was travelled: the traveller never went to a skipped task.
+    reached: list[dict] = []
+    passed = 0
     for i, leg in enumerate(legs):
         task = tasks.get(leg.get("taskId") or "")
         if task is None:
             break
         if task.state in GONE:
-            last_done_idx = i
+            passed = i + 1
+            if task.state == "done":
+                reached.append(leg)
             continue
         if _leg_min(leg, "leaveBy", day, tz) <= now_min:
             ctx.current, ctx.current_leg = task, leg
-            ctx.done_legs += legs[: i + 1]
+            ctx.done_legs += [*reached, leg]
             ctx.remaining_legs = legs[i + 1 :]
         break
 
@@ -141,23 +145,20 @@ def sense(db: Session, trip: Trip, now: datetime, delay_min: int = 0, done_at: d
         ctx.start = Start(place_id=ctx.current.place_id, ready_at=ready, kind="after_task")
         return ctx
 
-    ctx.done_legs += legs[: last_done_idx + 1]
-    ctx.remaining_legs = legs[last_done_idx + 1 :]
-    if last_done_idx >= 0:
-        last_task = tasks[legs[last_done_idx]["taskId"]]
+    ctx.done_legs += reached
+    ctx.remaining_legs = legs[passed:]
+    # The traveller is where they last checked in done, which may be in an earlier version of the plan.
+    last_task = next((t for leg in reversed(ctx.done_legs) if (t := tasks.get(leg.get("taskId") or "")) and t.state == "done"), None)
+    if last_task is not None:
         finished = minutes_of_day(done_at, day, tz) if done_at else now_min
         ctx.start = Start(place_id=last_task.place_id, ready_at=max(finished, now_min) + delay_min, kind="after_task")
-        if ctx.remaining_legs:
-            leave = _leg_min(ctx.remaining_legs[0], "leaveBy", day, tz)
-            # Leave-by passed, nobody moved: behind.
-            if now_min > leave + RULE.behind_threshold_min:
-                ctx.behind_min = now_min - leave
     else:
         ctx.start = Start(place_id=trip.stay_place_id, ready_at=max(now_min, RULE.day_earliest_departure) + delay_min, kind="stay")
-        if ctx.remaining_legs:
-            leave = _leg_min(ctx.remaining_legs[0], "leaveBy", day, tz)
-            if now_min > leave + RULE.behind_threshold_min:
-                ctx.behind_min = now_min - leave
+    if ctx.remaining_legs:
+        leave = _leg_min(ctx.remaining_legs[0], "leaveBy", day, tz)
+        # Leave-by passed, nobody moved: behind.
+        if now_min > leave + RULE.behind_threshold_min:
+            ctx.behind_min = now_min - leave
     ctx.behind_min = max(ctx.behind_min, delay_min)
     return ctx
 
