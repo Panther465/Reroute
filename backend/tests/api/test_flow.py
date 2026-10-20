@@ -192,6 +192,37 @@ def test_check_in_done_moves_now_to_the_next_leg(client):
     assert trip["day"] == date(2026, 10, 14).isoformat()
 
 
+def checkin(c, task_id: str, kind: str):
+    res = c.post("/v1/trips/trip-001/checkins", json={"taskId": task_id, "kind": kind, "idempotencyKey": key()})
+    assert res.status_code == 200, res.text
+
+
+def test_skipping_the_next_task_keeps_it_skipped_and_plans_from_the_hotel(client):
+    plan_v1(client)
+    checkin(client, "task-meet", "skipped")
+    trip = client.get("/v1/trips/trip-001").json()
+    assert {t["taskId"]: t["state"] for t in trip["tasks"]}["task-meet"] == "skipped"
+    plan = trip["activePlan"]
+    assert "task-meet" not in [leg["taskId"] for leg in plan["doneLegs"] + plan["legs"]]
+    assert plan["legs"][0]["fromPlaceId"] == "hotel-majestic"
+
+
+def test_skipping_after_check_ins_plans_from_the_last_place_reached(client):
+    plan_v1(client)
+    clock(client, "11:00")
+    checkin(client, "task-meet", "done")
+    clock(client, "13:00")
+    checkin(client, "task-bank", "done")
+    checkin(client, "task-office", "skipped")
+    trip = client.get("/v1/trips/trip-001").json()
+    assert {t["taskId"]: t["state"] for t in trip["tasks"]}["task-office"] == "skipped"
+    plan = trip["activePlan"]
+    assert [leg["taskId"] for leg in plan["doneLegs"]] == ["task-meet", "task-bank"]
+    home = plan["legs"][0]
+    assert home["taskId"] is None and home["fromPlaceId"] == "koramangala-bank"
+    assert hm(home["leaveBy"]) >= "13:00"
+
+
 def test_automatic_check_shifts_when_behind(client):
     plan_v1(client)
     clock(client, "11:25")  # leave-by was 11:05 and the meeting isn't checked in: 20 min behind
