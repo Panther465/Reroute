@@ -281,9 +281,11 @@ interface TimelineProps {
   tomorrowLabel: string
   /** The stop the traveller said they left ("I've left"), before the clock gets there. */
   departedFrom?: string | null
+  /** Shown under a leg's card, such as its mini map. */
+  legExtra?: (leg: LegView) => ReactNode
 }
 
-export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedSeq, readOnly, tomorrowLabel, departedFrom }: TimelineProps) {
+export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedSeq, readOnly, tomorrowLabel, departedFrom, legExtra }: TimelineProps) {
   const reduce = !!useReducedMotion()
   const listLabel = useTl()('Today')
   const listLabelId = useId()
@@ -462,6 +464,7 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
                           </span>
                         )}
                       </LegButton>
+                      {legExtra?.(outLeg)}
                     </div>
                   </motion.li>
                 )}

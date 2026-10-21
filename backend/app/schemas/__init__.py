@@ -123,6 +123,8 @@ class TaskPatch(Api):
     timing: Literal["fixed", "window", "anytime"] | None = None
     priority: Literal[1, 2, 3] | None = None
     hours_unknown: bool | None = None
+    #: Move the task to another day of the trip; a fixed time keeps its clock time.
+    day: date | None = None
 
 
 class WindowOut(Api):

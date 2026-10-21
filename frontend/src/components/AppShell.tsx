@@ -167,6 +167,15 @@ export default function AppShell() {
 
   useLive(current.tripId, session === 'signedIn' && online)
   useDayAlerts(trip.data, clock)
+  // "I've left" belongs to the moment it was said: a reset (the trip clock going back) or a new day clears it.
+  const started = useStore((s) => s.started)
+  useEffect(() => {
+    const t = trip.data
+    // Judge only against a trip fetched since the app opened: the copy saved on the phone may be older.
+    if (!started || !t || clock == null || started.tripId !== t.tripId || !trip.isFetchedAfterMount) return
+    // A marker saved before it recorded its time can't be checked, so it goes too.
+    if (started.at == null || (started.day && started.day !== t.day) || clock < started.at - 1) setState({ started: null })
+  }, [started, trip.data, trip.isFetchedAfterMount, clock])
   useEffect(() => {
     unlockAudioOnFirstTouch()
     void resumeTracking()

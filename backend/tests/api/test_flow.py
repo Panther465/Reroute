@@ -258,6 +258,32 @@ def test_demo_reset_removes_trips_started_in_the_demo(client):
     assert [t["tripId"] for t in client.get("/v1/trips").json()["items"]] == ["trip-001"]
 
 
+def test_a_task_moves_to_tomorrow_and_today_replans(client):
+    plan_v1(client)
+    res = client.patch("/v1/trips/trip-001/tasks/task-bank", json={"day": "2026-10-15"})
+    assert res.status_code == 200, res.text
+    assert res.json()["task"]["day"] == "2026-10-15" and res.json()["jobId"]
+    plan = client.get("/v1/trips/trip-001").json()["activePlan"]
+    assert plan["version"] == 2 and "task-bank" not in [leg["taskId"] for leg in plan["legs"]]
+    # A fixed task keeps its clock time on the new day; outside the trip it's refused.
+    meet = client.patch("/v1/trips/trip-001/tasks/task-meet", json={"day": "2026-10-15"}).json()["task"]
+    assert meet["fixedStart"] == "2026-10-15T04:30:00Z"  # 10:00 in Bengaluru
+    assert client.patch("/v1/trips/trip-001/tasks/task-office", json={"day": "2026-10-20"}).status_code == 422
+    # The edit form sends the new day and a fixed time on it together.
+    both = {"day": "2026-10-14", "timing": "fixed", "fixedStart": "2026-10-14T09:30:00+05:30"}
+    assert client.patch("/v1/trips/trip-001/tasks/task-meet", json=both).json()["task"]["fixedStart"] == "2026-10-14T04:00:00Z"
+
+
+def test_a_window_task_blocked_by_fixed_times_says_so(client):
+    plan_v1(client)
+    # A second fixed meeting at 13:30 leaves the bank (2 h 30 min, open 10:00 to 16:00) no gap.
+    body = {"title": "Client call", "placeId": "jayanagar-office", "durationMin": 60, "fixedStart": "2026-10-14T13:30:00+05:30", "idempotencyKey": key()}
+    assert client.post("/v1/trips/trip-001/tasks", json=body).status_code == 201
+    moved = client.get("/v1/trips/trip-001").json()["activePlan"]["moved"]
+    bank = next(m for m in moved if m["taskId"] == "task-bank")
+    assert bank["reason"] == "The bank needs 2 h 30 min between 10:00 and 16:00, and your fixed times at 10:00 and 13:30 leave no gap that long with the travel"
+
+
 def test_speech_reads_an_alert_and_caches_it(client, monkeypatch):
     calls: list[tuple[str, str, str]] = []
 

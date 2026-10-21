@@ -144,7 +144,7 @@ export function DemoPanel({ trip, onLate }: { trip: Trip | undefined; onLate: (d
                 onClick={() => {
                   if (simulated) return stopTracking()
                   // As if the traveller left and rode the leg: the dot moves along the road, then arrives.
-                  setState({ started: { tripId, toId: guide.leg.toId } })
+                  setState({ started: { tripId, toId: guide.leg.toId, day: trip.day, at: localMinutes(trip.now, trip.day, trip.utcOffset) } })
                   simulateRide(guide.path)
                   setOpen(false)
                   navigate('/')

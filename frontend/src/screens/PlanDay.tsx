@@ -1,4 +1,4 @@
-import { CalendarPlus, Plus, Sparkles, TriangleAlert } from 'lucide-react'
+import { CalendarPlus, ChevronRight, Plus, Sparkles, TriangleAlert } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
@@ -17,10 +17,11 @@ import { duration, hhmm } from '@/lib/format'
 import { CALENDAR_SCOPE, googleEnabled, requestGoogleCode } from '@/lib/google'
 import { useDocumentTitle, useOnline } from '@/lib/hooks'
 import { T } from '@/lib/i18n'
+import { stopEmoji } from '@/lib/stopEmoji'
 import { nextToken, setState, showToast } from '@/lib/store'
 import { buildDay, dayLabel, localMinutes, weekday } from '@/lib/timeline'
 import { AiPlannerSheet } from './AiPlannerSheet'
-import { TaskFormSheet } from './TaskForm'
+import { TaskFormSheet, tripDays } from './TaskForm'
 
 function TaskTags({ task, trip }: { task: Task; trip: Trip }) {
   return (
@@ -28,11 +29,54 @@ function TaskTags({ task, trip }: { task: Task; trip: Trip }) {
       {task.fixedStart && <Tag tone="ink">Fixed {hhmm(localMinutes(task.fixedStart, task.day, trip.utcOffset))}</Tag>}
       {task.window && <Tag tone="green-outline">Open till {task.window.closesAt}</Tag>}
       {task.durationMin > 0 && <Tag tone="grey-outline">{duration(task.durationMin)}</Tag>}
-      {task.day !== trip.startDate && <Tag tone="grey-outline">{weekday(task.day)}</Tag>}
+      {task.priority === 1 && <Tag tone="grey-outline">Must do</Tag>}
       {task.state === 'done' && <Tag tone="green">Done</Tag>}
       {task.state === 'skipped' && <Tag tone="sunken">Skipped</Tag>}
       {task.state === 'moved' && <Tag tone="sunken">Moved to {weekday(task.day)}</Tag>}
     </span>
+  )
+}
+
+/** Order within a day, in minutes after midnight: planned time, else fixed time, else opening time. */
+function sortKey(t: Task, trip: Trip, planned: Map<string, { start: number }>) {
+  const when = planned.get(t.taskId)
+  if (when) return when.start
+  if (t.fixedStart) return localMinutes(t.fixedStart, t.day, trip.utcOffset)
+  return t.window ? Number(t.window.opensAt.slice(0, 2)) * 60 + Number(t.window.opensAt.slice(3)) : 24 * 60
+}
+
+/** One task: its icon, name and place, when it's planned, its tags, and anything wrong with it. */
+function TaskRow({ task, trip, when, issue, disabled, onOpen }: { task: Task; trip: Trip; when?: { start: number; end: number }; issue?: string; disabled: boolean; onOpen: () => void }) {
+  const done = task.state === 'done' || task.state === 'skipped'
+  return (
+    <li>
+      <button type="button" disabled={disabled || done} onClick={onOpen} className="flex w-full items-start gap-3 px-4 py-4 text-left disabled:cursor-default [@media(hover:hover)]:hover:enabled:bg-sunken/60">
+        <span aria-hidden="true" className={`flex size-10 shrink-0 items-center justify-center rounded-full text-xl ${done ? 'bg-sunken' : issue ? 'bg-red-tint' : 'bg-green-tint'}`}>
+          {stopEmoji(task.title)}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="flex flex-wrap items-baseline justify-between gap-x-3">
+            <span className={`t-title ${done ? 'text-ink-2 line-through decoration-1' : 'text-ink'}`}>{task.title}</span>
+            {when && !done && (
+              <span className="t-small font-bold text-ink tnum">
+                {hhmm(when.start)} to {hhmm(when.end)}
+              </span>
+            )}
+          </span>
+          <span className="block t-small text-muted">
+            {task.place.name}, {task.place.area}
+          </span>
+          <TaskTags task={task} trip={trip} />
+          {issue && (
+            <span className="mt-2 flex items-start gap-1.5 t-small text-red-ink">
+              <TriangleAlert size={16} strokeWidth={1.75} aria-hidden="true" className="mt-0.5 shrink-0" />
+              {issue}
+            </span>
+          )}
+        </span>
+        {!done && !disabled && <ChevronRight size={20} strokeWidth={1.75} aria-hidden="true" className="mt-2.5 shrink-0 text-muted" />}
+      </button>
+    </li>
   )
 }
 
@@ -332,6 +376,13 @@ export default function PlanDay() {
   }
 
   const today = trip.tasks.filter((x) => x.day === trip.day)
+  // When each of today's tasks is planned, from the active plan.
+  const planned = new Map<string, { start: number; end: number }>()
+  if (trip.activePlan) {
+    for (const leg of [...(trip.activePlan.doneLegs ?? []), ...trip.activePlan.legs]) {
+      if (leg.taskId) planned.set(leg.taskId, { start: localMinutes(leg.taskStart, trip.activePlan.day, trip.utcOffset), end: localMinutes(leg.taskEnd, trip.activePlan.day, trip.utcOffset) })
+    }
+  }
   const open = trip.tasks.filter((x) => x.state !== 'done' && x.state !== 'skipped')
   // Say which tasks the active plan leaves out, so none of them quietly disappears.
   const dayView = trip.activePlan ? buildDay(trip) : null
@@ -449,25 +500,47 @@ export default function PlanDay() {
             </Button>
           </div>
         ) : (
-          <ul className="mt-4 divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
-            {trip.tasks.map((task) => (
-              <li key={task.taskId}>
-                <button type="button" disabled={task.state === 'done' || !online} onClick={() => openForm(task)} className="block w-full px-4 py-4 text-left disabled:cursor-default [@media(hover:hover)]:hover:enabled:bg-sunken/60">
-                  <span className="block t-title text-ink">{task.title}</span>
-                  <span className="block t-small text-muted">
-                    {task.place.name}, {task.place.area}
-                  </span>
-                  <TaskTags task={task} trip={trip} />
-                  {issues.has(task.taskId) && (
-                    <span className="mt-2 flex items-start gap-1.5 t-small text-red-ink">
-                      <TriangleAlert size={16} strokeWidth={1.75} aria-hidden="true" className="mt-0.5 shrink-0" />
-                      {issues.get(task.taskId)}
-                    </span>
+          <div className="mt-4 flex flex-col gap-6">
+            {tripDays(trip).map((day) => {
+              const tasks = trip.tasks.filter((t) => t.day === day)
+              const openTasks = tasks.filter((t) => t.state !== 'done' && t.state !== 'skipped').sort((a, b) => sortKey(a, trip, planned) - sortKey(b, trip, planned) || a.title.localeCompare(b.title))
+              const closed = tasks.filter((t) => t.state === 'done' || t.state === 'skipped')
+              const headingId = `day-${day}`
+              return (
+                <section key={day} aria-labelledby={headingId}>
+                  <div className="mb-2 flex items-center gap-2">
+                    <h3 id={headingId} className="t-title text-ink">
+                      {dayLabel(day)}
+                    </h3>
+                    {day === trip.day && <Tag tone="green">Today</Tag>}
+                    <span className="ml-auto t-small text-muted">{openTasks.length === 0 ? 'Nothing to do' : `${openTasks.length} to do`}</span>
+                  </div>
+                  {openTasks.length > 0 ? (
+                    <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
+                      {openTasks.map((task) => (
+                        <TaskRow key={task.taskId} task={task} trip={trip} when={planned.get(task.taskId)} issue={issues.get(task.taskId)} disabled={!online} onOpen={() => openForm(task)} />
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="rounded-card border border-dashed border-line-strong px-4 py-3 t-small text-ink-2">Nothing planned for this day yet.</p>
                   )}
-                </button>
-              </li>
-            ))}
-          </ul>
+                  {closed.length > 0 && (
+                    <details className="group mt-2">
+                      <summary className="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-control t-small font-bold text-ink-2">
+                        <ChevronRight size={16} strokeWidth={2} aria-hidden="true" className="transition-transform group-open:rotate-90" />
+                        Done and skipped ({closed.length})
+                      </summary>
+                      <ul className="mt-1 divide-y divide-line overflow-hidden rounded-card border border-line bg-surface opacity-80">
+                        {closed.map((task) => (
+                          <TaskRow key={task.taskId} task={task} trip={trip} disabled onOpen={() => undefined} />
+                        ))}
+                      </ul>
+                    </details>
+                  )}
+                </section>
+              )
+            })}
+          </div>
         )}
         <div className="mt-4 flex flex-wrap gap-3">
           {trip.tasks.length > 0 && (

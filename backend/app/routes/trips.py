@@ -230,7 +230,7 @@ def edit_task(task_id: str, body: TaskPatch, trip: OwnedTrip, db: Db) -> TaskEdi
     if timing == "fixed" or (timing is None and data.get("fixed_start")):
         if not body.fixed_start or body.fixed_start.tzinfo is None:
             raise ApiError(422, "Enter the start time with its UTC offset.", code="VALIDATION_ERROR")
-        if body.fixed_start.astimezone(tz_for(trip.utc_offset)).date() != task.day:
+        if body.fixed_start.astimezone(tz_for(trip.utc_offset)).date() != (data.get("day") or task.day):
             raise ApiError(422, "fixedStart must be on the task's day.", code="VALIDATION_ERROR")
         task.fixed_start, task.opens_at, task.closes_at = body.fixed_start, None, None
     elif timing == "window" or (timing is None and body.window is not None):
@@ -239,10 +239,21 @@ def edit_task(task_id: str, body: TaskPatch, trip: OwnedTrip, db: Db) -> TaskEdi
         task.fixed_start, task.opens_at, task.closes_at = None, body.window.opens_at, body.window.closes_at
     elif timing == "anytime":
         task.fixed_start, task.opens_at, task.closes_at = None, None, None
+    old_day = task.day
+    new_day = data.get("day")
+    if new_day and new_day != task.day:
+        if not trip.start_date <= new_day <= trip.end_date:
+            raise ApiError(422, "The task must fall within the trip's dates.", code="VALIDATION_ERROR")
+        # A fixed time given with the move is already on the new day; otherwise it keeps its clock time.
+        if task.fixed_start is not None and task.fixed_start.astimezone(tz_for(trip.utc_offset)).date() != new_day:
+            tz = tz_for(trip.utc_offset)
+            task.fixed_start = datetime.combine(new_day, task.fixed_start.astimezone(tz).timetz())
+        # A task the planner moved or skipped comes back as planned on its new day.
+        task.day, task.planned_day, task.state = new_day, new_day, "planned" if task.state in ("moved", "skipped") else task.state
     db.commit()
     job_id = None
     active = plan_store.active_plan(db, trip.trip_id)
-    if active is not None and active.day == task.day:
+    if active is not None and active.day in (task.day, old_day):
         job = get_queue().enqueue(jobs.plan_trip, trip.trip_id, "edited")
         job_id = job.id
     db.refresh(task)
