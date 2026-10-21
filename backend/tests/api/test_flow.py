@@ -239,6 +239,67 @@ def test_adding_a_task_to_a_planned_day_replans_it(client):
     assert task["taskId"] in [leg["taskId"] for leg in plan["legs"]] + [m["taskId"] for m in plan["moved"]]
 
 
+def test_demo_reset_removes_trips_started_in_the_demo(client):
+    body = {
+        "citySlug": "bengaluru",
+        "cityName": "Bengaluru",
+        "startDate": "2030-01-15",
+        "endDate": "2030-01-15",
+        "stayPlaceId": "hotel-majestic",
+        "stayLabel": "Hotel near Majestic",
+        "idempotencyKey": key(),
+    }
+    new = client.post("/v1/trips", json=body)
+    assert new.status_code == 201, new.text
+    task = {"title": "Meeting", "placeId": "whitefield-office", "durationMin": 60, "idempotencyKey": key()}
+    assert client.post(f"/v1/trips/{new.json()['tripId']}/tasks", json=task).status_code == 201
+    assert len(client.get("/v1/trips").json()["items"]) == 2
+    assert client.post("/v1/trips/trip-001/demo/reset", json={"idempotencyKey": key()}).status_code == 200
+    assert [t["tripId"] for t in client.get("/v1/trips").json()["items"]] == ["trip-001"]
+
+
+class FakeNominatim:
+    """OpenStreetMap search without the network: it knows the Koramangala neighbourhood."""
+
+    def __init__(self, *_):
+        pass
+
+    def search(self, query, where):
+        from app.adapters.places import FoundPlace
+
+        if "koramangala" not in query.lower():
+            return []
+        return [FoundPlace("osm-n429918282", "Koramangala", "Koramangala", 77.6245, 12.9352, "n429918282")]
+
+
+def test_place_search_puts_the_exact_name_first(client, monkeypatch):
+    monkeypatch.setattr("app.services.places.NominatimSearch", FakeNominatim)
+    names = [p["name"] for p in client.get("/v1/places", params={"q": "Koramangala"}).json()]
+    # The neighbourhood itself, then the sample bank that's in it.
+    assert names[0] == "Koramangala" and "Bank, 80 Feet Road" in names
+
+
+def test_described_tasks_match_any_place_and_say_which(client, monkeypatch):
+    from app.config import get_settings
+
+    async def fake_llm(text, city, day):
+        return [
+            {"title": "Lunch", "placeText": "Koramangala", "durationMin": 60, "fixedStart": "13:00", "priority": 2},
+            {"title": "Bank work", "placeText": "", "durationMin": 45, "fixedStart": None, "priority": 2},
+        ]
+
+    monkeypatch.setattr(get_settings(), "ai_helper_enabled", True)
+    monkeypatch.setattr("app.adapters.llm.extract_tasks_llm", fake_llm)
+    monkeypatch.setattr("app.services.places.NominatimSearch", FakeNominatim)
+    res = client.post("/v1/trips/trip-001/task-drafts", json={"text": "Lunch at 1pm in Koramangala, then bank work", "idempotencyKey": key()})
+    assert res.status_code == 200, res.text
+    lunch, bank = res.json()
+    assert lunch["placeId"] == "osm-n429918282" and lunch["place"]["name"] == "Koramangala"
+    assert lunch["fixedStart"].startswith("2026-10-14T13:00")
+    # No place said: the traveller chooses one.
+    assert bank["placeId"] is None and bank["place"] is None
+
+
 def test_a_second_replan_during_a_task_keeps_the_traveller_there(client):
     plan_v1(client)
     clock(client, "10:30")  # at the 10:00 meeting, not marked done yet

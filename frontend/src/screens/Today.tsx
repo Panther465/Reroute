@@ -1,4 +1,4 @@
-import { BellRing, CircleCheck, MapPinned, Navigation, Route, Share2, X } from 'lucide-react'
+import { BellRing, CircleCheck, MapPinned, Navigation, Plus, Route, Share2, X } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useCurrentTripId, useDay, useTrip } from '@/api/queries'
@@ -12,7 +12,7 @@ import { IconButton } from '@/components/ui/IconButton'
 import { Banner, EmptyState, ErrorState, Skeleton } from '@/components/ui/States'
 import { Tag } from '@/components/ui/Tag'
 import { ApiError } from '@/api/client'
-import { checkIn, replanDay, undo, undoVersionOf } from '@/lib/actions'
+import { applyServerChange, checkIn, playLater, playTaskEdit, replanDay, undo, undoVersionOf } from '@/lib/actions'
 import { lowerFirst } from '@/lib/format'
 import { legLines, placeIndex } from '@/lib/geo'
 import { useDocumentTitle, useIsDesktop, useOnline, useStatus, useTripClock, type Status } from '@/lib/hooks'
@@ -29,6 +29,7 @@ const ShareSheet = lazy(() => import('./ShareSheet').then((m) => ({ default: m.S
 const TaskSheet = lazy(() => import('./TaskSheet').then((m) => ({ default: m.TaskSheet })))
 const RerouteLog = lazy(() => import('@/components/RerouteLog').then((m) => ({ default: m.RerouteLog })))
 const CheckInConfirm = lazy(() => import('./CheckInConfirm').then((m) => ({ default: m.CheckInConfirm })))
+const AiPlannerSheet = lazy(() => import('./AiPlannerSheet').then((m) => ({ default: m.AiPlannerSheet })))
 
 /** True from the first time `open` is true: a lazy sheet mounts then and stays, so it can animate closed. */
 function useLoadedOnce(open: boolean) {
@@ -37,7 +38,7 @@ function useLoadedOnce(open: boolean) {
   return loaded || open
 }
 
-export function TodayHeader({ trip, status, onLog, onShare }: { trip: Trip; status: Status; onLog: () => void; onShare: () => void }) {
+export function TodayHeader({ trip, status, onLog, onShare, onAdd }: { trip: Trip; status: Status; onLog: () => void; onShare: () => void; onAdd?: () => void }) {
   const demo = useStore((s) => s.demo.enabled)
   return (
     <header className="flex items-start justify-between gap-3">
@@ -56,9 +57,16 @@ export function TodayHeader({ trip, status, onLog, onShare }: { trip: Trip; stat
           <StatusPill live={status} onOpen={onLog} />
         </div>
       </div>
-      <IconButton label="Share live trip" onClick={onShare} className="-mr-2 shrink-0">
-        <Share2 size={24} strokeWidth={1.75} aria-hidden="true" />
-      </IconButton>
+      <div className="-mr-2 flex shrink-0 items-center">
+        {onAdd && (
+          <IconButton label="Add to today" onClick={onAdd}>
+            <Plus size={24} strokeWidth={1.75} aria-hidden="true" />
+          </IconButton>
+        )}
+        <IconButton label="Share live trip" onClick={onShare}>
+          <Share2 size={24} strokeWidth={1.75} aria-hidden="true" />
+        </IconButton>
+      </div>
     </header>
   )
 }
@@ -137,6 +145,9 @@ export default function Today() {
   const [stop, setStop] = useState<StopView | null>(null)
   const [selected, setSelected] = useState<number | null>(null)
   const [confirmEarly, setConfirmEarly] = useState(false)
+  const [addOpen, setAddOpen] = useState(false)
+  const addLoaded = useLoadedOnce(addOpen)
+  const addBefore = useRef<DayView | null>(null)
   const logLoaded = useLoadedOnce(logOpen)
   const shareLoaded = useLoadedOnce(shareOpen)
   const stopLoaded = useLoadedOnce(!!stop)
@@ -230,11 +241,33 @@ export default function Today() {
   }
 
   const onLeg = (leg: LegView) => (desktop ? setSelected(leg.seq) : navigate(`/leg/${leg.seq}`))
-  const header = <TodayHeader trip={trip} status={status} onLog={() => setLogOpen(true)} onShare={() => setShareOpen(true)} />
+  // The day as it looked when "Add to today" opened, so the change plays once the tasks are in.
+  const openAdd = () => {
+    addBefore.current = view
+    setAddOpen(true)
+  }
+  const header = <TodayHeader trip={trip} status={status} onLog={() => setLogOpen(true)} onShare={() => setShareOpen(true)} onAdd={online ? openAdd : undefined} />
   const tripSheets = (
     <Suspense fallback={null}>
       {logLoaded && <RerouteLog trip={trip} open={logOpen} onOpenChange={setLogOpen} />}
       {shareLoaded && <ShareSheet trip={trip} open={shareOpen} onOpenChange={setShareOpen} />}
+      {addLoaded && (
+        <AiPlannerSheet
+          trip={trip}
+          open={addOpen}
+          onOpenChange={setAddOpen}
+          onAdded={(n, outcome) => {
+            setAddOpen(false)
+            const what = `Added ${n === 1 ? '1 task' : `${n} tasks`}.`
+            if (outcome === 'replanned') playLater(() => applyServerChange(trip.tripId, addBefore.current, { kind: 'reroute', toast: `${what} Your day is updated.`, undo: true }))
+            else if (outcome === 'pending') playLater(() => playTaskEdit(trip.tripId, addBefore.current, 'pending'))
+            else {
+              showToast({ title: `${what} Plan the day to fit ${n === 1 ? 'it' : 'them'} in.` })
+              navigate('/plan')
+            }
+          }}
+        />
+      )}
     </Suspense>
   )
 

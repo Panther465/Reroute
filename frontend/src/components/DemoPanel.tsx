@@ -3,7 +3,7 @@ import { SlidersHorizontal, X } from 'lucide-react'
 import { useState } from 'react'
 import { useNavigate } from 'react-router'
 import { api, ApiError, setForcedOffline } from '@/api/client'
-import { keys, queryClient } from '@/api/queries'
+import { keys, queryClient, useTrips } from '@/api/queries'
 import type { CheckinResult, ShareLink, Trip } from '@/api/types'
 import { Button } from '@/components/ui/Button'
 import { Switch } from '@/components/ui/Choice'
@@ -19,7 +19,10 @@ export function DemoPanel({ trip, onLate }: { trip: Trip | undefined; onLate: (d
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const navigate = useNavigate()
+  const trips = useTrips(demo.enabled)
   if (!demo.enabled || !trip) return null
+  // Reset always restores the sample trip, even while another trip is on screen.
+  const sampleId = trips.data?.items.find((t) => t.sample)?.tripId ?? trip.tripId
   const tripId = trip.tripId
   const clock = localMinutes(trip.now, trip.day, trip.utcOffset)
   // One-tap jumps to the moments worth seeing: the next departure, and the end of the task under way.
@@ -65,9 +68,11 @@ export function DemoPanel({ trip, onLate }: { trip: Trip | undefined; onLate: (d
 
   const reset = () =>
     run('reset the demo', async () => {
-      const next = await api.post<Trip>(`/v1/trips/${tripId}/demo/reset`, {})
-      queryClient.setQueryData(keys.trip(tripId), next)
-      setState({ change: null, autoBanner: null, optimisticDone: [], started: null })
+      const next = await api.post<Trip>(`/v1/trips/${sampleId}/demo/reset`, {})
+      queryClient.setQueryData(keys.trip(sampleId), next)
+      // Trips started during the demo are gone now.
+      await queryClient.invalidateQueries({ queryKey: keys.trips })
+      setState({ change: null, autoBanner: null, optimisticDone: [], started: null, tripId: sampleId })
       setOpen(false)
       navigate('/plan')
       showToast({ title: 'Demo reset. Plan the day to start again.' })

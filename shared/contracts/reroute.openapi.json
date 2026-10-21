@@ -3639,6 +3639,16 @@
             ],
             "title": "Placeid"
           },
+          "place": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlaceOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "durationMin": {
             "type": "integer",
             "title": "Durationmin"

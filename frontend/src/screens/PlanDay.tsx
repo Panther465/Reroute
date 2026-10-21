@@ -1,10 +1,11 @@
-import { CalendarPlus, MapPin, Plus, Search, Sparkles, TriangleAlert } from 'lucide-react'
+import { CalendarPlus, Plus, Sparkles, TriangleAlert } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { api, ApiError, newKey } from '@/api/client'
-import { keys, queryClient, useCurrentTripId, usePlaceSearch, useTrip, waitForJob } from '@/api/queries'
+import { keys, queryClient, useCurrentTripId, useTrip, waitForJob } from '@/api/queries'
 import type { Body, JobAccepted, Place, Task, TaskDraft, TaskIn, Trip, TripIn } from '@/api/types'
+import { PlacePicker } from '@/components/PlacePicker'
 import { Button } from '@/components/ui/Button'
 import { Field, FieldError } from '@/components/ui/Field'
 import { Sheet } from '@/components/ui/Sheet'
@@ -18,7 +19,7 @@ import { T } from '@/lib/i18n'
 import { nextToken, setState, showToast } from '@/lib/store'
 import { buildDay, dayLabel, localMinutes, weekday } from '@/lib/timeline'
 import { AiPlannerSheet } from './AiPlannerSheet'
-import { placeSearchError, TaskFormSheet } from './TaskForm'
+import { TaskFormSheet } from './TaskForm'
 
 function TaskTags({ task, trip }: { task: Task; trip: Trip }) {
   return (
@@ -59,64 +60,25 @@ export function DrawLine({ className = '' }: { className?: string }) {
   )
 }
 
-function PlacePicker({ label, city, value, onChange, error }: { label: string; city: string; value: Place | null; onChange: (p: Place | null) => void; error?: string }) {
-  const [q, setQ] = useState('')
-  const [debounced, setDebounced] = useState('')
-  useEffect(() => {
-    const id = setTimeout(() => setDebounced(q), 300)
-    return () => clearTimeout(id)
-  }, [q])
-  const search = usePlaceSearch(debounced, city)
-  if (value)
-    return (
-      <div>
-        <p className="mb-2 t-title text-ink">{label}</p>
-        <div className="flex items-center gap-3 rounded-control border-2 border-green bg-green-tint px-4 py-2">
-          <MapPin size={20} strokeWidth={1.75} aria-hidden="true" className="shrink-0 text-green-ink" />
-          <span className="min-w-0 flex-1">
-            <span className="block t-title text-ink">{value.name}</span>
-            <span className="block t-small text-ink-2">{value.area}</span>
-          </span>
-          <Button variant="tertiary" size="md" onClick={() => onChange(null)}>
-            Change
-          </Button>
-        </div>
-      </div>
-    )
-  return (
-    <div>
-      <Field label={label} type="search" value={q} onChange={(e) => setQ(e.target.value)} error={error} autoComplete="off" hint="Search by area or building" trailing={<Search size={20} strokeWidth={1.75} aria-hidden="true" className="mr-3 text-muted" />} />
-      {debounced.trim().length >= 2 && (
-        <ul aria-label="Places found" className="mt-2 divide-y divide-line overflow-hidden rounded-control border border-line bg-surface">
-          {search.isPending && <li className="px-4 py-3 t-small text-ink-2">Searching…</li>}
-          {search.isError && <li className="px-4 py-3 t-small text-ink-2">{placeSearchError(search.error)}</li>}
-          {search.data?.length === 0 && <li className="px-4 py-3 t-small text-ink-2">No places match. Try the area name.</li>}
-          {search.data?.map((p) => (
-            <li key={p.placeId}>
-              <button type="button" onClick={() => onChange(p)} className="flex min-h-12 w-full items-center gap-3 px-4 py-2 text-left [@media(hover:hover)]:hover:bg-sunken">
-                <MapPin size={20} strokeWidth={1.75} aria-hidden="true" className="shrink-0 text-muted" />
-                <span>
-                  <span className="block t-body text-ink">{p.name}</span>
-                  <span className="block t-small text-muted">{p.area}</span>
-                </span>
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  )
+function todayIso() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-/** Create a trip. Reroute plans in the cities it has travel data for; Bengaluru is the demo city. */
-function NewTripForm({ onCreated }: { onCreated: (trip: Trip) => void }) {
-  const [start, setStart] = useState('')
+/**
+ * Start a trip on one screen: where you're staying, which days (today unless you change it) and,
+ * if you like, what you need to do. Bengaluru is the city Reroute covers so far.
+ */
+function StartForm({ onCreated }: { onCreated: (trip: Trip, text: string) => void }) {
+  const [start, setStart] = useState(todayIso)
   const [end, setEnd] = useState('')
+  const [pickDates, setPickDates] = useState(false)
   const [stay, setStay] = useState<Place | null>(null)
-  const [label, setLabel] = useState('')
+  const [text, setText] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const [key] = useState(() => newKey('trip'))
+  const describing = text.trim().length >= 3
 
   const create = async () => {
     const e: Record<string, string> = {}
@@ -125,33 +87,62 @@ function NewTripForm({ onCreated }: { onCreated: (trip: Trip) => void }) {
     if (!stay) e.stay = 'Choose where you are staying.'
     setErrors(e)
     if (Object.keys(e).length) return
-    const body: Body<TripIn> = { citySlug: 'bengaluru', cityName: 'Bengaluru', startDate: start, endDate: end || start, stayPlaceId: stay!.placeId, stayLabel: label.trim() || stay!.name }
+    const body: Body<TripIn> = { citySlug: 'bengaluru', cityName: 'Bengaluru', startDate: start, endDate: end || start, stayPlaceId: stay!.placeId, stayLabel: stay!.name }
     setBusy(true)
     try {
       const trip = await api.post<Trip>('/v1/trips', body, { idempotencyKey: key })
-      onCreated(trip)
+      queryClient.setQueryData(keys.trip(trip.tripId), trip)
+      // The trip list decides which trip the app shows: it must include the new one first.
+      await queryClient.refetchQueries({ queryKey: keys.trips })
+      onCreated(trip, describing ? text.trim() : '')
     } catch (err) {
       setErrors({ form: err instanceof ApiError ? err.message : "Couldn't create the trip. Try again." })
-    } finally {
       setBusy(false)
     }
   }
 
+  const today = todayIso()
+  const dates = start === (end || start) ? (start === today ? `Today, ${dayLabel(start)}` : dayLabel(start)) : `${dayLabel(start)} to ${dayLabel(end)}`
   return (
-    <div className="mt-6 flex flex-col gap-4">
-      <div className="rounded-card border border-line bg-surface p-4">
-        <p className="t-title text-ink">Bengaluru</p>
-        <p className="t-small text-ink-2">Reroute has travel times for Bengaluru so far.</p>
+    <div className="mt-6 flex flex-col gap-6">
+      <PlacePicker label="Where are you staying?" city="bengaluru" value={stay} onChange={setStay} error={errors.stay} hint="Your hotel or where you sleep in Bengaluru. Search by name or area." />
+      {pickDates ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="First day" type="date" value={start} onChange={(e) => setStart(e.target.value)} error={errors.start} />
+          <Field label="Last day" type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)} error={errors.end} hint="Leave empty for a one-day trip" />
+        </div>
+      ) : (
+        <div>
+          <p className="mb-1 t-title text-ink">When</p>
+          <p className="flex flex-wrap items-center gap-x-3 t-body text-ink">
+            {dates}
+            <Button variant="tertiary" size="md" className="-ml-2" onClick={() => setPickDates(true)}>
+              Change dates
+            </Button>
+          </p>
+        </div>
+      )}
+      <div>
+        <label htmlFor="start-describe" className="mb-1 block t-title text-ink">
+          What do you need to do? <span className="t-small font-normal text-muted">Optional</span>
+        </label>
+        <p id="start-describe-hint" className="mb-2 t-small text-ink-2">
+          Say it the way you'd tell a colleague: times and places. You'll check the tasks before anything is planned.
+        </p>
+        <textarea
+          id="start-describe"
+          aria-describedby="start-describe-hint"
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={3}
+          maxLength={2000}
+          placeholder="Meeting at 10am in Whitefield, bank work in Koramangala, then the university office in Jayanagar"
+          className="w-full resize-none rounded-control border-2 border-line bg-surface px-4 py-3 t-body text-ink placeholder:text-muted focus:border-green focus:outline-none"
+        />
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="First day" type="date" value={start} onChange={(e) => setStart(e.target.value)} error={errors.start} />
-        <Field label="Last day" type="date" value={end} min={start} onChange={(e) => setEnd(e.target.value)} error={errors.end} />
-      </div>
-      <PlacePicker label="Staying at" city="bengaluru" value={stay} onChange={setStay} error={errors.stay} />
-      <Field label="What you call it" hint="Optional, like Hotel near Majestic" value={label} onChange={(e) => setLabel(e.target.value)} />
       {errors.form && <FieldError id="trip-err">{errors.form}</FieldError>}
-      <Button full onClick={create} loading={busy} loadingLabel="Creating…">
-        Create the trip
+      <Button full onClick={create} loading={busy} loadingLabel="Creating your trip…" icon={describing ? <Sparkles size={20} strokeWidth={1.75} aria-hidden="true" /> : undefined}>
+        {describing ? 'Plan my day' : 'Create the trip'}
       </Button>
     </div>
   )
@@ -258,6 +249,8 @@ export default function PlanDay() {
   const [aiOpen, setAiOpen] = useState(false)
   const [importOpen, setImportOpen] = useState(false)
   const [creating, setCreating] = useState(false)
+  // A trip just started with "What do you need to do?": its text goes straight to the task check.
+  const [startText, setStartText] = useState<{ tripId: string; text: string } | null>(null)
   const [planning, setPlanning] = useState<'idle' | 'busy' | 'drawing'>('idle')
   const [error, setError] = useState<string>()
   const [planKey, setPlanKey] = useState(() => newKey('plan'))
@@ -303,25 +296,26 @@ export default function PlanDay() {
     )
   }
 
-  const onCreated = (created: Trip) => {
-    queryClient.setQueryData(keys.trip(created.tripId), created)
-    void queryClient.invalidateQueries({ queryKey: keys.trips })
+  const onCreated = (created: Trip, text: string) => {
+    setState({ tripId: created.tripId })
     setCreating(false)
-    showToast({ title: 'Trip created. Add your tasks.' })
+    if (text) setStartText({ tripId: created.tripId, text })
+    else showToast({ title: 'Trip created. Now add what you need to do.' })
   }
 
   if (!trip || creating) {
     return (
       <div className="mx-auto max-w-[560px] px-5 pb-10 pt-6 lg:max-w-[720px] lg:px-8 lg:pt-8">
         <h1 tabIndex={-1} className="t-display-1 text-ink">
-          <T k="New trip" />
+          {creating ? <T k="New trip" /> : 'Plan your day'}
         </h1>
+        <p className="mt-2 t-body text-ink-2">Reroute works out the order, when to leave, how to get there and what it costs, and re-plans when you run late. It covers Bengaluru so far.</p>
         {!online ? (
           <div className="mt-6">
             <Banner tone="offline">You're offline. Connect to start a new trip.</Banner>
           </div>
         ) : (
-          <NewTripForm onCreated={onCreated} />
+          <StartForm onCreated={onCreated} />
         )}
         {creating && (
           <p className="mt-4">
@@ -368,8 +362,9 @@ export default function PlanDay() {
     showToast({ title: `Removed the ${task.title.charAt(0).toLowerCase() + task.title.slice(1)}.` })
   }
 
-  const plan = async () => {
-    if (!today.some((x) => x.state !== 'done' && x.state !== 'skipped')) return setError(`Add at least one task for ${dayLabel(trip.day)}.`)
+  // `fresh`: tasks were just added, so this render's task list is out of date; the server checks instead.
+  const plan = async (fresh = false) => {
+    if (!fresh && !today.some((x) => x.state !== 'done' && x.state !== 'skipped')) return setError(`Add at least one task for ${dayLabel(trip.day)}.`)
     setError(undefined)
     setPlanning('busy')
     try {
@@ -496,7 +491,7 @@ export default function PlanDay() {
             </span>
           </div>
         ) : (
-          <Button full loading={planning === 'busy'} loadingLabel={<T k="Planning your day…" />} onClick={plan} disabled={!online}>
+          <Button full loading={planning === 'busy'} loadingLabel={<T k="Planning your day…" />} onClick={() => plan()} disabled={!online}>
             {trip.activePlan ? 'Plan my day again' : <T k="Plan my day" />}
           </Button>
         )}
@@ -525,16 +520,32 @@ export default function PlanDay() {
           }}
         />
       )}
-      <AiPlannerSheet
-        trip={trip}
-        open={aiOpen}
-        onOpenChange={setAiOpen}
-        onAdded={(n, outcome) => {
-          void queryClient.invalidateQueries({ queryKey: keys.trip(trip.tripId) })
-          setAiOpen(false)
-          showToast({ title: `Added ${n} ${n === 1 ? 'task' : 'tasks'} from your description.${outcome === 'replanned' ? ' Your day is updated.' : ''}` })
-        }}
-      />
+      {startText?.tripId === trip.tripId ? (
+        // The new trip's description, read at once; adding the tasks plans the day and opens Today.
+        <AiPlannerSheet
+          key={startText.tripId}
+          trip={trip}
+          open
+          initialText={startText.text}
+          addLabel={(n) => (n === 1 ? 'Plan it' : `Plan these ${n}`)}
+          onOpenChange={(o) => !o && setStartText(null)}
+          onAdded={() => {
+            setStartText(null)
+            void plan(true)
+          }}
+        />
+      ) : (
+        <AiPlannerSheet
+          trip={trip}
+          open={aiOpen}
+          onOpenChange={setAiOpen}
+          onAdded={(n, outcome) => {
+            void queryClient.invalidateQueries({ queryKey: keys.trip(trip.tripId) })
+            setAiOpen(false)
+            showToast({ title: `Added ${n} ${n === 1 ? 'task' : 'tasks'} from your description.${outcome === 'replanned' ? ' Your day is updated.' : ''}` })
+          }}
+        />
+      )}
     </div>
   )
 }

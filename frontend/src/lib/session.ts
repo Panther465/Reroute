@@ -92,7 +92,7 @@ export async function signOut() {
   clearQueue()
   clearShareTokens()
   setForcedOffline(false)
-  setState({ demo: { enabled: false, offline: false }, change: null, autoBanner: null, leaveNow: null, pendingDelay: null, optimisticDone: [], started: null })
+  setState({ demo: { enabled: false, offline: false }, change: null, autoBanner: null, leaveNow: null, pendingDelay: null, optimisticDone: [], started: null, tripId: null })
   queryClient.clear()
   localStorage.removeItem('reroute:cache')
   setAccessToken(null)

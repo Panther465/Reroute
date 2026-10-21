@@ -469,6 +469,8 @@ class TaskDraftOut(Api):
     title: str
     place_text: str
     place_id: str | None = None
+    #: The place matched to `place_text`, to show; null when nothing matched and the traveller must choose.
+    place: PlaceOut | None = None
     duration_min: int
     fixed_start: datetime | None = None
     window: WindowOut | None = None
