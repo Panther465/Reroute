@@ -225,9 +225,11 @@ export default function AppShell() {
                 <DemoPanel trip={trip.data} onLate={openLate} />
               </Suspense>
             )}
-            <Suspense fallback={null}>
-              <Roo trip={trip.data ?? undefined} clock={clock ?? null} />
-            </Suspense>
+            {!pushed && (
+              <Suspense fallback={null}>
+                <Roo trip={trip.data ?? undefined} clock={clock ?? null} demoActive={demoEnabled && !!trip.data} />
+              </Suspense>
+            )}
             <Toaster tripId={current.tripId} />
             <Announcer />
             <ScrollRestoration />
