@@ -467,6 +467,75 @@ class AiHelperIn(PostBody):
     text: Annotated[str, StringConstraints(min_length=3, max_length=2000)]
 
 
+class TrainClassOut(Api):
+    code: str
+    label: str
+    fare_inr: int
+    status: Literal["available", "rac", "wl"]
+    availability: str
+
+
+class TrainOptionOut(Api):
+    train_no: str
+    name: str
+    origin: str
+    destination: str
+    departs: Hhmm
+    arrives: Hhmm
+    #: 1 when it arrives the next day.
+    arrives_next_day: int
+    duration_min: int
+    classes: list[TrainClassOut]
+    #: Sample trains for the demo booking; not a real timetable.
+    sample: bool = True
+
+
+class CabOptionOut(Api):
+    option_id: str
+    provider: Literal["uber", "ola", "rapido"]
+    provider_label: str
+    vehicle: Literal["bike", "auto", "mini", "sedan"]
+    vehicle_label: str
+    seats: int
+    eta_min: int
+    fare_inr: int
+
+
+class PassengerIn(Api):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
+    age: int = Field(ge=1, le=120)
+
+
+class BookingIn(PostBody):
+    kind: Literal["train", "cab"]
+    #: Train: the task the ticket is for, where to, which train and class, and who travels.
+    task_id: str | None = None
+    destination: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=60)] | None = None
+    train_no: str | None = None
+    travel_class: Literal["SL", "3A", "2A", "1A", "CC"] | None = None
+    passengers: list[PassengerIn] = Field(default_factory=list, max_length=6)
+    #: Cab: the stop the leg goes to (a task ID, or "end") and the chosen option.
+    to_id: str | None = None
+    option_id: str | None = None
+
+
+class BookingOut(Api):
+    booking_id: str
+    trip_id: str
+    kind: Literal["train", "cab"]
+    task_id: str | None
+    to_id: str | None
+    provider: str
+    status: Literal["confirmed", "cancelled"]
+    #: The PNR for a train, the ride ID for a cab.
+    reference: str
+    fare_inr: int
+    details: dict
+    created_at: datetime
+    #: Always true: a simulated booking. Nothing real is booked or charged.
+    demo: bool = True
+
+
 class VoiceOut(Api):
     voice_id: str
     label: str

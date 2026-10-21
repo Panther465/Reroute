@@ -4,8 +4,8 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router'
-import { useDay } from '@/api/queries'
-import type { Trip } from '@/api/types'
+import { useBookings, useDay } from '@/api/queries'
+import type { Booking, Trip } from '@/api/types'
 import { checkIn } from '@/lib/actions'
 import { hhmm, lowerFirst } from '@/lib/format'
 import { useIsDesktop } from '@/lib/hooks'
@@ -13,11 +13,12 @@ import { useOpenLate } from '@/lib/late'
 import { useRooAnchor } from '@/lib/rooAnchor'
 import { useSheetOpen } from '@/lib/sheets'
 import { stopEmoji } from '@/lib/stopEmoji'
-import type { DayView } from '@/lib/timeline'
+import { activeBooking, isTrainTask } from '@/lib/bookings'
+import { addDays, localMinutes, type DayView } from '@/lib/timeline'
 
 type Mood = 'idle' | 'happy' | 'alert' | 'sleeping' | 'celebrate' | 'wave'
 // Labels avoid "Running late" and "Plan my day": those name the screens' own buttons.
-type ActionId = 'done' | 'more-time' | 'options' | 'describe' | 'plan' | 'summary' | 'today' | 'hide' | 'add' | 'edit'
+type ActionId = 'done' | 'more-time' | 'options' | 'describe' | 'plan' | 'summary' | 'today' | 'hide' | 'add' | 'edit' | 'book-train' | 'later'
 
 interface RooAction {
   id: ActionId
@@ -33,6 +34,8 @@ interface RooMessage {
   /** Shown at once and kept until answered; otherwise shown after a moment and allowed to fade. */
   urgent?: boolean
   actions?: RooAction[]
+  /** The task an action is about (the train task for "Book my ticket"). */
+  ref?: string
 }
 
 const HIDDEN_KEY = 'reroute.roo.hidden'
@@ -58,7 +61,7 @@ const store = (key: string, on: boolean) => {
 // What Roo says: read from the same day view the Today screen shows
 // ---------------------------------------------------------------------------
 
-function deriveMessage(trip: Trip | undefined, view: DayView | null, clock: number | null, path: string): RooMessage | null {
+function deriveMessage(trip: Trip | undefined, view: DayView | null, clock: number | null, path: string, bookings?: Booking[]): RooMessage | null {
   if (!trip) {
     if (path === '/plan') return { id: 'plan-new', emoji: '🧳', text: 'Pick your dates and where you’re staying. Then tell me your day!', mood: 'happy' }
     return { id: 'no-trip', emoji: '👋', text: 'No trip yet. Shall we set one up?', mood: 'wave', actions: [{ id: 'plan', label: 'Start a trip', primary: true }] }
@@ -111,6 +114,23 @@ function deriveMessage(trip: Trip | undefined, view: DayView | null, clock: numb
       mood: 'alert',
       urgent: true,
       actions: [{ id: 'more-time', label: 'Need more time' }],
+    }
+  }
+  // A train today or tomorrow with no ticket yet: offer to book one (a demo booking).
+  const train = trip.tasks.find((t) => (t.day === trip.day || t.day === addDays(trip.day, 1)) && t.state !== 'done' && t.state !== 'skipped' && isTrainTask(t) && !activeBooking(bookings, { taskId: t.taskId }))
+  if (train && bookings) {
+    const at = train.fixedStart ? hhmm(localMinutes(train.fixedStart, train.day, trip.utcOffset)) : null
+    const when = train.day === trip.day ? 'today' : 'tomorrow'
+    return {
+      id: `book-train-${train.taskId}`,
+      emoji: '🚆',
+      text: `You’re catching a train${at ? ` at ${at}` : ''} ${when}. Shall I book your ticket?`,
+      mood: 'happy',
+      ref: train.taskId,
+      actions: [
+        { id: 'book-train', label: 'Book my ticket', primary: true },
+        { id: 'later', label: 'Not now' },
+      ],
     }
   }
   if (stop && view.stops[view.nowIndex]?.id === stop.id && clock >= stop.time) {
@@ -353,7 +373,8 @@ export function Roo({ trip, clock, demoActive }: { trip: Trip | undefined; clock
   const desktop = useIsDesktop()
   const reduce = !!useReducedMotion()
   const view = useDay(trip, clock)
-  const derived = useMemo(() => deriveMessage(trip, view, clock, pathname), [trip, view, clock, pathname])
+  const bookings = useBookings(trip?.tripId)
+  const derived = useMemo(() => deriveMessage(trip, view, clock, pathname, bookings.data), [trip, view, clock, pathname, bookings.data])
 
   const [hidden, setHidden] = useState(() => stored(HIDDEN_KEY))
   const [greeted, setGreeted] = useState(() => stored(GREETED_KEY))
@@ -463,6 +484,7 @@ export function Roo({ trip, clock, demoActive }: { trip: Trip | undefined; clock
     else if (id === 'summary') navigate('/summary')
     else if (id === 'today') navigate('/')
     else if (id === 'add') navigate('/', { state: { add: Date.now() } })
+    else if (id === 'book-train' && msg?.ref) navigate('/', { state: { bookTrain: msg.ref } })
     else if (id === 'edit' && view?.checkInTask) navigate('/', { state: { stop: view.checkInTask.taskId } })
     else if (id === 'hide') {
       setHidden(true)
@@ -473,7 +495,9 @@ export function Roo({ trip, clock, demoActive }: { trip: Trip | undefined; clock
   // A menu opened by a tap takes keyboard focus; a message Roo raises by itself never does.
   const tapped = useRef(false)
   const tap = () => {
-    if (open) return close()
+    // A tap closes the menu, but over a message it opens the menu (the message can wait).
+    if (open && msg?.id === 'menu') return close()
+    if (open && msg && !override) dismissed.current.add(msg.id)
     const menu = menuFor(trip, view, pathname, clock)
     lastShown.current = menu.id
     tapped.current = true
@@ -533,8 +557,8 @@ export function Roo({ trip, clock, demoActive }: { trip: Trip | undefined; clock
               ref={artRef}
               type="button"
               onClick={tap}
-              aria-label={open ? 'Roo, your travel companion. Close the message' : 'Roo, your travel companion. Add a task or change this stop'}
-              aria-expanded={open}
+              aria-label={open && msg?.id === 'menu' ? 'Roo, your travel companion. Close the menu' : 'Roo, your travel companion. Add a task or change this stop'}
+              aria-expanded={open && msg?.id === 'menu'}
               className="flex size-12 cursor-pointer items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--focus)]"
             >
               <motion.span
@@ -596,8 +620,8 @@ export function Roo({ trip, clock, demoActive }: { trip: Trip | undefined; clock
           ref={artRef}
           type="button"
           onClick={tap}
-          aria-label={open ? 'Roo, your travel companion. Close the message' : 'Roo, your travel companion. Open the menu'}
-          aria-expanded={open}
+          aria-label={open && msg?.id === 'menu' ? 'Roo, your travel companion. Close the menu' : 'Roo, your travel companion. Open the menu'}
+          aria-expanded={open && msg?.id === 'menu'}
           className="block cursor-pointer rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--focus)]"
         >
           <motion.span className="block drop-shadow-lg" animate={body} whileHover={reduce ? undefined : { scale: 1.07 }} whileTap={reduce ? undefined : { scale: 0.9 }} data-looping="">

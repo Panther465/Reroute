@@ -188,6 +188,25 @@ class Checkin(Base):
     result: Mapped[dict | None] = mapped_column(JsonB)
 
 
+class Booking(Base):
+    """A simulated train ticket or cab ride (a demo: nothing real is booked or charged)."""
+
+    __tablename__ = "bookings"
+
+    booking_id: Mapped[str] = mapped_column(String(40), primary_key=True, default=lambda: new_id("bkg"))
+    trip_id: Mapped[str] = mapped_column(ForeignKey("trips.trip_id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(10))
+    #: The task a train ticket is for, or the stop a cab ride goes to (a task ID, or "end").
+    task_id: Mapped[str | None] = mapped_column(String(40))
+    to_id: Mapped[str | None] = mapped_column(String(40))
+    provider: Mapped[str] = mapped_column(String(20))
+    status: Mapped[str] = mapped_column(String(12), default="confirmed")
+    reference: Mapped[str] = mapped_column(String(20))
+    fare_inr: Mapped[int] = mapped_column(Integer)
+    details: Mapped[dict] = mapped_column(JsonB)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class ShareLink(Base):
     __tablename__ = "share_links"
 

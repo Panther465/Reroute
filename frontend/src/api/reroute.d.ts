@@ -448,6 +448,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/trips/{trip_id}/bookings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your simulated tickets and rides */
+        get: operations["list_bookings_v1_trips__trip_id__bookings_get"];
+        put?: never;
+        /** Book a train ticket or a cab (simulated) */
+        post: operations["create_booking_v1_trips__trip_id__bookings_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/trips/{trip_id}/train-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sample trains for a train task (demo) */
+        get: operations["train_options_v1_trips__trip_id__train_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/trips/{trip_id}/cab-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Cab choices for a leg (demo) */
+        get: operations["cab_options_v1_trips__trip_id__cab_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/trips/{trip_id}/bookings/{booking_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel a simulated booking */
+        post: operations["cancel_booking_v1_trips__trip_id__bookings__booking_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/trips/{trip_id}/share-links": {
         parameters: {
             query?: never;
@@ -548,6 +617,96 @@ export interface components {
             title: string;
             /** Reason */
             reason: string;
+        };
+        /** BookingIn */
+        BookingIn: {
+            /** Idempotencykey */
+            idempotencyKey: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "train" | "cab";
+            /** Taskid */
+            taskId?: string | null;
+            /** Destination */
+            destination?: string | null;
+            /** Trainno */
+            trainNo?: string | null;
+            /** Travelclass */
+            travelClass?: ("SL" | "3A" | "2A" | "1A" | "CC") | null;
+            /** Passengers */
+            passengers?: components["schemas"]["PassengerIn"][];
+            /** Toid */
+            toId?: string | null;
+            /** Optionid */
+            optionId?: string | null;
+        };
+        /** BookingOut */
+        BookingOut: {
+            /** Bookingid */
+            bookingId: string;
+            /** Tripid */
+            tripId: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "train" | "cab";
+            /** Taskid */
+            taskId: string | null;
+            /** Toid */
+            toId: string | null;
+            /** Provider */
+            provider: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "confirmed" | "cancelled";
+            /** Reference */
+            reference: string;
+            /** Fareinr */
+            fareInr: number;
+            /** Details */
+            details: {
+                [key: string]: unknown;
+            };
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /**
+             * Demo
+             * @default true
+             */
+            demo: boolean;
+        };
+        /** CabOptionOut */
+        CabOptionOut: {
+            /** Optionid */
+            optionId: string;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "uber" | "ola" | "rapido";
+            /** Providerlabel */
+            providerLabel: string;
+            /**
+             * Vehicle
+             * @enum {string}
+             */
+            vehicle: "bike" | "auto" | "mini" | "sedan";
+            /** Vehiclelabel */
+            vehicleLabel: string;
+            /** Seats */
+            seats: number;
+            /** Etamin */
+            etaMin: number;
+            /** Fareinr */
+            fareInr: number;
         };
         /** CalendarImportIn */
         CalendarImportIn: {
@@ -830,6 +989,13 @@ export interface components {
             items: components["schemas"]["TripSummaryOut"][];
             /** Nextcursor */
             nextCursor?: string | null;
+        };
+        /** PassengerIn */
+        PassengerIn: {
+            /** Name */
+            name: string;
+            /** Age */
+            age: number;
         };
         /** PlaceOut */
         PlaceOut: {
@@ -1278,6 +1444,48 @@ export interface components {
             fareInr: number;
             /** Waitmin */
             waitMin: number;
+        };
+        /** TrainClassOut */
+        TrainClassOut: {
+            /** Code */
+            code: string;
+            /** Label */
+            label: string;
+            /** Fareinr */
+            fareInr: number;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "available" | "rac" | "wl";
+            /** Availability */
+            availability: string;
+        };
+        /** TrainOptionOut */
+        TrainOptionOut: {
+            /** Trainno */
+            trainNo: string;
+            /** Name */
+            name: string;
+            /** Origin */
+            origin: string;
+            /** Destination */
+            destination: string;
+            /** Departs */
+            departs: string;
+            /** Arrives */
+            arrives: string;
+            /** Arrivesnextday */
+            arrivesNextDay: number;
+            /** Durationmin */
+            durationMin: number;
+            /** Classes */
+            classes: components["schemas"]["TrainClassOut"][];
+            /**
+             * Sample
+             * @default true
+             */
+            sample: boolean;
         };
         /** TransitRefOut */
         TransitRefOut: {
@@ -2420,6 +2628,185 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TripOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_bookings_v1_trips__trip_id__bookings_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_booking_v1_trips__trip_id__bookings_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BookingIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    train_options_v1_trips__trip_id__train_options_get: {
+        parameters: {
+            query: {
+                taskId: string;
+                to: string;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TrainOptionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cab_options_v1_trips__trip_id__cab_options_get: {
+        parameters: {
+            query: {
+                toId: string;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CabOptionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    cancel_booking_v1_trips__trip_id__bookings__booking_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                booking_id: string;
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BookingOut"];
                 };
             };
             /** @description Validation Error */

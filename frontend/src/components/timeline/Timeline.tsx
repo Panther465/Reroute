@@ -283,9 +283,11 @@ interface TimelineProps {
   departedFrom?: string | null
   /** Shown under a leg's card, such as its mini map. */
   legExtra?: (leg: LegView) => ReactNode
+  /** Shown under a task, today or tomorrow, such as its train ticket. */
+  taskExtra?: (taskId: string) => ReactNode
 }
 
-export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedSeq, readOnly, tomorrowLabel, departedFrom, legExtra }: TimelineProps) {
+export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedSeq, readOnly, tomorrowLabel, departedFrom, legExtra, taskExtra }: TimelineProps) {
   const reduce = !!useReducedMotion()
   const listLabel = useTl()('Today')
   const listLabelId = useId()
@@ -392,6 +394,7 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
                         <span aria-hidden="true">{content}</span>
                       </div>
                     )}
+                    {stop.kind === 'task' && taskExtra?.(stop.id)}
                   </div>
                   {stop.status === 'now' && (
                     <div className="relative z-10 col-start-1 col-end-4 row-start-2 -mt-2 mb-1">
@@ -478,7 +481,7 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
             <p className="mb-4 t-small text-muted">Reroute plans these in the morning, from where you are then.</p>
             <ol>
               {tomorrow.map((item) => (
-                <TomorrowRow key={item.id} item={item} change={change} reduce={reduce} layoutT={layoutT} />
+                <TomorrowRow key={item.id} item={item} change={change} reduce={reduce} layoutT={layoutT} extra={taskExtra?.(item.id)} />
               ))}
             </ol>
           </motion.section>
@@ -488,7 +491,7 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
   )
 }
 
-function TomorrowRow({ item, change, reduce, layoutT }: { item: TomorrowItem; change: Change | null; reduce: boolean; layoutT: object }) {
+function TomorrowRow({ item, change, reduce, layoutT, extra }: { item: TomorrowItem; change: Change | null; reduce: boolean; layoutT: object; extra?: ReactNode }) {
   const justMoved = !!change && change.kind === 'reroute' && change.movedTasks.includes(item.id) && !reduce
   return (
     <motion.li
@@ -511,6 +514,7 @@ function TomorrowRow({ item, change, reduce, layoutT }: { item: TomorrowItem; ch
       <div className="relative pb-5 pt-1">
         <span className="block t-title text-ink">{item.title}</span>
         <span className="block t-small text-muted">{item.area}</span>
+        {extra}
         <span className="mt-2 flex flex-wrap gap-2">
           {item.moved ? <Tag tone="grey-outline">Moved from today</Tag> : item.task.fixedStart ? <Tag tone="ink">Fixed {item.task.fixedStart}</Tag> : null}
         </span>

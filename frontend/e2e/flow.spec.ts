@@ -117,6 +117,44 @@ test("a task that can't fit today moves to tomorrow in one tap", async ({ page }
   await expect(page.getByRole('region', { name: /Notifications/ }).getByRole('listitem').filter({ hasText: 'The bank moved to Thursday' })).toBeVisible({ timeout: 30_000 })
 })
 
+test('book a train ticket and a cab (simulated)', async ({ page }) => {
+  test.setTimeout(150_000)
+  await planFreshDay(page)
+  const main = page.getByRole('main')
+
+  // Tomorrow's train offers a ticket.
+  await main.getByRole('button', { name: 'Book train ticket' }).first().click()
+  let sheet = page.getByRole('dialog', { name: /Book your train ticket/ })
+  await expect(sheet.getByText(/nothing real is booked/)).toBeVisible()
+  await sheet.getByLabel('Where to?').fill('Chennai')
+  await sheet.getByRole('button', { name: 'Find trains' }).click()
+  const firstClass = sheet.getByRole('radio').first()
+  await expect(firstClass).toBeAttached({ timeout: 20_000 })
+  await firstClass.focus()
+  await page.keyboard.press('Space')
+  await sheet.getByRole('button', { name: /^Continue with/ }).click()
+  await sheet.getByLabel('Passenger 1').fill('Arjun Mehta')
+  await sheet.getByLabel('Age').fill('34')
+  await sheet.getByRole('button', { name: 'Review and pay' }).click()
+  await sheet.getByRole('button', { name: /^Pay ₹/ }).click()
+  const ticket = page.getByRole('dialog', { name: 'Your train ticket' })
+  await expect(ticket.getByText(/^PNR \d{10}$/)).toBeVisible({ timeout: 30_000 })
+  await page.keyboard.press('Escape')
+  await expect(main.getByRole('button', { name: /^PNR \d{10}/ })).toBeVisible()
+
+  // A leg offers a cab; the ride shows its OTP.
+  await main.getByRole('button', { name: 'Book a cab' }).first().click()
+  sheet = page.getByRole('dialog', { name: 'Book a ride' })
+  const firstRide = sheet.getByRole('radio').first()
+  await expect(firstRide).toBeVisible({ timeout: 20_000 })
+  await firstRide.check()
+  await sheet.getByRole('button', { name: /^Book .* \(demo\)$/ }).click()
+  const ride = page.getByRole('dialog', { name: 'Your ride' })
+  await expect(ride.getByText('OTP for the driver')).toBeVisible({ timeout: 30_000 })
+  await page.keyboard.press('Escape')
+  await expect(main.getByRole('button', { name: /OTP \d{4}/ })).toBeVisible()
+})
+
 test('Roo rides the timeline: tap it to add a task', async ({ page }) => {
   test.setTimeout(120_000)
   await planFreshDay(page)

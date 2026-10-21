@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import session_scope
-from app.models import Checkin, Place, Plan, RerouteLog, ShareLink, Task, Trip, User
+from app.models import Booking, Checkin, Place, Plan, RerouteLog, ShareLink, Task, Trip, User
 
 log = logging.getLogger("reroute.seed")
 
@@ -75,7 +75,7 @@ def _tasks(trip: Trip, data: dict) -> list[Task]:
 def reset_demo_trip(db: Session, trip: Trip) -> None:
     """Put the sample day back to its start: no plans, no check-ins, the four sample tasks."""
     data = _demo_file()
-    for model in (Checkin, RerouteLog, ShareLink, Plan, Task):
+    for model in (Booking, Checkin, RerouteLog, ShareLink, Plan, Task):
         db.execute(delete(model).where(model.trip_id == trip.trip_id))
     db.flush()
     db.add_all(_tasks(trip, data))

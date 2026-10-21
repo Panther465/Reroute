@@ -1,8 +1,8 @@
-import { BellRing, ChevronDown, CircleCheck, LocateFixed, Map as MapIcon, MapPinned, Navigation, Plus, Route, Share2, X } from 'lucide-react'
+import { BellRing, Car, ChevronDown, CircleCheck, LocateFixed, Map as MapIcon, MapPinned, Navigation, Plus, Route, Share2, TrainFront, X } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation as useRouterLocation, useNavigate } from 'react-router'
-import { useCurrentTripId, useDay, useTrip } from '@/api/queries'
-import type { Trip } from '@/api/types'
+import { useBookings, useCurrentTripId, useDay, useTrip } from '@/api/queries'
+import type { Booking, Task, Trip } from '@/api/types'
 import { NextCard } from '@/components/NextCard'
 import { StatusPill } from '@/components/StatusPill'
 import { Timeline } from '@/components/timeline/Timeline'
@@ -15,6 +15,7 @@ import { ApiError } from '@/api/client'
 import { applyServerChange, checkIn, moveTaskToDay, playLater, playTaskEdit, replanDay, undo, undoVersionOf } from '@/lib/actions'
 import { duration, lowerFirst } from '@/lib/format'
 import { stopEmoji } from '@/lib/stopEmoji'
+import { activeBooking, isTrainTask } from '@/lib/bookings'
 import type { MapPoint } from '@/components/MapCard'
 import { legLines, type MapLine } from '@/lib/geo'
 import { useDayGuide } from '@/lib/dayAlerts'
@@ -34,6 +35,9 @@ const ShareSheet = lazy(() => import('./ShareSheet').then((m) => ({ default: m.S
 const TaskSheet = lazy(() => import('./TaskSheet').then((m) => ({ default: m.TaskSheet })))
 const RerouteLog = lazy(() => import('@/components/RerouteLog').then((m) => ({ default: m.RerouteLog })))
 const CheckInConfirm = lazy(() => import('./CheckInConfirm').then((m) => ({ default: m.CheckInConfirm })))
+const TrainBookingSheet = lazy(() => import('./BookingSheets').then((m) => ({ default: m.TrainBookingSheet })))
+const CabBookingSheet = lazy(() => import('./BookingSheets').then((m) => ({ default: m.CabBookingSheet })))
+const BookingSheet = lazy(() => import('./BookingSheets').then((m) => ({ default: m.BookingSheet })))
 const AiPlannerSheet = lazy(() => import('./AiPlannerSheet').then((m) => ({ default: m.AiPlannerSheet })))
 const TripSwitcher = lazy(() => import('@/components/TripSwitcher').then((m) => ({ default: m.TripSwitcher })))
 
@@ -204,6 +208,12 @@ export default function Today() {
   const addBefore = useRef<DayView | null>(null)
   const [tripsOpen, setTripsOpen] = useState(false)
   const [mapSeq, setMapSeq] = useState<number | null>(null)
+  // Simulated bookings: the train ticket or cab being booked, and the booking being viewed.
+  const bookings = useBookings(current.tripId)
+  const [trainFor, setTrainFor] = useState<Task | null>(null)
+  const [cabFor, setCabFor] = useState<{ toId: string; name: string } | null>(null)
+  const [viewing, setViewing] = useState<Booking | null>(null)
+  const bookingLoaded = useLoadedOnce(!!trainFor || !!cabFor || !!viewing)
   const tripsLoaded = useLoadedOnce(tripsOpen)
   const logLoaded = useLoadedOnce(logOpen)
   const shareLoaded = useLoadedOnce(shareOpen)
@@ -242,13 +252,14 @@ export default function Today() {
   // Roo on the timeline asks for "Add a task" or "Edit this stop"; do it here, then clear the request.
   const routerLocation = useRouterLocation()
   useEffect(() => {
-    const ask = routerLocation.state as { add?: number; stop?: string } | null
+    const ask = routerLocation.state as { add?: number; stop?: string; bookTrain?: string } | null
     if (!ask || !view) return
     if (ask.add) {
       addBefore.current = view
       setAddOpen(true)
     }
     if (ask.stop) setStop(view.stops.find((s) => s.id === ask.stop) ?? null)
+    if (ask.bookTrain) setTrainFor(trip?.tasks.find((t) => t.taskId === ask.bookTrain) ?? null)
     navigate(routerLocation.pathname, { replace: true, state: null })
   }, [routerLocation.state, view]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -358,6 +369,34 @@ export default function Today() {
   )
   const tripSheets = (
     <Suspense fallback={null}>
+      {bookingLoaded && trainFor && (
+        <TrainBookingSheet
+          key={trainFor.taskId}
+          trip={trip}
+          task={trainFor}
+          open
+          onOpenChange={(o) => !o && setTrainFor(null)}
+          onBooked={(b) => {
+            setTrainFor(null)
+            setViewing(b)
+          }}
+        />
+      )}
+      {bookingLoaded && cabFor && (
+        <CabBookingSheet
+          key={cabFor.toId}
+          trip={trip}
+          toId={cabFor.toId}
+          toName={cabFor.name}
+          open
+          onOpenChange={(o) => !o && setCabFor(null)}
+          onBooked={(b) => {
+            setCabFor(null)
+            setViewing(b)
+          }}
+        />
+      )}
+      {bookingLoaded && <BookingSheet trip={trip} booking={viewing} onOpenChange={(o) => !o && setViewing(null)} />}
       {tripsLoaded && <TripSwitcher open={tripsOpen} onOpenChange={setTripsOpen} />}
       {logLoaded && <RerouteLog trip={trip} open={logOpen} onOpenChange={setLogOpen} />}
       {shareLoaded && <ShareSheet trip={trip} open={shareOpen} onOpenChange={setShareOpen} />}
@@ -536,23 +575,35 @@ export default function Today() {
       const at = places.get(i ? leg.toPlaceId : leg.fromPlaceId)
       return stop && at ? [{ id: `leg-${leg.seq}-${i}`, lngLat: at, kind: 'stop' as const, label: stop.title, emoji: stopEmoji(stop.title, stop.kind), state: i ? 'next' : 'later' }] : []
     })
+  const linkButton = '-ml-1 inline-flex min-h-11 items-center gap-1.5 rounded-control px-1 t-small font-bold text-ink underline decoration-2 underline-offset-4'
   const legMap = (leg: LegView) => {
     if (leg.status === 'done') return null
     const open = mapSeq === leg.seq
     const to = view.stops.find((s) => s.id === leg.toId)
     const regionId = `leg-map-${leg.seq}`
+    // A booked ride shows its driver, plate and OTP; otherwise the leg offers a (demo) cab.
+    const ride = activeBooking(bookings.data, { toId: leg.toId })
     return (
       <div className="mt-1.5">
-        <button
-          type="button"
-          aria-expanded={open}
-          aria-controls={open ? regionId : undefined}
-          onClick={() => setMapSeq(open ? null : leg.seq)}
-          className="-ml-1 inline-flex min-h-11 items-center gap-1.5 rounded-control px-1 t-small font-bold text-ink underline decoration-2 underline-offset-4"
-        >
-          <MapIcon size={18} strokeWidth={1.75} aria-hidden="true" />
-          {open ? 'Hide map' : 'Map'}
-        </button>
+        <div className="flex flex-wrap items-center gap-x-4">
+          {!desktop && (
+            <button type="button" aria-expanded={open} aria-controls={open ? regionId : undefined} onClick={() => setMapSeq(open ? null : leg.seq)} className={linkButton}>
+              <MapIcon size={18} strokeWidth={1.75} aria-hidden="true" />
+              {open ? 'Hide map' : 'Map'}
+            </button>
+          )}
+          {ride ? (
+            <button type="button" onClick={() => setViewing(ride)} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-green bg-green-tint px-3 t-small font-bold text-ink">
+              <span aria-hidden="true">🚕</span>
+              {String(ride.details.providerLabel)} · {String(ride.details.plate)} · OTP {String(ride.details.otp)}
+            </button>
+          ) : (
+            <button type="button" onClick={() => setCabFor({ toId: leg.toId, name: to?.title ?? 'the next stop' })} className={linkButton}>
+              <Car size={18} strokeWidth={1.75} aria-hidden="true" />
+              Book a cab
+            </button>
+          )}
+        </div>
         {open && (
           <div id={regionId} className="relative mt-1">
             <Suspense fallback={<Skeleton className="h-44 w-full rounded-card" />}>
@@ -562,6 +613,24 @@ export default function Today() {
           </div>
         )}
       </div>
+    )
+  }
+
+  // A train task offers its (demo) ticket; once booked, the stop shows the PNR and status.
+  const trainExtra = (taskId: string) => {
+    const task = trip.tasks.find((t) => t.taskId === taskId)
+    if (!task || !isTrainTask(task) || task.state === 'done') return null
+    const ticket = activeBooking(bookings.data, { taskId: task.taskId })
+    return ticket ? (
+      <button type="button" onClick={() => setViewing(ticket)} className="mt-1 inline-flex min-h-11 items-center gap-2 rounded-full border border-green bg-green-tint px-3 t-small font-bold text-ink">
+        <span aria-hidden="true">🎫</span>
+        PNR {ticket.reference} · {String(ticket.details.bookingStatus)}
+      </button>
+    ) : (
+      <button type="button" onClick={() => setTrainFor(task)} className={`mt-1 ${linkButton}`}>
+        <TrainFront size={18} strokeWidth={1.75} aria-hidden="true" />
+        Book train ticket
+      </button>
     )
   }
 
@@ -576,7 +645,8 @@ export default function Today() {
       selectedSeq={selectedSeq}
       tomorrowLabel={dayLabel(addDays(trip.day, 1))}
       departedFrom={guide?.riding ? guide.leg.fromId : null}
-      legExtra={desktop ? undefined : legMap}
+      legExtra={legMap}
+      taskExtra={trainExtra}
     />
   )
   const estimates = <p className="mt-2 t-small text-muted">Times and fares are estimates.</p>

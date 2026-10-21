@@ -5,7 +5,7 @@ import { useQueued } from '@/lib/offlineQueue'
 import { useStore } from '@/lib/store'
 import { buildDay } from '@/lib/timeline'
 import { api, ApiError } from './client'
-import type { Contribution, ContributionsPage, Job, Place, RaastaLegOptions, RaastaRoute, SharedTrip, StandsPage, Summary, Trip, TripsPage, User } from './types'
+import type { Booking, Contribution, ContributionsPage, Job, Place, RaastaLegOptions, RaastaRoute, SharedTrip, StandsPage, Summary, Trip, TripsPage, User } from './types'
 import { useSessionStatus } from '@/lib/session'
 
 export const queryClient = new QueryClient({
@@ -35,11 +35,12 @@ export const keys = {
   stands: (near: string) => ['raasta', 'stands', near] as const,
   queue: (status: string) => ['raasta', 'queue', status] as const,
   roadPath: (from: string, to: string, profile: string) => ['road', from, to, profile] as const,
+  bookings: (tripId: string) => ['bookings', tripId] as const,
 }
 
 /** Which queries survive a reload (the rest are cheap to refetch). */
 export function persistable(key: readonly unknown[]) {
-  return ['me', 'trips', 'trip', 'summary', 'raasta', 'road'].includes(String(key[0]))
+  return ['me', 'trips', 'trip', 'summary', 'raasta', 'road', 'bookings'].includes(String(key[0]))
 }
 
 export function useMe(enabled = true) {
@@ -58,6 +59,12 @@ export function useCurrentTripId(): { tripId: string | null; isPending: boolean;
   const items = q.data?.items ?? []
   const tripId = (chosen && items.some((t) => t.tripId === chosen) ? chosen : items[0]?.tripId) ?? null
   return { tripId, isPending: q.isPending, isError: q.isError, error: q.error, refetch: () => void q.refetch() }
+}
+
+/** The trip's simulated tickets and rides (kept on the phone, so a ticket shows offline). */
+export function useBookings(tripId: string | null | undefined) {
+  const signedIn = useSessionStatus() === 'signedIn'
+  return useQuery({ queryKey: keys.bookings(tripId ?? 'none'), queryFn: () => api.get<Booking[]>(`/v1/trips/${tripId}/bookings`), enabled: !!tripId && signedIn })
 }
 
 export function useTrip(tripId: string | null) {
