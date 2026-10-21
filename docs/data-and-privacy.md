@@ -21,6 +21,12 @@ What Reroute keeps, why, for how long, and how to delete it, in line with India'
 
 Payment details, passwords, government ID numbers, contacts, or location outside an active trip.
 
+## Live location on the map
+
+"Show me on the map" (Me, or tapping "I've left") follows the phone's location while Reroute is open, to draw the blue dot, measure the distance left and say when you're nearly there. **The position stays on the phone:** it is never sent to Reroute's servers or stored. Browsers stop following when the phone locks or the app is closed. Turn it off in Me at any time.
+
+Road shapes for the map come from the public OSRM server through Reroute's API: only the coordinates of the two stops of a leg are sent (never your live position), and answers are cached for 30 days.
+
 ## Family view
 
 A share link shows stops and progress. It never shows coordinates or your exact location. Links are 128 random bits, stored only as a hash, expire when the trip ends, and stop working the moment you revoke them.

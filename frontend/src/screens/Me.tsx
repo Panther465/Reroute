@@ -11,6 +11,8 @@ import { Sheet } from '@/components/ui/Sheet'
 import { ErrorState, Skeleton } from '@/components/ui/States'
 import { useDocumentTitle, useOnline } from '@/lib/hooks'
 import { T, useTl } from '@/lib/i18n'
+import { raise } from '@/lib/alerts'
+import { geolocationSupported, startTracking, stopTracking, useLocation } from '@/lib/location'
 import { signOut } from '@/lib/session'
 import { setState, showToast, useStore, type Lang, type Theme } from '@/lib/store'
 
@@ -28,6 +30,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 const notificationsSupported = typeof window !== 'undefined' && 'Notification' in window
+const vibrationSupported = typeof navigator !== 'undefined' && 'vibrate' in navigator
 
 export default function Me() {
   const tl = useTl()
@@ -39,6 +42,8 @@ export default function Me() {
   const theme = useStore((s) => s.theme)
   const lang = useStore((s) => s.lang)
   const alerts = useStore((s) => s.leaveAlerts)
+  const alertPrefs = useStore((s) => s.alerts)
+  const location = useLocation()
   const [confirm, setConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [log, setLog] = useState(false)
@@ -139,15 +144,43 @@ export default function Me() {
         />
       </Section>
 
-      {notificationsSupported && (
-        <Section title="Notifications">
-          <div className="rounded-card border border-line bg-surface px-4">
+      <Section title="Alerts">
+        <p className="mb-3 t-small text-ink-2">Before you leave, when a task is about to end, when you're nearly there and when you arrive. Every alert also shows on screen.</p>
+        <div className="divide-y divide-line rounded-card border border-line bg-surface px-4">
+          <Switch label="Sound" description="A short chime." checked={alertPrefs.sound} onChange={(v) => setState((s) => ({ alerts: { ...s.alerts, sound: v } }))} />
+          <Switch label="Roo says it" description="Roo reads the alert aloud." checked={alertPrefs.voice} onChange={(v) => setState((s) => ({ alerts: { ...s.alerts, voice: v } }))} />
+          {vibrationSupported && <Switch label="Vibration" description="A short buzz." checked={alertPrefs.vibrate} onChange={(v) => setState((s) => ({ alerts: { ...s.alerts, vibrate: v } }))} />}
+          {notificationsSupported && (
             <Switch
-              label={tl('Time to leave').text}
-              lang={tl('Time to leave').lang}
-              description="A notification about 10 minutes before each leave-by time. Alerts appear while Reroute is open or in the background on this phone, not after it's closed."
+              label={tl('Phone notifications').text}
+              lang={tl('Phone notifications').lang}
+              description="When Reroute is in the background. They show while it's open on this phone, not after it's closed."
               checked={alerts}
               onChange={(v) => void toggleAlerts(v)}
+            />
+          )}
+        </div>
+        <Button
+          variant="secondary"
+          size="md"
+          className="mt-3"
+          onClick={() => raise({ key: 'test', title: 'This is how Reroute tells you it’s time.', speech: 'Hi, it’s Roo. This is how I’ll tell you it’s time to go.' }, { force: true })}
+        >
+          Try an alert
+        </Button>
+      </Section>
+
+      {geolocationSupported && (
+        <Section title="Location">
+          <div className="rounded-card border border-line bg-surface px-4">
+            <Switch
+              label="Show me on the map"
+              description="Follows you while Reroute is open, to show where you are on the route and say when you're nearly there. Your location stays on this phone."
+              checked={location.tracking && !location.simulated}
+              onChange={async (v) => {
+                if (!v) return stopTracking()
+                if (!(await startTracking())) showToast({ title: location.error === 'denied' ? 'Location is off for Reroute in your browser settings.' : "Couldn't find your location. Try again outside or near a window." })
+              }}
             />
           </div>
         </Section>

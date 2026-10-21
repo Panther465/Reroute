@@ -6,6 +6,7 @@ import { Tag } from '@/components/ui/Tag'
 import { duration, hhmm, rupees, spokenDuration } from '@/lib/format'
 import { T, useTl } from '@/lib/i18n'
 import { stopEmoji } from '@/lib/stopEmoji'
+import { setRooAnchor } from '@/lib/rooAnchor'
 import type { Change } from '@/lib/store'
 import type { DayView, LegView, StopView, TomorrowItem } from '@/lib/timeline'
 import type { Mode, Segment } from '@/lib/types'
@@ -278,9 +279,11 @@ interface TimelineProps {
   selectedSeq?: number | null
   readOnly?: boolean
   tomorrowLabel: string
+  /** The stop the traveller said they left ("I've left"), before the clock gets there. */
+  departedFrom?: string | null
 }
 
-export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedSeq, readOnly, tomorrowLabel }: TimelineProps) {
+export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedSeq, readOnly, tomorrowLabel, departedFrom }: TimelineProps) {
   const reduce = !!useReducedMotion()
   const listLabel = useTl()('Today')
   const listLabelId = useId()
@@ -321,14 +324,15 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
             const tags = stopTags(stop)
             const interactive = stop.kind === 'task' && !readOnly
             const finished = stop.status === 'done' || stop.task?.state === 'done'
-            const here = stop.status === 'now' && riding?.toId !== stop.id
+            const here = stop.status === 'now' && riding?.toId !== stop.id && departedFrom !== stop.id
             const content = (
               <>
                 <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
                   <span className={`t-title transition-colors duration-[var(--dur-quick)] ${finished ? 'text-ink-2' : 'text-ink'}`}>{stop.title}</span>
                   {finished && stop.kind === 'task' && <Tag tone="green">Done</Tag>}
                   {here && <Tag tone="yellow">You're here</Tag>}
-                  {stop.status === 'now' && !here && <Tag tone="yellow">On the way</Tag>}
+                  {stop.status === 'now' && riding?.toId === stop.id && <Tag tone="yellow">On the way</Tag>}
+                  {departedFrom === stop.id && <Tag tone="sunken">You’ve left</Tag>}
                 </span>
                 <span className="mt-0.5 block t-small text-muted">{stop.area}</span>
                 {stop.kind === 'task' && stop.task!.durationMin > 0 && !finished && (
@@ -391,6 +395,8 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
                     <div className="relative z-10 col-start-1 col-end-4 row-start-2 -mt-2 mb-1">
                       <NowBar clock={clock} />
                       <span className="sr-only">Now {hhmm(clock)}</span>
+                      {/* Roo rides here, on the Now line, and moves with it through the day. */}
+                      {!readOnly && <span ref={setRooAnchor} className="absolute -top-3 right-0" />}
                     </div>
                   )}
                 </motion.li>

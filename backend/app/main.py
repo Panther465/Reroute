@@ -14,7 +14,7 @@ from app.config import get_settings
 from app.db import engine
 from app.middleware import GuardMiddleware, TraceIdMiddleware
 from app.redis_client import get_redis, get_redis_bytes
-from app.routes import auth, live, me, places, share, trips
+from app.routes import auth, live, me, places, roads, share, trips
 
 log = logging.getLogger("reroute")
 
@@ -34,7 +34,7 @@ def create_app() -> FastAPI:
     # Order matters: the trace ID wraps everything, so even guard errors carry it.
     app.add_middleware(GuardMiddleware)
     app.add_middleware(TraceIdMiddleware)
-    for module in (auth, me, places, trips, share, live):
+    for module in (auth, me, places, roads, trips, share, live):
         app.include_router(module.router)
 
     @app.get("/v1/healthz", tags=["health"], include_in_schema=False)

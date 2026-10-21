@@ -34,11 +34,12 @@ export const keys = {
   legOptions: (from: string, to: string) => ['raasta', 'options', from, to] as const,
   stands: (near: string) => ['raasta', 'stands', near] as const,
   queue: (status: string) => ['raasta', 'queue', status] as const,
+  roadPath: (from: string, to: string, profile: string) => ['road', from, to, profile] as const,
 }
 
 /** Which queries survive a reload (the rest are cheap to refetch). */
 export function persistable(key: readonly unknown[]) {
-  return ['me', 'trips', 'trip', 'summary', 'raasta'].includes(String(key[0]))
+  return ['me', 'trips', 'trip', 'summary', 'raasta', 'road'].includes(String(key[0]))
 }
 
 export function useMe(enabled = true) {

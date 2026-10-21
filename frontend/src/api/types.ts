@@ -34,6 +34,7 @@ export type Summary = S['SummaryOut']
 export type TaskDraft = S['TaskDraftOut']
 export type TaskEdit = S['TaskEditOut']
 export type TaskAdded = S['TaskAddOut']
+export type RoadPath = S['RoadPathOut']
 export type ReasonCode = Plan['reasonCodes'][number]
 export type Mode = Leg['mode']
 

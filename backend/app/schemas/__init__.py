@@ -465,6 +465,14 @@ class AiHelperIn(PostBody):
     text: Annotated[str, StringConstraints(min_length=3, max_length=2000)]
 
 
+class RoadPathOut(Api):
+    #: [lng, lat] pairs along the roads; just the two ends when `source` is "line".
+    coords: list[list[float]]
+    distance_m: int
+    duration_s: int
+    source: Literal["road", "line"]
+
+
 class TaskDraftOut(Api):
     title: str
     place_text: str

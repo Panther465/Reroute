@@ -430,6 +430,93 @@
         }
       }
     },
+    "/v1/road-path": {
+      "get": {
+        "tags": [
+          "maps"
+        ],
+        "summary": "A leg's path along the roads, for the map",
+        "operationId": "road_path_v1_road_path_get",
+        "parameters": [
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^-?\\d{1,3}(\\.\\d{1,8})?,-?\\d{1,2}(\\.\\d{1,8})?$",
+              "description": "lng,lat",
+              "title": "From"
+            },
+            "description": "lng,lat"
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^-?\\d{1,3}(\\.\\d{1,8})?,-?\\d{1,2}(\\.\\d{1,8})?$",
+              "description": "lng,lat",
+              "title": "To"
+            },
+            "description": "lng,lat"
+          },
+          {
+            "name": "profile",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "driving",
+                "foot"
+              ],
+              "type": "string",
+              "default": "driving",
+              "title": "Profile"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoadPathOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/trips": {
       "post": {
         "tags": [
@@ -3061,6 +3148,44 @@
         ],
         "title": "PostBody",
         "description": "Every POST carries an idempotency key (section 13)."
+      },
+      "RoadPathOut": {
+        "properties": {
+          "coords": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Coords"
+          },
+          "distanceM": {
+            "type": "integer",
+            "title": "Distancem"
+          },
+          "durationS": {
+            "type": "integer",
+            "title": "Durations"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "road",
+              "line"
+            ],
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "coords",
+          "distanceM",
+          "durationS",
+          "source"
+        ],
+        "title": "RoadPathOut"
       },
       "SegmentOut": {
         "properties": {

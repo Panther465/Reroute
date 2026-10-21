@@ -15,6 +15,8 @@ import { Banner, EmptyState, ErrorState, LoadingRegion, Skeleton } from '@/compo
 import { Tag } from '@/components/ui/Tag'
 import { duration, lowerFirst, rupees } from '@/lib/format'
 import { legLines, placeIndex, routeLine, type LngLat, type MapLine } from '@/lib/geo'
+import { useLocation as useLiveLocation } from '@/lib/location'
+import { useRoadPaths } from '@/lib/roads'
 import { useDocumentTitle, useIsDesktop } from '@/lib/hooks'
 import { T } from '@/lib/i18n'
 import { setState, showToast, useStore } from '@/lib/store'
@@ -118,7 +120,7 @@ export function directionsFor(leg: LegView, from: { name: string; area: string }
   return steps
 }
 
-function modelForLeg(trip: Trip, leg: LegView, route?: RaastaRoute): DetailModel {
+function modelForLeg(trip: Trip, leg: LegView, route?: RaastaRoute, road?: LngLat[]): DetailModel {
   const from = stopName(trip, leg.fromPlaceId)
   const to = stopName(trip, leg.toPlaceId)
   const places = placeIndex(trip)
@@ -135,7 +137,8 @@ function modelForLeg(trip: Trip, leg: LegView, route?: RaastaRoute): DetailModel
     route,
     fare: route ? `About ${rupees(route.fareInr)} a person` : leg.fareInr ? `About ${rupees(leg.fareInr)} in total` : 'Free',
     leg,
-    lines: legLines(leg, places, false, path),
+    // A Raasta route follows its stands; any other leg follows the roads once its path has loaded.
+    lines: legLines(leg, places, false, path ?? road),
     points: [
       ...(places.get(leg.fromPlaceId) ? [{ id: 'a', lngLat: places.get(leg.fromPlaceId)!, kind: 'stop' as const, label: from.name }] : []),
       ...(route ? route.stands.map((s) => ({ id: s.standId, lngLat: [s.location.lng, s.location.lat] as LngLat, kind: 'stand' as const, label: s.name })) : []),
@@ -203,6 +206,7 @@ export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailM
   const [fareKey, setFareKey] = useState(() => newKey('fare'))
   const r = model.route
   const leg = model.leg
+  const { fix } = useLiveLocation()
   const tripId = useCurrentTripId().tripId
   const startedTo = useStore((s) => (s.started && s.started.tripId === tripId ? s.started.toId : null))
   const isStarted = !!leg && startedTo === leg.toId
@@ -365,7 +369,7 @@ export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailM
       {!embedded && (
         <div className="mt-6">
           <Suspense fallback={<Skeleton className="h-64 w-full rounded-card" />}>
-            <MapCard lines={model.lines} points={model.points} label={`Map of ${model.title}`} className="h-64" />
+            <MapCard lines={model.lines} points={model.points} label={`Map of ${model.title}`} className="h-64" me={fix} />
           </Suspense>
         </div>
       )}
@@ -389,7 +393,9 @@ export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailM
 
 export function LegDetailContent({ trip, leg, embedded }: { trip: Trip; leg: LegView; embedded?: boolean }) {
   const route = useRaastaRoute(leg.raasta?.routeId)
-  const model = useMemo(() => modelForLeg(trip, leg, route.data), [trip, leg, route.data])
+  const places = useMemo(() => placeIndex(trip), [trip])
+  const road = useRoadPaths([leg], places).get(leg.seq)
+  const model = useMemo(() => modelForLeg(trip, leg, route.data, road), [trip, leg, route.data, road])
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.24 }}>
       <DetailBody model={model} embedded={embedded} nowIso={trip.now} />
@@ -431,7 +437,9 @@ export default function LegDetail() {
   const leg = view?.legs.find((l) => String(l.seq) === seq)
   const route = useRaastaRoute(leg?.raasta?.routeId)
   const back = useBack('/')
-  const model = useMemo(() => (leg && tripQ.data ? modelForLeg(tripQ.data, leg, route.data) : null), [leg, tripQ.data, route.data])
+  const legPlaces = useMemo(() => (tripQ.data ? placeIndex(tripQ.data) : new Map()), [tripQ.data])
+  const road = useRoadPaths(leg ? [leg] : [], legPlaces).get(leg?.seq ?? -1)
+  const model = useMemo(() => (leg && tripQ.data ? modelForLeg(tripQ.data, leg, route.data, road) : null), [leg, tripQ.data, route.data, road])
   useDocumentTitle(model?.title ?? 'Leg')
   const loading = tripQ.isPending || (leg?.raasta && route.isPending)
   return (
