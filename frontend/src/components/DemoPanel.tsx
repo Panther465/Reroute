@@ -92,9 +92,16 @@ export function DemoPanel({ trip, onLate }: { trip: Trip | undefined; onLate: (d
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button type="button" className="fixed bottom-[calc(148px+env(safe-area-inset-bottom))] left-4 z-40 flex min-h-11 items-center gap-2 rounded-full border border-line bg-surface/90 px-3.5 t-small text-ink-2 shadow-sm backdrop-blur-sm lg:bottom-6 lg:left-auto lg:right-6">
+        {/* A round icon on phones, so it doesn't cover the page; its name stays "Simulate". */}
+        <button
+          type="button"
+          aria-label="Simulate"
+          className="fixed bottom-[calc(148px+env(safe-area-inset-bottom))] left-3 z-40 flex size-11 items-center justify-center gap-2 rounded-full border border-line bg-surface/95 t-small text-ink-2 shadow-sm backdrop-blur-sm lg:bottom-6 lg:left-auto lg:right-6 lg:w-auto lg:px-3.5"
+        >
           <SlidersHorizontal size={20} strokeWidth={1.75} aria-hidden="true" />
-          Simulate
+          <span aria-hidden="true" className="hidden lg:inline">
+            Simulate
+          </span>
         </button>
       </Popover.Trigger>
       <Popover.Portal>

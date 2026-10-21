@@ -12,14 +12,14 @@ import { Field, FieldError } from '@/components/ui/Field'
 import { Sheet } from '@/components/ui/Sheet'
 import { Banner, ErrorState, LoadingRegion, Skeleton } from '@/components/ui/States'
 import { Tag } from '@/components/ui/Tag'
-import { addTask, saveTaskEdit, type EditOutcome } from '@/lib/actions'
+import { addTask, moveTaskToDay, saveTaskEdit, type EditOutcome } from '@/lib/actions'
 import { duration, hhmm } from '@/lib/format'
 import { CALENDAR_SCOPE, googleEnabled, requestGoogleCode } from '@/lib/google'
 import { useDocumentTitle, useOnline } from '@/lib/hooks'
 import { T } from '@/lib/i18n'
 import { stopEmoji } from '@/lib/stopEmoji'
 import { nextToken, setState, showToast } from '@/lib/store'
-import { buildDay, dayLabel, localMinutes, weekday } from '@/lib/timeline'
+import { addDays, buildDay, dayLabel, localMinutes, weekday } from '@/lib/timeline'
 import { AiPlannerSheet } from './AiPlannerSheet'
 import { TaskFormSheet, tripDays } from './TaskForm'
 
@@ -46,7 +46,24 @@ function sortKey(t: Task, trip: Trip, planned: Map<string, { start: number }>) {
 }
 
 /** One task: its icon, name and place, when it's planned, its tags, and anything wrong with it. */
-function TaskRow({ task, trip, when, issue, disabled, onOpen }: { task: Task; trip: Trip; when?: { start: number; end: number }; issue?: string; disabled: boolean; onOpen: () => void }) {
+function TaskRow({
+  task,
+  trip,
+  when,
+  issue,
+  disabled,
+  onOpen,
+  move,
+}: {
+  task: Task
+  trip: Trip
+  when?: { start: number; end: number }
+  issue?: string
+  disabled: boolean
+  onOpen: () => void
+  /** The fix for a task that can't fit today: move it to the next day (beside the row, not inside its button). */
+  move?: { label: string; busy: boolean; onMove: () => void }
+}) {
   const done = task.state === 'done' || task.state === 'skipped'
   return (
     <li>
@@ -76,6 +93,13 @@ function TaskRow({ task, trip, when, issue, disabled, onOpen }: { task: Task; tr
         </span>
         {!done && !disabled && <ChevronRight size={20} strokeWidth={1.75} aria-hidden="true" className="mt-2.5 shrink-0 text-muted" />}
       </button>
+      {move && (
+        <div className="-mt-1 pb-4 pl-[4.25rem] pr-4">
+          <Button variant="secondary" size="md" loading={move.busy} loadingLabel="Moving…" disabled={disabled} onClick={move.onMove}>
+            {move.label}
+          </Button>
+        </div>
+      )}
     </li>
   )
 }
@@ -312,6 +336,7 @@ export default function PlanDay() {
     if (state?.openAi || state?.newTrip) navigate(location.pathname, { replace: true, state: null })
   }, [location.state, location.pathname, navigate])
   const [tripsOpen, setTripsOpen] = useState(false)
+  const [moving, setMoving] = useState<string | null>(null)
   const openForm = (task: Task | null) => {
     if (!task) setCreateKey(newKey('task'))
     setForm({ open: true, task })
@@ -386,6 +411,21 @@ export default function PlanDay() {
   const open = trip.tasks.filter((x) => x.state !== 'done' && x.state !== 'skipped')
   // Say which tasks the active plan leaves out, so none of them quietly disappears.
   const dayView = trip.activePlan ? buildDay(trip) : null
+  // A task the plan leaves out can move to the next day of the trip in one tap, as on Today.
+  const leftOutIds = new Set((dayView?.leftOut ?? []).map((x) => x.taskId))
+  const nextDay = addDays(trip.day, 1) <= trip.endDate ? addDays(trip.day, 1) : null
+  const moveToNextDay = async (task: Task) => {
+    if (!nextDay) return
+    setMoving(task.taskId)
+    try {
+      await moveTaskToDay(trip.tripId, task.taskId, nextDay, dayView)
+      showToast({ title: `The ${task.title.charAt(0).toLowerCase()}${task.title.slice(1)} moved to ${weekday(nextDay)}.` })
+    } catch (err) {
+      showToast({ title: err instanceof ApiError ? err.message : "Couldn't move it. Try again." })
+    } finally {
+      setMoving(null)
+    }
+  }
   const issues = new Map<string, string>([
     ...(dayView?.leftOut ?? []).map((x) => [x.taskId, x.reason] as const),
     ...(dayView?.notPlanned ?? []).map((x) => [x.taskId, 'Not in your plan yet. Plan the day again to add it.'] as const),
@@ -518,7 +558,16 @@ export default function PlanDay() {
                   {openTasks.length > 0 ? (
                     <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
                       {openTasks.map((task) => (
-                        <TaskRow key={task.taskId} task={task} trip={trip} when={planned.get(task.taskId)} issue={issues.get(task.taskId)} disabled={!online} onOpen={() => openForm(task)} />
+                        <TaskRow
+                          key={task.taskId}
+                          task={task}
+                          trip={trip}
+                          when={planned.get(task.taskId)}
+                          issue={issues.get(task.taskId)}
+                          disabled={!online}
+                          onOpen={() => openForm(task)}
+                          move={leftOutIds.has(task.taskId) && nextDay ? { label: `Move to ${weekday(nextDay)}`, busy: moving === task.taskId, onMove: () => void moveToNextDay(task) } : undefined}
+                        />
                       ))}
                     </ul>
                   ) : (
