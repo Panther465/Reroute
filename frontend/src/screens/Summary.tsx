@@ -88,6 +88,7 @@ export default function Summary() {
   if (!s || s.legs.length === 0) {
     return (
       <PushedScreen>
+        {header('Day summary')}
         <EmptyState title="No day to sum up yet" body="Plan your day first. The summary and your expense slip appear here." action={<ButtonLink to="/plan">Plan my day</ButtonLink>} />
       </PushedScreen>
     )
