@@ -517,6 +517,141 @@
         }
       }
     },
+    "/v1/speech/voices": {
+      "get": {
+        "tags": [
+          "speech"
+        ],
+        "summary": "The voices Roo can speak with",
+        "operationId": "voices_v1_speech_voices_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VoiceOut"
+                  },
+                  "title": "Response Voices V1 Speech Voices Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/speech": {
+      "get": {
+        "tags": [
+          "speech"
+        ],
+        "summary": "Read a short alert aloud (MP3)",
+        "operationId": "speak_v1_speech_get",
+        "parameters": [
+          {
+            "name": "text",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300,
+              "title": "Text"
+            }
+          },
+          {
+            "name": "voice",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 40,
+              "default": "en-IN-NeerjaNeural",
+              "title": "Voice"
+            }
+          },
+          {
+            "name": "rate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "slow",
+                "normal",
+                "fast"
+              ],
+              "type": "string",
+              "default": "normal",
+              "title": "Rate"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "MP3 audio",
+            "content": {
+              "audio/mpeg": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/trips": {
       "post": {
         "tags": [
@@ -4517,6 +4652,24 @@
           "type"
         ],
         "title": "ValidationError"
+      },
+      "VoiceOut": {
+        "properties": {
+          "voiceId": {
+            "type": "string",
+            "title": "Voiceid"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          }
+        },
+        "type": "object",
+        "required": [
+          "voiceId",
+          "label"
+        ],
+        "title": "VoiceOut"
       },
       "WindowIn": {
         "properties": {

@@ -13,11 +13,13 @@ import { Banner, EmptyState, ErrorState, Skeleton } from '@/components/ui/States
 import { Tag } from '@/components/ui/Tag'
 import { ApiError } from '@/api/client'
 import { applyServerChange, checkIn, playLater, playTaskEdit, replanDay, undo, undoVersionOf } from '@/lib/actions'
-import { lowerFirst } from '@/lib/format'
-import { legLines } from '@/lib/geo'
+import { duration, lowerFirst } from '@/lib/format'
+import { stopEmoji } from '@/lib/stopEmoji'
+import type { MapPoint } from '@/components/MapCard'
+import { legLines, type MapLine } from '@/lib/geo'
 import { useDayGuide } from '@/lib/dayAlerts'
 import { geolocationSupported, getLocation, startTracking, useLocation } from '@/lib/location'
-import { splitPath } from '@/lib/progress'
+import { distanceLabel, splitPath } from '@/lib/progress'
 import { useDocumentTitle, useIsDesktop, useOnline, useStatus, useTripClock, type Status } from '@/lib/hooks'
 import { T, useTl } from '@/lib/i18n'
 import { useOpenLate } from '@/lib/late'
@@ -233,27 +235,38 @@ export default function Today() {
   const selectedLeg = view?.legs.find((l) => l.seq === selectedSeq) ?? null
 
   // Legs along the roads; on the leg being ridden, what's behind the traveller is greyed.
-  const rideLines = (l: LegView) => {
-    if (guide?.riding && guide.leg.seq === l.seq && guide.progress && guide.progress.offRouteM < 300) {
+  const rideLines = (l: LegView): MapLine[] => {
+    // The leg that matters now carries the moving flow.
+    const active = guide?.leg.seq === l.seq
+    if (guide?.riding && active && guide.progress && guide.progress.offRouteM < 300) {
       const { behind, ahead } = splitPath(guide.path, guide.progress)
       const mode = l.segments.find((s) => s.mode !== 'walk')?.mode ?? l.segments[0]?.mode ?? 'cab'
       return [
         { id: `${l.seq}-behind`, coords: behind, mode, dim: true },
-        { id: `${l.seq}-ahead`, coords: ahead, mode },
+        { id: `${l.seq}-ahead`, coords: ahead, mode, active: true },
       ]
     }
-    return legLines(l, places, l.status === 'done', roads.get(l.seq))
+    return legLines(l, places, l.status === 'done', roads.get(l.seq)).map((line) => ({ ...line, active }))
   }
   const mapLines = useMemo(() => (view ? view.legs.flatMap(rideLines) : []), [view, places, roads, guide]) // eslint-disable-line react-hooks/exhaustive-deps
+  // Stops as pins: what's done fades, where you are is yellow, the next stop is green and pulses.
+  const pinState = (s: StopView) => (s.status === 'done' ? 'done' : guide?.to.id === s.id ? 'next' : s.status === 'now' ? 'current' : 'later') as MapPoint['state']
   const mapPoints = useMemo(() => {
     if (!view) return []
-    const pts = view.stops
+    const pts: MapPoint[] = view.stops
       .filter((s) => s.kind !== 'end' && places.has(s.placeId))
-      .map((s) => ({ id: s.id, lngLat: places.get(s.placeId)!, kind: 'stop' as const, label: `${s.title}, ${s.area}` }))
+      .map((s) => ({ id: s.id, lngLat: places.get(s.placeId)!, kind: 'stop' as const, label: `${s.title}, ${s.area}`, emoji: stopEmoji(s.title, s.kind), caption: s.title, state: pinState(s) }))
     // With the phone's location on, the live blue dot shows where the traveller is instead.
     const here = places.get(view.stops[view.nowIndex]?.placeId ?? '')
     return here && !fix ? [...pts, { id: 'me', lngLat: here, kind: 'user' as const, label: 'Where you are, by your check-ins' }] : pts
-  }, [view, places, fix])
+  }, [view, places, fix, guide?.to.id]) // eslint-disable-line react-hooks/exhaustive-deps
+  // While riding, a card on the map says how far is left and when you'll get there.
+  const eta = guide?.riding
+    ? {
+        primary: guide.remainingM != null ? `${distanceLabel(guide.remainingM)} · ${duration(guide.etaMin!)}` : `Arrive around ${guide.leg.arriveAt}`,
+        secondary: `To ${guide.to.kind === 'end' ? 'your stay' : `the ${lowerFirst(guide.to.title)}`}${guide.remainingM != null ? `, arrive around ${guide.leg.arriveAt}` : ''}`,
+      }
+    : null
   const focus = useMemo(() => (selectedLeg ? (roads.get(selectedLeg.seq) ?? legLines(selectedLeg, places).flatMap((l) => l.coords)) : undefined), [selectedLeg, places, roads])
   // The phone's mini map: just the leg that matters now.
   const miniLines = useMemo(() => (guide ? rideLines(guide.leg) : []), [guide, places, roads]) // eslint-disable-line react-hooks/exhaustive-deps
@@ -261,7 +274,10 @@ export default function Today() {
     if (!guide) return []
     return [guide.leg.fromPlaceId, guide.leg.toPlaceId].flatMap((id, i) => {
       const p = places.get(id)
-      return p ? [{ id: `mini-${i}`, lngLat: p, kind: 'stop' as const, label: i ? guide.to.title : 'Start of this leg' }] : []
+      const stop = view?.stops.find((s) => s.id === (i ? guide.leg.toId : guide.leg.fromId))
+      return p
+        ? [{ id: `mini-${i}`, lngLat: p, kind: 'stop' as const, label: i ? guide.to.title : 'Start of this leg', emoji: stop ? stopEmoji(stop.title, stop.kind) : '📍', state: (i ? 'next' : 'later') as MapPoint['state'] }]
+        : []
     })
   }, [guide, places])
 
@@ -549,7 +565,7 @@ export default function Today() {
         </section>
         <section aria-label="Map and leg detail" className="sticky top-16 flex h-[calc(100dvh-64px)] flex-col gap-4 overflow-y-auto py-8">
           <Suspense fallback={<Skeleton className="h-[44vh] min-h-72 w-full shrink-0 rounded-card" />}>
-            <MapCard lines={mapLines} points={mapPoints} focus={focus} label="Map of today's route" className="h-[44vh] min-h-72 shrink-0" draw={revealing} me={fix} />
+            <MapCard lines={mapLines} points={mapPoints} focus={focus} label="Map of today's route" className="h-[44vh] min-h-72 shrink-0" draw={revealing} me={fix} eta={eta} />
           </Suspense>
           {selectedLeg && (
             <Suspense fallback={<Skeleton className="h-96 w-full shrink-0 rounded-card" />}>

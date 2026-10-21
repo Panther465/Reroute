@@ -258,6 +258,45 @@ def test_demo_reset_removes_trips_started_in_the_demo(client):
     assert [t["tripId"] for t in client.get("/v1/trips").json()["items"]] == ["trip-001"]
 
 
+def test_speech_reads_an_alert_and_caches_it(client, monkeypatch):
+    calls: list[tuple[str, str, str]] = []
+
+    class FakeCommunicate:
+        def __init__(self, text, voice, rate):
+            calls.append((text, voice, rate))
+
+        async def stream(self):
+            yield {"type": "WordBoundary"}
+            yield {"type": "audio", "data": b"ID3fake-mp3"}
+
+    import edge_tts
+
+    monkeypatch.setattr(edge_tts, "Communicate", FakeCommunicate)
+    params = {"text": "Time to leave for the bank.", "voice": "en-IN-PrabhatNeural", "rate": "fast"}
+    first = client.get("/v1/speech", params=params)
+    assert first.status_code == 200, first.text
+    assert first.headers["content-type"] == "audio/mpeg" and first.content == b"ID3fake-mp3"
+    assert client.get("/v1/speech", params=params).content == b"ID3fake-mp3"
+    assert calls == [("Time to leave for the bank.", "en-IN-PrabhatNeural", "+15%")]  # the second came from the cache
+    assert client.get("/v1/speech", params={**params, "voice": "xx-Robot"}).status_code == 422
+    assert [v["voiceId"] for v in client.get("/v1/speech/voices").json()][0] == "en-IN-NeerjaNeural"
+
+
+def test_speech_outage_is_a_502_the_app_can_fall_back_from(client, monkeypatch):
+    class Down:
+        def __init__(self, *a, **k):
+            pass
+
+        async def stream(self):
+            raise ConnectionError("no route")
+            yield  # pragma: no cover
+
+    import edge_tts
+
+    monkeypatch.setattr(edge_tts, "Communicate", Down)
+    assert client.get("/v1/speech", params={"text": "Hello"}).status_code == 502
+
+
 def test_road_path_is_for_covered_cities_only(client, monkeypatch):
     from app.adapters import road_path
 

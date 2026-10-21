@@ -465,6 +465,11 @@ class AiHelperIn(PostBody):
     text: Annotated[str, StringConstraints(min_length=3, max_length=2000)]
 
 
+class VoiceOut(Api):
+    voice_id: str
+    label: str
+
+
 class RoadPathOut(Api):
     #: [lng, lat] pairs along the roads; just the two ends when `source` is "line".
     coords: list[list[float]]

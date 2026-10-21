@@ -1,9 +1,10 @@
 // Alerts for the moments that matter: time to leave, a task about to end, nearly there, arrived.
-// Each one plays a chime, buzzes, has Roo say it and sends a phone notification, as the traveller
-// chose in Me, and always shows a toast and tells screen readers, so no alert relies on sound alone.
-// Every alert fires once.
+// Each one plays the traveller's chosen chime, buzzes, has Roo say it in a natural voice and sends a
+// phone notification, as chosen in Me, and always shows a toast and tells screen readers, so no alert
+// relies on sound alone. Every alert fires once.
+import { apiBase, getAccessToken, refreshSession } from '@/api/client'
 import { notify } from './live'
-import { announce, getState, showToast } from './store'
+import { announce, getState, showToast, type ChimeStyle, type VoiceRate } from './store'
 
 export type Tone = 'nudge' | 'urgent' | 'arrive'
 
@@ -17,6 +18,16 @@ export interface AlertSpec {
   /** Groups phone notifications, so a newer one replaces the older (the server's leave-now uses `leave-<seq>`). */
   tag?: string
 }
+
+/** The voices Roo can use, as the server lists them (`GET /v1/speech/voices`). */
+export const VOICES: { id: string; label: string }[] = [
+  { id: 'en-IN-NeerjaNeural', label: 'Neerja, Indian English' },
+  { id: 'en-IN-PrabhatNeural', label: 'Prabhat, Indian English' },
+  { id: 'hi-IN-SwaraNeural', label: 'Swara, Hindi accent' },
+  { id: 'hi-IN-MadhurNeural', label: 'Madhur, Hindi accent' },
+  { id: 'en-GB-SoniaNeural', label: 'Sonia, British English' },
+  { id: 'en-US-AriaNeural', label: 'Aria, American English' },
+]
 
 const FIRED_KEY = 'reroute:alerts-fired'
 
@@ -37,7 +48,7 @@ function remember(key: string) {
   }
 }
 
-// ---------- Sound ----------
+// ---------- Chimes ----------
 let audio: AudioContext | null = null
 function context() {
   const Ctor = window.AudioContext ?? (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext
@@ -57,33 +68,74 @@ export function unlockAudioOnFirstTouch() {
   window.addEventListener('keydown', wake, { once: true })
 }
 
+interface Voicing {
+  wave: OscillatorType
+  attack: number
+  decay: number
+  gap: number
+  /** Overtone an octave up, for a richer bell. */
+  shimmer?: number
+}
+const STYLES: Record<ChimeStyle, Voicing> = {
+  bell: { wave: 'sine', attack: 0.01, decay: 0.9, gap: 0.16, shimmer: 0.25 },
+  soft: { wave: 'sine', attack: 0.08, decay: 0.7, gap: 0.22 },
+  marimba: { wave: 'triangle', attack: 0.005, decay: 0.35, gap: 0.12, shimmer: 0.12 },
+  digital: { wave: 'square', attack: 0.005, decay: 0.12, gap: 0.14 },
+}
 const NOTES: Record<Tone, number[]> = {
   nudge: [784, 1046],
-  urgent: [880, 1175, 880],
+  urgent: [880, 1175, 880, 1175],
   arrive: [659, 784, 1046],
 }
 
-export function chime(tone: Tone = 'nudge') {
+/** Play a chime. Resolves when it has finished, so a voice can follow it. */
+export function chime(tone: Tone = 'nudge', style: ChimeStyle = getState().alerts.chime, volume = getState().alerts.volume): Promise<void> {
   const ctx = context()
-  if (!ctx || ctx.state !== 'running') return
+  if (!ctx || ctx.state !== 'running' || volume <= 0) return Promise.resolve()
+  const v = STYLES[style]
+  // Square waves are much louder to the ear: keep them in line with the others.
+  const peak = Math.max(0.0002, volume * (v.wave === 'square' ? 0.08 : 0.3))
   const start = ctx.currentTime + 0.02
-  NOTES[tone].forEach((freq, i) => {
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.type = 'sine'
-    osc.frequency.value = freq
-    const t = start + i * 0.16
-    gain.gain.setValueAtTime(0.0001, t)
-    gain.gain.exponentialRampToValueAtTime(0.25, t + 0.02)
-    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.38)
-    osc.connect(gain).connect(ctx.destination)
-    osc.start(t)
-    osc.stop(t + 0.4)
+  const notes = NOTES[tone]
+  notes.forEach((freq, i) => {
+    const t = start + i * v.gap
+    const layers: [number, number][] = [[freq, peak], ...(v.shimmer ? ([[freq * 2, peak * v.shimmer]] as [number, number][]) : [])]
+    for (const [f, level] of layers) {
+      const osc = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = v.wave
+      osc.frequency.value = f
+      gain.gain.setValueAtTime(0.0001, t)
+      gain.gain.exponentialRampToValueAtTime(level, t + v.attack)
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + v.attack + v.decay)
+      osc.connect(gain).connect(ctx.destination)
+      osc.start(t)
+      osc.stop(t + v.attack + v.decay + 0.05)
+    }
   })
+  const ms = ((notes.length - 1) * v.gap + v.attack + v.decay) * 1000
+  return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-// ---------- Voice ----------
-export function speak(text: string) {
+// ---------- Roo's voice ----------
+const clips = new Map<string, string>()
+let playing: HTMLAudioElement | null = null
+
+async function naturalClip(text: string, voiceId: string, rate: VoiceRate): Promise<string> {
+  const key = `${voiceId}|${rate}|${text}`
+  const known = clips.get(key)
+  if (known) return known
+  const url = `${apiBase}/v1/speech?${new URLSearchParams({ text, voice: voiceId, rate })}`
+  const get = () => fetch(url, { credentials: 'include', headers: getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : {} })
+  let res = await get()
+  if (res.status === 401 && (await refreshSession()) === 'ok') res = await get()
+  if (!res.ok) throw new Error(`speech ${res.status}`)
+  const blobUrl = URL.createObjectURL(await res.blob())
+  clips.set(key, blobUrl)
+  return blobUrl
+}
+
+function phoneVoice(text: string, rate: VoiceRate, volume: number) {
   if (!('speechSynthesis' in window)) return
   const u = new SpeechSynthesisUtterance(text)
   // The alerts are written in English, so an English (India) voice reads them, whatever the app language.
@@ -91,9 +143,24 @@ export function speak(text: string) {
   const voices = window.speechSynthesis.getVoices()
   const voice = voices.find((v) => v.lang === 'en-IN') ?? voices.find((v) => v.lang.startsWith('en'))
   if (voice) u.voice = voice
-  u.rate = 1
+  u.rate = rate === 'slow' ? 0.85 : rate === 'fast' ? 1.15 : 1
+  u.volume = volume
   window.speechSynthesis.cancel()
   window.speechSynthesis.speak(u)
+}
+
+/** Roo says it: the chosen natural voice, or the phone's own voice when that can't be fetched. */
+export async function speak(text: string, prefs = getState().alerts) {
+  playing?.pause()
+  try {
+    const clip = await naturalClip(text, prefs.voiceId, prefs.voiceRate)
+    const el = new Audio(clip)
+    el.volume = prefs.volume
+    playing = el
+    await el.play()
+  } catch {
+    phoneVoice(text, prefs.voiceRate, prefs.volume)
+  }
 }
 
 // ---------- The alert ----------
@@ -106,11 +173,14 @@ export function raise(spec: AlertSpec, opts: { force?: boolean } = {}) {
   const tone = spec.tone ?? 'nudge'
   showToast({ title: spec.title })
   announce(spec.title)
-  if (prefs.sound) chime(tone)
   if (prefs.vibrate && 'vibrate' in navigator) navigator.vibrate?.(tone === 'urgent' ? [180, 90, 180] : tone === 'arrive' ? [80, 60, 80, 60, 200] : 120)
-  if (prefs.voice) speak(spec.speech ?? spec.title)
+  // The chime first, then Roo's voice, so they never talk over each other.
+  void (async () => {
+    if (prefs.sound) await chime(tone, prefs.chime, prefs.volume)
+    if (prefs.voice) await speak(spec.speech ?? spec.title, prefs)
+  })()
   // On screen, the toast says it; the phone notification is for when Reroute is in the background.
   if (getState().leaveAlerts && 'Notification' in window && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
-    void notify('Reroute', { body: spec.title, tag: spec.tag ?? spec.key })
+    void notify('Reroute', { body: spec.title, tag: spec.tag ?? spec.key, silent: prefs.sound || prefs.voice })
   }
 }

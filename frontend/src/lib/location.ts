@@ -31,8 +31,22 @@ let ride: ReturnType<typeof setInterval> | null = null
 const listeners = new Set<() => void>()
 
 function set(patch: Partial<LocationState>) {
+  // Many phones report no heading (and the demo ride has none): work it out from the last move.
+  const prev = state.fix
+  const fix = patch.fix
+  if (fix && (fix.heading == null || Number.isNaN(fix.heading)) && prev) {
+    patch = { ...patch, fix: { ...fix, heading: metres([prev.lng, prev.lat], [fix.lng, fix.lat]) > 3 ? bearing([prev.lng, prev.lat], [fix.lng, fix.lat]) : prev.heading } }
+  }
   state = { ...state, ...patch }
   listeners.forEach((l) => l())
+}
+
+/** Compass bearing from a to b, in degrees. */
+function bearing(a: LngLat, b: LngLat) {
+  const toRad = Math.PI / 180
+  const y = Math.sin((b[0] - a[0]) * toRad) * Math.cos(b[1] * toRad)
+  const x = Math.cos(a[1] * toRad) * Math.sin(b[1] * toRad) - Math.sin(a[1] * toRad) * Math.cos(b[1] * toRad) * Math.cos((b[0] - a[0]) * toRad)
+  return (Math.atan2(y, x) / toRad + 360) % 360
 }
 
 export const geolocationSupported = typeof navigator !== 'undefined' && 'geolocation' in navigator
