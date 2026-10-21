@@ -2375,6 +2375,11 @@
                 "type": "null"
               }
             ]
+          },
+          "rough": {
+            "type": "boolean",
+            "title": "Rough",
+            "default": false
           }
         },
         "type": "object",
@@ -2492,6 +2497,11 @@
             "type": "boolean",
             "title": "Estimate",
             "default": true
+          },
+          "rough": {
+            "type": "boolean",
+            "title": "Rough",
+            "default": false
           }
         },
         "type": "object",

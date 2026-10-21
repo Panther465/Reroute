@@ -44,7 +44,11 @@ def leg_out(leg: PlannedLeg, day: date, tz: timezone) -> LegOut:
         fare_inr=o.fare_inr,
         option_id=o.option_id,
         transit_ref=_transit(o),
-        extras=[LegExtraOut(label=x.label, mode=x.mode.value, travel_min=x.travel_min, fare_inr=x.fare_inr, transit_ref=_transit(x)) for x in leg.extras],
+        extras=[
+            LegExtraOut(label=x.label, mode=x.mode.value, travel_min=x.travel_min, fare_inr=x.fare_inr, transit_ref=_transit(x), rough=x.rough)
+            for x in leg.extras
+        ],
+        rough=o.rough,
     )
 
 

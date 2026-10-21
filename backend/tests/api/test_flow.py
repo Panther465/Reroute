@@ -239,6 +239,43 @@ def test_adding_a_task_to_a_planned_day_replans_it(client):
     assert task["taskId"] in [leg["taskId"] for leg in plan["legs"]] + [m["taskId"] for m in plan["moved"]]
 
 
+def test_a_second_replan_during_a_task_keeps_the_traveller_there(client):
+    plan_v1(client)
+    clock(client, "10:30")  # at the 10:00 meeting, not marked done yet
+    add(client, "Pick up documents")
+    # The first re-plan keeps the meeting's leg with the done legs. The second one used to miss it, put the
+    # traveller back at the hotel and try to fit the 10:00 meeting again: "the earliest arrival is 11:55".
+    add(client, "Drop a form")
+    plan = client.get("/v1/trips/trip-001").json()["activePlan"]
+    assert plan["version"] == 3
+    assert "task-meet" not in [leg["taskId"] for leg in plan["legs"]]
+    assert [leg["taskId"] for leg in plan["doneLegs"]] == ["task-meet"]
+    assert hm(plan["legs"][0]["leaveBy"]) >= "11:00"  # leaves from the meeting once it ends
+
+
+def test_a_task_at_a_searched_place_is_planned_with_rough_times(client):
+    from geoalchemy2.elements import WKTElement
+
+    from app.models import Place
+
+    cafe = Place(place_id="osm-test-cafe", city_slug="bengaluru", name="Corner cafe", area="Koramangala", lng=77.6150, lat=12.9340)
+    cafe.location = WKTElement("POINT(77.6150 12.9340)", srid=4326)
+    with session_scope() as db:
+        db.add(cafe)
+    plan_v1(client)
+    body = {"title": "Coffee", "placeId": "osm-test-cafe", "durationMin": 30, "priority": 2, "idempotencyKey": key()}
+    res = client.post("/v1/trips/trip-001/tasks", json=body)
+    assert res.status_code == 201, res.text
+    plan = client.get("/v1/trips/trip-001").json()["activePlan"]
+    legs = {leg["taskId"]: leg for leg in plan["legs"]}
+    assert "task-meet" in legs and not legs["task-meet"]["rough"]
+    assert res.json()["taskId"] in legs, plan["moved"]
+    # The legs to and from the cafe are worked out from distance, and say so.
+    to_cafe = legs[res.json()["taskId"]]
+    after = plan["legs"][plan["legs"].index(to_cafe) + 1]
+    assert to_cafe["rough"] and after["rough"]
+
+
 def test_a_batch_of_tasks_replans_once_on_its_last_task(client):
     plan_v1(client)
     assert add(client, "Pick up documents", replan=False)["jobId"] is None

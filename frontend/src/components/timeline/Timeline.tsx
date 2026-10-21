@@ -213,6 +213,7 @@ function stopSpoken(stop: StopView, now: number) {
 export function legSpoken(leg: LegView) {
   const parts = [leg.label, spokenDuration(leg.travelMin), leg.fareInr ? `${leg.fareInr} rupees` : 'free']
   if (leg.raasta) parts.push(leg.raasta.status === 'verified' ? 'verified Raasta route' : 'unverified Raasta route')
+  if (leg.rough) parts.push('a rough estimate from the distance')
   if (leg.status === 'done') parts.push('done')
   else parts.push(`leave ${leg.leaveBy}`)
   return parts.join(', ')
@@ -433,6 +434,13 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
                               </span>
                             )}
                           </>
+                        )}
+                        {outLeg.rough && outLeg.status !== 'done' && (
+                          <span className="mt-2 flex">
+                            <Tag tone="grey-outline">
+                              <span aria-hidden="true">≈</span> Rough estimate
+                            </Tag>
+                          </span>
                         )}
                         {outLeg.raasta && outLeg.status !== 'done' && (
                           <span className="mt-2 flex">

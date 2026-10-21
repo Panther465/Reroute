@@ -35,7 +35,7 @@ export function NextCard({ view, clock, started = false }: { view: DayView; cloc
   }
   const to = view.stops.find((s) => s.id === leg.toId)!
   const soon = !started && clock >= leg.leaveMin - 10 && clock < leg.leaveMin + 1
-  const where = to.kind === 'end' ? 'the hotel' : `the ${lowerFirst(to.title)} in ${to.area}`
+  const where = to.kind === 'end' ? `your stay, ${to.title}` : `the ${lowerFirst(to.title)} in ${to.area}`
   const dest = started ? `On the way to ${where}` : `Leave for ${where}`
   return (
     <section aria-labelledby="next-title" className="relative overflow-hidden rounded-card border border-line bg-surface p-5 pl-6">
@@ -67,6 +67,7 @@ export function NextCard({ view, clock, started = false }: { view: DayView; cloc
         <span>{leg.fareInr ? `About ${rupees(leg.fareInr)}` : 'Free'}</span>
         {!started && <span>Arrive around {leg.arriveAt}</span>}
       </p>
+      {leg.rough && <p className="mt-2 t-small text-muted">≈ A rough estimate from the distance. Reroute has no travel data for this place yet, so allow extra time.</p>}
     </section>
   )
 }

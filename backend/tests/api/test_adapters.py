@@ -8,12 +8,35 @@ from datetime import date
 import httpx
 
 from app.adapters.transit import RaastaHttpAdapter, RaastaLeg, RouteInfo, StaticTransitAdapter
-from app.adapters.travel_times import OsrmSnapshotAdapter, PlacePoint
+from app.adapters.travel_times import OsrmSnapshotAdapter, PlacePoint, SampleSnapshotAdapter
 from app.services.planner import Mode
 
 DAY = date(2026, 10, 14)
 KOR = PlacePoint("koramangala-bank", 77.6195, 12.9352)
 JAY = PlacePoint("jayanagar-office", 77.5838, 12.9255)
+WF = PlacePoint("whitefield-office", 77.7318, 12.9855)
+#: A place found by search, which the sample travel data doesn't know: about 0.5 km from the bank.
+CAFE = PlacePoint("osm-test-cafe", 77.6150, 12.9340)
+
+
+def test_sample_snapshot_estimates_places_it_does_not_know():
+    pairs = SampleSnapshotAdapter(StaticTransitAdapter({})).snapshot("bengaluru", [KOR, JAY, CAFE], DAY).lookup()
+    # Pairs the file has stay as the file says.
+    assert pairs[(KOR.place_id, JAY.place_id)] and not any(o.rough for o in pairs[(KOR.place_id, JAY.place_id)])
+    # Close by: a rough cab and a rough walk, both ways.
+    for pair in ((KOR.place_id, CAFE.place_id), (CAFE.place_id, KOR.place_id)):
+        assert {o.mode for o in pairs[pair]} == {Mode.CAB, Mode.WALK} and all(o.rough for o in pairs[pair])
+    # About 3.5 km away: a cab only, priced from the fare table (about 4.6 km of road at 18 km/h, plus pickup).
+    far = pairs[(JAY.place_id, CAFE.place_id)]
+    assert [o.mode for o in far] == [Mode.CAB]
+    assert far[0].rough and far[0].travel_min == 16 + 5 and far[0].fare_inr == 191
+
+
+def test_gaps_between_known_places_stay_gaps():
+    # The file has Whitefield to Koramangala but not back: no estimate fills it, so the demo day is unchanged.
+    pairs = SampleSnapshotAdapter(StaticTransitAdapter({})).snapshot("bengaluru", [KOR, WF], DAY).lookup()
+    assert (WF.place_id, KOR.place_id) in pairs
+    assert (KOR.place_id, WF.place_id) not in pairs
 
 
 def _osrm(calls: list[str]) -> httpx.Client:
