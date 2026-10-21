@@ -75,4 +75,26 @@ test('start a trip on one screen: describe the day, check the tasks, and it is p
   await expect(page.getByRole('heading', { level: 1, name: 'Bengaluru' })).toBeVisible()
   await expect(page.getByText('Sample trip')).toHaveCount(0)
   await expect(page.getByRole('main').getByText(/^Leave for /).first()).toBeVisible()
+
+  // Your trips: both trips are there, and the sample one comes back with a tap.
+  await page.getByRole('button', { name: /Your trips/ }).click()
+  const trips = page.getByRole('dialog')
+  await expect(trips.getByRole('heading', { name: 'Your trips' })).toBeVisible()
+  await expect(trips.getByRole('listitem')).toHaveCount(2)
+  await trips.getByRole('button', { name: /Sample trip/ }).click()
+  await expect(page.getByRole('main').getByText('Sample trip')).toBeVisible()
+})
+
+test('a detail screen opened cold still has a way back', async ({ page }) => {
+  await page.goto('/signin')
+  await page.getByRole('button', { name: 'Use the demo account' }).click()
+  await expect(page).not.toHaveURL(/signin/)
+  for (const [path, home] of [
+    ['/leg/99', /\/$/],
+    ['/raasta/route/no-such-route', /\/raasta$/],
+  ] as const) {
+    await page.goto(path)
+    await page.getByRole('button', { name: 'Back', exact: true }).click()
+    await expect(page).toHaveURL(home)
+  }
 })

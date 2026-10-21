@@ -170,11 +170,8 @@ export default function AppShell() {
   }, [online, session, current.tripId])
 
   if (session === 'loading') {
-    return (
-      <div className="min-h-dvh bg-ground text-ink">
-        <TodaySkeleton />
-      </div>
-    )
+    // Today's outline only where Today will appear: a reload of Me or Raasta mustn't flash Today first.
+    return <div className="min-h-dvh bg-ground text-ink">{location.pathname === '/' && <TodaySkeleton />}</div>
   }
   // Signed out (or the session ran out): back to Sign in, which returns here afterwards.
   if (session === 'signedOut') return <Navigate to="/signin" replace state={{ from: location.pathname + location.search }} />

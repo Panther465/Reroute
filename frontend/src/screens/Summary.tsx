@@ -1,7 +1,7 @@
-import { ChevronLeft, Circle, CircleCheck } from 'lucide-react'
-import { useNavigate } from 'react-router'
+import { Circle, CircleCheck } from 'lucide-react'
 import { useCurrentTripId, useSummary, useTrip } from '@/api/queries'
 import type { Summary as SummaryData } from '@/api/types'
+import { BackButton, useBack } from '@/components/BackButton'
 import { ExpenseSlip } from '@/components/ExpenseSlip'
 import { modeBgClass } from '@/components/icons'
 import { ButtonLink } from '@/components/ui/Button'
@@ -43,16 +43,13 @@ export default function Summary() {
   const trip = useTrip(current.tripId)
   const q = useSummary(current.tripId)
   const online = useOnline()
-  const navigate = useNavigate()
-  const back = () => (window.history.state?.idx > 0 ? navigate(-1) : navigate('/'))
+  const back = useBack('/')
   const offset = trip.data?.utcOffset ?? '+05:30'
   useDocumentTitle(q.data?.legs.length ? `${weekday(q.data.day)} in ${q.data.cityName}` : 'Day summary')
 
   const header = (title: string, line?: string) => (
     <header className="flex items-start gap-2">
-      <button type="button" onClick={back} aria-label="Back" className="-ml-3 flex size-12 shrink-0 items-center justify-center rounded-control text-ink [@media(hover:hover)]:hover:bg-sunken">
-        <ChevronLeft size={24} strokeWidth={1.75} aria-hidden="true" />
-      </button>
+      <BackButton onClick={back} />
       <div className="pt-1">
         <h1 tabIndex={-1} className="t-display-1 text-ink">
           {title}
@@ -65,6 +62,7 @@ export default function Summary() {
   if (q.isPending && current.tripId) {
     return (
       <PushedScreen>
+        <BackButton onClick={back} className="mb-2" />
         <LoadingRegion label="Loading the summary">
           <Skeleton className="h-8 w-64" />
           <Skeleton className="mt-2 h-5 w-48" />

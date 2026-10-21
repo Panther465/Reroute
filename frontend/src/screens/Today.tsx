@@ -1,4 +1,4 @@
-import { BellRing, CircleCheck, MapPinned, Navigation, Plus, Route, Share2, X } from 'lucide-react'
+import { BellRing, ChevronDown, CircleCheck, MapPinned, Navigation, Plus, Route, Share2, X } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useCurrentTripId, useDay, useTrip } from '@/api/queries'
@@ -30,6 +30,7 @@ const TaskSheet = lazy(() => import('./TaskSheet').then((m) => ({ default: m.Tas
 const RerouteLog = lazy(() => import('@/components/RerouteLog').then((m) => ({ default: m.RerouteLog })))
 const CheckInConfirm = lazy(() => import('./CheckInConfirm').then((m) => ({ default: m.CheckInConfirm })))
 const AiPlannerSheet = lazy(() => import('./AiPlannerSheet').then((m) => ({ default: m.AiPlannerSheet })))
+const TripSwitcher = lazy(() => import('@/components/TripSwitcher').then((m) => ({ default: m.TripSwitcher })))
 
 /** True from the first time `open` is true: a lazy sheet mounts then and stays, so it can animate closed. */
 function useLoadedOnce(open: boolean) {
@@ -38,8 +39,23 @@ function useLoadedOnce(open: boolean) {
   return loaded || open
 }
 
-export function TodayHeader({ trip, status, onLog, onShare, onAdd }: { trip: Trip; status: Status; onLog: () => void; onShare: () => void; onAdd?: () => void }) {
+export function TodayHeader({
+  trip,
+  status,
+  onLog,
+  onShare,
+  onAdd,
+  onTrips,
+}: {
+  trip: Trip
+  status: Status
+  onLog: () => void
+  onShare: () => void
+  onAdd?: () => void
+  onTrips?: () => void
+}) {
   const demo = useStore((s) => s.demo.enabled)
+  const day = `${dayLabel(trip.day)}, day ${trip.dayIndex} of ${trip.dayCount}`
   return (
     <header className="flex items-start justify-between gap-3">
       <div className="min-w-0">
@@ -50,9 +66,19 @@ export function TodayHeader({ trip, status, onLog, onShare, onAdd }: { trip: Tri
           {demo && <Tag tone="sunken">Demo</Tag>}
           {trip.sample && <Tag tone="grey-outline">Sample trip</Tag>}
         </div>
-        <p className="mt-1 t-body text-ink-2">
-          {dayLabel(trip.day)}, day {trip.dayIndex} of {trip.dayCount}
-        </p>
+        {onTrips ? (
+          <button type="button" onClick={onTrips} className="-mx-1 mt-0.5 block min-h-11 rounded-control px-1 py-1 text-left t-body text-ink-2 [@media(hover:hover)]:hover:bg-sunken">
+            {`${dayLabel(trip.day)}, `}
+            {/* "day 1 of 2" and the chevron wrap together, never split across lines. */}
+            <span className="whitespace-nowrap">
+              day {trip.dayIndex} of {trip.dayCount}
+              <ChevronDown size={18} strokeWidth={1.75} aria-hidden="true" className="ml-1 inline-block align-[-3px]" />
+            </span>
+            <span className="sr-only">. Your trips</span>
+          </button>
+        ) : (
+          <p className="mt-1 t-body text-ink-2">{day}</p>
+        )}
         <div className="mt-3 flex">
           <StatusPill live={status} onOpen={onLog} />
         </div>
@@ -148,6 +174,8 @@ export default function Today() {
   const [addOpen, setAddOpen] = useState(false)
   const addLoaded = useLoadedOnce(addOpen)
   const addBefore = useRef<DayView | null>(null)
+  const [tripsOpen, setTripsOpen] = useState(false)
+  const tripsLoaded = useLoadedOnce(tripsOpen)
   const logLoaded = useLoadedOnce(logOpen)
   const shareLoaded = useLoadedOnce(shareOpen)
   const stopLoaded = useLoadedOnce(!!stop)
@@ -246,9 +274,12 @@ export default function Today() {
     addBefore.current = view
     setAddOpen(true)
   }
-  const header = <TodayHeader trip={trip} status={status} onLog={() => setLogOpen(true)} onShare={() => setShareOpen(true)} onAdd={online ? openAdd : undefined} />
+  const header = (
+    <TodayHeader trip={trip} status={status} onLog={() => setLogOpen(true)} onShare={() => setShareOpen(true)} onAdd={online ? openAdd : undefined} onTrips={() => setTripsOpen(true)} />
+  )
   const tripSheets = (
     <Suspense fallback={null}>
+      {tripsLoaded && <TripSwitcher open={tripsOpen} onOpenChange={setTripsOpen} />}
       {logLoaded && <RerouteLog trip={trip} open={logOpen} onOpenChange={setLogOpen} />}
       {shareLoaded && <ShareSheet trip={trip} open={shareOpen} onOpenChange={setShareOpen} />}
       {addLoaded && (

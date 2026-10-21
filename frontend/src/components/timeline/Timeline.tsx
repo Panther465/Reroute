@@ -296,7 +296,7 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
   const riding = legs.find((l) => l.toId === nowStop?.id && clock >= l.leaveMin && clock < l.arriveMin) ?? null
   const pulseNow = nextLeave !== null && clock >= nextLeave - 10 && clock < nextLeave
   const layoutT = { layout: { duration: change?.kind === 'undo' ? 0.4 : 0.5, ease: EASE_IN_OUT } }
-  const tomorrow = view.tomorrow.some((x) => x.moved) ? view.tomorrow : []
+  const tomorrow = view.tomorrow
 
   return (
     <LayoutGroup>
@@ -465,7 +465,8 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
         </ol>
         {tomorrow.length > 0 && (
           <motion.section layout="position" transition={layoutT} className="mt-6 border-t border-dashed border-line-strong pt-5" aria-label={`Tomorrow, ${tomorrowLabel}`}>
-            <h3 className="mb-4 t-title text-ink">Tomorrow, {tomorrowLabel}</h3>
+            <h3 className="t-title text-ink">Tomorrow, {tomorrowLabel}</h3>
+            <p className="mb-4 t-small text-muted">Reroute plans these in the morning, from where you are then.</p>
             <ol>
               {tomorrow.map((item) => (
                 <TomorrowRow key={item.id} item={item} change={change} reduce={reduce} layoutT={layoutT} />

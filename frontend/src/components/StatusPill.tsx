@@ -1,4 +1,4 @@
-import { Ban, Clock, Route, TriangleAlert, WifiOff } from 'lucide-react'
+import { Ban, ChevronRight, Clock, Route, TriangleAlert, WifiOff } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
 import { useDelayed, type Status } from '@/lib/hooks'
 import { useT } from '@/lib/i18n'
@@ -35,9 +35,16 @@ export function StatusPill({ live, onOpen }: { live: Status; onOpen: () => void 
           >
             <Icon size={16} strokeWidth={1.75} aria-hidden="true" />
             {text}
+            <ChevronRight size={14} strokeWidth={2} aria-hidden="true" className="-mr-1 opacity-70" />
           </motion.span>
         </AnimatePresence>
       </motion.span>
+      {/* After a change, say plainly that the reason is one tap away. */}
+      {status.kind === 'rerouted' && (
+        <span aria-hidden="true" className="ml-2 t-small font-bold text-ink underline decoration-2 underline-offset-4 [@media(hover:hover)]:group-hover:decoration-green">
+          See why
+        </span>
+      )}
     </button>
   )
 }

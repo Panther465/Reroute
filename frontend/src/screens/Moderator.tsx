@@ -1,11 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import * as Tabs from '@radix-ui/react-tabs'
-import { ChevronLeft, Download } from 'lucide-react'
+import { Download } from 'lucide-react'
 import { lazy, Suspense, useMemo, useState } from 'react'
-import { Navigate, useNavigate, useOutletContext } from 'react-router'
+import { Navigate, useOutletContext } from 'react-router'
 import { api, ApiError, apiBase } from '@/api/client'
 import { queryClient, useQueue, useRaastaRoute } from '@/api/queries'
 import type { Contribution, ContributionDecision, FareReport, VehicleType } from '@/api/types'
+import { BackButton, useBack } from '@/components/BackButton'
 import { MODE_META, ModeIcon, modeTextClass } from '@/components/icons'
 import { Button, buttonClass } from '@/components/ui/Button'
 import { ChipGroup, Segmented } from '@/components/ui/Choice'
@@ -90,11 +91,7 @@ function Panel({ c, onClose }: { c: Contribution; onClose?: () => void }) {
   return (
     <div className="flex flex-col gap-5">
       <header className="flex items-start gap-2">
-        {onClose && (
-          <button type="button" onClick={onClose} aria-label="Back to the list" className="-ml-3 flex size-12 shrink-0 items-center justify-center rounded-control">
-            <ChevronLeft size={24} strokeWidth={1.75} aria-hidden="true" />
-          </button>
-        )}
+        {onClose && <BackButton onClick={onClose} label="Back to the list" />}
         <div>
           <h2 className="t-display-2 text-ink">{routeName(c)}</h2>
           <p className="mt-1 t-small text-ink-2">
@@ -266,7 +263,7 @@ function FareReports() {
 export default function Moderator() {
   const { moderator } = useOutletContext<{ moderator: boolean }>()
   const desktop = useIsDesktop()
-  const navigate = useNavigate()
+  const back = useBack('/me')
   const [filter, setFilter] = useState<Filter>('waiting')
   const [selected, setSelected] = useState<string | null>(null)
   const apiStatus = filter === 'stale' ? 'waiting' : filter
@@ -354,9 +351,7 @@ export default function Moderator() {
     <div className={`mx-auto px-5 pb-10 pt-4 lg:px-8 lg:pt-8 ${desktop ? 'max-w-[1440px]' : 'max-w-[560px]'}`}>
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div className="flex items-start gap-2">
-          <button type="button" onClick={() => navigate('/me')} aria-label="Back" className="-ml-3 flex size-12 shrink-0 items-center justify-center rounded-control lg:hidden">
-            <ChevronLeft size={24} strokeWidth={1.75} aria-hidden="true" />
-          </button>
+          <BackButton onClick={back} className="lg:hidden" />
           <div className="pt-1">
             <h1 tabIndex={-1} className="t-display-1 text-ink">
               Route checks

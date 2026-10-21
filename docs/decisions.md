@@ -104,3 +104,8 @@ Details the briefs don't settle, the simplest choice that keeps every rule, and 
 - **"Add to today"** (the + on Today) opens the same describe-and-check sheet; the day re-plans once and the change plays on Today.
 - **The app remembers which trip you're looking at** (kept on the phone). A new trip becomes the one shown even if another trip starts later.
 - **Reset the demo deletes trips the demo account started**, because the demo login is shared: the next person starts from the sample trip.
+- **Every screen without the tab bar has Back, in every state** (loading, error, not found too): one shared button that goes back through the app's history, or to the screen it belongs to when there is none (a link opened cold, a reload, the installed app).
+- **Your trips** lists every trip (Today, Upcoming or Past; the sample trip runs on its demo clock, so it has no such tag) and switches between them. It opens from the date line on Today, the Plan tab and Me, and starts a new trip.
+- **Tomorrow is always visible on a multi-day trip:** Today lists the next day's open tasks with their known times, and notes that Reroute plans them in the morning. The UI brief has a moved task travel into "a new Tomorrow group"; the group now exists beforehand and the moved task still travels into it.
+- **"See why"** sits next to the status pill after a reroute, and the pill has a chevron, so the explanation is one visible tap away.
+- **Raasta starts from your day:** a "Your next leg" card searches shared autos for the leg you're about to take, and the intro says why verified routes matter to your plan.

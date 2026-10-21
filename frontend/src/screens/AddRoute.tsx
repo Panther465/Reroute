@@ -1,10 +1,11 @@
 import * as Tabs from '@radix-ui/react-tabs'
-import { ArrowDown, ArrowUp, ChevronLeft, Flag, MapPin, Plus, X } from 'lucide-react'
+import { ArrowDown, ArrowUp, Flag, MapPin, Plus, X } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useBlocker, useNavigate } from 'react-router'
 import { api, ApiError, newKey } from '@/api/client'
 import { useCurrentTripId, useStands, useTrip } from '@/api/queries'
 import type { Body, Contribution, ContributionIn, VehicleType } from '@/api/types'
+import { BackButton, useBack } from '@/components/BackButton'
 import { AutoRickshaw, ERickshaw } from '@/components/icons'
 import { Button } from '@/components/ui/Button'
 import { Segmented } from '@/components/ui/Choice'
@@ -331,6 +332,7 @@ function RecordRide({ onSubmit, busy, error, onDirty }: { onSubmit: (points: Gps
 
 export default function AddRoute() {
   const navigate = useNavigate()
+  const back = useBack('/raasta')
   const online = useOnline()
   const current = useCurrentTripId()
   const trip = useTrip(current.tripId).data
@@ -377,9 +379,7 @@ export default function AddRoute() {
   return (
     <PushedScreen>
       <header className="flex items-start gap-2">
-        <button type="button" onClick={() => navigate('/raasta')} aria-label="Back" className="-ml-3 flex size-12 shrink-0 items-center justify-center rounded-control text-ink [@media(hover:hover)]:hover:bg-sunken">
-          <ChevronLeft size={24} strokeWidth={1.75} aria-hidden="true" />
-        </button>
+        <BackButton onClick={back} />
         <h1 tabIndex={-1} className="pt-2 t-display-1 text-ink">
           <T k="Add a route" />
         </h1>

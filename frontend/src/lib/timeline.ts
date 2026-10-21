@@ -235,16 +235,15 @@ export function buildDay(trip: Trip, nowOverride?: number): DayView | null {
   const checkIn = stops.find((s, i) => i >= 1 && s.kind === 'task' && !GONE.includes(s.task!.state))
   const moved = new Map((plan.moved ?? []).filter((m) => m.kind === 'moved').map((m) => [m.taskId, m]))
   const nextDay = addDays(day, 1)
-  const tomorrow: TomorrowItem[] = moved.size
-    ? trip.tasks
-        .filter((t) => t.day === nextDay || moved.has(t.taskId))
-        .map((t) => {
-          const m = moved.get(t.taskId)
-          const time = m?.toDayStart ? localMinutes(m.toDayStart, nextDay, off) : t.fixedStart ? localMinutes(t.fixedStart, nextDay, off) : t.window ? toMin(t.window.opensAt) : 600
-          return { id: t.taskId, title: t.title, area: t.place.area, time, task: toTaskView(t, off), moved: !!m }
-        })
-        .sort((a, b) => a.time - b.time)
-    : []
+  // A multi-day trip shows what's next: tomorrow's tasks, and any moved there today. They're planned on the day.
+  const tomorrow: TomorrowItem[] = trip.tasks
+    .filter((t) => moved.has(t.taskId) || (t.day === nextDay && t.state !== 'done' && t.state !== 'skipped'))
+    .map((t) => {
+      const m = moved.get(t.taskId)
+      const time = m?.toDayStart ? localMinutes(m.toDayStart, nextDay, off) : t.fixedStart ? localMinutes(t.fixedStart, nextDay, off) : t.window ? toMin(t.window.opensAt) : 600
+      return { id: t.taskId, title: t.title, area: t.place.area, time, task: toTaskView(t, off), moved: !!m }
+    })
+    .sort((a, b) => a.time - b.time)
 
   // Never let a task vanish: say which of today's tasks the plan leaves out, and why.
   const open = (id: string) => {
