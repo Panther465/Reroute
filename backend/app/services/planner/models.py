@@ -66,6 +66,7 @@ class LegOption(Frozen):
     service_first: int | None = Field(default=None, description="Earliest departure, minutes from midnight.")
     service_last: int | None = Field(default=None, description="Latest departure, minutes from midnight.")
     transit_ref: TransitRef | None = None
+    rough: bool = Field(default=False, description="Estimated from the straight-line distance: no travel data for this place.")
 
     @property
     def is_raasta(self) -> bool:

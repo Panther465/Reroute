@@ -4,8 +4,7 @@ Honest gaps in this build. Each is a deliberate scope choice or waits on the tea
 
 ## Data
 
-- **Bengaluru travel times are sample values** (`examples/bengaluru/travel-times.json`), from the project brief. Pairs not listed have no leg option, so a task at a new place can't be planned until OSRM is enabled (`TRAVEL_TIMES_SOURCE=osrm`, `docker compose --profile routing up`).
-- **Day 2 of the demo (Train home, KSR Bengaluru) can't be planned:** the sample snapshot has no pairs to or from KSR, and the brief forbids inventing travel times. The task shows on the timeline under tomorrow.
+- **Bengaluru travel times are sample values** (`examples/bengaluru/travel-times.json`), from the project brief. For a place the file doesn't know (any place found by search, and KSR Bengaluru), Reroute plans a cab, and a walk when it's under 1.5 km, from the straight-line distance: roads at 1.3 times the line, cabs at 18 km/h plus 5 minutes' pickup, walking at 4.5 km/h, fares from the cab fare table. These legs are marked "Rough estimate" everywhere. Real road times need OSRM (`TRAVEL_TIMES_SOURCE=osrm`, `docker compose --profile routing up`). Gaps between places the file does know stay gaps, so the demo day plans exactly as the golden test says.
 - **The metro timetable file** (`examples/<city>/metro.json`) isn't supplied yet; with OSRM on, metro legs appear only once it exists.
 - **The campus trip and its 20 to 30 real Raasta routes** wait on the team's mapping.
 - **Sample Raasta routes** other than Koramangala–Jayanagar exist only to show the unverified, stale and e-rickshaw states.

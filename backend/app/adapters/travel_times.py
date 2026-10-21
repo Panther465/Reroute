@@ -1,7 +1,9 @@
 """Travel-time snapshots for the planner. The worker fetches everything first; the planner never calls out.
 
 Two implementations share one interface:
-- SampleSnapshotAdapter reads examples/<city>/travel-times.json (the Bengaluru demo).
+- SampleSnapshotAdapter reads examples/<city>/travel-times.json (the Bengaluru demo). For a place the
+  file doesn't know (any place found by search), it adds rough cab and walk estimates from the
+  straight-line distance, flagged `rough` so every screen can say so.
 - OsrmSnapshotAdapter asks OSRM for road times (car and foot), prices cabs from the city fare table,
   adds metro options from the timetable file, and caches every pair in Redis for 24 hours.
 Both enrich Raasta legs through the transit adapter, so a route's live status and first and last
@@ -34,12 +36,57 @@ log = logging.getLogger("reroute.travel")
 
 WALK_LIMIT_KM = 1.5
 
+# Rough estimates (sample assumptions, to replace with measured times): roads run about 1.3 times the
+# straight line, cabs average 18 km/h in city traffic, and people walk 4.5 km/h.
+ROAD_FACTOR = 1.3
+CAB_KMH = 18.0
+WALK_KMH = 4.5
+DEFAULT_FARES = {"baseInr": 100, "perKmInr": 20, "minimumInr": 100, "pickupMin": 5}
+
 
 @dataclass(frozen=True)
 class PlacePoint:
     place_id: str
     lng: float
     lat: float
+
+
+def cab_fares(examples_dir: Path, city_slug: str) -> dict:
+    path = examples_dir / city_slug / "cab-fares.json"
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else DEFAULT_FARES
+
+
+def rough_options(a: PlacePoint, b: PlacePoint, fares: dict) -> tuple[LegOption, ...]:
+    """A cab, and a walk when it's close, estimated from the straight-line distance."""
+    km = _km(a, b)
+    road_km = km * ROAD_FACTOR
+    cab_min = math.ceil(road_km / CAB_KMH * 60) + int(fares.get("pickupMin", 5))
+    fare = max(int(fares["minimumInr"]), round(fares["baseInr"] + fares["perKmInr"] * road_km))
+    options = [
+        LegOption(
+            option_id=f"{a.place_id}-{b.place_id}-cab-rough",
+            mode=Mode.CAB,
+            label="Cab",
+            segments=(Segment(mode=Mode.CAB, minutes=cab_min),),
+            travel_min=cab_min,
+            fare_inr=fare,
+            rough=True,
+        )
+    ]
+    if km < WALK_LIMIT_KM:
+        walk_min = max(1, math.ceil(road_km / WALK_KMH * 60))
+        options.append(
+            LegOption(
+                option_id=f"{a.place_id}-{b.place_id}-walk-rough",
+                mode=Mode.WALK,
+                label="Walk",
+                segments=(Segment(mode=Mode.WALK, minutes=walk_min),),
+                travel_min=walk_min,
+                fare_inr=0,
+                rough=True,
+            )
+        )
+    return tuple(options)
 
 
 class TravelTimeAdapter(Protocol):
@@ -69,13 +116,24 @@ class SampleSnapshotAdapter:
         if not path.exists():
             return TravelSnapshot(snapshot_id=f"{city_slug}-empty", pairs=())
         data = json.loads(path.read_text(encoding="utf-8"))
+        known = {p["from"] for p in data["pairs"]} | {p["to"] for p in data["pairs"]}
         wanted = {p.place_id for p in places}
         data = {**data, "pairs": [p for p in data["pairs"] if p["from"] in wanted and p["to"] in wanted]}
         status, service = _enrich(data, self.transit)
         snap = parse_snapshot(data, raasta_status=status, raasta_service=service)
-        # The snapshot ID changes when a route's status or hours change, so replays stay exact.
-        suffix = hashlib.sha256(json.dumps([status, service], sort_keys=True).encode()).hexdigest()[:8]
-        return snap.model_copy(update={"snapshot_id": f"{snap.snapshot_id}-{suffix}"})
+        # Only places the file doesn't know get estimates: the file's own gaps between its places stay
+        # gaps, so the sample day plans exactly as the brief's golden test says.
+        fares = cab_fares(self.examples_dir, city_slug)
+        rough = tuple(
+            PairOptions(from_place=a.place_id, to_place=b.place_id, options=rough_options(a, b, fares))
+            for a in places
+            for b in places
+            if a.place_id != b.place_id and (a.place_id not in known or b.place_id not in known)
+        )
+        # The snapshot ID changes when a route's status or hours change, or estimates join, so replays stay exact.
+        parts = [status, service, [p.model_dump(mode="json") for p in rough]]
+        suffix = hashlib.sha256(json.dumps(parts, sort_keys=True).encode()).hexdigest()[:8]
+        return snap.model_copy(update={"snapshot_id": f"{snap.snapshot_id}-{suffix}", "pairs": snap.pairs + rough})
 
 
 def _km(a: PlacePoint, b: PlacePoint) -> float:
@@ -102,12 +160,6 @@ class OsrmSnapshotAdapter:
         # osrm-routed serves one profile per instance, so car and foot are separate services.
         self.osrm = {"driving": s.osrm_car_url.rstrip("/"), "foot": s.osrm_foot_url.rstrip("/")}
         self.examples_dir = examples_dir or s.examples_dir
-
-    def _fares(self, city_slug: str) -> dict:
-        path = self.examples_dir / city_slug / "cab-fares.json"
-        if path.exists():
-            return json.loads(path.read_text(encoding="utf-8"))
-        return {"baseInr": 100, "perKmInr": 20, "minimumInr": 100, "pickupMin": 5}
 
     def _table(self, city_slug: str, profile: str, points: list[PlacePoint], day: date) -> list[list[tuple[float | None, float | None]]]:
         coords = ";".join(f"{p.lng:.6f},{p.lat:.6f}" for p in points)
@@ -167,7 +219,7 @@ class OsrmSnapshotAdapter:
             return SampleSnapshotAdapter(self.transit, self.examples_dir).snapshot(city_slug, places, day)
         where = supported_city(city_slug)
         utc_offset = where.utc_offset if where else "+05:30"
-        fares = self._fares(city_slug)
+        fares = cab_fares(self.examples_dir, city_slug)
         metro = MetroTimetable.load(self.examples_dir / city_slug / "metro.json")
         pairs: list[PairOptions] = []
         for i, a in enumerate(places):

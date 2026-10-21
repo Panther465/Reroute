@@ -46,6 +46,7 @@ function leg(seq: number, taskId: string | null, from: Place, to: Place, label: 
     transitRef: raasta ? { kind: 'raasta', refId: 'sample-kor-jay', status: 'verified' } : { kind: 'metro', refId: 'purple-line', status: null },
     extras: [],
     estimate: true,
+    rough: false,
   }
 }
 

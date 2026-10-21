@@ -2,7 +2,7 @@
 
 The traveller's position comes from check-ins and the clock alone (location is optional):
 - the current task is the first task in the active plan that isn't done or skipped and whose leg
-  should already have left;
+  should already have left, or the task under way when the plan was last re-planned;
 - if there is none, the traveller is at the last place they checked in done (or the place of stay).
 """
 
@@ -113,6 +113,15 @@ def sense(db: Session, trip: Trip, now: datetime, delay_min: int = 0, done_at: d
             ctx.done_legs += [*reached, leg]
             ctx.remaining_legs = legs[i + 1 :]
         break
+
+    # A re-plan made while a task was under way keeps that task's leg with the done legs. Until the task
+    # is checked in, the traveller is still there, so the next re-plan must start from it too.
+    if ctx.current is None and not reached and ctx.done_legs:
+        last = ctx.done_legs[-1]
+        task = tasks.get(last.get("taskId") or "")
+        if task is not None and task.state not in GONE:
+            ctx.current, ctx.current_leg = task, last
+            ctx.remaining_legs = legs[passed:]
 
     if ctx.current is not None:
         leg = ctx.current_leg

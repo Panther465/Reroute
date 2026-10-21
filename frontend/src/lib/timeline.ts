@@ -58,6 +58,8 @@ export interface LegView {
   status: 'done' | 'active' | 'upcoming'
   /** Every time and fare is an estimate. */
   estimate: boolean
+  /** Worked out from the distance: Reroute has no travel data for one of the places. */
+  rough: boolean
 }
 
 export interface TomorrowItem {
@@ -150,6 +152,7 @@ function legView(leg: Leg, day: string, fromId: string, offset: string): LegView
     toPlaceId: leg.toPlaceId,
     status: 'upcoming',
     estimate: leg.estimate ?? true,
+    rough: leg.rough ?? false,
   }
 }
 
@@ -316,6 +319,7 @@ export function sharedToDay(shared: SharedTrip): DayView {
     toPlaceId: '',
     status: i + 1 <= nowIndex ? 'done' : i + 1 === nowIndex + 1 ? 'active' : 'upcoming',
     estimate: true,
+    rough: false,
   }))
   return { stops, legs, tomorrow: [], leftOut: [], notPlanned: [], nowIndex: Math.max(0, nowIndex), nextLeg: legs.find((l) => l.status === 'active') ?? null, done: nowIndex === stops.length - 1, checkInTask: null, travelMin: 0, fareInr: 0, version: null, planId: null, reasonCodes: [], explanation: '', now, day }
 }

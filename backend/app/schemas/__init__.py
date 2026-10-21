@@ -182,6 +182,7 @@ class LegExtraOut(Api):
     travel_min: int
     fare_inr: int
     transit_ref: TransitRefOut | None = None
+    rough: bool = False
 
 
 class LegOut(Api):
@@ -203,6 +204,8 @@ class LegOut(Api):
     transit_ref: TransitRefOut | None = None
     extras: list[LegExtraOut] = []
     estimate: bool = True
+    #: Worked out from the straight-line distance, because Reroute has no travel data for one of the places.
+    rough: bool = False
 
 
 class TotalsOut(Api):

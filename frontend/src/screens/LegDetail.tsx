@@ -339,7 +339,11 @@ export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailM
           )
         )}
       </dl>
-      <p className="mt-2 t-small text-muted">Times and fares are estimates.</p>
+      <p className="mt-2 t-small text-muted">
+        {leg?.rough
+          ? '≈ A rough estimate from the distance: Reroute has no travel data for this place yet. Allow extra time, and check the fare in your cab app.'
+          : 'Times and fares are estimates.'}
+      </p>
 
       <div className="mt-6 flex flex-wrap gap-3">
         {r && (

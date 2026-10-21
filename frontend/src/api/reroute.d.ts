@@ -618,6 +618,11 @@ export interface components {
             /** Fareinr */
             fareInr: number;
             transitRef?: components["schemas"]["TransitRefOut"] | null;
+            /**
+             * Rough
+             * @default false
+             */
+            rough: boolean;
         };
         /** LegOut */
         LegOut: {
@@ -677,6 +682,11 @@ export interface components {
              * @default true
              */
             estimate: boolean;
+            /**
+             * Rough
+             * @default false
+             */
+            rough: boolean;
         };
         /** LogEntryOut */
         LogEntryOut: {
