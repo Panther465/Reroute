@@ -9,6 +9,7 @@ import { Field, FieldError } from '@/components/ui/Field'
 import { Sheet } from '@/components/ui/Sheet'
 import { duration, hhmm } from '@/lib/format'
 import { T, useTl } from '@/lib/i18n'
+import { placeSearchError } from '@/lib/placeSearch'
 import { addDays, localMinutes, weekday } from '@/lib/timeline'
 
 type Timing = 'fixed' | 'hours' | 'any'
@@ -53,11 +54,6 @@ function useDebounced<T>(value: T, ms: number) {
 }
 
 /** Why place search failed: no signal, or a city Reroute doesn't cover (the server says which). */
-export function placeSearchError(err: unknown) {
-  if (err instanceof ApiError && err.status === 422) return err.message
-  return "Place search needs a connection. Try again when you're online."
-}
-
 export function tripDays(trip: Trip) {
   const days: string[] = []
   for (let d = trip.startDate; d <= trip.endDate; d = addDays(d, 1)) days.push(d)

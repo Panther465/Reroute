@@ -18,6 +18,8 @@ export interface UiState {
   lang: Lang
   leaveAlerts: boolean
   demo: { enabled: boolean; offline: boolean }
+  /** The trip the traveller chose to look at; null means the most recent one. */
+  tripId: string | null
   // Transient, never persisted
   change: Change | null
   reveal: number
@@ -36,7 +38,7 @@ export interface UiState {
 }
 
 const KEY = 'reroute:prefs:v2'
-const PERSISTED: (keyof UiState)[] = ['theme', 'lang', 'leaveAlerts', 'demo', 'started']
+const PERSISTED: (keyof UiState)[] = ['theme', 'lang', 'leaveAlerts', 'demo', 'started', 'tripId']
 
 function defaults(): UiState {
   return {
@@ -44,6 +46,7 @@ function defaults(): UiState {
     lang: 'en',
     leaveAlerts: false,
     demo: { enabled: false, offline: false },
+    tripId: null,
     change: null,
     reveal: 0,
     autoBanner: null,

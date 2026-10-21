@@ -13,8 +13,9 @@ from datetime import time as dtime
 from typing import Annotated
 
 from fastapi import APIRouter, Query, Response
+from fastapi.concurrency import run_in_threadpool
 from rq.job import Job
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, delete, or_, select
 from sqlalchemy.exc import IntegrityError
 
 from app import events
@@ -52,7 +53,8 @@ from app.schemas import (
 )
 from app.services import loop, plan_store
 from app.services.day import trip_day
-from app.services.views import options_out, summary_out, task_out, trip_out, trip_summary_out
+from app.services.places import best_place
+from app.services.views import options_out, place_out, summary_out, task_out, trip_out, trip_summary_out
 from app.workers import jobs
 from app.workers.queue import get_queue
 
@@ -385,18 +387,14 @@ def calendar_import(body: CalendarImportIn, trip: OwnedTrip, db: Db) -> list[Tas
     end = datetime.combine(trip.end_date, dtime(23, 59), tz)
     drafts = []
     for ev in calendar_events(body.code, start, end):
-        match = None
-        if ev.location:
-            words = ev.location.split(",")[0].strip()
-            match = db.scalar(
-                select(Place).where(Place.city_slug == trip.city_slug, or_(Place.name.ilike(f"%{words}%"), Place.area.ilike(f"%{words}%"))).limit(1)
-            )
+        match = best_place(db, ev.location, trip.city_slug) if ev.location else None
         minutes = max(5, min(720, int((ev.end - ev.start).total_seconds() // 60)))
         drafts.append(
             TaskDraftOut(
                 title=ev.title[:120],
                 place_text=ev.location,
                 place_id=match.place_id if match else None,
+                place=place_out(match) if match else None,
                 duration_min=minutes,
                 fixed_start=ev.start.astimezone(tz),
                 source="calendar",
@@ -421,15 +419,11 @@ async def ai_task_drafts(body: AiHelperIn, trip: OwnedTrip, db: Db) -> list[Task
 
     day = trip_day(trip, now_for(trip.trip_id))
     raw = await extract_tasks_llm(body.text, trip.city_name, str(day))
+    # Database and Nominatim calls block (Nominatim allows one request a second), so they run off the event loop.
+    matches = await run_in_threadpool(lambda: [best_place(db, t.get("placeText", ""), trip.city_slug) for t in raw])
     drafts: list[TaskDraftOut] = []
-    for t in raw:
+    for t, match in zip(raw, matches, strict=True):
         place_text = t.get("placeText", "")
-        match = None
-        if place_text:
-            words = place_text.split(",")[0].strip()
-            match = db.scalar(
-                select(Place).where(Place.city_slug == trip.city_slug, or_(Place.name.ilike(f"%{words}%"), Place.area.ilike(f"%{words}%"))).limit(1)
-            )
         fixed = None
         if t.get("fixedStart"):
             tz = tz_for(trip.utc_offset)
@@ -440,6 +434,7 @@ async def ai_task_drafts(body: AiHelperIn, trip: OwnedTrip, db: Db) -> list[Task
                 title=t["title"],
                 place_text=place_text,
                 place_id=match.place_id if match else None,
+                place=place_out(match) if match else None,
                 duration_min=t["durationMin"],
                 fixed_start=fixed,
                 priority=t.get("priority", 2),
@@ -484,6 +479,8 @@ def demo_reset(body: PostBody, trip: OwnedTrip, db: Db) -> TripOut:
     from app.seed import reset_demo_trip
 
     reset_demo_trip(db, trip)
+    # The demo account is shared: trips started while trying it go too, so the next person starts clean.
+    db.execute(delete(Trip).where(Trip.user_id == trip.user_id, Trip.trip_id != trip.trip_id, Trip.sample.is_(False)))
     set_demo_now(trip.trip_id, datetime.fromisoformat(DEMO_CLOCK_START))
     db.commit()
     return trip_out(db, trip, now_for(trip.trip_id))

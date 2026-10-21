@@ -1089,6 +1089,7 @@ export interface components {
             placeText: string;
             /** Placeid */
             placeId?: string | null;
+            place?: components["schemas"]["PlaceOut"] | null;
             /** Durationmin */
             durationMin: number;
             /** Fixedstart */

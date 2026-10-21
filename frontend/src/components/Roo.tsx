@@ -337,7 +337,9 @@ export function Roo({ trip, clock, demoActive }: { trip: Trip | undefined; clock
   const dismissed = useRef(new Set<string>())
   const fadeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
-  const greeting: RooMessage | null = greeted ? null : { id: 'greet', emoji: '🌱', text: 'Hi, I’m Roo! I’ll keep an eye on your day and nudge you when it’s time. Tap me anytime.', mood: 'wave' }
+  // Hello waits for Today: on the start form it would sit over "Plan my day", the one button that matters.
+  const greeting: RooMessage | null =
+    greeted || pathname !== '/' ? null : { id: 'greet', emoji: '🌱', text: 'Hi, I’m Roo! I’ll keep an eye on your day and nudge you when it’s time. Tap me anytime.', mood: 'wave' }
   const msg = override ?? greeting ?? (derived && !dismissed.current.has(derived.id) ? derived : null)
 
   const schedule = useCallback((m: RooMessage) => {

@@ -44,4 +44,6 @@ Adding, editing or removing a task on a day that already has a plan re-plans tha
 
 ## Demo-only routes
 
-With `DEMO_LOGIN=true`: `POST /v1/trips/:id/demo/clock` sets the simulated time, `POST /v1/trips/:id/demo/check` runs the 5-minute check now, `POST /v1/trips/:id/demo/reset` restores the sample day. In production they answer 404.
+With `DEMO_LOGIN=true`: `POST /v1/trips/:id/demo/clock` sets the simulated time, `POST /v1/trips/:id/demo/check` runs the 5-minute check now, `POST /v1/trips/:id/demo/reset` restores the sample day and deletes any other trips the demo account started. In production they answer 404.
+
+`POST /v1/trips/:id/task-drafts` (describe your day) and `POST /v1/trips/:id/calendar-import` return draft tasks and save nothing. Each draft's `placeText` is matched like a place search (known places first, then OpenStreetMap): `placeId` and `place` hold the best match, or are null when nothing matched and the traveller must choose.

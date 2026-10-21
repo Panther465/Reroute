@@ -49,11 +49,14 @@ export function useTrips(enabled = true) {
   return useQuery({ queryKey: keys.trips, queryFn: () => api.get<TripsPage>('/v1/trips', { query: { limit: 20 } }), enabled })
 }
 
-/** The trip the app shows: the most recent one. */
+/** The trip the app shows: the one the traveller chose, else the most recent one. */
 export function useCurrentTripId(): { tripId: string | null; isPending: boolean; isError: boolean; error: unknown; refetch: () => void } {
   // Nothing is fetched until the session is known: an unauthenticated request would only bounce.
   const q = useTrips(useSessionStatus() === 'signedIn')
-  return { tripId: q.data?.items[0]?.tripId ?? null, isPending: q.isPending, isError: q.isError, error: q.error, refetch: () => void q.refetch() }
+  const chosen = useStore((s) => s.tripId)
+  const items = q.data?.items ?? []
+  const tripId = (chosen && items.some((t) => t.tripId === chosen) ? chosen : items[0]?.tripId) ?? null
+  return { tripId, isPending: q.isPending, isError: q.isError, error: q.error, refetch: () => void q.refetch() }
 }
 
 export function useTrip(tripId: string | null) {
