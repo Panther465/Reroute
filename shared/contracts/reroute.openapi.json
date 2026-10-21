@@ -640,6 +640,18 @@
             }
           },
           {
+            "name": "replan",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Re-plan the task's day if it already has a plan. Pass false for all but the last task of a batch.",
+              "default": true,
+              "title": "Replan"
+            },
+            "description": "Re-plan the task's day if it already has a plan. Pass false for all but the last task of a batch."
+          },
+          {
             "name": "authorization",
             "in": "header",
             "required": false,
@@ -672,7 +684,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/TaskOut"
+                  "$ref": "#/components/schemas/TaskAddOut"
                 }
               }
             }
@@ -3495,6 +3507,106 @@
           "end"
         ],
         "title": "SummaryTaskOut"
+      },
+      "TaskAddOut": {
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "title": "Taskid"
+          },
+          "tripId": {
+            "type": "string",
+            "title": "Tripid"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "placeId": {
+            "type": "string",
+            "title": "Placeid"
+          },
+          "place": {
+            "$ref": "#/components/schemas/PlaceOut"
+          },
+          "durationMin": {
+            "type": "integer",
+            "title": "Durationmin"
+          },
+          "fixedStart": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fixedstart"
+          },
+          "window": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WindowOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "priority": {
+            "type": "integer",
+            "title": "Priority"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "planned",
+              "in_progress",
+              "done",
+              "skipped",
+              "moved"
+            ],
+            "title": "State"
+          },
+          "hoursUnknown": {
+            "type": "boolean",
+            "title": "Hoursunknown"
+          },
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "jobId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Jobid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "taskId",
+          "tripId",
+          "title",
+          "placeId",
+          "place",
+          "durationMin",
+          "fixedStart",
+          "window",
+          "priority",
+          "state",
+          "hoursUnknown",
+          "day"
+        ],
+        "title": "TaskAddOut"
       },
       "TaskDraftOut": {
         "properties": {

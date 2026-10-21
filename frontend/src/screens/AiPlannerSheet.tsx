@@ -3,7 +3,8 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
 import { api, ApiError, newKey } from '@/api/client'
 import { keys, queryClient } from '@/api/queries'
-import type { Task, TaskDraft, Trip } from '@/api/types'
+import type { TaskDraft, Trip } from '@/api/types'
+import { addTask, type EditOutcome } from '@/lib/actions'
 import { Button } from '@/components/ui/Button'
 import { Sheet } from '@/components/ui/Sheet'
 import { Banner } from '@/components/ui/States'
@@ -15,7 +16,7 @@ interface AiPlannerSheetProps {
   trip: Trip
   open: boolean
   onOpenChange: (open: boolean) => void
-  onAdded: (n: number) => void
+  onAdded: (n: number, outcome: EditOutcome) => void
 }
 
 function DraftCard({
@@ -84,6 +85,7 @@ export function AiPlannerSheet({ trip, open, onOpenChange, onAdded }: AiPlannerS
   const [drafts, setDrafts] = useState<TaskDraft[] | null>(null)
   const [busy, setBusy] = useState(false)
   const [adding, setAdding] = useState(false)
+  const [replanning, setReplanning] = useState(false)
   const [error, setError] = useState<string>()
   const [askKey, setAskKey] = useState(() => newKey('ai'))
   const [draftKeys, setDraftKeys] = useState<string[]>([])
@@ -122,26 +124,25 @@ export function AiPlannerSheet({ trip, open, onOpenChange, onAdded }: AiPlannerS
 
   const addAll = async () => {
     if (!drafts) return
-    const toAdd = drafts.filter((d) => d.placeId)
-    if (toAdd.length === 0) return
+    const chosen = drafts.map((d, i) => ({ d, key: draftKeys[i] })).filter((x) => x.d.placeId)
+    if (chosen.length === 0) return
     setAdding(true)
     setError(undefined)
     try {
-      for (let i = 0; i < drafts.length; i++) {
-        const d = drafts[i]
-        if (!d.placeId) continue
-        const day = d.fixedStart ? d.fixedStart.slice(0, 10) : trip.startDate
-        await api.post<Task>(`/v1/trips/${trip.tripId}/tasks`, {
-          title: d.title,
-          placeId: d.placeId,
-          durationMin: d.durationMin,
-          fixedStart: d.fixedStart,
-          priority: d.priority,
-          day,
-        }, { idempotencyKey: draftKeys[i] })
+      let outcome: EditOutcome = 'saved'
+      // Untimed tasks go on the day being planned; the day re-plans once, after the last task.
+      for (const [n, { d, key }] of chosen.entries()) {
+        const day = d.fixedStart ? d.fixedStart.slice(0, 10) : trip.day
+        const res = await addTask(
+          trip.tripId,
+          { title: d.title, placeId: d.placeId!, durationMin: d.durationMin, fixedStart: d.fixedStart, priority: d.priority, hoursUnknown: false, day },
+          key,
+          { replan: n === chosen.length - 1, onReplanning: () => setReplanning(true) },
+        )
+        outcome = res.outcome
       }
       await queryClient.invalidateQueries({ queryKey: keys.trip(trip.tripId) })
-      onAdded(toAdd.length)
+      onAdded(chosen.length, outcome)
       setDrafts(null)
       setText('')
       setAskKey(newKey('ai'))
@@ -149,6 +150,7 @@ export function AiPlannerSheet({ trip, open, onOpenChange, onAdded }: AiPlannerS
       setError(err instanceof ApiError ? err.message : "Couldn't add those tasks. Try again.")
     } finally {
       setAdding(false)
+      setReplanning(false)
     }
   }
 
@@ -182,7 +184,7 @@ export function AiPlannerSheet({ trip, open, onOpenChange, onAdded }: AiPlannerS
             <Button
               full
               loading={adding}
-              loadingLabel="Adding..."
+              loadingLabel={replanning ? 'Updating your plan…' : 'Adding…'}
               onClick={addAll}
               disabled={addable === 0}
             >

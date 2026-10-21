@@ -49,7 +49,7 @@ describe('offline check-in queue', () => {
     let n = 0
     const res = await flush(async () => {
       n++
-      if (n === 1) throw new ApiError(409, 'CONFLICT', 'This task is already checked in.')
+      if (n === 1) throw new ApiError(409, 'CONFLICT', 'This task is already marked done.')
     })
     expect(res).toEqual({ sent: 1, dropped: 1 })
     expect(queued()).toEqual([])

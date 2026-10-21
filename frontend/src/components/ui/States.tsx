@@ -4,7 +4,7 @@ import { T } from '@/lib/i18n'
 import { Button } from './Button'
 
 export function Skeleton({ className = '' }: { className?: string }) {
-  return <div aria-hidden="true" className={`rounded-tag bg-line ${className}`} />
+  return <div aria-hidden="true" data-skeleton="" className={`rounded-tag bg-line ${className}`} />
 }
 
 export function LoadingRegion({ label, children }: { label: string; children: ReactNode }) {
@@ -16,9 +16,10 @@ export function LoadingRegion({ label, children }: { label: string; children: Re
   )
 }
 
-export function EmptyState({ title, body, action }: { title: string; body: string; action?: ReactNode }) {
+export function EmptyState({ title, body, action, illustration }: { title: string; body: string; action?: ReactNode; illustration?: ReactNode }) {
   return (
     <div className="py-10">
+      {illustration && <div className="mb-5">{illustration}</div>}
       <h2 className="t-display-2 text-ink">{title}</h2>
       <p className="measure mt-2 t-body text-ink-2">{body}</p>
       {action && <div className="mt-6">{action}</div>}

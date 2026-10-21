@@ -11,39 +11,72 @@ async function openSimulate(page: Page) {
   await expect(page.getByRole('heading', { name: 'Simulate' })).toBeVisible()
 }
 
-test('running late, reroute, then undo', async ({ page }) => {
-  test.setTimeout(120_000)
-
-  // Demo sign-in.
+/** Demo sign-in, reset the sample day and plan it, ending on Today. */
+async function planFreshDay(page: Page) {
   await page.goto('/signin')
   await page.getByRole('button', { name: 'Use the demo account' }).click()
   await expect(page).not.toHaveURL(/signin/)
 
-  // Reset the demo, so the run starts from the sample day with no plan.
   await openSimulate(page)
   const reset = page.waitForResponse((r) => r.url().endsWith(`/v1/trips/${TRIP}/demo/reset`) && r.request().method() === 'POST')
   await page.getByRole('button', { name: 'Reset the demo' }).click()
   expect((await reset).ok()).toBe(true)
   await expect(page).toHaveURL(/\/plan$/)
 
-  // Plan my day.
   await page.getByRole('button', { name: /^Plan my day/ }).click()
   await expect(page).toHaveURL(/\/$/, { timeout: 30_000 })
   await expect(page.getByRole('heading', { level: 1, name: 'Bengaluru' })).toBeVisible()
+}
 
-  // Set the trip clock to 10:55.
+async function setClock(page: Page, hhmm: string) {
   await openSimulate(page)
   // A time input has no ARIA role of its own, so it is found by its label.
   const time = page.getByLabel('Current time')
-  // The panel only sends a new time; the reset may already have left the clock at 10:55.
-  if ((await time.inputValue()) !== '10:55') {
+  // The panel only sends a new time; the clock may already show it.
+  if ((await time.inputValue()) !== hhmm) {
     const clock = page.waitForResponse((r) => r.url().endsWith(`/v1/trips/${TRIP}/demo/clock`) && r.request().method() === 'POST')
-    await time.fill('10:55')
+    await time.fill(hhmm)
     // Leave the field to send it (Tab only moves between the hour and minute parts on desktop Chrome).
     await page.getByRole('heading', { name: 'Simulate' }).click()
     expect((await clock).ok()).toBe(true)
   }
   await page.keyboard.press('Escape')
+}
+
+test('the day keeps up: leave, mark done, and add a task without planning again', async ({ page }) => {
+  test.setTimeout(120_000)
+  await planFreshDay(page)
+  await setClock(page, '08:00')
+
+  // Still at the hotel: the one main button says "I've left", not "Mark done".
+  const actions = page.getByRole('main')
+  await actions.getByRole('button', { name: "I've left" }).first().click()
+  await expect(actions.getByRole('button', { name: /^Mark done/ }).first()).toBeVisible()
+  // It remembers across a reload.
+  await page.reload()
+  await expect(page.getByRole('main').getByRole('button', { name: /^Mark done/ }).first()).toBeVisible()
+
+  // Add a task on the Plan tab: the day re-plans by itself.
+  await page.goto('/plan')
+  await page.getByRole('button', { name: 'Add a task' }).click()
+  const form = page.getByRole('dialog')
+  await form.getByLabel('Title', { exact: true }).fill('Pick up documents')
+  await form.getByLabel('Place', { exact: true }).fill('Jayanagar')
+  await form.getByRole('list', { name: 'Places found' }).getByRole('button', { name: /University admin office/ }).first().click()
+  const planned = page.waitForResponse((r) => r.url().includes(`/v1/trips/${TRIP}/tasks`) && r.request().method() === 'POST')
+  await form.getByRole('button', { name: 'Add this task' }).click()
+  expect(((await (await planned).json()) as { jobId: string | null }).jobId).toBeTruthy()
+  await expect(page.getByRole('region', { name: /Notifications/ }).getByRole('listitem').filter({ hasText: 'Your day is updated' })).toBeVisible({ timeout: 30_000 })
+
+  // Today shows it: on the timeline, or with the reason it couldn't fit. It never just vanishes.
+  await page.goto('/')
+  await expect(page.getByRole('main').getByText('Pick up documents').first()).toBeVisible()
+})
+
+test('running late, reroute, then undo', async ({ page }) => {
+  test.setTimeout(120_000)
+  await planFreshDay(page)
+  await setClock(page, '10:55')
 
   // Running late, about 40 min.
   await page.getByRole('button', { name: 'Running late' }).click()

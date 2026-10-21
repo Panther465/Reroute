@@ -62,7 +62,7 @@ export function DemoPanel({ trip, onLate }: { trip: Trip | undefined; onLate: (d
     run('reset the demo', async () => {
       const next = await api.post<Trip>(`/v1/trips/${tripId}/demo/reset`, {})
       queryClient.setQueryData(keys.trip(tripId), next)
-      setState({ change: null, autoBanner: null, optimisticDone: [], startedSeq: null })
+      setState({ change: null, autoBanner: null, optimisticDone: [], started: null })
       setOpen(false)
       navigate('/plan')
       showToast({ title: 'Demo reset. Plan the day to start again.' })
@@ -78,7 +78,7 @@ export function DemoPanel({ trip, onLate }: { trip: Trip | undefined; onLate: (d
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
-        <button type="button" className="fixed bottom-[calc(148px+env(safe-area-inset-bottom))] right-4 z-40 flex min-h-12 items-center gap-2 rounded-full border-2 border-ink bg-surface px-4 t-title text-ink lg:bottom-6 lg:right-6">
+        <button type="button" className="fixed bottom-[calc(148px+env(safe-area-inset-bottom))] left-4 z-40 flex min-h-11 items-center gap-2 rounded-full border border-line bg-surface/90 px-3.5 t-small text-ink-2 shadow-sm backdrop-blur-sm lg:bottom-6 lg:left-auto lg:right-6">
           <SlidersHorizontal size={20} strokeWidth={1.75} aria-hidden="true" />
           Simulate
         </button>

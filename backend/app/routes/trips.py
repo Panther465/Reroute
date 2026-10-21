@@ -64,6 +64,11 @@ class TaskEditOut(Api):
     job_id: str | None = None
 
 
+class TaskAddOut(TaskOut):
+    #: The re-plan this task started, when it joined a day that already has a plan.
+    job_id: str | None = None
+
+
 # ---------- helpers ----------
 
 
@@ -167,8 +172,13 @@ def get_trip(trip: OwnedTrip, db: Db) -> TripOut:
 # ---------- tasks ----------
 
 
-@router.post("/trips/{trip_id}/tasks", response_model=TaskOut, response_model_by_alias=True, status_code=201)
-def add_task(body: TaskIn, trip: OwnedTrip, db: Db) -> TaskOut:
+@router.post("/trips/{trip_id}/tasks", response_model=TaskAddOut, response_model_by_alias=True, status_code=201)
+def add_task(
+    body: TaskIn,
+    trip: OwnedTrip,
+    db: Db,
+    replan: Annotated[bool, Query(description="Re-plan the task's day if it already has a plan. Pass false for all but the last task of a batch.")] = True,
+) -> TaskAddOut:
     _place(db, body.place_id, trip.city_slug)
     tz = tz_for(trip.utc_offset)
     day = body.day or (body.fixed_start.astimezone(tz).date() if body.fixed_start else trip.start_date)
@@ -191,8 +201,13 @@ def add_task(body: TaskIn, trip: OwnedTrip, db: Db) -> TaskOut:
     )
     db.add(task)
     db.commit()
+    # A task added to a planned day joins the plan, the same as an edit: no "plan again" step.
+    job_id = None
+    active = plan_store.active_plan(db, trip.trip_id)
+    if replan and active is not None and active.day == task.day:
+        job_id = get_queue().enqueue(jobs.plan_trip, trip.trip_id, "edited").id
     db.refresh(task)
-    return task_out(task)
+    return TaskAddOut.model_validate({**task_out(task).model_dump(), "job_id": job_id})
 
 
 @router.patch("/trips/{trip_id}/tasks/{task_id}", response_model=TaskEditOut, response_model_by_alias=True)
@@ -238,7 +253,7 @@ def delete_task(task_id: str, trip: OwnedTrip, db: Db) -> Response:
     if task is None or task.trip_id != trip.trip_id:
         raise ApiError(404, "Task not found.")
     if task.state == "done" or db.scalar(select(Checkin.checkin_id).where(Checkin.task_id == task_id).limit(1)):
-        raise ApiError(409, "This task has check-ins, so it stays in the record. Skip it instead.")
+        raise ApiError(409, "This task is already in your day's record, so it can't be removed. Skip it instead if you won't do it.")
     active = plan_store.active_plan(db, trip.trip_id)
     in_plan = active is not None and any(leg.get("taskId") == task_id for leg in [*active.legs, *(active.done_legs or [])])
     db.delete(task)
@@ -307,7 +322,7 @@ def checkin(body: CheckinIn, trip: OwnedTrip, db: Db, response: Response) -> Che
     db.add(row)
     if body.kind == "done":
         if task.state == "done":
-            raise ApiError(409, "This task is already checked in.")
+            raise ApiError(409, "This task is already marked done.")
         task.state = "done"
     elif body.kind == "skipped":
         # The traveller may skip any task, even a fixed one; the planner never does that on its own.
@@ -404,7 +419,8 @@ async def ai_task_drafts(body: AiHelperIn, trip: OwnedTrip, db: Db) -> list[Task
         raise ApiError(404, "The AI helper is not enabled on this server.")
     from app.adapters.llm import extract_tasks_llm
 
-    raw = await extract_tasks_llm(body.text, trip.city_name, str(trip.start_date))
+    day = trip_day(trip, now_for(trip.trip_id))
+    raw = await extract_tasks_llm(body.text, trip.city_name, str(day))
     drafts: list[TaskDraftOut] = []
     for t in raw:
         place_text = t.get("placeText", "")
@@ -418,7 +434,7 @@ async def ai_task_drafts(body: AiHelperIn, trip: OwnedTrip, db: Db) -> list[Task
         if t.get("fixedStart"):
             tz = tz_for(trip.utc_offset)
             h, m = map(int, t["fixedStart"].split(":"))
-            fixed = datetime.combine(trip.start_date, dtime(h, m), tz)
+            fixed = datetime.combine(day, dtime(h, m), tz)
         drafts.append(
             TaskDraftOut(
                 title=t["title"],

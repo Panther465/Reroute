@@ -8,8 +8,10 @@ async function noSeriousIssues(page: Page, name: string) {
   // Let the screen's fade-in finish: axe measures contrast with the opacity of the moment.
   // CSS and Web Animations show up in getAnimations(); Motion's JavaScript-driven fades only show
   // as an inline opacity between 0 and 1, and every one of them ends at 0 or 1 (the Now pulse,
-  // marked data-looping, is the one that never ends).
+  // marked data-looping, is the one that never ends). Placeholders count as unsettled too: the content
+  // that replaces them fades in, and axe would measure it mid-fade.
   await page.waitForFunction(() => {
+    if (document.querySelector('[data-skeleton], [aria-busy="true"]')) return false
     const main = document.getElementById('main')
     const cssSettled = document.getAnimations().every((a) => a.playState !== 'running' || a.effect?.getComputedTiming().iterations === Infinity)
     const motionSettled = [...document.querySelectorAll<HTMLElement>('[style*="opacity"]:not([data-looping])')].every((el) => {

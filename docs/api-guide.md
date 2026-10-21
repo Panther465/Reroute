@@ -32,6 +32,8 @@ GET  /v1/trips/trip-001/summary                                                 
 
 A check-in's `result` is `on_time`, `shifted` (the new plan is included), `options`, `no_feasible_plan` (with `blocked`), `recorded`, or `pending` (202, with `jobId`; the outcome also arrives live).
 
+Adding, editing or removing a task on a day that already has a plan re-plans that day (trigger `edited`). `POST /v1/trips/:id/tasks` and `PATCH …/tasks/:taskId` return the re-plan's `jobId` to poll. When adding several tasks at once, pass `?replan=false` on all but the last so the day re-plans once.
+
 ## Live updates
 
 `GET /v1/trips/:id/live` is a server-sent event stream: `plan_updated`, `options_ready`, `leave_now`, `checkin_recorded`, `trip_ended`. Send the access token in the `Authorization` header (read the stream with `fetch`). The family view polls `GET /v1/shared/:token` every 30 seconds.

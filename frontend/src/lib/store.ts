@@ -28,12 +28,15 @@ export interface UiState {
   pendingDelay: number | null
   /** Optimistic check-ins, shown before the server confirms them. */
   optimisticDone: string[]
-  /** The leg the traveller said they started ("Start this leg"); local only. */
-  startedSeq: number | null
+  /**
+   * The traveller said "I've left" for the stop `toId` (a task ID, or "end" for the way back). Kept by
+   * destination, not leg number, so it survives a re-plan and a reload. Local only.
+   */
+  started: { tripId: string; toId: string } | null
 }
 
 const KEY = 'reroute:prefs:v2'
-const PERSISTED: (keyof UiState)[] = ['theme', 'lang', 'leaveAlerts', 'demo']
+const PERSISTED: (keyof UiState)[] = ['theme', 'lang', 'leaveAlerts', 'demo', 'started']
 
 function defaults(): UiState {
   return {
@@ -47,7 +50,7 @@ function defaults(): UiState {
     leaveNow: null,
     pendingDelay: null,
     optimisticDone: [],
-    startedSeq: null,
+    started: null,
   }
 }
 

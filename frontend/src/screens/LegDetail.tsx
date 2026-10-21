@@ -202,12 +202,14 @@ export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailM
   const [fareKey, setFareKey] = useState(() => newKey('fare'))
   const r = model.route
   const leg = model.leg
-  const started = useStore((s) => s.startedSeq)
+  const tripId = useCurrentTripId().tripId
+  const startedTo = useStore((s) => (s.started && s.started.tripId === tripId ? s.started.toId : null))
+  const isStarted = !!leg && startedTo === leg.toId
 
   const start = () => {
-    if (!leg) return
-    setState({ startedSeq: leg.seq })
-    showToast({ title: `Leg started. Get off at ${model.alight}.` })
+    if (!leg || !tripId) return
+    setState({ started: { tripId, toId: leg.toId } })
+    showToast({ title: `On your way. Get off at ${model.alight}.` })
     if (!embedded) navigate('/')
   }
 
@@ -346,8 +348,8 @@ export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailM
           </Button>
         )}
         {leg && leg.status !== 'done' && (
-          <Button variant="primary" icon={<Navigation size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={start} disabled={started === leg.seq}>
-            {started === leg.seq ? 'Leg started' : <T k="Start this leg" />}
+          <Button variant="primary" icon={<Navigation size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={start} disabled={isStarted}>
+            {isStarted ? 'On your way' : <T k="I've left" />}
           </Button>
         )}
       </div>

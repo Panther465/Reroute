@@ -223,6 +223,30 @@ def test_skipping_after_check_ins_plans_from_the_last_place_reached(client):
     assert hm(home["leaveBy"]) >= "13:00"
 
 
+def add(c, title: str, replan: bool = True) -> dict:
+    url = "/v1/trips/trip-001/tasks" + ("" if replan else "?replan=false")
+    res = c.post(url, json={"title": title, "placeId": "jayanagar-office", "durationMin": 15, "priority": 3, "idempotencyKey": key()})
+    assert res.status_code == 201, res.text
+    return res.json()
+
+
+def test_adding_a_task_to_a_planned_day_replans_it(client):
+    plan_v1(client)
+    task = add(client, "Pick up documents")
+    assert task["jobId"]
+    plan = client.get("/v1/trips/trip-001").json()["activePlan"]
+    assert plan["version"] == 2 and plan["trigger"] == "edited"
+    assert task["taskId"] in [leg["taskId"] for leg in plan["legs"]] + [m["taskId"] for m in plan["moved"]]
+
+
+def test_a_batch_of_tasks_replans_once_on_its_last_task(client):
+    plan_v1(client)
+    assert add(client, "Pick up documents", replan=False)["jobId"] is None
+    assert client.get("/v1/trips/trip-001").json()["activePlan"]["version"] == 1
+    assert add(client, "Drop a form")["jobId"]
+    assert client.get("/v1/trips/trip-001").json()["activePlan"]["version"] == 2
+
+
 def test_automatic_check_shifts_when_behind(client):
     plan_v1(client)
     clock(client, "11:25")  # leave-by was 11:05 and the meeting isn't checked in: 20 min behind
