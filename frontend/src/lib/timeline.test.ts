@@ -87,8 +87,8 @@ describe('buildDay (golden plan version 1 at 10:55)', () => {
     expect(view.checkInTask).toBeNull()
   })
 
-  it('shows tomorrow only when a task was moved', () => {
-    expect(buildDay(goldenTrip())!.tomorrow).toEqual([])
+  it("always shows tomorrow's tasks, with tasks moved there today", () => {
+    expect(buildDay(goldenTrip())!.tomorrow.map((t) => [t.title, hhmm(t.time), t.moved])).toEqual([['Train home', '21:00', false]])
     const trip = goldenTrip()
     trip.activePlan!.moved = [{ taskId: 'task-office', title: 'University office', kind: 'moved', toDayStart: '2026-10-15T10:00:00+05:30', reason: 'moved' }]
     trip.tasks[2].state = 'moved'

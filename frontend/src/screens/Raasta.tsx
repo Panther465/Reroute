@@ -1,9 +1,10 @@
-import { ChevronLeft, MapPin, Plus, Search } from 'lucide-react'
+import { MapPin, Plus, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 import { api, ApiError } from '@/api/client'
 import { useCurrentTripId, useDay, useRaastaRoute, useStands, useTrip } from '@/api/queries'
 import type { Place, RaastaLegOption, RaastaLegOptions } from '@/api/types'
+import { BackButton, useBack } from '@/components/BackButton'
 import { ModeIcon, MODE_META, modeTextClass } from '@/components/icons'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { Field, FieldError } from '@/components/ui/Field'
@@ -82,14 +83,12 @@ export default function RaastaHome() {
   }, [trip, view])
   const stands = useStands(here?.near ?? null, 2000)
 
-  const find = async (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!from.trim() || !to.trim()) return setError('Enter where you start and where you want to go.')
+  type Point = { name: string; lng: number; lat: number }
+  const searchBetween = async (resolveEnds: () => Promise<[Point | null, Point | null]>) => {
     setError(undefined)
     setSearching(true)
     try {
-      const a = fromPoint && fromPoint.name === from ? fromPoint : await resolve(from, city)
-      const b = await resolve(to, city)
+      const [a, b] = await resolveEnds()
       if (!a || !b) {
         setError(`We couldn't find ${!a ? from : to} in ${cityName}. Try an area name, like Koramangala.`)
         return
@@ -105,16 +104,61 @@ export default function RaastaHome() {
     }
   }
 
+  const find = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!from.trim() || !to.trim()) return setError('Enter where you start and where you want to go.')
+    void searchBetween(async () => [fromPoint && fromPoint.name === from ? fromPoint : await resolve(from, city), await resolve(to, city)])
+  }
+
+  // The leg the traveller takes next, ready to search: Raasta in service of the day, not beside it.
+  const next = useMemo(() => {
+    const leg = view?.nextLeg
+    if (!trip || !leg) return null
+    const placeOf = (id: string) => (trip.stayPlace.placeId === id ? trip.stayPlace : (trip.tasks.find((t) => t.placeId === id)?.place ?? null))
+    const a = placeOf(leg.fromPlaceId)
+    const b = placeOf(leg.toPlaceId)
+    return a && b ? { a, b, leaveBy: leg.leaveBy } : null
+  }, [trip, view])
+  const searchNext = () => {
+    if (!next) return
+    setFrom(next.a.area)
+    setTo(next.b.area)
+    setFromPoint({ name: next.a.area, lng: next.a.lng, lat: next.a.lat })
+    void searchBetween(async () => [
+      { name: next.a.area, lng: next.a.lng, lat: next.a.lat },
+      { name: next.b.area, lng: next.b.lng, lat: next.b.lat },
+    ])
+  }
+
   return (
     <div className="mx-auto max-w-[560px] px-5 pb-10 pt-6 lg:max-w-[720px] lg:px-8 lg:pt-8">
       <h1 tabIndex={-1} className="t-display-1 text-ink">
         <T k="Raasta" />
       </h1>
-      <p className="measure mt-1 t-body text-ink-2">Shared autos, e-rickshaws and tempos, mapped and checked by riders.</p>
+      <p className="measure mt-1 t-body text-ink-2">Shared autos, e-rickshaws and tempos, mapped and checked by riders. Reroute uses the verified ones when it plans your day: they're often the cheapest way across town.</p>
       {!online && (
         <div className="mt-4">
           <Banner tone="offline">You're offline. Routes you've already opened still work.</Banner>
         </div>
+      )}
+      {next && (
+        <button
+          type="button"
+          onClick={searchNext}
+          disabled={!online || searching}
+          className="mt-6 flex w-full items-center gap-3 rounded-card border-2 border-green bg-green-tint/50 p-4 text-left [@media(hover:hover)]:hover:enabled:bg-green-tint disabled:opacity-60"
+        >
+          <span aria-hidden="true" className="text-2xl">
+            🛺
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block t-caption text-green-ink">Your next leg, leave {next.leaveBy}</span>
+            <span className="block t-title text-ink">
+              {next.a.area} to {next.b.area}
+            </span>
+          </span>
+          <span className="t-small font-bold text-ink underline decoration-2 underline-offset-4">Find routes</span>
+        </button>
       )}
 
       <form className="mt-6 rounded-card border border-line bg-surface p-5" role="search" onSubmit={find}>
@@ -216,27 +260,27 @@ export default function RaastaHome() {
 export function RaastaRoute() {
   const { routeId } = useParams()
   const q = useRaastaRoute(routeId)
-  const navigate = useNavigate()
   const model = useMemo(() => (q.data ? modelForRoute(q.data) : null), [q.data])
   useDocumentTitle(model?.title ?? 'Raasta route')
-  const back = () => (window.history.state?.idx > 0 ? navigate(-1) : navigate('/raasta'))
+  const back = useBack('/raasta')
   const notFound = q.error instanceof ApiError && q.error.status === 404
   return (
     <PushedScreen>
-      {q.isPending ? (
-        <DetailSkeleton />
-      ) : notFound ? (
-        <EmptyState title="This route isn't on Raasta" body="It may have been removed after checking." action={<ButtonLink to="/raasta">Go to Raasta</ButtonLink>} />
-      ) : q.isError && !q.data ? (
-        <>
-          <button type="button" onClick={back} aria-label="Back" className="-ml-3 flex size-12 items-center justify-center rounded-control text-ink">
-            <ChevronLeft size={24} strokeWidth={1.75} aria-hidden="true" />
-          </button>
-          <ErrorState message="Couldn't load this route. Check your connection and try again." onRetry={() => q.refetch()} />
-        </>
-      ) : model ? (
+      {model ? (
         <DetailBody model={model} onBack={back} />
-      ) : null}
+      ) : (
+        // Every other state keeps a way back: this screen has no tab bar.
+        <>
+          <BackButton onClick={back} className="mb-2" />
+          {q.isPending ? (
+            <DetailSkeleton />
+          ) : notFound ? (
+            <EmptyState title="This route isn't on Raasta" body="It may have been removed after checking." action={<ButtonLink to="/raasta">Go to Raasta</ButtonLink>} />
+          ) : (
+            <ErrorState message="Couldn't load this route. Check your connection and try again." onRetry={() => q.refetch()} />
+          )}
+        </>
+      )}
     </PushedScreen>
   )
 }

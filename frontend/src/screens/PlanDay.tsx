@@ -6,6 +6,7 @@ import { api, ApiError, newKey } from '@/api/client'
 import { keys, queryClient, useCurrentTripId, useTrip, waitForJob } from '@/api/queries'
 import type { Body, JobAccepted, Place, Task, TaskDraft, TaskIn, Trip, TripIn } from '@/api/types'
 import { PlacePicker } from '@/components/PlacePicker'
+import { TripSwitcher } from '@/components/TripSwitcher'
 import { Button } from '@/components/ui/Button'
 import { Field, FieldError } from '@/components/ui/Field'
 import { Sheet } from '@/components/ui/Sheet'
@@ -257,14 +258,16 @@ export default function PlanDay() {
   // One key per "Add a task" form: retries of the same submission never create the task twice.
   const [createKey, setCreateKey] = useState(() => newKey('task'))
   useDocumentTitle(trip?.activePlan ? 'Your trip' : 'New trip')
-  // Roo's "Describe my day" lands here with the sheet open; clear the flag so Back doesn't reopen it.
   const location = useLocation()
+  // Roo's "Describe my day" lands here with the sheet open, "Start a new trip" from Your trips with the
+  // start form; clear the flag so Back doesn't repeat it.
   useEffect(() => {
-    if ((location.state as { openAi?: boolean } | null)?.openAi) {
-      setAiOpen(true)
-      navigate(location.pathname, { replace: true, state: null })
-    }
+    const state = location.state as { openAi?: boolean; newTrip?: boolean } | null
+    if (state?.openAi) setAiOpen(true)
+    if (state?.newTrip) setCreating(true)
+    if (state?.openAi || state?.newTrip) navigate(location.pathname, { replace: true, state: null })
   }, [location.state, location.pathname, navigate])
+  const [tripsOpen, setTripsOpen] = useState(false)
   const openForm = (task: Task | null) => {
     if (!task) setCreateKey(newKey('task'))
     setForm({ open: true, task })
@@ -407,11 +410,15 @@ export default function PlanDay() {
         </div>
       </dl>
       {trip.sample && <p className="mt-2 t-small text-muted">This is the sample demo trip. Its places and travel times are sample data.</p>}
-      <p className="mt-2">
+      <p className="mt-2 flex flex-wrap gap-x-4">
+        <Button variant="tertiary" size="md" className="-ml-2" onClick={() => setTripsOpen(true)}>
+          Your trips
+        </Button>
         <Button variant="tertiary" size="md" className="-ml-2" onClick={() => setCreating(true)} disabled={!online}>
           Start a new trip
         </Button>
       </p>
+      <TripSwitcher open={tripsOpen} onOpenChange={setTripsOpen} />
 
       <section className="mt-8" aria-labelledby="tasks-h">
         <div className="flex items-end justify-between gap-3">

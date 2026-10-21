@@ -1,10 +1,11 @@
-import { ChevronLeft, Clock, History, IndianRupee, Navigation, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { Clock, History, IndianRupee, Navigation, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { api, ApiError, newKey } from '@/api/client'
 import { keys, queryClient, useCurrentTripId, useDay, useRaastaRoute, useTrip } from '@/api/queries'
 import type { RaastaRoute, Trip } from '@/api/types'
+import { BackButton, useBack } from '@/components/BackButton'
 import { MODE_META, ModeIcon } from '@/components/icons'
 import { ModeChain } from '@/components/timeline/ModeChain'
 import { Button, ButtonLink } from '@/components/ui/Button'
@@ -250,11 +251,7 @@ export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailM
   return (
     <div className={embedded ? 'rounded-card border border-line bg-surface p-6' : ''}>
       <header className="flex items-start gap-2">
-        {onBack && (
-          <button type="button" onClick={onBack} aria-label="Back" className="-ml-3 flex size-12 shrink-0 items-center justify-center rounded-control text-ink [@media(hover:hover)]:hover:bg-sunken">
-            <ChevronLeft size={24} strokeWidth={1.75} aria-hidden="true" />
-          </button>
-        )}
+        {onBack && <BackButton onClick={onBack} />}
         <div className="min-w-0 pt-1">
           {embedded ? (
             <h2 className="t-display-2 text-ink">{model.title}</h2>
@@ -431,19 +428,15 @@ export default function LegDetail() {
   const current = useCurrentTripId()
   const tripQ = useTrip(current.tripId)
   const view = useDay(tripQ.data)
-  const navigate = useNavigate()
   const leg = view?.legs.find((l) => String(l.seq) === seq)
   const route = useRaastaRoute(leg?.raasta?.routeId)
-  const back = () => (window.history.state?.idx > 0 ? navigate(-1) : navigate('/'))
+  const back = useBack('/')
   const model = useMemo(() => (leg && tripQ.data ? modelForLeg(tripQ.data, leg, route.data) : null), [leg, tripQ.data, route.data])
   useDocumentTitle(model?.title ?? 'Leg')
+  const loading = tripQ.isPending || (leg?.raasta && route.isPending)
   return (
     <PushedScreen>
-      {tripQ.isPending || (leg?.raasta && route.isPending) ? (
-        <DetailSkeleton />
-      ) : tripQ.isError && !tripQ.data ? (
-        <ErrorState message="Couldn't load this leg. Check your connection and try again." onRetry={() => tripQ.refetch()} />
-      ) : model ? (
+      {model && !loading ? (
         <>
           {leg?.raasta && route.isError && (
             <div className="mb-4">
@@ -453,7 +446,17 @@ export default function LegDetail() {
           <DetailBody model={model} onBack={back} nowIso={tripQ.data?.now} />
         </>
       ) : (
-        <EmptyState title="This leg isn't in your plan" body="Your day may have changed since you opened it." action={<ButtonLink to="/">Go to Today</ButtonLink>} />
+        // Every other state keeps a way back: this screen has no tab bar.
+        <>
+          <BackButton onClick={back} className="mb-2" />
+          {loading ? (
+            <DetailSkeleton />
+          ) : tripQ.isError && !tripQ.data ? (
+            <ErrorState message="Couldn't load this leg. Check your connection and try again." onRetry={() => tripQ.refetch()} />
+          ) : (
+            <EmptyState title="This leg isn't in your plan" body="Your day may have changed since you opened it." action={<ButtonLink to="/">Go to Today</ButtonLink>} />
+          )}
+        </>
       )}
     </PushedScreen>
   )

@@ -1,9 +1,10 @@
-import { ChevronRight, History, Languages, LogOut, Moon, ShieldCheck, Sun, SunMoon } from 'lucide-react'
+import { ChevronRight, History, Languages, LogOut, Luggage, Moon, ShieldCheck, Sun, SunMoon } from 'lucide-react'
 import { useId, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { api, ApiError } from '@/api/client'
 import { useCurrentTripId, useMe, useTrip } from '@/api/queries'
 import { RerouteLog } from '@/components/RerouteLog'
+import { TripSwitcher } from '@/components/TripSwitcher'
 import { Button } from '@/components/ui/Button'
 import { Segmented, Switch } from '@/components/ui/Choice'
 import { Sheet } from '@/components/ui/Sheet'
@@ -41,6 +42,7 @@ export default function Me() {
   const [confirm, setConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [log, setLog] = useState(false)
+  const [trips, setTrips] = useState(false)
   const rowLink = 'flex min-h-14 items-center gap-3 px-4 py-3 t-title text-ink [@media(hover:hover)]:hover:bg-sunken/60'
   const user = me.data
   const moderator = user?.role === 'moderator' || user?.role === 'admin'
@@ -154,6 +156,13 @@ export default function Me() {
       <Section title="Your activity">
         <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
           <li>
+            <button type="button" onClick={() => setTrips(true)} className={`${rowLink} w-full text-left`}>
+              <Luggage size={20} strokeWidth={1.75} aria-hidden="true" className="text-muted" />
+              <span className="flex-1">Your trips</span>
+              <ChevronRight size={20} strokeWidth={1.75} aria-hidden="true" className="text-muted" />
+            </button>
+          </li>
+          <li>
             <button type="button" onClick={() => setLog(true)} className={`${rowLink} w-full text-left`}>
               <History size={20} strokeWidth={1.75} aria-hidden="true" className="text-muted" />
               <span className="flex-1">
@@ -209,6 +218,7 @@ export default function Me() {
         <p className="t-small text-ink-2">This can't be undone.</p>
       </Sheet>
       <RerouteLog trip={trip.data} open={log} onOpenChange={setLog} />
+      <TripSwitcher open={trips} onOpenChange={setTrips} />
     </div>
   )
 }
