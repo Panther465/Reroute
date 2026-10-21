@@ -284,6 +284,53 @@ def test_a_window_task_blocked_by_fixed_times_says_so(client):
     assert bank["reason"] == "The bank needs 2 h 30 min between 10:00 and 16:00, and your fixed times at 10:00 and 13:30 leave no gap that long with the travel"
 
 
+def test_book_a_train_ticket_for_the_train_task(client):
+    trains = client.get("/v1/trips/trip-001/train-options", params={"taskId": "task-train", "to": "Chennai"}).json()
+    assert len(trains) == 4 and all(t["sample"] for t in trains)
+    assert trains == client.get("/v1/trips/trip-001/train-options", params={"taskId": "task-train", "to": "Chennai"}).json()  # always the same
+    # Trains leave around the task's time (21:00).
+    assert any("20:00" <= t["departs"] <= "22:00" for t in trains)
+    train = trains[0]
+    cls = train["classes"][0]
+    body = {
+        "kind": "train",
+        "taskId": "task-train",
+        "destination": "Chennai",
+        "trainNo": train["trainNo"],
+        "travelClass": cls["code"],
+        "passengers": [{"name": "Arjun Mehta", "age": 34}, {"name": "Priya Mehta", "age": 31}],
+        "idempotencyKey": key(),
+    }
+    res = client.post("/v1/trips/trip-001/bookings", json=body)
+    assert res.status_code == 201, res.text
+    ticket = res.json()
+    assert ticket["demo"] and ticket["status"] == "confirmed" and len(ticket["reference"]) == 10
+    assert ticket["fareInr"] == cls["fareInr"] * 2
+    assert [p["name"] for p in ticket["details"]["passengers"]] == ["Arjun Mehta", "Priya Mehta"]
+    # The fare comes from the server's own options: a made-up train is refused.
+    assert client.post("/v1/trips/trip-001/bookings", json={**body, "trainNo": "99999", "idempotencyKey": key()}).status_code == 422
+    cancelled = client.post(f"/v1/trips/trip-001/bookings/{ticket['bookingId']}/cancel", json={"idempotencyKey": key()}).json()
+    assert cancelled["status"] == "cancelled" and cancelled["details"]["refundInr"] == ticket["fareInr"] - 120
+    assert [b["bookingId"] for b in client.get("/v1/trips/trip-001/bookings").json()] == [ticket["bookingId"]]
+
+
+def test_book_a_cab_for_a_leg(client):
+    plan_v1(client)
+    options = client.get("/v1/trips/trip-001/cab-options", params={"toId": "task-bank"}).json()
+    assert {o["provider"] for o in options} == {"uber", "ola", "rapido"}
+    assert options == sorted(options, key=lambda o: o["fareInr"])
+    choice = next(o for o in options if o["vehicle"] == "sedan")
+    res = client.post("/v1/trips/trip-001/bookings", json={"kind": "cab", "toId": "task-bank", "optionId": choice["optionId"], "idempotencyKey": key()})
+    assert res.status_code == 201, res.text
+    ride = res.json()
+    assert ride["fareInr"] == choice["fareInr"] and ride["toId"] == "task-bank"
+    assert len(ride["details"]["otp"]) == 4 and ride["details"]["plate"].startswith("KA ")
+    assert client.get("/v1/trips/trip-001/cab-options", params={"toId": "task-nowhere"}).status_code == 404
+    # A demo reset clears bookings with the rest of the day.
+    client.post("/v1/trips/trip-001/demo/reset", json={"idempotencyKey": key()})
+    assert client.get("/v1/trips/trip-001/bookings").json() == []
+
+
 def test_speech_reads_an_alert_and_caches_it(client, monkeypatch):
     calls: list[tuple[str, str, str]] = []
 

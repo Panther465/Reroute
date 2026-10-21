@@ -1,0 +1,405 @@
+import { Car, Minus, Plus, Star, TrainFront } from 'lucide-react'
+import { useEffect, useId, useState } from 'react'
+import { useQuery } from '@tanstack/react-query'
+import { api, ApiError, newKey } from '@/api/client'
+import { useMe } from '@/api/queries'
+import type { Booking, CabOption, Task, TrainOption, Trip } from '@/api/types'
+import { Button } from '@/components/ui/Button'
+import { Field, FieldError } from '@/components/ui/Field'
+import { Sheet } from '@/components/ui/Sheet'
+import { Banner } from '@/components/ui/States'
+import { Tag } from '@/components/ui/Tag'
+import { book, cancelBooking, DEMO_NOTE, pause } from '@/lib/bookings'
+import { dayLabel } from '@/lib/timeline'
+import { duration, rupees } from '@/lib/format'
+import { announce, showToast } from '@/lib/store'
+
+const demoBanner = <Banner tone="info">{DEMO_NOTE}</Banner>
+
+/** A booking in progress: what's happening, step by step, with a spinner. */
+function Processing({ steps, step }: { steps: string[]; step: number }) {
+  return (
+    <div role="status" className="flex flex-col gap-3 py-4">
+      {steps.map((s, i) => (
+        <p key={s} className={`flex items-center gap-3 t-body ${i <= step ? 'text-ink' : 'text-muted'}`}>
+          <span aria-hidden="true" className={`flex size-6 items-center justify-center rounded-full ${i < step ? 'bg-green text-on-green' : i === step ? 'border-2 border-green border-t-transparent motion-safe:animate-spin' : 'border-2 border-line'}`}>
+            {i < step ? '✓' : ''}
+          </span>
+          {s}
+        </p>
+      ))}
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Train ticket
+// ---------------------------------------------------------------------------
+
+type TrainStep = 'search' | 'pick' | 'passengers' | 'pay' | 'processing'
+
+export function TrainBookingSheet({ trip, task, open, onOpenChange, onBooked }: { trip: Trip; task: Task; open: boolean; onOpenChange: (o: boolean) => void; onBooked: (b: Booking) => void }) {
+  const me = useMe()
+  const [step, setStep] = useState<TrainStep>('search')
+  const [to, setTo] = useState('')
+  const [query, setQuery] = useState('')
+  const [train, setTrain] = useState<TrainOption | null>(null)
+  const [cls, setCls] = useState<string | null>(null)
+  const [people, setPeople] = useState<{ name: string; age: string }[]>([{ name: '', age: '' }])
+  const [error, setError] = useState<string>()
+  const [progress, setProgress] = useState(0)
+  const [key] = useState(() => newKey('bkg'))
+  const listId = useId()
+
+  useEffect(() => {
+    if (me.data && !people[0].name) setPeople([{ name: me.data.name.replace(/\s*\(sample\)$/, ''), age: '' }])
+    // Fill in the traveller's name once it loads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me.data])
+
+  const trains = useQuery({
+    queryKey: ['train-options', trip.tripId, task.taskId, query],
+    queryFn: () => api.get<TrainOption[]>(`/v1/trips/${trip.tripId}/train-options`, { query: { taskId: task.taskId, to: query } }),
+    enabled: query.length >= 2,
+  })
+  const chosen = train?.classes.find((c) => c.code === cls) ?? null
+  const total = chosen ? chosen.fareInr * people.length : 0
+
+  const search = () => {
+    if (to.trim().length < 2) return setError('Enter where you’re going, like Chennai.')
+    setError(undefined)
+    setQuery(to.trim())
+    setStep('pick')
+  }
+  const pay = async () => {
+    if (!train || !chosen) return
+    setStep('processing')
+    setError(undefined)
+    try {
+      setProgress(0)
+      await pause(900)
+      setProgress(1)
+      const booking = await book(
+        trip.tripId,
+        { kind: 'train', taskId: task.taskId, destination: query, trainNo: train.trainNo, travelClass: chosen.code as 'SL', passengers: people.map((p) => ({ name: p.name.trim(), age: Number(p.age) })) },
+        key,
+      )
+      await pause(800)
+      setProgress(2)
+      await pause(600)
+      announce(`Ticket booked. PNR ${booking.reference}. ${String(booking.details.bookingStatus)}.`)
+      onBooked(booking)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't book the ticket. Try again.")
+      setStep('pay')
+    }
+  }
+  const peopleOk = people.every((p) => p.name.trim() && Number(p.age) >= 1 && Number(p.age) <= 120)
+
+  const back = step === 'pick' ? 'search' : step === 'passengers' ? 'pick' : step === 'pay' ? 'passengers' : null
+  const footer =
+    step === 'search' ? (
+      <Button full onClick={search}>
+        Find trains
+      </Button>
+    ) : step === 'pick' ? (
+      <Button full disabled={!chosen} onClick={() => setStep('passengers')}>
+        {chosen ? `Continue with ${chosen.label}` : 'Choose a train and class'}
+      </Button>
+    ) : step === 'passengers' ? (
+      <Button full disabled={!peopleOk} onClick={() => setStep('pay')}>
+        Review and pay
+      </Button>
+    ) : step === 'pay' ? (
+      <Button full onClick={() => void pay()}>
+        Pay {rupees(total)} (demo)
+      </Button>
+    ) : null
+
+  return (
+    <Sheet open={open} onOpenChange={(o) => step !== 'processing' && onOpenChange(o)} title={<span className="inline-flex items-center gap-2"><TrainFront size={22} strokeWidth={1.75} aria-hidden="true" />Book your train ticket</span>} titleLang="en" description={`${task.title}, ${dayLabel(task.day)}, from ${task.place.name}.`} footer={footer && <div className="flex gap-3">{back && <Button variant="secondary" size="md" className="shrink-0" onClick={() => setStep(back)}>Back</Button>}<div className="flex-1">{footer}</div></div>}>
+      <div className="flex flex-col gap-4">
+        {demoBanner}
+        {step === 'search' && <Field label="Where to?" hint="The city or station, like Chennai or Mysuru" value={to} onChange={(e) => setTo(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && search()} autoComplete="off" />}
+        {step === 'pick' && (
+          <>
+            {trains.isPending && <p className="t-body text-ink-2">Finding trains…</p>}
+            {trains.isError && <FieldError id="trains-err">Couldn't find trains. Check your connection and try again.</FieldError>}
+            {trains.data && (
+              <fieldset>
+                <legend className="mb-2 t-title text-ink">Trains to {query}, sample timetable</legend>
+                <ul id={listId} className="flex flex-col gap-3">
+                  {trains.data.map((t) => (
+                    <li key={t.trainNo} className={`rounded-card border-2 p-4 ${train?.trainNo === t.trainNo ? 'border-green' : 'border-line'}`}>
+                      <p className="flex flex-wrap items-baseline justify-between gap-x-3">
+                        <span className="t-title text-ink">{t.name}</span>
+                        <span className="t-small text-muted tnum">#{t.trainNo}</span>
+                      </p>
+                      <p className="mt-1 t-body text-ink tnum">
+                        {t.departs} → {t.arrives}
+                        {t.arrivesNextDay ? <span className="t-small text-ink-2"> (+{t.arrivesNextDay} day)</span> : null}
+                        <span className="t-small text-ink-2">, {duration(t.durationMin)}</span>
+                      </p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {t.classes.map((c) => {
+                          const id = `${t.trainNo}-${c.code}`
+                          const picked = train?.trainNo === t.trainNo && cls === c.code
+                          return (
+                            <label key={id} htmlFor={id} className={`flex min-h-11 cursor-pointer flex-col rounded-control border-2 px-3 py-1.5 ${picked ? 'border-green bg-green-tint' : 'border-line'}`}>
+                              <input
+                                id={id}
+                                type="radio"
+                                name="train-class"
+                                className="sr-only"
+                                checked={picked}
+                                onChange={() => {
+                                  setTrain(t)
+                                  setCls(c.code)
+                                }}
+                              />
+                              <span className="t-small font-bold text-ink">
+                                {c.code} · {rupees(c.fareInr)}
+                              </span>
+                              <span className={`t-small ${c.status === 'available' ? 'text-green-ink' : c.status === 'rac' ? 'text-ink-2' : 'text-red-ink'}`}>{c.availability}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </fieldset>
+            )}
+          </>
+        )}
+        {step === 'passengers' && (
+          <div className="flex flex-col gap-4">
+            {people.map((p, i) => (
+              <div key={i} className="grid grid-cols-[1fr_6rem] gap-3">
+                <Field label={`Passenger ${i + 1}`} value={p.name} onChange={(e) => setPeople((ps) => ps.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} autoComplete="name" />
+                <Field label="Age" inputMode="numeric" value={p.age} onChange={(e) => setPeople((ps) => ps.map((x, j) => (j === i ? { ...x, age: e.target.value.replace(/\D/g, '').slice(0, 3) } : x)))} />
+              </div>
+            ))}
+            <div className="flex gap-3">
+              <Button variant="secondary" size="md" icon={<Plus size={18} aria-hidden="true" />} disabled={people.length >= 6} onClick={() => setPeople((ps) => [...ps, { name: '', age: '' }])}>
+                Add a passenger
+              </Button>
+              {people.length > 1 && (
+                <Button variant="tertiary" size="md" icon={<Minus size={18} aria-hidden="true" />} onClick={() => setPeople((ps) => ps.slice(0, -1))}>
+                  Remove the last
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+        {step === 'pay' && train && chosen && (
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 rounded-card border border-line bg-surface p-4 t-body">
+            <dt className="text-ink-2">Train</dt>
+            <dd className="text-ink">{train.name} #{train.trainNo}</dd>
+            <dt className="text-ink-2">When</dt>
+            <dd className="text-ink tnum">{dayLabel(task.day)}, {train.departs} → {train.arrives}</dd>
+            <dt className="text-ink-2">Class</dt>
+            <dd className="text-ink">{chosen.label} ({chosen.availability})</dd>
+            <dt className="text-ink-2">Passengers</dt>
+            <dd className="text-ink">{people.map((p) => `${p.name.trim()} (${p.age})`).join(', ')}</dd>
+            <dt className="t-title text-ink">Total</dt>
+            <dd className="t-title text-ink tnum">{rupees(total)}</dd>
+          </dl>
+        )}
+        {step === 'processing' && <Processing steps={['Contacting the railway (demo)', 'Reserving berths', 'Issuing your ticket']} step={progress} />}
+        {error && <FieldError id="book-err">{error}</FieldError>}
+      </div>
+    </Sheet>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Cab ride
+// ---------------------------------------------------------------------------
+
+export function CabBookingSheet({ trip, toId, toName, open, onOpenChange, onBooked }: { trip: Trip; toId: string; toName: string; open: boolean; onOpenChange: (o: boolean) => void; onBooked: (b: Booking) => void }) {
+  const [choice, setChoice] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [progress, setProgress] = useState(0)
+  const [error, setError] = useState<string>()
+  const [key] = useState(() => newKey('bkg'))
+  const options = useQuery({
+    queryKey: ['cab-options', trip.tripId, toId],
+    queryFn: () => api.get<CabOption[]>(`/v1/trips/${trip.tripId}/cab-options`, { query: { toId } }),
+    enabled: open,
+  })
+  const picked = options.data?.find((o) => o.optionId === choice) ?? null
+
+  const go = async () => {
+    if (!picked) return
+    setBusy(true)
+    setError(undefined)
+    try {
+      setProgress(0)
+      await pause(1200)
+      setProgress(1)
+      const booking = await book(trip.tripId, { kind: 'cab', toId, optionId: picked.optionId, passengers: [] }, key)
+      await pause(900)
+      setProgress(2)
+      await pause(500)
+      announce(`${picked.providerLabel} ${picked.vehicleLabel} booked. ${String(booking.details.driverName)} arrives in ${String(booking.details.etaMin)} minutes. OTP ${String(booking.details.otp)}.`)
+      onBooked(booking)
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't book the ride. Try again.")
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={(o) => !busy && onOpenChange(o)}
+      title={<span className="inline-flex items-center gap-2"><Car size={22} strokeWidth={1.75} aria-hidden="true" />Book a ride</span>}
+      titleLang="en"
+      description={`To ${toName}.`}
+      footer={!busy && <Button full disabled={!picked} onClick={() => void go()}>{picked ? `Book ${picked.providerLabel} ${picked.vehicleLabel} · ${rupees(picked.fareInr)} (demo)` : 'Choose a ride'}</Button>}
+    >
+      <div className="flex flex-col gap-4">
+        {demoBanner}
+        {busy ? (
+          <Processing steps={[`Asking ${picked?.providerLabel ?? 'the provider'} (demo)`, 'Finding your driver', 'Driver on the way']} step={progress} />
+        ) : (
+          <>
+            {options.isPending && <p className="t-body text-ink-2">Finding rides…</p>}
+            {options.isError && <FieldError id="cab-err">{options.error instanceof ApiError ? options.error.message : "Couldn't find rides. Try again."}</FieldError>}
+            {options.data && (
+              <fieldset>
+                <legend className="mb-2 t-title text-ink">Rides, cheapest first</legend>
+                <div className="flex flex-col divide-y divide-line overflow-hidden rounded-card border border-line">
+                  {options.data.map((o) => (
+                    <label key={o.optionId} className={`flex min-h-14 cursor-pointer items-center gap-3 px-4 py-3 ${choice === o.optionId ? 'bg-green-tint' : 'bg-surface'}`}>
+                      <input type="radio" name="cab" className="size-5 accent-[var(--green)]" checked={choice === o.optionId} onChange={() => setChoice(o.optionId)} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block t-title text-ink">
+                          {o.providerLabel} {o.vehicleLabel}
+                        </span>
+                        <span className="block t-small text-ink-2">
+                          {o.seats} {o.seats === 1 ? 'seat' : 'seats'}, pickup in {o.etaMin} min
+                        </span>
+                      </span>
+                      <span className="t-title text-ink tnum">{rupees(o.fareInr)}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
+          </>
+        )}
+        {error && <FieldError id="ride-err">{error}</FieldError>}
+      </div>
+    </Sheet>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// A booking: the ticket or the ride, with Cancel
+// ---------------------------------------------------------------------------
+
+export function BookingSheet({ trip, booking, onOpenChange }: { trip: Trip; booking: Booking | null; onOpenChange: (o: boolean) => void }) {
+  const [cancelling, setCancelling] = useState(false)
+  if (!booking) return null
+  const d = booking.details as Record<string, unknown>
+  const cancelled = booking.status === 'cancelled'
+  const cancel = async () => {
+    setCancelling(true)
+    try {
+      const done = await cancelBooking(trip.tripId, booking.bookingId)
+      showToast({ title: `Cancelled. ${rupees(Number(done.details.refundInr ?? 0))} would be refunded (demo).` })
+      onOpenChange(false)
+    } catch (err) {
+      showToast({ title: err instanceof ApiError ? err.message : "Couldn't cancel. Try again." })
+    } finally {
+      setCancelling(false)
+    }
+  }
+  return (
+    <Sheet
+      open
+      onOpenChange={onOpenChange}
+      title={booking.kind === 'train' ? 'Your train ticket' : 'Your ride'}
+      footer={
+        !cancelled && (
+          <Button variant="destructive" full loading={cancelling} loadingLabel="Cancelling…" onClick={() => void cancel()}>
+            {booking.kind === 'train' ? 'Cancel the ticket' : 'Cancel the ride'}
+          </Button>
+        )
+      }
+    >
+      <div className="flex flex-col gap-4">
+        {demoBanner}
+        {cancelled && <Banner tone="blocked">Cancelled. {rupees(Number(d.refundInr ?? 0))} would be refunded.</Banner>}
+        {booking.kind === 'train' ? (
+          <div className="overflow-hidden rounded-card border border-line bg-surface">
+            <div className="flex items-center justify-between gap-3 bg-ink px-4 py-3 text-on-ink">
+              <span className="t-title">{String(d.trainName)}</span>
+              <span className="t-small tnum">#{String(d.trainNo)}</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3 p-4">
+              <div>
+                <p className="t-small text-muted">From</p>
+                <p className="t-title text-ink">{String(d.origin)}</p>
+                <p className="t-time text-ink tnum">{String(d.departs)}</p>
+              </div>
+              <div className="text-right">
+                <p className="t-small text-muted">To</p>
+                <p className="t-title text-ink">{String(d.destination)}</p>
+                <p className="t-time text-ink tnum">
+                  {String(d.arrives)}
+                  {Number(d.arrivesNextDay) ? <span className="t-small"> +1</span> : null}
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 border-t border-dashed border-line-strong px-4 py-3">
+              <Tag tone="ink">PNR {booking.reference}</Tag>
+              <Tag tone={d.bookingStatus === 'Confirmed' ? 'green' : 'grey-outline'}>{String(d.bookingStatus)}</Tag>
+              <Tag tone="grey-outline">{String(d.classLabel)}</Tag>
+              <span className="ml-auto t-title text-ink tnum">{rupees(booking.fareInr)}</span>
+            </div>
+            <ul className="divide-y divide-line border-t border-line">
+              {(d.passengers as { name: string; age: number; status: string; coach?: string; berth?: number; berthType?: string }[]).map((p, i) => (
+                <li key={i} className="flex items-center justify-between gap-3 px-4 py-2.5 t-body">
+                  <span className="text-ink">
+                    {p.name} <span className="t-small text-muted">({p.age})</span>
+                  </span>
+                  <span className="t-small font-bold text-ink tnum">{p.coach ? `${p.coach}, berth ${p.berth} ${p.berthType}` : p.status}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <div className="rounded-card border border-line bg-surface p-4">
+            <div className="flex items-center gap-3">
+              <span aria-hidden="true" className="flex size-12 items-center justify-center rounded-full bg-green-tint text-2xl">
+                {d.vehicle === 'auto' ? '🛺' : d.vehicle === 'bike' ? '🏍️' : '🚕'}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="t-title text-ink">{String(d.driverName)}</p>
+                <p className="flex items-center gap-1 t-small text-ink-2">
+                  <Star size={14} aria-hidden="true" className="fill-current text-yellow" /> {String(d.rating)} · {String(d.providerLabel)} {String(d.vehicleLabel)}
+                </p>
+              </div>
+              <span className="t-title text-ink tnum">{rupees(booking.fareInr)}</span>
+            </div>
+            <dl className="mt-4 grid grid-cols-2 gap-3">
+              <div className="rounded-control bg-sunken p-3">
+                <dt className="t-small text-muted">{String(d.vehicleModel)}</dt>
+                <dd className="t-title text-ink tnum">{String(d.plate)}</dd>
+              </div>
+              <div className="rounded-control bg-sunken p-3">
+                <dt className="t-small text-muted">OTP for the driver</dt>
+                <dd className="t-time-lg text-ink tnum">{String(d.otp)}</dd>
+              </div>
+            </dl>
+            {!cancelled && <p className="mt-3 t-small text-ink-2">Arrives in about {String(d.etaMin)} min at the pickup.</p>}
+          </div>
+        )}
+      </div>
+    </Sheet>
+  )
+}

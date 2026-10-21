@@ -1896,6 +1896,365 @@
         }
       }
     },
+    "/v1/trips/{trip_id}/bookings": {
+      "get": {
+        "tags": [
+          "bookings"
+        ],
+        "summary": "Your simulated tickets and rides",
+        "operationId": "list_bookings_v1_trips__trip_id__bookings_get",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/BookingOut"
+                  },
+                  "title": "Response List Bookings V1 Trips  Trip Id  Bookings Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "bookings"
+        ],
+        "summary": "Book a train ticket or a cab (simulated)",
+        "operationId": "create_booking_v1_trips__trip_id__bookings_post",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookingIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/train-options": {
+      "get": {
+        "tags": [
+          "bookings"
+        ],
+        "summary": "Sample trains for a train task (demo)",
+        "operationId": "train_options_v1_trips__trip_id__train_options_get",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "taskId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Taskid"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 60,
+              "title": "To"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TrainOptionOut"
+                  },
+                  "title": "Response Train Options V1 Trips  Trip Id  Train Options Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/cab-options": {
+      "get": {
+        "tags": [
+          "bookings"
+        ],
+        "summary": "Cab choices for a leg (demo)",
+        "operationId": "cab_options_v1_trips__trip_id__cab_options_get",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "toId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "maxLength": 40,
+              "title": "Toid"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CabOptionOut"
+                  },
+                  "title": "Response Cab Options V1 Trips  Trip Id  Cab Options Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/bookings/{booking_id}/cancel": {
+      "post": {
+        "tags": [
+          "bookings"
+        ],
+        "summary": "Cancel a simulated booking",
+        "operationId": "cancel_booking_v1_trips__trip_id__bookings__booking_id__cancel_post",
+        "parameters": [
+          {
+            "name": "booking_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Booking Id"
+            }
+          },
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookingOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/trips/{trip_id}/share-links": {
       "post": {
         "tags": [
@@ -2259,6 +2618,265 @@
           "reason"
         ],
         "title": "BlockedOut"
+      },
+      "BookingIn": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 4,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Idempotencykey"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "train",
+              "cab"
+            ],
+            "title": "Kind"
+          },
+          "taskId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taskid"
+          },
+          "destination": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 60,
+                "minLength": 2
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Destination"
+          },
+          "trainNo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trainno"
+          },
+          "travelClass": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "SL",
+                  "3A",
+                  "2A",
+                  "1A",
+                  "CC"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Travelclass"
+          },
+          "passengers": {
+            "items": {
+              "$ref": "#/components/schemas/PassengerIn"
+            },
+            "type": "array",
+            "maxItems": 6,
+            "title": "Passengers"
+          },
+          "toId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Toid"
+          },
+          "optionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Optionid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotencyKey",
+          "kind"
+        ],
+        "title": "BookingIn"
+      },
+      "BookingOut": {
+        "properties": {
+          "bookingId": {
+            "type": "string",
+            "title": "Bookingid"
+          },
+          "tripId": {
+            "type": "string",
+            "title": "Tripid"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "train",
+              "cab"
+            ],
+            "title": "Kind"
+          },
+          "taskId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taskid"
+          },
+          "toId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Toid"
+          },
+          "provider": {
+            "type": "string",
+            "title": "Provider"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "confirmed",
+              "cancelled"
+            ],
+            "title": "Status"
+          },
+          "reference": {
+            "type": "string",
+            "title": "Reference"
+          },
+          "fareInr": {
+            "type": "integer",
+            "title": "Fareinr"
+          },
+          "details": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Details"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          },
+          "demo": {
+            "type": "boolean",
+            "title": "Demo",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "bookingId",
+          "tripId",
+          "kind",
+          "taskId",
+          "toId",
+          "provider",
+          "status",
+          "reference",
+          "fareInr",
+          "details",
+          "createdAt"
+        ],
+        "title": "BookingOut"
+      },
+      "CabOptionOut": {
+        "properties": {
+          "optionId": {
+            "type": "string",
+            "title": "Optionid"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "uber",
+              "ola",
+              "rapido"
+            ],
+            "title": "Provider"
+          },
+          "providerLabel": {
+            "type": "string",
+            "title": "Providerlabel"
+          },
+          "vehicle": {
+            "type": "string",
+            "enum": [
+              "bike",
+              "auto",
+              "mini",
+              "sedan"
+            ],
+            "title": "Vehicle"
+          },
+          "vehicleLabel": {
+            "type": "string",
+            "title": "Vehiclelabel"
+          },
+          "seats": {
+            "type": "integer",
+            "title": "Seats"
+          },
+          "etaMin": {
+            "type": "integer",
+            "title": "Etamin"
+          },
+          "fareInr": {
+            "type": "integer",
+            "title": "Fareinr"
+          }
+        },
+        "type": "object",
+        "required": [
+          "optionId",
+          "provider",
+          "providerLabel",
+          "vehicle",
+          "vehicleLabel",
+          "seats",
+          "etaMin",
+          "fareInr"
+        ],
+        "title": "CabOptionOut"
       },
       "CalendarImportIn": {
         "properties": {
@@ -3044,6 +3662,28 @@
           "items"
         ],
         "title": "Page[TripSummaryOut]"
+      },
+      "PassengerIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 60,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "age": {
+            "type": "integer",
+            "maximum": 120.0,
+            "minimum": 1.0,
+            "title": "Age"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "age"
+        ],
+        "title": "PassengerIn"
       },
       "PlaceOut": {
         "properties": {
@@ -4331,6 +4971,107 @@
           "waitMin"
         ],
         "title": "TotalsOut"
+      },
+      "TrainClassOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "fareInr": {
+            "type": "integer",
+            "title": "Fareinr"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "available",
+              "rac",
+              "wl"
+            ],
+            "title": "Status"
+          },
+          "availability": {
+            "type": "string",
+            "title": "Availability"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "label",
+          "fareInr",
+          "status",
+          "availability"
+        ],
+        "title": "TrainClassOut"
+      },
+      "TrainOptionOut": {
+        "properties": {
+          "trainNo": {
+            "type": "string",
+            "title": "Trainno"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "origin": {
+            "type": "string",
+            "title": "Origin"
+          },
+          "destination": {
+            "type": "string",
+            "title": "Destination"
+          },
+          "departs": {
+            "type": "string",
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Departs"
+          },
+          "arrives": {
+            "type": "string",
+            "pattern": "^([01]\\d|2[0-3]):[0-5]\\d$",
+            "title": "Arrives"
+          },
+          "arrivesNextDay": {
+            "type": "integer",
+            "title": "Arrivesnextday"
+          },
+          "durationMin": {
+            "type": "integer",
+            "title": "Durationmin"
+          },
+          "classes": {
+            "items": {
+              "$ref": "#/components/schemas/TrainClassOut"
+            },
+            "type": "array",
+            "title": "Classes"
+          },
+          "sample": {
+            "type": "boolean",
+            "title": "Sample",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "trainNo",
+          "name",
+          "origin",
+          "destination",
+          "departs",
+          "arrives",
+          "arrivesNextDay",
+          "durationMin",
+          "classes"
+        ],
+        "title": "TrainOptionOut"
       },
       "TransitRefOut": {
         "properties": {
