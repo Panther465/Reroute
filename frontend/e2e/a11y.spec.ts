@@ -33,6 +33,13 @@ async function signInAsDemo(page: Page) {
   await expect(page).not.toHaveURL(/signin/)
 }
 
+/** Plan the sample day ("Plan my day", or "Plan my day again"), so every screen has a day to show. */
+async function planTheDay(page: Page) {
+  await page.goto('/plan')
+  await page.getByRole('button', { name: /^Plan my day/ }).click()
+  await expect(page).toHaveURL(/\/$/, { timeout: 30_000 })
+}
+
 for (const scheme of ['light', 'dark'] as const) {
   test.describe(`${scheme} theme`, () => {
     test.use({ colorScheme: scheme })
@@ -45,19 +52,13 @@ for (const scheme of ['light', 'dark'] as const) {
 
     test('main screens', async ({ page }, info) => {
       await signInAsDemo(page)
-      // Make sure the sample day has a plan to show.
-      await page.goto('/plan')
-      const plan = page.getByRole('button', { name: /Plan my day/ })
-      if (await plan.isVisible()) {
-        await plan.click()
-        await expect(page).toHaveURL(/\/$/, { timeout: 30_000 })
-      }
+      await planTheDay(page)
       for (const [path, heading] of [
         ['/', 'Bengaluru'],
         ['/plan', /trip/i],
         ['/raasta', 'Raasta'],
         ['/me', 'Me'],
-        ['/summary', /in Bengaluru|No day/],
+        ['/summary', /in Bengaluru|Day summary/],
         ['/leg/2', /to/],
       ] as const) {
         await page.goto(path)
@@ -69,7 +70,7 @@ for (const scheme of ['light', 'dark'] as const) {
 
     test('running late sheet is reachable by keyboard', async ({ page }) => {
       await signInAsDemo(page)
-      await page.goto('/')
+      await planTheDay(page)
       const late = page.getByRole('button', { name: 'Running late' })
       if (!(await late.isEnabled())) test.skip(true, 'No open task to report a delay on')
       await late.focus()
