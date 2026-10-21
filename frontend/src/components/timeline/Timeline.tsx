@@ -5,6 +5,7 @@ import { MODE_META, ModeIcon } from '@/components/icons'
 import { Tag } from '@/components/ui/Tag'
 import { duration, hhmm, rupees, spokenDuration } from '@/lib/format'
 import { T, useTl } from '@/lib/i18n'
+import { stopEmoji } from '@/lib/stopEmoji'
 import type { Change } from '@/lib/store'
 import type { DayView, LegView, StopView, TomorrowItem } from '@/lib/timeline'
 import type { Mode, Segment } from '@/lib/types'
@@ -13,7 +14,7 @@ import { ModeChain } from './ModeChain'
 const EASE_OUT = [0.16, 1, 0.3, 1] as const
 const EASE_IN_OUT = [0.65, 0, 0.35, 1] as const
 
-const COLS = 'grid grid-cols-[3.5rem_1.5rem_minmax(0,1fr)] gap-x-3'
+const COLS = 'grid grid-cols-[3.5rem_2.5rem_minmax(0,1fr)] gap-x-3'
 
 function segClass(mode: Mode) {
   const tone = MODE_META[mode].tone
@@ -131,11 +132,18 @@ function FlipTime({ value, flipIndex, change, reduce, className = 't-time' }: { 
   )
 }
 
-function Station({ status, pulse, justDone, reduce, hollow, delay, reveal }: { status: StopView['status']; pulse?: boolean; justDone?: boolean; reduce: boolean; hollow?: boolean; delay: number; reveal: boolean }) {
-  const fill = hollow ? 'bg-transparent border-muted border-dashed' : status === 'now' ? 'bg-yellow border-ink' : status === 'done' ? 'bg-ink border-ink' : 'bg-surface border-ink'
+/** A stop's badge: its emoji in a ring. Green with a tick once done, yellow where the traveller is. */
+function Station({ status, emoji, pulse, justDone, reduce, hollow, delay, reveal }: { status: StopView['status']; emoji: string; pulse?: boolean; justDone?: boolean; reduce: boolean; hollow?: boolean; delay: number; reveal: boolean }) {
+  const ring = hollow
+    ? 'border-dashed border-line-strong bg-ground'
+    : status === 'now'
+      ? 'border-yellow bg-surface ring-4 ring-yellow/25'
+      : status === 'done'
+        ? 'border-green bg-green-tint'
+        : 'border-line-strong bg-surface'
   return (
     <motion.span
-      className="relative z-10 mt-1 flex size-4 items-center justify-center"
+      className="relative z-10 flex size-10 items-center justify-center"
       initial={reveal && !reduce ? { scale: 0.6, opacity: 0 } : false}
       animate={{ scale: 1, opacity: 1 }}
       transition={{ delay, duration: 0.24, ease: EASE_OUT }}
@@ -143,35 +151,40 @@ function Station({ status, pulse, justDone, reduce, hollow, delay, reveal }: { s
       {pulse && !reduce && (
         <motion.span
           aria-hidden="true"
-          // The one animation allowed to loop (UI brief 6.5); tests skip it when waiting for a settled screen.
+          // Tests skip looping animations when waiting for a settled screen.
           data-looping=""
           className="absolute inset-0 rounded-full bg-yellow"
           initial={{ opacity: 0.6, scale: 1 }}
-          animate={{ opacity: 0, scale: 1.8 }}
+          animate={{ opacity: 0, scale: 1.6 }}
           transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut' }}
         />
       )}
       <motion.span
         key={status}
-        className={`relative flex size-4 items-center justify-center rounded-full border-[3px] ${fill}`}
+        className={`relative flex size-10 items-center justify-center rounded-full border-[3px] text-lg leading-none ${ring}`}
         initial={justDone && !reduce ? { scale: 0.8 } : false}
         animate={{ scale: 1 }}
         transition={{ duration: 0.16, ease: EASE_OUT }}
       >
+        <span aria-hidden="true" className={status === 'done' && !hollow ? 'opacity-60' : ''}>
+          {emoji}
+        </span>
         {status === 'done' && !hollow && (
-          <svg viewBox="0 0 10 10" className="size-2.5 text-on-ink" aria-hidden="true">
-            <motion.path
-              d="M2 5.2l2 2 4-4.4"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.8"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              initial={justDone && !reduce ? { pathLength: 0 } : false}
-              animate={{ pathLength: 1 }}
-              transition={{ delay: 0.08, duration: 0.2, ease: EASE_OUT }}
-            />
-          </svg>
+          <span className="absolute -bottom-1 -right-1 flex size-5 items-center justify-center rounded-full border-2 border-ground bg-green">
+            <svg viewBox="0 0 10 10" className="size-2.5 text-on-green" aria-hidden="true">
+              <motion.path
+                d="M2 5.2l2 2 4-4.4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.8"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                initial={justDone && !reduce ? { pathLength: 0 } : false}
+                animate={{ pathLength: 1 }}
+                transition={{ delay: 0.08, duration: 0.2, ease: EASE_OUT }}
+              />
+            </svg>
+          </span>
         )}
       </motion.span>
     </motion.span>
@@ -181,9 +194,9 @@ function Station({ status, pulse, justDone, reduce, hollow, delay, reveal }: { s
 function stopTags(stop: { task?: StopView['task'] }) {
   const t = stop.task
   const tags: ReactNode[] = []
-  if (t?.fixedStart) tags.push(<Tag key="fx" tone="ink">Fixed {t.fixedStart}</Tag>)
-  if (t?.window) tags.push(<Tag key="w" tone="green-outline">Open till {t.window.closesAt}</Tag>)
-  if (t?.hoursUnknown) tags.push(<Tag key="h" tone="grey-outline">Hours not known</Tag>)
+  if (t?.fixedStart) tags.push(<Tag key="fx" tone="blue"><span aria-hidden="true">📌</span> Fixed {t.fixedStart}</Tag>)
+  if (t?.window) tags.push(<Tag key="w" tone="green-outline"><span aria-hidden="true">🕓</span> Open till {t.window.closesAt}</Tag>)
+  if (t?.hoursUnknown) tags.push(<Tag key="h" tone="grey-outline"><span aria-hidden="true">❔</span> Hours not known</Tag>)
   return tags
 }
 
@@ -224,20 +237,23 @@ export function NowBar({ clock }: { clock: number }) {
   return (
     <motion.div layoutId="now-bar" transition={{ layout: { duration: 0.4, ease: EASE_IN_OUT } }} className="relative my-3 flex h-6 items-center" aria-hidden="true">
       <span className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 bg-yellow" />
-      <span className="relative inline-flex h-6 items-center rounded-full bg-yellow px-2.5 t-caption text-on-yellow tnum">
+      <span className="relative inline-flex h-7 items-center gap-1 rounded-full bg-yellow px-3 t-caption text-on-yellow tnum shadow-sm">
+        <span>📍</span>
         <T k="Now" /> {hhmm(clock)}
       </span>
     </motion.div>
   )
 }
 
-function LegButton({ readOnly, label, onClick, selected, children }: { readOnly?: boolean; label: string; onClick: () => void; selected: boolean; children: ReactNode }) {
-  const cls = `-mx-2 block w-[calc(100%+1rem)] rounded-control border-2 px-2 py-2 text-left transition-colors duration-[var(--dur-quick)] ${
-    selected ? 'border-green bg-surface' : 'border-transparent [@media(hover:hover)]:hover:bg-surface'
+/** A leg reads as a soft card between two stops; once travelled it shrinks back to a plain line. */
+function LegButton({ readOnly, done, label, onClick, selected, children }: { readOnly?: boolean; done: boolean; label: string; onClick: () => void; selected: boolean; children: ReactNode }) {
+  const look = selected ? 'border-green bg-surface' : done ? 'border-transparent' : 'border-line bg-surface/60'
+  const cls = `-mx-1 block w-[calc(100%+0.5rem)] rounded-card border-2 px-3 ${done ? 'py-1.5' : 'py-2.5'} text-left transition-colors duration-[var(--dur-quick)] ${look} ${
+    selected ? '' : '[@media(hover:hover)]:hover:bg-surface'
   }`
   if (readOnly) {
     return (
-      <div className="-mx-2 px-2 py-2">
+      <div className={`-mx-1 rounded-card border-2 px-3 ${done ? 'border-transparent py-1.5' : 'border-line bg-surface/60 py-2.5'}`}>
         <span className="sr-only">{label}</span>
         <span aria-hidden="true">{children}</span>
       </div>
@@ -287,7 +303,7 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
         {reveal && !reduce && (
           <motion.div
             aria-hidden="true"
-            className="pointer-events-none absolute inset-y-0 left-[calc(3.5rem+0.75rem)] z-[5] w-6 origin-bottom bg-ground"
+            className="pointer-events-none absolute inset-y-0 left-[calc(3.5rem+0.75rem)] z-[5] w-10 origin-bottom bg-ground"
             initial={{ scaleY: 1 }}
             animate={{ scaleY: 0 }}
             transition={{ duration: 0.6, ease: EASE_OUT }}
@@ -303,17 +319,25 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
             const outLeg = legFrom.get(stop.id)
             const tags = stopTags(stop)
             const interactive = stop.kind === 'task' && !readOnly
+            const finished = stop.status === 'done' || stop.task?.state === 'done'
+            const here = stop.status === 'now' && riding?.toId !== stop.id
             const content = (
               <>
-                <span className={`block t-title transition-colors duration-[var(--dur-quick)] ${stop.status === 'done' ? 'text-ink-2' : 'text-ink'}`}>{stop.title}</span>
-                <span className="block t-small text-muted">{stop.area}</span>
-                {stop.kind === 'task' && stop.task!.durationMin > 0 && (
-                  <span className="block t-small text-muted tnum">
-                    {stop.status === 'done' ? 'Done' : `Until ${hhmm(stop.end)}`}
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <span className={`t-title transition-colors duration-[var(--dur-quick)] ${finished ? 'text-ink-2' : 'text-ink'}`}>{stop.title}</span>
+                  {finished && stop.kind === 'task' && <Tag tone="green">Done</Tag>}
+                  {here && <Tag tone="yellow">You're here</Tag>}
+                  {stop.status === 'now' && !here && <Tag tone="yellow">On the way</Tag>}
+                </span>
+                <span className="mt-0.5 block t-small text-muted">{stop.area}</span>
+                {stop.kind === 'task' && stop.task!.durationMin > 0 && !finished && (
+                  <span className="mt-0.5 block t-small text-ink-2 tnum">
+                    {hhmm(stop.time)} to {hhmm(stop.end)}, {duration(stop.task!.durationMin)}
                   </span>
                 )}
-                {stop.kind === 'end' && <span className="block t-small text-muted">Back for the night</span>}
-                {(tags.length > 0 || stop.problem) && (
+                {stop.kind === 'start' && <span className="mt-0.5 block t-small text-muted">Where the day starts</span>}
+                {stop.kind === 'end' && <span className="mt-0.5 block t-small text-muted">Back for the night</span>}
+                {(tags.length > 0 || stop.problem) && !finished && (
                   <span className="mt-2 flex flex-wrap gap-2">
                     {tags}
                     {stop.problem === 'late' && (
@@ -333,13 +357,14 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
             return (
               <Fragment key={stop.id}>
                 <motion.li layout="position" layoutId={stop.kind === 'task' ? `stop-${stop.id}` : undefined} transition={layoutT} className={`${COLS} relative`}>
-                  <div className={`col-start-1 row-start-1 ${stop.status === 'done' ? 'text-ink-2' : 'text-ink'}`}>
+                  <div className={`col-start-1 row-start-1 pt-2 ${finished ? 'text-muted' : 'text-ink'}`}>
                     <FlipTime value={stop.time} flipIndex={changedOrder.indexOf(stop.id)} change={change} reduce={reduce} />
                   </div>
                   <div className={`relative col-start-2 row-start-1 flex justify-center ${stop.status === 'now' ? 'row-span-2' : ''}`}>
                     <Connector segments={inLeg?.segments} at="top" change={change?.changedLegs.includes(inLeg?.seq ?? -1) ? change : null} reduce={reduce} />
                     <Connector segments={outLeg?.segments} at="bottom" change={change?.changedLegs.includes(outLeg?.seq ?? -1) ? change : null} reduce={reduce} />
                     <Station
+                      emoji={stopEmoji(stop.title, stop.kind)}
                       status={stop.status}
                       pulse={stop.status === 'now' && pulseNow}
                       justDone={change?.kind === 'checkin' && stop.status === 'done' && beforeStatus.get(stop.id) !== 'done'}
@@ -348,7 +373,7 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
                       reveal={reveal}
                     />
                   </div>
-                  <div className="col-start-3 row-start-1 pb-5">
+                  <div className="col-start-3 row-start-1 pb-5 pt-1">
                     {interactive ? (
                       <button type="button" onClick={() => onStop(stop)} className="-mx-2 -mt-1 block w-[calc(100%+1rem)] rounded-control px-2 py-1 text-left [@media(hover:hover)]:hover:bg-surface">
                         <span className="sr-only">{stopSpoken(stop, clock)}</span>
@@ -371,22 +396,45 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
                 {outLeg && (
                   <motion.li layout="position" transition={layoutT} className={`${COLS} relative`}>
                     <div />
-                    <div className="relative min-h-24">
+                    <div className={`relative ${outLeg.status === 'done' ? 'min-h-14' : 'min-h-28'}`}>
                       <LegLine leg={outLeg} old={oldByTo.get(outLeg.toId)} change={change} reduce={reduce} />
                       {riding?.seq === outLeg.seq && <ProgressMarker leg={outLeg} clock={clock} reduce={reduce} />}
                     </div>
                     <div className="py-2 pb-5">
-                      <LegButton readOnly={readOnly} label={legSpoken(outLeg)} onClick={() => onLeg(outLeg)} selected={selectedSeq === outLeg.seq}>
+                      <LegButton readOnly={readOnly} done={outLeg.status === 'done'} label={legSpoken(outLeg)} onClick={() => onLeg(outLeg)} selected={selectedSeq === outLeg.seq}>
                         <span className="flex items-center gap-2">
-                          <ModeChain segments={outLeg.segments} />
-                          <span className={`t-small font-bold ${outLeg.status === 'done' ? 'text-ink-2' : 'text-ink'}`}>{outLeg.label}</span>
+                          <ModeChain segments={outLeg.segments} size={outLeg.status === 'done' ? 16 : 20} />
+                          <span className={`t-small font-bold ${outLeg.status === 'done' ? 'text-muted' : 'text-ink'}`}>{outLeg.label}</span>
                         </span>
-                        <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 t-small text-ink-2 tnum">
-                          {outLeg.status === 'done' ? <span>Done</span> : <span>Leave {outLeg.leaveBy}</span>}
-                          <span>{outLeg.estimate ? 'About ' : ''}{duration(outLeg.travelMin)}</span>
-                          <span>{outLeg.fareInr ? rupees(outLeg.fareInr) : 'Free'}</span>
-                        </span>
-                        {outLeg.raasta && (
+                        {outLeg.status === 'done' ? (
+                          <span className="mt-0.5 block t-small text-muted tnum">
+                            Travelled, {outLeg.estimate ? 'about ' : ''}
+                            {duration(outLeg.travelMin)}, {outLeg.fareInr ? rupees(outLeg.fareInr) : 'free'}
+                          </span>
+                        ) : (
+                          <>
+                            <span className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 t-small text-ink-2 tnum">
+                              <span className="inline-flex items-center gap-1 font-bold text-ink">
+                                <span>🚶</span>Leave {outLeg.leaveBy}
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <span>⏱️</span>
+                                {outLeg.estimate ? 'About ' : ''}
+                                {duration(outLeg.travelMin)}
+                              </span>
+                              <span className="inline-flex items-center gap-1">
+                                <span>💰</span>
+                                {outLeg.fareInr ? rupees(outLeg.fareInr) : 'Free'}
+                              </span>
+                            </span>
+                            {outLeg.waitMin >= 10 && (
+                              <span className="mt-1 flex items-center gap-1 t-small text-muted tnum">
+                                <span>☕</span>Arrive {outLeg.arriveAt}, {duration(outLeg.waitMin)} early
+                              </span>
+                            )}
+                          </>
+                        )}
+                        {outLeg.raasta && outLeg.status !== 'done' && (
                           <span className="mt-2 flex">
                             {outLeg.raasta.status === 'verified' ? (
                               <Tag tone="green" icon={<ShieldCheck size={14} strokeWidth={1.75} aria-hidden="true" />}>
@@ -436,11 +484,13 @@ function TomorrowRow({ item, change, reduce, layoutT }: { item: TomorrowItem; ch
       {justMoved && (
         <motion.span aria-hidden="true" className="pointer-events-none absolute -inset-x-2 -inset-y-1 rounded-card bg-surface shadow-[var(--shadow-toast)]" initial={{ opacity: 1 }} animate={{ opacity: 0 }} transition={{ delay: 0.45, duration: 0.3 }} />
       )}
-      <div className="relative t-time text-ink-2 tnum">{hhmm(item.time)}</div>
+      <div className="relative pt-2 t-time text-ink-2 tnum">{hhmm(item.time)}</div>
       <div className="relative flex justify-center">
-        <span className="mt-1 block size-4 rounded-full border-[3px] border-dashed border-muted" aria-hidden="true" />
+        <span className="flex size-10 items-center justify-center rounded-full border-[3px] border-dashed border-line-strong text-lg leading-none" aria-hidden="true">
+          <span className="opacity-70">{stopEmoji(item.title)}</span>
+        </span>
       </div>
-      <div className="relative pb-5">
+      <div className="relative pb-5 pt-1">
         <span className="block t-title text-ink">{item.title}</span>
         <span className="block t-small text-muted">{item.area}</span>
         <span className="mt-2 flex flex-wrap gap-2">
