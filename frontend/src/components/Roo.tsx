@@ -1,6 +1,8 @@
+import * as Popover from '@radix-ui/react-popover'
 import { X } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router'
 import { useDay } from '@/api/queries'
 import type { Trip } from '@/api/types'
@@ -8,12 +10,14 @@ import { checkIn } from '@/lib/actions'
 import { hhmm, lowerFirst } from '@/lib/format'
 import { useIsDesktop } from '@/lib/hooks'
 import { useOpenLate } from '@/lib/late'
+import { useRooAnchor } from '@/lib/rooAnchor'
+import { useSheetOpen } from '@/lib/sheets'
 import { stopEmoji } from '@/lib/stopEmoji'
 import type { DayView } from '@/lib/timeline'
 
 type Mood = 'idle' | 'happy' | 'alert' | 'sleeping' | 'celebrate' | 'wave'
 // Labels avoid "Running late" and "Plan my day": those name the screens' own buttons.
-type ActionId = 'done' | 'more-time' | 'options' | 'describe' | 'plan' | 'summary' | 'today' | 'hide'
+type ActionId = 'done' | 'more-time' | 'options' | 'describe' | 'plan' | 'summary' | 'today' | 'hide' | 'add' | 'edit'
 
 interface RooAction {
   id: ActionId
@@ -119,8 +123,22 @@ function deriveMessage(trip: Trip | undefined, view: DayView | null, clock: numb
   return { id: 'on-track', emoji: '💚', text: 'Your day is on track. Tap me if you need anything.', mood: 'idle' }
 }
 
-function menuFor(trip: Trip | undefined, view: DayView | null, path: string): RooMessage {
+function menuFor(trip: Trip | undefined, view: DayView | null, path: string, clock: number | null): RooMessage {
   const actions: RooAction[] = []
+  // On Today, Roo rides the timeline: add to the day, or deal with the stop under way, right here.
+  if (path === '/' && view && !view.done) {
+    actions.push({ id: 'add', label: 'Add a task', primary: true })
+    const task = view.checkInTask
+    const stop = task ? view.stops.find((s) => s.id === task.taskId) : undefined
+    if (task && stop) {
+      if (stop.status === 'now' && clock != null && clock >= stop.time) actions.push({ id: 'done', label: `Mark the ${lowerFirst(task.title)} done` })
+      actions.push({ id: 'edit', label: `Edit the ${lowerFirst(task.title)}` })
+      actions.push({ id: 'more-time', label: 'Need more time' })
+    }
+    actions.push({ id: 'summary', label: 'How’s my day?' })
+    actions.push({ id: 'hide', label: 'Hide Roo' })
+    return { id: 'menu', emoji: '🌱', text: 'Hi! What shall we do?', mood: 'happy', actions }
+  }
   if (trip) actions.push({ id: 'describe', label: 'Describe my day', primary: true })
   if (view && !view.done && view.checkInTask) actions.push({ id: 'more-time', label: 'Need more time' })
   if (path !== '/' && view) actions.push({ id: 'today', label: 'Show today' })
@@ -281,6 +299,15 @@ function Bubble({ msg, onAction, onClose }: { msg: RooMessage; onAction: (id: Ac
       transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
       style={{ transformOrigin: 'bottom right' }}
     >
+      <BubbleBody msg={msg} onAction={onAction} onClose={onClose} />
+      <span aria-hidden="true" className="absolute -bottom-[8px] right-8 size-3.5 rotate-45 border-b border-r border-line bg-surface" />
+    </motion.div>
+  )
+}
+
+function BubbleBody({ msg, onAction, onClose }: { msg: RooMessage; onAction: (id: ActionId) => void; onClose: () => void }) {
+  return (
+    <>
       <p className="t-body leading-snug text-ink">
         <span aria-hidden="true" className="mr-1.5">
           {msg.emoji}
@@ -311,8 +338,7 @@ function Bubble({ msg, onAction, onClose }: { msg: RooMessage; onAction: (id: Ac
       >
         <X size={18} strokeWidth={1.75} aria-hidden="true" />
       </button>
-      <span aria-hidden="true" className="absolute -bottom-[8px] right-8 size-3.5 rotate-45 border-b border-r border-line bg-surface" />
-    </motion.div>
+    </>
   )
 }
 
@@ -436,20 +462,28 @@ export function Roo({ trip, clock, demoActive }: { trip: Trip | undefined; clock
     else if (id === 'plan') navigate('/plan')
     else if (id === 'summary') navigate('/summary')
     else if (id === 'today') navigate('/')
+    else if (id === 'add') navigate('/', { state: { add: Date.now() } })
+    else if (id === 'edit' && view?.checkInTask) navigate('/', { state: { stop: view.checkInTask.taskId } })
     else if (id === 'hide') {
       setHidden(true)
       store(HIDDEN_KEY, true)
     }
   }
 
+  // A menu opened by a tap takes keyboard focus; a message Roo raises by itself never does.
+  const tapped = useRef(false)
   const tap = () => {
     if (open) return close()
-    const menu = menuFor(trip, view, pathname)
+    const menu = menuFor(trip, view, pathname, clock)
     lastShown.current = menu.id
+    tapped.current = true
     setOverride(menu)
     setOpen(true)
     schedule(menu)
   }
+  const anchor = useRooAnchor()
+  // A message waits while a sheet is open: the sheet's buttons and Escape belong to it.
+  const sheetOpen = useSheetOpen()
 
   // Clear of the Today action bar and the tab bar on phones, and of the Simulate button on desktop.
   const actionBar = pathname === '/' && !!view && !view.done
@@ -477,10 +511,70 @@ export function Roo({ trip, clock, demoActive }: { trip: Trip | undefined; clock
     )
   }
 
-  const shown = open && msg ? msg : null
+  const shown = open && msg && !sheetOpen ? msg : null
   const mood: Mood = shown?.mood ?? (derived?.mood === 'sleeping' ? 'sleeping' : derived?.urgent ? 'alert' : 'idle')
   const eyes = shown ? { x: -1.5, y: -2 } : look
   const size = desktop ? 72 : 60
+
+  // On Today, Roo rides the timeline at the Now line; its words open in a popover above the page.
+  if (anchor && pathname === '/') {
+    return createPortal(
+      <Popover.Root
+        open={!!shown}
+        onOpenChange={(o) => {
+          if (!o) close()
+        }}
+      >
+        <Popover.Anchor asChild>
+          <div className="relative">
+            {!reduce && burst > 0 && <Confetti key={burst} />}
+            {/* The button stays still (a steady target); only Roo inside it bobs. */}
+            <button
+              ref={artRef}
+              type="button"
+              onClick={tap}
+              aria-label={open ? 'Roo, your travel companion. Close the message' : 'Roo, your travel companion. Add a task or change this stop'}
+              aria-expanded={open}
+              className="flex size-12 cursor-pointer items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--focus)]"
+            >
+              <motion.span
+                className="block drop-shadow-md"
+                animate={reduce || mood === 'sleeping' ? {} : mood === 'celebrate' ? { y: [0, -14, 0], transition: { duration: 0.8 } } : { y: [0, -3, 0], transition: { duration: 2.6, repeat: Infinity, ease: 'easeInOut' as const } }}
+                data-looping=""
+              >
+                <RooArt mood={mood} look={eyes} size={46} reduce={reduce} />
+              </motion.span>
+            </button>
+          </div>
+        </Popover.Anchor>
+        <Popover.Portal>
+          {shown && (
+            <Popover.Content
+              side="bottom"
+              align="end"
+              sideOffset={6}
+              collisionPadding={16}
+              onOpenAutoFocus={(e) => {
+                if (!tapped.current) e.preventDefault()
+                tapped.current = false
+              }}
+              onInteractOutside={(e) => {
+                if (artRef.current?.contains(e.target as Node)) e.preventDefault()
+              }}
+              // A message Roo raises is announced as a status; only the menu a tap opens is a dialog.
+              role={shown.id === 'menu' ? 'dialog' : 'status'}
+              aria-label={shown.id === 'menu' ? 'Roo' : undefined}
+              className="relative z-[60] w-[min(300px,calc(100vw-32px))] rounded-card border border-line bg-surface p-4 pr-11 text-left shadow-[var(--shadow-toast)]"
+            >
+              <BubbleBody msg={shown} onAction={act} onClose={close} />
+              <Popover.Arrow className="fill-[var(--surface)]" width={14} height={7} />
+            </Popover.Content>
+          )}
+        </Popover.Portal>
+      </Popover.Root>,
+      anchor,
+    )
+  }
 
   const body =
     reduce || mood === 'sleeping'
@@ -497,19 +591,19 @@ export function Roo({ trip, clock, demoActive }: { trip: Trip | undefined; clock
         <AnimatePresence>{shown && <Bubble key={shown.id} msg={shown} onAction={act} onClose={close} />}</AnimatePresence>
         {mood === 'sleeping' && !reduce && <Zzz />}
         {!reduce && burst > 0 && <Confetti key={burst} />}
-        <motion.button
+        {/* The button stays still (a steady target); only Roo inside it moves. */}
+        <button
           ref={artRef}
           type="button"
           onClick={tap}
           aria-label={open ? 'Roo, your travel companion. Close the message' : 'Roo, your travel companion. Open the menu'}
           aria-expanded={open}
-          className="block cursor-pointer rounded-full drop-shadow-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--focus)]"
-          animate={body}
-          whileHover={reduce ? undefined : { scale: 1.07 }}
-          whileTap={reduce ? undefined : { scale: 0.9 }}
+          className="block cursor-pointer rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--focus)]"
         >
-          <RooArt mood={mood} look={eyes} size={size} reduce={reduce} />
-        </motion.button>
+          <motion.span className="block drop-shadow-lg" animate={body} whileHover={reduce ? undefined : { scale: 1.07 }} whileTap={reduce ? undefined : { scale: 0.9 }} data-looping="">
+            <RooArt mood={mood} look={eyes} size={size} reduce={reduce} />
+          </motion.span>
+        </button>
       </div>
     </div>
   )

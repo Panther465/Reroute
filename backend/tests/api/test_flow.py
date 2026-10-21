@@ -258,6 +258,17 @@ def test_demo_reset_removes_trips_started_in_the_demo(client):
     assert [t["tripId"] for t in client.get("/v1/trips").json()["items"]] == ["trip-001"]
 
 
+def test_road_path_is_for_covered_cities_only(client, monkeypatch):
+    from app.adapters import road_path
+
+    monkeypatch.setattr(road_path.RoadPaths, "get", lambda self, a, b, profile: road_path.straight(a, b))
+    ok = client.get("/v1/road-path", params={"from": "77.5713,12.9767", "to": "77.7318,12.9855"})
+    assert ok.status_code == 200, ok.text
+    assert ok.json()["source"] == "line" and len(ok.json()["coords"]) == 2
+    far = client.get("/v1/road-path", params={"from": "72.8777,19.0760", "to": "77.7318,12.9855"})  # Mumbai
+    assert far.status_code == 422
+
+
 class FakeNominatim:
     """OpenStreetMap search without the network: it knows the Koramangala neighbourhood."""
 

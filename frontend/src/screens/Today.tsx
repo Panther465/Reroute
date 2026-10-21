@@ -1,6 +1,6 @@
-import { BellRing, ChevronDown, CircleCheck, MapPinned, Navigation, Plus, Route, Share2, X } from 'lucide-react'
+import { BellRing, ChevronDown, CircleCheck, LocateFixed, MapPinned, Navigation, Plus, Route, Share2, X } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { Link, useLocation as useRouterLocation, useNavigate } from 'react-router'
 import { useCurrentTripId, useDay, useTrip } from '@/api/queries'
 import type { Trip } from '@/api/types'
 import { NextCard } from '@/components/NextCard'
@@ -14,7 +14,10 @@ import { Tag } from '@/components/ui/Tag'
 import { ApiError } from '@/api/client'
 import { applyServerChange, checkIn, playLater, playTaskEdit, replanDay, undo, undoVersionOf } from '@/lib/actions'
 import { lowerFirst } from '@/lib/format'
-import { legLines, placeIndex } from '@/lib/geo'
+import { legLines } from '@/lib/geo'
+import { useDayGuide } from '@/lib/dayAlerts'
+import { geolocationSupported, getLocation, startTracking, useLocation } from '@/lib/location'
+import { splitPath } from '@/lib/progress'
 import { useDocumentTitle, useIsDesktop, useOnline, useStatus, useTripClock, type Status } from '@/lib/hooks'
 import { T, useTl } from '@/lib/i18n'
 import { useOpenLate } from '@/lib/late'
@@ -210,21 +213,57 @@ export default function Today() {
     if (leaveExpired) setState({ leaveNow: null })
   }, [leaveExpired])
 
-  const places = useMemo(() => (trip ? placeIndex(trip) : new Map()), [trip])
-  const activeSeq = view?.nextLeg?.seq ?? view?.legs[view.legs.length - 1]?.seq ?? null
+  // Roo on the timeline asks for "Add a task" or "Edit this stop"; do it here, then clear the request.
+  const routerLocation = useRouterLocation()
+  useEffect(() => {
+    const ask = routerLocation.state as { add?: number; stop?: string } | null
+    if (!ask || !view) return
+    if (ask.add) {
+      addBefore.current = view
+      setAddOpen(true)
+    }
+    if (ask.stop) setStop(view.stops.find((s) => s.id === ask.stop) ?? null)
+    navigate(routerLocation.pathname, { replace: true, state: null })
+  }, [routerLocation.state, view]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const { guide, roads, places, fix } = useDayGuide(trip, tripClock)
+  const { tracking } = useLocation()
+  const activeSeq = guide?.leg.seq ?? view?.nextLeg?.seq ?? view?.legs[view.legs.length - 1]?.seq ?? null
   const selectedSeq = desktop ? (selected && view?.legs.some((l) => l.seq === selected) ? selected : activeSeq) : null
   const selectedLeg = view?.legs.find((l) => l.seq === selectedSeq) ?? null
 
-  const mapLines = useMemo(() => (view ? view.legs.flatMap((l) => legLines(l, places, l.status === 'done')) : []), [view, places])
+  // Legs along the roads; on the leg being ridden, what's behind the traveller is greyed.
+  const rideLines = (l: LegView) => {
+    if (guide?.riding && guide.leg.seq === l.seq && guide.progress && guide.progress.offRouteM < 300) {
+      const { behind, ahead } = splitPath(guide.path, guide.progress)
+      const mode = l.segments.find((s) => s.mode !== 'walk')?.mode ?? l.segments[0]?.mode ?? 'cab'
+      return [
+        { id: `${l.seq}-behind`, coords: behind, mode, dim: true },
+        { id: `${l.seq}-ahead`, coords: ahead, mode },
+      ]
+    }
+    return legLines(l, places, l.status === 'done', roads.get(l.seq))
+  }
+  const mapLines = useMemo(() => (view ? view.legs.flatMap(rideLines) : []), [view, places, roads, guide]) // eslint-disable-line react-hooks/exhaustive-deps
   const mapPoints = useMemo(() => {
     if (!view) return []
     const pts = view.stops
       .filter((s) => s.kind !== 'end' && places.has(s.placeId))
       .map((s) => ({ id: s.id, lngLat: places.get(s.placeId)!, kind: 'stop' as const, label: `${s.title}, ${s.area}` }))
+    // With the phone's location on, the live blue dot shows where the traveller is instead.
     const here = places.get(view.stops[view.nowIndex]?.placeId ?? '')
-    return here ? [...pts, { id: 'me', lngLat: here, kind: 'user' as const, label: 'Where you are, by your check-ins' }] : pts
-  }, [view, places])
-  const focus = useMemo(() => (selectedLeg ? legLines(selectedLeg, places).flatMap((l) => l.coords) : undefined), [selectedLeg, places])
+    return here && !fix ? [...pts, { id: 'me', lngLat: here, kind: 'user' as const, label: 'Where you are, by your check-ins' }] : pts
+  }, [view, places, fix])
+  const focus = useMemo(() => (selectedLeg ? (roads.get(selectedLeg.seq) ?? legLines(selectedLeg, places).flatMap((l) => l.coords)) : undefined), [selectedLeg, places, roads])
+  // The phone's mini map: just the leg that matters now.
+  const miniLines = useMemo(() => (guide ? rideLines(guide.leg) : []), [guide, places, roads]) // eslint-disable-line react-hooks/exhaustive-deps
+  const miniPoints = useMemo(() => {
+    if (!guide) return []
+    return [guide.leg.fromPlaceId, guide.leg.toPlaceId].flatMap((id, i) => {
+      const p = places.get(id)
+      return p ? [{ id: `mini-${i}`, lngLat: p, kind: 'stop' as const, label: i ? guide.to.title : 'Start of this leg' }] : []
+    })
+  }, [guide, places])
 
   if (current.isPending || (tripQ.isPending && !!current.tripId)) return <TodaySkeleton />
   if ((current.isError || tripQ.isError) && !trip) {
@@ -327,6 +366,36 @@ export default function Today() {
 
   const started = !!startedTo && startedTo.tripId === trip.tripId && startedTo.toId === view.nextLeg?.toId
   const bannerUndo = undoVersionOf(trip)
+  const track = async () => {
+    const ok = await startTracking()
+    if (!ok)
+      showToast({
+        title:
+          getLocation().error === 'denied'
+            ? 'Location is off for Reroute in your browser settings. Your plan works without it.'
+            : "Couldn't find your location. Your plan works without it.",
+      })
+  }
+
+  // The mini map on phones (desktop has the big map beside), and the switch to show the traveller on it.
+  const miniMap = guide && (
+    <div className="flex flex-col gap-3">
+      {!desktop && (
+        // The map is a picture of the leg; the link laid over it (not around it) opens the full map and directions.
+        <div className="relative">
+          <Suspense fallback={<Skeleton className="h-36 w-full rounded-card" />}>
+            <MapCard compact lines={miniLines} points={miniPoints} label={`Map to ${guide.to.title}`} className="h-36" me={fix} />
+          </Suspense>
+          <Link to={`/leg/${guide.leg.seq}`} aria-label={`Map and directions to ${guide.to.title}`} className="absolute inset-x-0 top-0 h-36 rounded-card" />
+        </div>
+      )}
+      {guide.riding && !tracking && geolocationSupported && (
+        <Button variant="secondary" size="md" className="self-start" icon={<LocateFixed size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={() => void track()}>
+          Show me on the map
+        </Button>
+      )}
+    </div>
+  )
 
   const banners = (
     <div className="flex flex-col gap-2 empty:hidden">
@@ -388,6 +457,8 @@ export default function Today() {
     if (!leg) return
     setState({ started: { tripId: trip.tripId, toId: leg.toId } })
     showToast({ title: leg.toId === 'end' ? 'On your way back. Safe travels.' : `On your way. You should arrive around ${leg.arriveAt}.` })
+    // Follow the ride on the map, and say when they're nearly there. Asks for location once.
+    if (geolocationSupported && !tracking) void track()
   }
   const doneName = target ? tl('the {task}', { task: lowerFirst(target.title) }) : null
 
@@ -427,6 +498,7 @@ export default function Today() {
       onStop={setStop}
       selectedSeq={selectedSeq}
       tomorrowLabel={dayLabel(addDays(trip.day, 1))}
+      departedFrom={guide?.riding ? guide.leg.fromId : null}
     />
   )
   const estimates = <p className="mt-2 t-small text-muted">Times and fares are estimates.</p>
@@ -460,7 +532,7 @@ export default function Today() {
           {header}
           <div className="mt-5 flex flex-col gap-4">
             {banners}
-            <NextCard view={view} clock={clock} started={started} />
+            <NextCard view={view} clock={clock} guide={guide} miniMap={miniMap} />
             <NotInPlan tripId={trip.tripId} view={view} />
           </div>
           <div className="mt-8 flex-1">
@@ -477,7 +549,7 @@ export default function Today() {
         </section>
         <section aria-label="Map and leg detail" className="sticky top-16 flex h-[calc(100dvh-64px)] flex-col gap-4 overflow-y-auto py-8">
           <Suspense fallback={<Skeleton className="h-[44vh] min-h-72 w-full shrink-0 rounded-card" />}>
-            <MapCard lines={mapLines} points={mapPoints} focus={focus} label="Map of today's route" className="h-[44vh] min-h-72 shrink-0" draw={revealing} />
+            <MapCard lines={mapLines} points={mapPoints} focus={focus} label="Map of today's route" className="h-[44vh] min-h-72 shrink-0" draw={revealing} me={fix} />
           </Suspense>
           {selectedLeg && (
             <Suspense fallback={<Skeleton className="h-96 w-full shrink-0 rounded-card" />}>
@@ -496,7 +568,7 @@ export default function Today() {
         {header}
         <div className="mt-5 flex flex-col gap-4">
           {banners}
-          <NextCard view={view} clock={clock} started={started} />
+          <NextCard view={view} clock={clock} guide={guide} miniMap={miniMap} />
           <NotInPlan tripId={trip.tripId} view={view} />
         </div>
         <div className="mt-8">

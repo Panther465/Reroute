@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     osrm_car_url: str = "http://osrm-car:5000"
     osrm_foot_url: str = "http://osrm-foot:5000"
     nominatim_url: str = "https://nominatim.openstreetmap.org"
+    #: OSRM server for drawing legs along roads on the map (not for planning). Empty draws straight lines.
+    road_path_url: str = "https://router.project-osrm.org"
     nominatim_user_agent: str = "Reroute student project (contact via repository)"
     travel_times_source: Literal["sample", "osrm"] = "sample"
     examples_dir: Path = Path(__file__).resolve().parents[2] / "examples"

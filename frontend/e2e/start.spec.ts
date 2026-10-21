@@ -6,10 +6,15 @@ test.skip(!process.env.E2E_BASE_URL, 'Set E2E_BASE_URL to run against a running 
 
 /** Reset the demo through the API: the sample day comes back and trips started in the demo go. */
 async function resetDemo(page: Page) {
-  const login = await page.request.post('/v1/auth/demo', { data: { as: 'traveller' } })
-  const token = ((await login.json()) as { accessToken: string }).accessToken
-  const res = await page.request.post('/v1/trips/trip-001/demo/reset', { headers: { Authorization: `Bearer ${token}` }, data: { idempotencyKey: `e2e-reset-${Date.now()}` } })
-  expect(res.ok()).toBe(true)
+  // Sign in afresh for the reset (with one retry), so it never depends on the page's own session.
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const login = await page.request.post('/v1/auth/demo', { data: { as: 'traveller' } })
+    const token = login.ok() ? ((await login.json()) as { accessToken?: string }).accessToken : undefined
+    if (!token) continue
+    const res = await page.request.post('/v1/trips/trip-001/demo/reset', { headers: { Authorization: `Bearer ${token}` }, data: { idempotencyKey: `e2e-reset-${Date.now()}-${attempt}` } })
+    if (res.ok()) return
+  }
+  throw new Error("Couldn't reset the demo")
 }
 
 test.afterEach(async ({ page }) => resetDemo(page))

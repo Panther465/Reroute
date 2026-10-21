@@ -17,6 +17,8 @@ export interface UiState {
   theme: Theme
   lang: Lang
   leaveAlerts: boolean
+  /** How alerts reach the traveller, beyond the toast every alert shows. */
+  alerts: { sound: boolean; vibrate: boolean; voice: boolean }
   demo: { enabled: boolean; offline: boolean }
   /** The trip the traveller chose to look at; null means the most recent one. */
   tripId: string | null
@@ -38,13 +40,14 @@ export interface UiState {
 }
 
 const KEY = 'reroute:prefs:v2'
-const PERSISTED: (keyof UiState)[] = ['theme', 'lang', 'leaveAlerts', 'demo', 'started', 'tripId']
+const PERSISTED: (keyof UiState)[] = ['theme', 'lang', 'leaveAlerts', 'alerts', 'demo', 'started', 'tripId']
 
 function defaults(): UiState {
   return {
     theme: 'system',
     lang: 'en',
     leaveAlerts: false,
+    alerts: { sound: true, vibrate: true, voice: true },
     demo: { enabled: false, offline: false },
     tripId: null,
     change: null,

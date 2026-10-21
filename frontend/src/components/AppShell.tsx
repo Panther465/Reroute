@@ -10,6 +10,9 @@ import { useCurrentTripId, useMe, useTrip } from '@/api/queries'
 import { flushQueue } from '@/lib/actions'
 import { useIsDesktop, useOnline, useTripClock } from '@/lib/hooks'
 import { useLive } from '@/lib/live'
+import { unlockAudioOnFirstTouch } from '@/lib/alerts'
+import { useDayAlerts } from '@/lib/dayAlerts'
+import { resumeTracking } from '@/lib/location'
 import { useSessionStatus } from '@/lib/session'
 import { T } from '@/lib/i18n'
 import { getState, setState, useAnnouncement, useStore } from '@/lib/store'
@@ -163,6 +166,11 @@ export default function AppShell() {
   }, [me.data?.isDemo])
 
   useLive(current.tripId, session === 'signedIn' && online)
+  useDayAlerts(trip.data, clock)
+  useEffect(() => {
+    unlockAudioOnFirstTouch()
+    void resumeTracking()
+  }, [])
 
   // Check-ins saved offline go out as soon as the phone is back.
   useEffect(() => {

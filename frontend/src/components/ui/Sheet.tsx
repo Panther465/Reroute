@@ -3,6 +3,7 @@ import { X } from 'lucide-react'
 import { AnimatePresence, motion, useDragControls, useReducedMotion, type PanInfo } from 'motion/react'
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { useIsDesktop } from '@/lib/hooks'
+import { sheetOpened } from '@/lib/sheets'
 
 const sheetSpring = { type: 'spring' as const, stiffness: 420, damping: 40 }
 
@@ -29,6 +30,12 @@ export function Sheet({ open, onOpenChange, title, description, children, footer
   const returnTo = useRef<HTMLElement | null>(null)
   useLayoutEffect(() => {
     if (open) returnTo.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  }, [open])
+  // While a sheet is open, nothing else talks over it (Roo keeps quiet).
+  useLayoutEffect(() => {
+    if (!open) return
+    sheetOpened(1)
+    return () => sheetOpened(-1)
   }, [open])
   const restoreFocus = (e: Event) => {
     const el = returnTo.current

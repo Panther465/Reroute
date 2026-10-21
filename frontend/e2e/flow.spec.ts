@@ -84,6 +84,30 @@ test('the day keeps up: leave, mark done, and add a task without planning again'
   await expect(page.getByRole('main').getByText('Pick up documents').first()).toBeVisible()
 })
 
+test('ride a leg: the live dot follows the road, and Roo says when you arrive', async ({ page }) => {
+  test.setTimeout(150_000)
+  await planFreshDay(page)
+  await setClock(page, '08:00')
+  await openSimulate(page)
+  await page.getByRole('button', { name: 'Simulate the ride to the meeting' }).click()
+  // Live distance and time to go on the Next card, then the arrival alert.
+  await expect(page.getByRole('main').getByText(/to go, about/).first()).toBeVisible({ timeout: 15_000 })
+  const toasts = page.getByRole('region', { name: /Notifications/ })
+  await expect(toasts.getByRole('listitem').filter({ hasText: 'You’ve arrived at the meeting' }).or(toasts.getByRole('listitem').filter({ hasText: "You've arrived at the meeting" }))).toBeVisible({
+    timeout: 70_000,
+  })
+})
+
+test('Roo rides the timeline: tap it to add a task', async ({ page }) => {
+  test.setTimeout(120_000)
+  await planFreshDay(page)
+  await page.getByRole('button', { name: 'Roo, your travel companion. Add a task or change this stop' }).click()
+  const menu = page.getByRole('dialog', { name: 'Roo' })
+  await expect(menu).toBeVisible()
+  await menu.getByRole('button', { name: 'Add a task' }).click()
+  await expect(page.getByRole('dialog').getByLabel('What do you need to do?')).toBeVisible()
+})
+
 test('running late, reroute, then undo', async ({ page }) => {
   test.setTimeout(120_000)
   await planFreshDay(page)

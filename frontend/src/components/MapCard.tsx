@@ -2,11 +2,12 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import * as maplibregl from 'maplibre-gl'
 import type { GeoJSONSource, Map as MLMap } from 'maplibre-gl'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
-import { WifiOff } from 'lucide-react'
+import { LocateFixed, WifiOff } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { MODE_META } from '@/components/icons'
 import { useOnline } from '@/lib/hooks'
 import type { LngLat, MapLine } from '@/lib/geo'
+import type { Fix } from '@/lib/location'
 import { useResolvedTheme } from '@/lib/theme'
 
 export interface MapPoint {
@@ -26,6 +27,10 @@ interface MapCardProps {
   className?: string
   draw?: boolean
   onMapClick?: (lngLat: LngLat) => void
+  /** The traveller's live position: a blue dot with its accuracy, and a "Follow me" button. */
+  me?: Fix | null
+  /** A small preview: no controls, no panning, just the route and the dot. */
+  compact?: boolean
 }
 
 maplibregl.setWorkerUrl(workerUrl)
@@ -87,6 +92,18 @@ function toFC(lines: MapLine[], progress = 1): RouteData {
   } as RouteData
 }
 
+/** A circle of `radius` metres around a point, for the location's accuracy. */
+function circle(center: LngLat, radius: number): RouteData {
+  const ring: LngLat[] = []
+  const dLat = radius / 111_320
+  const dLng = dLat / Math.cos((center[1] * Math.PI) / 180)
+  for (let i = 0; i <= 40; i++) {
+    const a = (i / 40) * 2 * Math.PI
+    ring.push([center[0] + dLng * Math.cos(a), center[1] + dLat * Math.sin(a)])
+  }
+  return { type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [ring] } } as RouteData
+}
+
 function bounds(pts: LngLat[]) {
   const b = new maplibregl.LngLatBounds(pts[0], pts[0])
   pts.forEach((p) => b.extend(p))
@@ -108,55 +125,87 @@ export default function MapCard(props: MapCardProps) {
   return <MapInner key={theme} {...props} theme={theme} />
 }
 
-function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMapClick, theme }: MapCardProps & { theme: 'light' | 'dark' }) {
+function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMapClick, me, compact, theme }: MapCardProps & { theme: 'light' | 'dark' }) {
   const el = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MLMap | null>(null)
   const markers = useRef<maplibregl.Marker[]>([])
+  const meMarker = useRef<maplibregl.Marker | null>(null)
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState(false)
+  const [following, setFollowing] = useState(false)
   const clickRef = useRef(onMapClick)
   clickRef.current = onMapClick
   // Markers read the latest points (and their click handlers) from here, so they're rebuilt only when the points change.
   const pointsRef = useRef(points)
   pointsRef.current = points
+  // What to fit: the focus (the active leg), else every line and point. Read when the map loads or resizes.
+  const fitRef = useRef<LngLat[]>([])
+  fitRef.current = focus?.length ? focus : [...lines.flatMap((l) => l.coords), ...points.map((p) => p.lngLat)]
+  // Once the traveller pans or zooms, the map stops refitting itself.
+  const touched = useRef(false)
   const frame = useRef(0)
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  const padding = compact ? 28 : 56
 
   useEffect(() => {
     if (!el.current) return
-    const pts = focus?.length ? focus : points.map((p) => p.lngLat)
+    const pts = fitRef.current
     const map = new maplibregl.Map({
       container: el.current,
       style: STYLES[theme],
       bounds: pts.length ? bounds(pts) : undefined,
-      fitBoundsOptions: { padding: 48 },
+      fitBoundsOptions: { padding, maxZoom: 16 },
       center: pts.length ? undefined : [77.5946, 12.9716],
       zoom: pts.length ? undefined : 11,
-      attributionControl: { compact: true },
+      // The mini map is a picture with nothing to focus inside it; it credits the map below instead.
+      attributionControl: compact ? false : { compact: true },
+      interactive: !compact,
       cooperativeGestures: false,
       dragRotate: false,
       pitchWithRotate: false,
     })
     mapRef.current = map
-    map.touchZoomRotate.disableRotation()
-    map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
+    if (!compact) {
+      map.touchZoomRotate.disableRotation()
+      map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
+    }
+    const refit = () => {
+      if (touched.current || !fitRef.current.length) return
+      map.fitBounds(bounds(fitRef.current), { padding, maxZoom: 16, duration: 0 })
+    }
+    // The map is often created while its panel is still laying out (or hidden), which fitted the route
+    // to a tiny box and showed half the state. Fit again whenever the box changes size.
+    const resize = new ResizeObserver(() => {
+      map.resize()
+      refit()
+    })
+    resize.observe(el.current)
     const timeout = setTimeout(() => !map.loaded() && setFailed(true), 12000)
     map.on('error', (e: { error?: { message?: string } }) => {
       if (String(e.error?.message ?? '').includes('style')) setFailed(true)
     })
     map.on('click', (e: { lngLat: { lng: number; lat: number } }) => clickRef.current?.([e.lngLat.lng, e.lngLat.lat]))
+    const byHand = (e: { originalEvent?: unknown }) => {
+      if (!e.originalEvent) return
+      touched.current = true
+      setFollowing(false)
+    }
+    map.on('dragstart', byHand)
+    map.on('zoomstart', byHand)
     map.on('load', () => {
       clearTimeout(timeout)
       mute(map)
+      map.addSource('me-accuracy', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
+      map.addLayer({ id: 'me-accuracy', type: 'fill', source: 'me-accuracy', paint: { 'fill-color': token('--blue'), 'fill-opacity': 0.12 } })
       map.addSource('route', { type: 'geojson', data: toFC(lines, draw && !reduce ? 0 : 1) })
-      map.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': token('--surface'), 'line-width': 10 } })
+      map.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': token('--surface'), 'line-width': compact ? 7 : 10 } })
       map.addLayer({
         id: 'route-line',
         type: 'line',
         source: 'route',
         filter: ['==', ['get', 'walk'], 0],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: { 'line-color': ['get', 'color'], 'line-width': 6, 'line-opacity': ['case', ['==', ['get', 'dim'], 1], 0.35, 1] },
+        paint: { 'line-color': ['get', 'color'], 'line-width': compact ? 4 : 6, 'line-opacity': ['case', ['==', ['get', 'dim'], 1], 0.35, 1] },
       })
       map.addLayer({
         id: 'route-walk',
@@ -164,8 +213,10 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
         source: 'route',
         filter: ['==', ['get', 'walk'], 1],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
-        paint: { 'line-color': ['get', 'color'], 'line-width': 5, 'line-dasharray': [0.2, 1.6] },
+        paint: { 'line-color': ['get', 'color'], 'line-width': compact ? 3.5 : 5, 'line-dasharray': [0.2, 1.6], 'line-opacity': ['case', ['==', ['get', 'dim'], 1], 0.35, 1] },
       })
+      map.resize()
+      refit()
       setReady(true)
       if (draw && !reduce) {
         const t0 = performance.now()
@@ -179,12 +230,15 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
     })
     return () => {
       clearTimeout(timeout)
+      resize.disconnect()
       cancelAnimationFrame(frame.current)
       markers.current.forEach((m) => m.remove())
+      meMarker.current?.remove()
+      meMarker.current = null
       map.remove()
       mapRef.current = null
     }
-    // The map is created once per theme; lines, points and focus update below.
+    // The map is created once per theme; lines, points, focus and the live dot update below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
@@ -194,15 +248,15 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
     if (ready && src) src.setData(toFC(lines))
   }, [lines, ready])
 
-  // Markers: stands and stops as rings, the traveller as a yellow "now" dot. A new array with the
-  // same points (every render of the parent) keeps the markers; only a change in the points rebuilds them.
+  // Markers: stands and stops as rings, the traveller (by check-ins) as a yellow "now" dot. A new array
+  // with the same points (every render of the parent) keeps the markers; only a change rebuilds them.
   const pointsKey = points.map((p) => `${p.id}:${p.lngLat.join(',')}:${p.kind}:${p.number ?? ''}:${p.label}:${p.onClick ? 1 : 0}`).join('|')
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
     markers.current.forEach((m) => m.remove())
     markers.current = points.map((p) => {
-      const size = p.number ? 'size-8' : p.kind === 'user' ? 'size-5' : 'size-4'
+      const size = p.number ? 'size-8' : p.kind === 'user' ? 'size-5' : compact ? 'size-3' : 'size-4'
       const look =
         p.kind === 'user'
           ? 'bg-yellow border-ink'
@@ -212,10 +266,10 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
               ? 'bg-surface border-ink'
               : 'bg-surface border-green'
       const dot = document.createElement('span')
-      dot.className = `flex ${size} items-center justify-center rounded-full border-[3px] ${look}`
+      dot.className = `flex ${size} items-center justify-center rounded-full ${compact ? 'border-2' : 'border-[3px]'} ${look}`
       if (p.number) dot.textContent = String(p.number)
       let node: HTMLElement = dot
-      if (p.onClick) {
+      if (p.onClick && !compact) {
         // A 48 px transparent button around the ring, so the stand is easy to hit with a thumb.
         const button = document.createElement('button')
         button.type = 'button'
@@ -238,7 +292,33 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pointsKey, ready])
 
-  // Fly to the active leg (800 ms, in-out).
+  // The live blue dot, its accuracy circle, and following it.
+  const meLngLat: LngLat | null = me ? [me.lng, me.lat] : null
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    const acc = map.getSource('me-accuracy') as GeoJSONSource | undefined
+    if (!meLngLat || !me) {
+      meMarker.current?.remove()
+      meMarker.current = null
+      acc?.setData({ type: 'FeatureCollection', features: [] })
+      return
+    }
+    if (!meMarker.current) {
+      const node = document.createElement('span')
+      node.className = 'relative flex size-6 items-center justify-center'
+      node.setAttribute('role', 'img')
+      node.setAttribute('aria-label', 'You are here, by your phone’s location')
+      node.innerHTML = `${reduce ? '' : '<span class="absolute inset-0 animate-ping rounded-full bg-blue opacity-40"></span>'}<span class="relative size-4 rounded-full border-[3px] border-surface bg-blue shadow"></span>`
+      meMarker.current = new maplibregl.Marker({ element: node }).setLngLat(meLngLat).addTo(map)
+    } else meMarker.current.setLngLat(meLngLat)
+    acc?.setData(circle(meLngLat, Math.min(me.accuracy, 500)))
+    if (following) map.easeTo({ center: meLngLat, zoom: Math.max(map.getZoom(), 15), duration: reduce ? 0 : 600 })
+    // The dot moves when the fix does.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me?.lng, me?.lat, me?.accuracy, ready, following])
+
+  // Fly to the active leg (800 ms, in-out) when it changes.
   const focusKey = JSON.stringify(focus)
   const first = useRef(true)
   useEffect(() => {
@@ -248,7 +328,9 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
       first.current = false
       return
     }
-    map.fitBounds(bounds(focus), { padding: 56, duration: reduce ? 0 : 800, easing: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2) })
+    if (following) return
+    touched.current = false
+    map.fitBounds(bounds(focus), { padding, maxZoom: 16, duration: reduce ? 0 : 800, easing: (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2) })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [focusKey])
 
@@ -258,8 +340,29 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
           mounts into, which would cancel `absolute inset-0` there and collapse it to 0 px. The
           wrapper does the positioning; the map fills it. */}
       <div className="absolute inset-0">
-        <div ref={el} className="h-full w-full" aria-label={label} role="region" />
+        <div ref={el} className="h-full w-full" aria-label={compact ? undefined : label} role={compact ? undefined : 'region'} aria-hidden={compact || undefined} />
       </div>
+      {compact && (
+        <span aria-hidden="true" className="absolute bottom-1 right-1.5 rounded bg-surface/90 px-1.5 text-[11px] leading-5 text-ink-2">
+          © OpenStreetMap · OpenFreeMap
+        </span>
+      )}
+      {me && !compact && ready && (
+        <button
+          type="button"
+          onClick={() => {
+            touched.current = true
+            setFollowing((f) => !f)
+          }}
+          aria-pressed={following}
+          className={`absolute bottom-3 left-3 z-10 inline-flex min-h-11 items-center gap-2 rounded-full border px-4 t-small font-bold shadow-sm ${
+            following ? 'border-blue bg-blue-tint text-ink' : 'border-line bg-surface text-ink [@media(hover:hover)]:hover:bg-sunken'
+          }`}
+        >
+          <LocateFixed size={18} strokeWidth={1.75} aria-hidden="true" />
+          {following ? 'Following you' : 'Follow me'}
+        </button>
+      )}
       {failed && (
         <div className="absolute inset-0 flex flex-col justify-center bg-surface p-5">
           <p className="t-title text-ink">The map didn't load</p>

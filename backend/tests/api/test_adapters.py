@@ -19,6 +19,36 @@ WF = PlacePoint("whitefield-office", 77.7318, 12.9855)
 CAFE = PlacePoint("osm-test-cafe", 77.6150, 12.9340)
 
 
+def test_road_paths_follow_osrm_and_are_cached(fake_redis):
+    from app.adapters.road_path import RoadPaths
+
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        geometry = {"coordinates": [[77.61951, 12.93521], [77.6, 12.93], [77.58381, 12.92551]]}
+        return httpx.Response(200, json={"routes": [{"geometry": geometry, "distance": 5321.4, "duration": 900.2}]})
+
+    paths = RoadPaths(fake_redis, client=httpx.Client(transport=httpx.MockTransport(handler)))
+    first = paths.get((KOR.lng, KOR.lat), (JAY.lng, JAY.lat), "driving")
+    second = paths.get((KOR.lng, KOR.lat), (JAY.lng, JAY.lat), "driving")
+    assert first == second
+    assert first.source == "road" and len(first.coords) == 3 and first.distance_m == 5321
+    assert calls == ["/route/v1/driving/77.619500,12.935200;77.583800,12.925500"]
+
+
+def test_road_paths_fall_back_to_a_straight_line(fake_redis):
+    from app.adapters.road_path import RoadPaths
+
+    def down(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused")
+
+    path = RoadPaths(fake_redis, client=httpx.Client(transport=httpx.MockTransport(down))).get((KOR.lng, KOR.lat), (JAY.lng, JAY.lat), "foot")
+    assert path.source == "line" and path.coords == [(KOR.lng, KOR.lat), (JAY.lng, JAY.lat)]
+    assert 3800 < path.distance_m < 4100  # about 3.9 km as the crow flies
+    assert not list(fake_redis.scan_iter("roadpath:foot:*"))  # an outage isn't cached
+
+
 def test_sample_snapshot_estimates_places_it_does_not_know():
     pairs = SampleSnapshotAdapter(StaticTransitAdapter({})).snapshot("bengaluru", [KOR, JAY, CAFE], DAY).lookup()
     # Pairs the file has stay as the file says.

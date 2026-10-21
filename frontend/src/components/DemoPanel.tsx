@@ -10,6 +10,8 @@ import { Switch } from '@/components/ui/Choice'
 import { inputClass } from '@/components/ui/Field'
 import { applyServerChange } from '@/lib/actions'
 import { hhmm, lowerFirst } from '@/lib/format'
+import { useDayGuide } from '@/lib/dayAlerts'
+import { simulateRide, stopTracking, useLocation } from '@/lib/location'
 import { setState, showToast, useStore } from '@/lib/store'
 import { buildDay, localMinutes } from '@/lib/timeline'
 
@@ -20,6 +22,8 @@ export function DemoPanel({ trip, onLate }: { trip: Trip | undefined; onLate: (d
   const [busy, setBusy] = useState(false)
   const navigate = useNavigate()
   const trips = useTrips(demo.enabled)
+  const { guide } = useDayGuide(trip, trip ? localMinutes(trip.now, trip.day, trip.utcOffset) : null)
+  const { simulated } = useLocation()
   if (!demo.enabled || !trip) return null
   // Reset always restores the sample trip, even while another trip is on screen.
   const sampleId = trips.data?.items.find((t) => t.sample)?.tripId ?? trip.tripId
@@ -130,6 +134,27 @@ export function DemoPanel({ trip, onLate }: { trip: Trip | undefined; onLate: (d
               </Button>
             )}
           </div>
+          {guide && (
+            <div className="mt-4">
+              <Button
+                variant="secondary"
+                size="md"
+                full
+                disabled={busy}
+                onClick={() => {
+                  if (simulated) return stopTracking()
+                  // As if the traveller left and rode the leg: the dot moves along the road, then arrives.
+                  setState({ started: { tripId, toId: guide.leg.toId } })
+                  simulateRide(guide.path)
+                  setOpen(false)
+                  navigate('/')
+                }}
+              >
+                {simulated ? 'Stop the simulated ride' : `Simulate the ride to the ${lowerFirst(guide.to.title)}`}
+              </Button>
+              <p className="mt-1 t-small text-muted">Moves your location along the road in about 40 seconds, for the tracking and arrival alerts.</p>
+            </div>
+          )}
           <div className="mt-4 grid grid-cols-2 gap-2">
             <Button variant="secondary" size="md" disabled={busy} onClick={() => { setOpen(false); navigate('/'); onLate(15) }}>
               15 min delay
