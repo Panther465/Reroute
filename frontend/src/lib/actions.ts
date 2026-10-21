@@ -1,7 +1,7 @@
 // What the traveller does, end to end: call the API, refresh the trip, run the choreography, toast.
 import { api, ApiError, newKey } from '@/api/client'
 import { keys, queryClient, waitForJob } from '@/api/queries'
-import type { AcceptIn, Body, CheckinResult, Plan, TaskEdit, TaskIn, TaskPatch, Trip } from '@/api/types'
+import type { AcceptIn, Body, CheckinResult, JobAccepted, Plan, TaskAdded, TaskEdit, TaskIn, TaskPatch, Trip } from '@/api/types'
 import { hhmm } from './format'
 import { enqueue, flush, queued, type QueuedCheckin } from './offlineQueue'
 import { announce, dismissToast, getState, playChange, setState, showToast } from './store'
@@ -50,12 +50,12 @@ interface PendingCheckin {
 const pending = new Map<string, PendingCheckin>()
 
 /**
- * Check in the current task (or the next one). The station fills at once and the toast offers Undo
- * for 5 seconds; only then (or when the toast closes) does the check-in go to the server, because a
- * check-in the server has recorded can't be taken back.
+ * Mark a task done: the current one (or the next) unless `taskId` names another. The station fills at
+ * once and the toast offers Undo for 5 seconds; only then (or when the toast closes) does the check-in
+ * go to the server, because a check-in the server has recorded can't be taken back.
  */
-export function checkIn(tripId: string, view: DayView, clock: number) {
-  const task = view.checkInTask
+export function checkIn(tripId: string, view: DayView, clock: number, taskId?: string) {
+  const task = taskId ? (view.stops.find((s) => s.task?.taskId === taskId)?.task ?? null) : view.checkInTask
   if (!task) return
   const item: QueuedCheckin = { tripId, taskId: task.taskId, kind: 'done', idempotencyKey: newKey('chk'), queuedAt: Date.now() }
   addOptimistic([task.taskId])
@@ -65,8 +65,8 @@ export function checkIn(tripId: string, view: DayView, clock: number) {
   const key = item.idempotencyKey
   const entry: PendingCheckin = { item, title: task.title, before: view, timer: setTimeout(() => void commitCheckin(key), CHECKIN_UNDO_MS), toastId: '' }
   pending.set(key, entry)
-  entry.toastId = showToast({ title: `Checked in at ${hhmm(clock)}.`, onUndo: () => cancelCheckin(key), onClose: () => void commitCheckin(key), duration: CHECKIN_UNDO_MS })
-  announce(`Checked in, ${task.title}. Undo available for 5 seconds.`)
+  entry.toastId = showToast({ title: `${task.title} done at ${hhmm(clock)}.`, onUndo: () => cancelCheckin(key), onClose: () => void commitCheckin(key), duration: CHECKIN_UNDO_MS })
+  announce(`${task.title} marked done. Undo available for 5 seconds.`)
 }
 
 /** Undo in the toast: the check-in never leaves the phone. */
@@ -76,7 +76,7 @@ export function cancelCheckin(key: string) {
   pending.delete(key)
   clearTimeout(entry.timer)
   dropOptimistic([entry.item.taskId])
-  announce(`Check-in undone. ${entry.title} is still open.`)
+  announce(`Undone. ${entry.title} is still open.`)
 }
 
 /** Sign-out: drop check-ins that haven't been sent. */
@@ -107,7 +107,7 @@ export async function commitCheckin(key: string) {
       kind: shifted ? 'reroute' : 'checkin',
       before,
       after,
-      toast: after?.done ? 'Checked in. Your day is done.' : shifted ? 'Checked in. Your later stops moved.' : undefined,
+      toast: after?.done ? 'Done. That was your last stop today.' : shifted ? 'Done. Your later stops moved.' : undefined,
       undoVersion: shifted ? undoVersionOf(trip) : null,
     })
   } catch (err) {
@@ -115,12 +115,12 @@ export async function commitCheckin(key: string) {
       // The queue keeps the station filled from here, across reloads too.
       enqueue(item)
       dropOptimistic([item.taskId])
-      showToast({ title: `Checked in. It syncs when you're back online.` })
-      announce(`Checked in, ${title}. It syncs when you're back online.`)
+      showToast({ title: `Marked done. It syncs when you're back online.` })
+      announce(`${title} marked done. It syncs when you're back online.`)
       return
     }
     dropOptimistic([item.taskId])
-    showToast({ title: err instanceof ApiError ? err.message : "Couldn't check in. Try again." })
+    showToast({ title: err instanceof ApiError ? err.message : "Couldn't mark it done. Try again." })
   }
 }
 
@@ -197,15 +197,37 @@ export async function saveTaskEdit(tripId: string, taskId: string, body: Body<Ta
   const res = await api.patch<TaskEdit>(`/v1/trips/${tripId}/tasks/${taskId}`, toPatch(body))
   if (!res.jobId) return 'saved'
   onReplanning?.()
+  return waitReplan(tripId, res.jobId)
+}
+
+/**
+ * Add a task. On a day that already has a plan the server re-plans it; this waits like an edit does.
+ * In a batch, pass `replan: false` for all but the last task so the day re-plans once.
+ */
+export async function addTask(tripId: string, body: Body<TaskIn>, idempotencyKey: string, opts: { replan?: boolean; onReplanning?: () => void } = {}) {
+  const replan = opts.replan ?? true
+  const task = await api.post<TaskAdded>(`/v1/trips/${tripId}/tasks${replan ? '' : '?replan=false'}`, body, { idempotencyKey })
+  if (!task.jobId) return { task, outcome: 'saved' as EditOutcome }
+  opts.onReplanning?.()
+  return { task, outcome: await waitReplan(tripId, task.jobId) }
+}
+
+/** Plan today again from where the traveller is, and play the change on the timeline. */
+export async function replanDay(tripId: string, before: DayView | null) {
+  const job = await api.post<JobAccepted>(`/v1/trips/${tripId}/plans`, {}, { idempotencyKey: newKey('plan') })
+  await playTaskEdit(tripId, before, await waitReplan(tripId, job.jobId))
+}
+
+async function waitReplan(tripId: string, jobId: string): Promise<EditOutcome> {
   let job
   try {
-    job = await waitForJob(res.jobId)
+    job = await waitForJob(jobId)
   } catch (err) {
     if (err instanceof ApiError && err.code === 'TIMEOUT') return 'pending'
     throw err
   }
   if (job.status === 'failed' || job.error) {
-    // The edit itself is saved: show it.
+    // The change itself is saved: show it.
     void queryClient.invalidateQueries({ queryKey: keys.trip(tripId) })
     throw new ApiError(409, 'REPLAN_FAILED', `${job.error ?? "Couldn't re-plan your day."} Your change is saved and your earlier plan stays.`)
   }

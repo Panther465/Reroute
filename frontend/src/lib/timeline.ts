@@ -73,10 +73,14 @@ export interface DayView {
   stops: StopView[]
   legs: LegView[]
   tomorrow: TomorrowItem[]
+  /** Today's tasks the planner couldn't fit, with why in plain words. */
+  leftOut: { taskId: string; title: string; reason: string }[]
+  /** Today's open tasks newer than the plan: the plan doesn't know about them yet. */
+  notPlanned: { taskId: string; title: string }[]
   nowIndex: number
   nextLeg: LegView | null
   done: boolean
-  /** The task a "Check in" would mark done: the current one, else the next. */
+  /** The task "Mark done" would mark done: the current one, else the next. */
   checkInTask: TaskView | null
   travelMin: number
   fareInr: number
@@ -150,6 +154,12 @@ function legView(leg: Leg, day: string, fromId: string, offset: string): LegView
 }
 
 const GONE: Task['state'][] = ['done', 'skipped', 'moved']
+
+function leftOutReason(kind: string, reason: string) {
+  if (kind === 'skipped') return 'It was marked "if there is time", and today is full.'
+  if (/in this snapshot$/.test(reason)) return 'Reroute has no travel times to this place yet.'
+  return `${reason.replace(/\.$/, '')}.`
+}
 
 /** Build the day from the trip. `nowOverride` lets the UI tick the clock between fetches. */
 export function buildDay(trip: Trip, nowOverride?: number): DayView | null {
@@ -233,11 +243,25 @@ export function buildDay(trip: Trip, nowOverride?: number): DayView | null {
         .sort((a, b) => a.time - b.time)
     : []
 
+  // Never let a task vanish: say which of today's tasks the plan leaves out, and why.
+  const open = (id: string) => {
+    const t = tasks.get(id)
+    return !!t && t.state !== 'done'
+  }
+  // A skip the traveller chose (an accepted "skip" option) is their decision, not a warning.
+  const leftOut = (plan.moved ?? [])
+    .filter((m) => m.kind !== 'moved' && open(m.taskId) && !(m.kind === 'skipped' && plan.trigger === 'skipped'))
+    .map((m) => ({ taskId: m.taskId, title: m.title, reason: leftOutReason(m.kind, m.reason) }))
+  const accounted = new Set<string>([...raw.map((l) => l.taskId ?? ''), ...(plan.moved ?? []).map((m) => m.taskId)])
+  const notPlanned = trip.tasks.filter((t) => t.day === day && !GONE.includes(t.state) && !accounted.has(t.taskId)).map((t) => ({ taskId: t.taskId, title: t.title }))
+
   const nextLeg = legs.find((l) => l.status === 'active') ?? null
   return {
     stops,
     legs,
     tomorrow,
+    leftOut,
+    notPlanned,
     nowIndex,
     nextLeg,
     done: nowIndex === stops.length - 1,
@@ -293,7 +317,7 @@ export function sharedToDay(shared: SharedTrip): DayView {
     status: i + 1 <= nowIndex ? 'done' : i + 1 === nowIndex + 1 ? 'active' : 'upcoming',
     estimate: true,
   }))
-  return { stops, legs, tomorrow: [], nowIndex: Math.max(0, nowIndex), nextLeg: legs.find((l) => l.status === 'active') ?? null, done: nowIndex === stops.length - 1, checkInTask: null, travelMin: 0, fareInr: 0, version: null, planId: null, reasonCodes: [], explanation: '', now, day }
+  return { stops, legs, tomorrow: [], leftOut: [], notPlanned: [], nowIndex: Math.max(0, nowIndex), nextLeg: legs.find((l) => l.status === 'active') ?? null, done: nowIndex === stops.length - 1, checkInTask: null, travelMin: 0, fareInr: 0, version: null, planId: null, reasonCodes: [], explanation: '', now, day }
 }
 
 export interface ChangeSet {

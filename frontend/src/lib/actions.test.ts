@@ -27,7 +27,7 @@ describe('check in with Undo', () => {
 
     checkIn(trip.tripId, buildDay(trip)!, 655)
     expect(getState().optimisticDone).toEqual(['task-meet'])
-    expect(lastToast().title).toBe('Checked in at 10:55.')
+    expect(lastToast().title).toBe('Meeting done at 10:55.')
     expect(lastToast().onUndo).toBeTypeOf('function')
     expect(post).not.toHaveBeenCalled()
 

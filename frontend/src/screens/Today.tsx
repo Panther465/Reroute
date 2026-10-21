@@ -1,4 +1,4 @@
-import { BellRing, CircleCheck, Share2, X } from 'lucide-react'
+import { BellRing, CircleCheck, MapPinned, Navigation, Route, Share2, X } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { useCurrentTripId, useDay, useTrip } from '@/api/queries'
@@ -11,15 +11,16 @@ import { Button, ButtonLink } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
 import { Banner, EmptyState, ErrorState, Skeleton } from '@/components/ui/States'
 import { Tag } from '@/components/ui/Tag'
-import { checkIn, undo, undoVersionOf } from '@/lib/actions'
+import { ApiError } from '@/api/client'
+import { checkIn, replanDay, undo, undoVersionOf } from '@/lib/actions'
 import { lowerFirst } from '@/lib/format'
 import { legLines, placeIndex } from '@/lib/geo'
 import { useDocumentTitle, useIsDesktop, useOnline, useStatus, useTripClock, type Status } from '@/lib/hooks'
 import { T, useTl } from '@/lib/i18n'
 import { useOpenLate } from '@/lib/late'
 import { useQueued } from '@/lib/offlineQueue'
-import { setState, useStore } from '@/lib/store'
-import { addDays, dayLabel, localMinutes, type LegView, type StopView } from '@/lib/timeline'
+import { setState, showToast, useStore } from '@/lib/store'
+import { addDays, dayLabel, localMinutes, type DayView, type LegView, type StopView } from '@/lib/timeline'
 
 // Sheets and the embedded leg detail load the first time they open, so Today itself stays small.
 const MapCard = lazy(() => import('@/components/MapCard'))
@@ -62,6 +63,48 @@ export function TodayHeader({ trip, status, onLog, onShare }: { trip: Trip; stat
   )
 }
 
+/** Today's tasks that aren't on the timeline, and why, so nothing quietly disappears. */
+function NotInPlan({ tripId, view }: { tripId: string; view: DayView }) {
+  const [updating, setUpdating] = useState(false)
+  const items = [...view.leftOut, ...view.notPlanned.map((t) => ({ ...t, reason: 'Added after this plan was made.' }))]
+  if (!items.length) return null
+  const update = async () => {
+    setUpdating(true)
+    try {
+      await replanDay(tripId, view)
+    } catch (err) {
+      showToast({ title: err instanceof ApiError ? err.message : "Couldn't update your plan. Try again." })
+    } finally {
+      setUpdating(false)
+    }
+  }
+  return (
+    <section aria-labelledby="not-in-plan" className="rounded-card border border-line bg-surface p-4">
+      <h2 id="not-in-plan" className="flex items-center gap-2 t-title text-ink">
+        <span aria-hidden="true">⚠️</span>
+        {items.length === 1 ? '1 task isn’t in today’s plan' : `${items.length} tasks aren’t in today’s plan`}
+      </h2>
+      <ul className="mt-2 flex flex-col gap-1.5">
+        {items.map((t) => (
+          <li key={t.taskId} className="t-small text-ink-2">
+            <span className="font-bold text-ink">{t.title}</span>: {t.reason}
+          </li>
+        ))}
+      </ul>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {view.notPlanned.length > 0 && (
+          <Button size="md" loading={updating} loadingLabel="Updating…" onClick={update}>
+            Update the plan
+          </Button>
+        )}
+        <ButtonLink to="/plan" variant="secondary" size="md">
+          Edit tasks
+        </ButtonLink>
+      </div>
+    </section>
+  )
+}
+
 const dismissButton = (onClick: () => void) => (
   <button type="button" aria-label="Dismiss" className="flex size-12 items-center justify-center rounded-control" onClick={onClick}>
     <X size={20} strokeWidth={1.75} aria-hidden="true" />
@@ -82,7 +125,7 @@ export default function Today() {
   const reveal = useStore((s) => s.reveal)
   const autoBanner = useStore((s) => s.autoBanner)
   const leaveNow = useStore((s) => s.leaveNow)
-  const startedSeq = useStore((s) => s.startedSeq)
+  const startedTo = useStore((s) => s.started)
   const queued = useQueued(current.tripId ?? undefined)
   const online = useOnline()
   const desktop = useIsDesktop()
@@ -169,6 +212,11 @@ export default function Today() {
           <T k="Today" />
         </h1>
         <EmptyState
+          illustration={
+            <span className="inline-flex size-14 items-center justify-center rounded-full bg-green-tint">
+              <MapPinned size={28} strokeWidth={1.75} className="text-green-ink" aria-hidden="true" />
+            </span>
+          }
           title="No trip yet"
           body="Add your tasks and Reroute works out the order, when to leave and what it costs."
           action={
@@ -195,6 +243,11 @@ export default function Today() {
       <div className="mx-auto max-w-[560px] px-5 pt-6 lg:max-w-[720px] lg:px-8">
         {header}
         <EmptyState
+          illustration={
+            <span className="inline-flex size-14 items-center justify-center rounded-full bg-green-tint">
+              <Route size={28} strokeWidth={1.75} className="text-green-ink" aria-hidden="true" />
+            </span>
+          }
           title="No plan for today yet"
           body="Add your tasks and Reroute works out the order, when to leave and what it costs."
           action={
@@ -208,7 +261,7 @@ export default function Today() {
     )
   }
 
-  const started = startedSeq !== null && startedSeq === view.nextLeg?.seq
+  const started = !!startedTo && startedTo.tripId === trip.tripId && startedTo.toId === view.nextLeg?.toId
   const bannerUndo = undoVersionOf(trip)
 
   const banners = (
@@ -259,23 +312,44 @@ export default function Today() {
     </div>
   )
 
-  // "Check in" names its target: finishing the task under way, or arriving at the next one.
+  // One button, one meaning. Still at the last stop: "I've left". On the way or there: "Mark done".
   const target = view.checkInTask
   const targetStop = target ? (view.stops.find((s) => s.id === target.taskId) ?? null) : null
-  const underWay = !!targetStop && targetStop.status === 'now' && clock >= targetStop.time
-  const checkLabel = target ? tl(underWay ? 'Done with the {task}' : 'Check in at the {task}', { task: lowerFirst(target.title) }) : tl('Check in')
-  // Checking in long before a task starts is more likely a slip than a fact: ask first.
+  const leg = view.nextLeg
+  const leaving = !!leg && !started && targetStop?.status !== 'now'
+  // Marking a task done long before it starts is more likely a slip than a fact: ask first.
   const early = !!targetStop && targetStop.time - clock > 10
   const doCheckIn = () => (early ? setConfirmEarly(true) : checkIn(trip.tripId, view, clock))
+  const leave = () => {
+    if (!leg) return
+    setState({ started: { tripId: trip.tripId, toId: leg.toId } })
+    showToast({ title: leg.toId === 'end' ? 'On your way back. Safe travels.' : `On your way. You should arrive around ${leg.arriveAt}.` })
+  }
+  const doneName = target ? tl('the {task}', { task: lowerFirst(target.title) }) : null
+
+  const primary = leaving ? (
+    <Button variant="primary" onClick={leave} icon={<Navigation size={20} strokeWidth={1.75} aria-hidden="true" />}>
+      <T k="I've left" />
+    </Button>
+  ) : target ? (
+    <Button variant="primary" onClick={doCheckIn} icon={<CircleCheck size={20} strokeWidth={1.75} aria-hidden="true" />}>
+      <T k="Mark done" />
+      <span className="sr-only" lang={doneName?.lang}>
+        : {doneName?.text}
+      </span>
+    </Button>
+  ) : (
+    <Button variant="secondary" disabled>
+      On your way back
+    </Button>
+  )
 
   const actions = !view.done && (
     <div className="grid grid-cols-2 gap-3">
-      <Button variant="destructive" onClick={() => openLate()} disabled={!view.checkInTask}>
+      <Button variant="destructive" onClick={() => openLate()} disabled={!target}>
         <T k="Running late" />
       </Button>
-      <Button variant="primary" onClick={doCheckIn} disabled={!target} icon={<CircleCheck size={20} strokeWidth={1.75} aria-hidden="true" />}>
-        <span lang={checkLabel.lang}>{checkLabel.text}</span>
-      </Button>
+      {primary}
     </div>
   )
 
@@ -297,7 +371,7 @@ export default function Today() {
     <>
       {tripSheets}
       <Suspense fallback={null}>
-        {stopLoaded && <TaskSheet trip={trip} view={view} stop={stop} onClose={() => setStop(null)} />}
+        {stopLoaded && <TaskSheet trip={trip} view={view} clock={clock} stop={stop} onClose={() => setStop(null)} />}
         {confirmLoaded && target && targetStop && (
           <CheckInConfirm
             open={confirmEarly}
@@ -323,6 +397,7 @@ export default function Today() {
           <div className="mt-5 flex flex-col gap-4">
             {banners}
             <NextCard view={view} clock={clock} started={started} />
+            <NotInPlan tripId={trip.tripId} view={view} />
           </div>
           <div className="mt-8 flex-1">
             {timeline}
@@ -358,6 +433,7 @@ export default function Today() {
         <div className="mt-5 flex flex-col gap-4">
           {banners}
           <NextCard view={view} clock={clock} started={started} />
+          <NotInPlan tripId={trip.tripId} view={view} />
         </div>
         <div className="mt-8">
           {timeline}

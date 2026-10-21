@@ -1,7 +1,7 @@
 import { CalendarPlus, MapPin, Plus, Search, Sparkles, TriangleAlert } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router'
+import { useLocation, useNavigate } from 'react-router'
 import { api, ApiError, newKey } from '@/api/client'
 import { keys, queryClient, useCurrentTripId, usePlaceSearch, useTrip, waitForJob } from '@/api/queries'
 import type { Body, JobAccepted, Place, Task, TaskDraft, TaskIn, Trip, TripIn } from '@/api/types'
@@ -10,13 +10,13 @@ import { Field, FieldError } from '@/components/ui/Field'
 import { Sheet } from '@/components/ui/Sheet'
 import { Banner, ErrorState, LoadingRegion, Skeleton } from '@/components/ui/States'
 import { Tag } from '@/components/ui/Tag'
-import { saveTaskEdit } from '@/lib/actions'
+import { addTask, saveTaskEdit, type EditOutcome } from '@/lib/actions'
 import { duration, hhmm } from '@/lib/format'
 import { CALENDAR_SCOPE, googleEnabled, requestGoogleCode } from '@/lib/google'
 import { useDocumentTitle, useOnline } from '@/lib/hooks'
 import { T } from '@/lib/i18n'
 import { nextToken, setState, showToast } from '@/lib/store'
-import { dayLabel, localMinutes, weekday } from '@/lib/timeline'
+import { buildDay, dayLabel, localMinutes, weekday } from '@/lib/timeline'
 import { AiPlannerSheet } from './AiPlannerSheet'
 import { placeSearchError, TaskFormSheet } from './TaskForm'
 
@@ -186,13 +186,14 @@ function ImportSheet({ trip, open, onOpenChange, onAdded }: { trip: Trip; open: 
     if (!drafts) return
     setBusy(true)
     try {
-      for (const i of picked) {
+      const chosen = picked.filter((i) => drafts[i].placeId)
+      // The day re-plans once, after the last appointment.
+      for (const [n, i] of chosen.entries()) {
         const d = drafts[i]
-        if (!d.placeId) continue
-        const day = d.fixedStart ? d.fixedStart.slice(0, 10) : trip.startDate
-        await api.post<Task>(`/v1/trips/${trip.tripId}/tasks`, { title: d.title, placeId: d.placeId, durationMin: d.durationMin, fixedStart: d.fixedStart, priority: d.priority, day }, { idempotencyKey: draftKeys[i] })
+        const day = d.fixedStart ? d.fixedStart.slice(0, 10) : trip.day
+        await addTask(trip.tripId, { title: d.title, placeId: d.placeId!, durationMin: d.durationMin, fixedStart: d.fixedStart, priority: d.priority, hoursUnknown: false, day }, draftKeys[i], { replan: n === chosen.length - 1 })
       }
-      onAdded(picked.length)
+      onAdded(chosen.length)
       setDrafts(null)
       setPicked([])
     } catch (err) {
@@ -263,6 +264,14 @@ export default function PlanDay() {
   // One key per "Add a task" form: retries of the same submission never create the task twice.
   const [createKey, setCreateKey] = useState(() => newKey('task'))
   useDocumentTitle(trip?.activePlan ? 'Your trip' : 'New trip')
+  // Roo's "Describe my day" lands here with the sheet open; clear the flag so Back doesn't reopen it.
+  const location = useLocation()
+  useEffect(() => {
+    if ((location.state as { openAi?: boolean } | null)?.openAi) {
+      setAiOpen(true)
+      navigate(location.pathname, { replace: true, state: null })
+    }
+  }, [location.state, location.pathname, navigate])
   const openForm = (task: Task | null) => {
     if (!task) setCreateKey(newKey('task'))
     setForm({ open: true, task })
@@ -327,18 +336,29 @@ export default function PlanDay() {
 
   const today = trip.tasks.filter((x) => x.day === trip.day)
   const open = trip.tasks.filter((x) => x.state !== 'done' && x.state !== 'skipped')
+  // Say which tasks the active plan leaves out, so none of them quietly disappears.
+  const dayView = trip.activePlan ? buildDay(trip) : null
+  const issues = new Map<string, string>([
+    ...(dayView?.leftOut ?? []).map((x) => [x.taskId, x.reason] as const),
+    ...(dayView?.notPlanned ?? []).map((x) => [x.taskId, 'Not in your plan yet. Plan the day again to add it.'] as const),
+  ])
 
   // The form stays open until the save (and any re-plan) is done; a failed re-plan shows in the form.
   const saveTask = async (body: Body<TaskIn>, initial: Task | null, stage: (s: 'replanning') => void) => {
-    let pending = false
-    if (initial) {
-      pending = (await saveTaskEdit(trip.tripId, initial.taskId, body, () => stage('replanning'))) === 'pending'
-    } else {
-      await api.post<Task>(`/v1/trips/${trip.tripId}/tasks`, body, { idempotencyKey: createKey })
-    }
+    const outcome: EditOutcome = initial
+      ? await saveTaskEdit(trip.tripId, initial.taskId, body, () => stage('replanning'))
+      : (await addTask(trip.tripId, body, createKey, { onReplanning: () => stage('replanning') })).outcome
     await queryClient.invalidateQueries({ queryKey: keys.trip(trip.tripId) })
     setForm({ open: false, task: null })
-    showToast({ title: pending ? 'Task saved. Planning is taking longer than usual; your timeline updates when it finishes.' : initial ? 'Task saved.' : 'Task added.' })
+    const what = initial ? 'Task saved.' : 'Task added.'
+    showToast({
+      title:
+        outcome === 'pending'
+          ? `${what} Planning is taking longer than usual; your timeline updates when it finishes.`
+          : outcome === 'replanned'
+            ? `${what} Your day is updated.`
+            : what,
+    })
   }
 
   const removeTask = async (task: Task) => {
@@ -363,6 +383,8 @@ export default function PlanDay() {
       setState({ reveal: nextToken(), change: null, autoBanner: null })
       setPlanKey(newKey('plan'))
       navigate('/')
+      const missed = buildDay(fresh)?.leftOut.length ?? 0
+      if (missed) showToast({ title: `${missed === 1 ? '1 task' : `${missed} tasks`} couldn't fit today. See why on Today.` })
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Couldn't plan the day. Try again.")
       setPlanning('idle')
@@ -434,6 +456,12 @@ export default function PlanDay() {
                     {task.place.name}, {task.place.area}
                   </span>
                   <TaskTags task={task} trip={trip} />
+                  {issues.has(task.taskId) && (
+                    <span className="mt-2 flex items-start gap-1.5 t-small text-red-ink">
+                      <TriangleAlert size={16} strokeWidth={1.75} aria-hidden="true" className="mt-0.5 shrink-0" />
+                      {issues.get(task.taskId)}
+                    </span>
+                  )}
                 </button>
               </li>
             ))}
@@ -501,10 +529,10 @@ export default function PlanDay() {
         trip={trip}
         open={aiOpen}
         onOpenChange={setAiOpen}
-        onAdded={(n) => {
+        onAdded={(n, outcome) => {
           void queryClient.invalidateQueries({ queryKey: keys.trip(trip.tripId) })
           setAiOpen(false)
-          showToast({ title: `Added ${n} ${n === 1 ? 'task' : 'tasks'} from your description.` })
+          showToast({ title: `Added ${n} ${n === 1 ? 'task' : 'tasks'} from your description.${outcome === 'replanned' ? ' Your day is updated.' : ''}` })
         }}
       />
     </div>

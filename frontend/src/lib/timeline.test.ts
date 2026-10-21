@@ -3,6 +3,34 @@ import { goldenTrip } from '@/test/fixtures'
 import { hhmm } from './format'
 import { buildDay, dayLabel, diffDays, lastReroute, localMinutes, sharedToDay } from './timeline'
 
+describe('buildDay never loses a task', () => {
+  it('lists a task added after the plan as not planned yet', () => {
+    const trip = goldenTrip()
+    const extra = { ...trip.tasks[0], taskId: 'task-new', title: 'Pick up documents', fixedStart: null }
+    const view = buildDay({ ...trip, tasks: [...trip.tasks, extra] })!
+    expect(view.notPlanned).toEqual([{ taskId: 'task-new', title: 'Pick up documents' }])
+    expect(view.leftOut).toEqual([])
+  })
+
+  it('says in plain words why the planner left a task out', () => {
+    const trip = goldenTrip()
+    const extra = { ...trip.tasks[0], taskId: 'task-far', title: 'Temple visit', fixedStart: null }
+    const moved = [{ taskId: 'task-far', title: 'Temple visit', kind: 'unplaced' as const, toDayStart: null, reason: "There's no travel option to the temple visit in this snapshot" }]
+    const view = buildDay({ ...trip, tasks: [...trip.tasks, extra], activePlan: { ...trip.activePlan!, moved } })!
+    expect(view.leftOut).toEqual([{ taskId: 'task-far', title: 'Temple visit', reason: 'Reroute has no travel times to this place yet.' }])
+    expect(view.notPlanned).toEqual([])
+  })
+
+  it("doesn't warn about a skip the traveller chose", () => {
+    const trip = goldenTrip()
+    const extra = { ...trip.tasks[0], taskId: 'task-tea', title: 'Tea', fixedStart: null, priority: 3, state: 'skipped' as const }
+    const moved = [{ taskId: 'task-tea', title: 'Tea', kind: 'skipped' as const, toDayStart: null, reason: 'skipped, priority 3' }]
+    const withPlan = (trigger: 'skipped' | 'created') => buildDay({ ...trip, tasks: [...trip.tasks, extra], activePlan: { ...trip.activePlan!, trigger, moved } })!
+    expect(withPlan('skipped').leftOut).toEqual([])
+    expect(withPlan('created').leftOut.map((x) => x.taskId)).toEqual(['task-tea'])
+  })
+})
+
 describe('buildDay (golden plan version 1 at 10:55)', () => {
   const view = buildDay(goldenTrip())!
 

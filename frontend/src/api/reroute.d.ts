@@ -1038,6 +1038,39 @@ export interface components {
             /** Movedto */
             movedTo?: string | null;
         };
+        /** TaskAddOut */
+        TaskAddOut: {
+            /** Taskid */
+            taskId: string;
+            /** Tripid */
+            tripId: string;
+            /** Title */
+            title: string;
+            /** Placeid */
+            placeId: string;
+            place: components["schemas"]["PlaceOut"];
+            /** Durationmin */
+            durationMin: number;
+            /** Fixedstart */
+            fixedStart: string | null;
+            window: components["schemas"]["WindowOut"] | null;
+            /** Priority */
+            priority: number;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "planned" | "in_progress" | "done" | "skipped" | "moved";
+            /** Hoursunknown */
+            hoursUnknown: boolean;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Jobid */
+            jobId?: string | null;
+        };
         /** TaskDraftOut */
         TaskDraftOut: {
             /** Title */
@@ -1667,7 +1700,10 @@ export interface operations {
     };
     add_task_v1_trips__trip_id__tasks_post: {
         parameters: {
-            query?: never;
+            query?: {
+                /** @description Re-plan the task's day if it already has a plan. Pass false for all but the last task of a batch. */
+                replan?: boolean;
+            };
             header?: {
                 authorization?: string | null;
             };
@@ -1688,7 +1724,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["TaskOut"];
+                    "application/json": components["schemas"]["TaskAddOut"];
                 };
             };
             /** @description Validation Error */
