@@ -183,6 +183,7 @@ export function toPatch(body: Body<TaskIn>): TaskPatch {
     timing: body.fixedStart ? 'fixed' : body.window ? 'window' : 'anytime',
     fixedStart: body.fixedStart ?? null,
     window: body.window ?? null,
+    day: body.day ?? null,
   }
 }
 
@@ -210,6 +211,13 @@ export async function addTask(tripId: string, body: Body<TaskIn>, idempotencyKey
   if (!task.jobId) return { task, outcome: 'saved' as EditOutcome }
   opts.onReplanning?.()
   return { task, outcome: await waitReplan(tripId, task.jobId) }
+}
+
+/** Move a task to another day of the trip; today re-plans without it, and the change plays. */
+export async function moveTaskToDay(tripId: string, taskId: string, day: string, before: DayView | null) {
+  const res = await api.patch<TaskEdit>(`/v1/trips/${tripId}/tasks/${taskId}`, { day })
+  const outcome: EditOutcome = res.jobId ? await waitReplan(tripId, res.jobId) : 'saved'
+  await playTaskEdit(tripId, before, outcome)
 }
 
 /** Plan today again from where the traveller is, and play the change on the timeline. */

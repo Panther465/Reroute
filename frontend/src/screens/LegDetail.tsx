@@ -20,7 +20,7 @@ import { useRoadPaths } from '@/lib/roads'
 import { useDocumentTitle, useIsDesktop } from '@/lib/hooks'
 import { T } from '@/lib/i18n'
 import { setState, showToast, useStore } from '@/lib/store'
-import type { LegView } from '@/lib/timeline'
+import { localMinutes, type LegView } from '@/lib/timeline'
 import type { Mode } from '@/lib/types'
 
 const MapCard = lazy(() => import('@/components/MapCard'))
@@ -213,7 +213,7 @@ export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailM
 
   const start = () => {
     if (!leg || !tripId) return
-    setState({ started: { tripId, toId: leg.toId } })
+    setState({ started: { tripId, toId: leg.toId, day: nowIso?.slice(0, 10), at: nowIso ? localMinutes(nowIso, nowIso.slice(0, 10), nowIso.slice(19)) : undefined } })
     showToast({ title: `On your way. Get off at ${model.alight}.` })
     if (!embedded) navigate('/')
   }

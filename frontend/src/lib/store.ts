@@ -50,7 +50,7 @@ export interface UiState {
    * The traveller said "I've left" for the stop `toId` (a task ID, or "end" for the way back). Kept by
    * destination, not leg number, so it survives a re-plan and a reload. Local only.
    */
-  started: { tripId: string; toId: string } | null
+  started: { tripId: string; toId: string; day?: string; at?: number } | null
 }
 
 const KEY = 'reroute:prefs:v2'

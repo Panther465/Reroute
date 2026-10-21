@@ -326,6 +326,11 @@ def _raasta_ran_out(ctx: _Ctx, steps: list[Step], idx: int) -> bool:
     return False
 
 
+def _dur(minutes: int) -> str:
+    h, m = divmod(minutes, 60)
+    return f"{h} h {m} min" if h and m else f"{h} h" if h else f"{m} min"
+
+
 def _why_not(ctx: _Ctx, t: PlanTask) -> str:
     """Name why a task can't fit, using the earliest arrival the rules allow."""
     inp = ctx.inp
@@ -341,6 +346,18 @@ def _why_not(ctx: _Ctx, t: PlanTask) -> str:
         for s in steps:
             if s.task is not None and s.task.task_id == t.task_id:
                 if t.window is not None:
+                    # Fixed times inside its opening hours are usually why: say so, rather than an arrival time
+                    # from a relaxed plan the traveller never sees.
+                    w = t.window
+                    fixed = [x.fixed_start for x in inp.tasks if x.fixed_start is not None and x.task_id != t.task_id]
+                    blockers = sorted(f for f in fixed if w.opens <= f < w.closes)
+                    if blockers and (s.timing.arrive > w.closes or s.timing.end > w.closes):
+                        times = " and ".join(hhmm(b) for b in blockers)  # type: ignore[arg-type]
+                        plural = "s" if len(blockers) > 1 else ""
+                        return (
+                            f"The {title} needs {_dur(t.duration_min)} between {hhmm(t.window.opens)} and {hhmm(t.window.closes)}, "
+                            f"and your fixed time{plural} at {times} leave no gap that long with the travel"
+                        )
                     if s.timing.arrive > t.window.closes:
                         return f"The {title} closes at {hhmm(t.window.closes)}; the earliest arrival is {hhmm(s.timing.arrive)}"
                     return f"The {title} closes at {hhmm(t.window.closes)}; the earliest you can finish is {hhmm(s.timing.end)}"

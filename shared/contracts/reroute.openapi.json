@@ -4264,6 +4264,18 @@
               }
             ],
             "title": "Hoursunknown"
+          },
+          "day": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
           }
         },
         "type": "object",

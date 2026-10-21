@@ -1,4 +1,4 @@
-import { BellRing, ChevronDown, CircleCheck, LocateFixed, MapPinned, Navigation, Plus, Route, Share2, X } from 'lucide-react'
+import { BellRing, ChevronDown, CircleCheck, LocateFixed, Map as MapIcon, MapPinned, Navigation, Plus, Route, Share2, X } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation as useRouterLocation, useNavigate } from 'react-router'
 import { useCurrentTripId, useDay, useTrip } from '@/api/queries'
@@ -12,7 +12,7 @@ import { IconButton } from '@/components/ui/IconButton'
 import { Banner, EmptyState, ErrorState, Skeleton } from '@/components/ui/States'
 import { Tag } from '@/components/ui/Tag'
 import { ApiError } from '@/api/client'
-import { applyServerChange, checkIn, playLater, playTaskEdit, replanDay, undo, undoVersionOf } from '@/lib/actions'
+import { applyServerChange, checkIn, moveTaskToDay, playLater, playTaskEdit, replanDay, undo, undoVersionOf } from '@/lib/actions'
 import { duration, lowerFirst } from '@/lib/format'
 import { stopEmoji } from '@/lib/stopEmoji'
 import type { MapPoint } from '@/components/MapCard'
@@ -25,7 +25,7 @@ import { T, useTl } from '@/lib/i18n'
 import { useOpenLate } from '@/lib/late'
 import { useQueued } from '@/lib/offlineQueue'
 import { setState, showToast, useStore } from '@/lib/store'
-import { addDays, dayLabel, localMinutes, type DayView, type LegView, type StopView } from '@/lib/timeline'
+import { addDays, dayLabel, localMinutes, weekday, type DayView, type LegView, type StopView } from '@/lib/timeline'
 
 // Sheets and the embedded leg detail load the first time they open, so Today itself stays small.
 const MapCard = lazy(() => import('@/components/MapCard'))
@@ -103,10 +103,26 @@ export function TodayHeader({
 }
 
 /** Today's tasks that aren't on the timeline, and why, so nothing quietly disappears. */
-function NotInPlan({ tripId, view }: { tripId: string; view: DayView }) {
+function NotInPlan({ trip, view }: { trip: Trip; view: DayView }) {
+  const tripId = trip.tripId
   const [updating, setUpdating] = useState(false)
-  const items = [...view.leftOut, ...view.notPlanned.map((t) => ({ ...t, reason: 'Added after this plan was made.' }))]
+  const [moving, setMoving] = useState<string | null>(null)
+  const items = [...view.leftOut.map((t) => ({ ...t, leftOut: true })), ...view.notPlanned.map((t) => ({ ...t, reason: 'Added after this plan was made.', leftOut: false }))]
   if (!items.length) return null
+  // On a multi-day trip, the usual fix for a task that doesn't fit is the next day.
+  const nextDay = addDays(trip.day, 1) <= trip.endDate ? addDays(trip.day, 1) : null
+  const move = async (taskId: string, title: string) => {
+    if (!nextDay) return
+    setMoving(taskId)
+    try {
+      await moveTaskToDay(tripId, taskId, nextDay, view)
+      showToast({ title: `The ${lowerFirst(title)} moved to ${weekday(nextDay)}.` })
+    } catch (err) {
+      showToast({ title: err instanceof ApiError ? err.message : "Couldn't move it. Try again." })
+    } finally {
+      setMoving(null)
+    }
+  }
   const update = async () => {
     setUpdating(true)
     try {
@@ -123,10 +139,17 @@ function NotInPlan({ tripId, view }: { tripId: string; view: DayView }) {
         <span aria-hidden="true">⚠️</span>
         {items.length === 1 ? '1 task isn’t in today’s plan' : `${items.length} tasks aren’t in today’s plan`}
       </h2>
-      <ul className="mt-2 flex flex-col gap-1.5">
+      <ul className="mt-3 flex flex-col divide-y divide-line">
         {items.map((t) => (
-          <li key={t.taskId} className="t-small text-ink-2">
-            <span className="font-bold text-ink">{t.title}</span>: {t.reason}
+          <li key={t.taskId} className="py-2.5 first:pt-0">
+            <p className="t-small text-ink-2">
+              <span className="font-bold text-ink">{t.title}</span>: {t.reason}
+            </p>
+            {t.leftOut && nextDay && (
+              <Button variant="secondary" size="md" className="mt-2" loading={moving === t.taskId} loadingLabel="Moving…" disabled={!!moving} onClick={() => void move(t.taskId, t.title)}>
+                Move to {weekday(nextDay)}
+              </Button>
+            )}
           </li>
         ))}
       </ul>
@@ -180,6 +203,7 @@ export default function Today() {
   const addLoaded = useLoadedOnce(addOpen)
   const addBefore = useRef<DayView | null>(null)
   const [tripsOpen, setTripsOpen] = useState(false)
+  const [mapSeq, setMapSeq] = useState<number | null>(null)
   const tripsLoaded = useLoadedOnce(tripsOpen)
   const logLoaded = useLoadedOnce(logOpen)
   const shareLoaded = useLoadedOnce(shareOpen)
@@ -471,7 +495,7 @@ export default function Today() {
   const doCheckIn = () => (early ? setConfirmEarly(true) : checkIn(trip.tripId, view, clock))
   const leave = () => {
     if (!leg) return
-    setState({ started: { tripId: trip.tripId, toId: leg.toId } })
+    setState({ started: { tripId: trip.tripId, toId: leg.toId, day: trip.day, at: clock } })
     showToast({ title: leg.toId === 'end' ? 'On your way back. Safe travels.' : `On your way. You should arrive around ${leg.arriveAt}.` })
     // Follow the ride on the map, and say when they're nearly there. Asks for location once.
     if (geolocationSupported && !tracking) void track()
@@ -504,6 +528,43 @@ export default function Today() {
     </div>
   )
 
+  // Each leg's own mini map on phones (desktop shows the selected leg on the big map beside the
+  // timeline). One at a time: phones only allow a few live maps at once.
+  const legPins = (leg: LegView): MapPoint[] =>
+    [leg.fromId, leg.toId].flatMap((id, i) => {
+      const stop = view.stops.find((s) => s.id === id)
+      const at = places.get(i ? leg.toPlaceId : leg.fromPlaceId)
+      return stop && at ? [{ id: `leg-${leg.seq}-${i}`, lngLat: at, kind: 'stop' as const, label: stop.title, emoji: stopEmoji(stop.title, stop.kind), state: i ? 'next' : 'later' }] : []
+    })
+  const legMap = (leg: LegView) => {
+    if (leg.status === 'done') return null
+    const open = mapSeq === leg.seq
+    const to = view.stops.find((s) => s.id === leg.toId)
+    const regionId = `leg-map-${leg.seq}`
+    return (
+      <div className="mt-1.5">
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-controls={open ? regionId : undefined}
+          onClick={() => setMapSeq(open ? null : leg.seq)}
+          className="-ml-1 inline-flex min-h-11 items-center gap-1.5 rounded-control px-1 t-small font-bold text-ink underline decoration-2 underline-offset-4"
+        >
+          <MapIcon size={18} strokeWidth={1.75} aria-hidden="true" />
+          {open ? 'Hide map' : 'Map'}
+        </button>
+        {open && (
+          <div id={regionId} className="relative mt-1">
+            <Suspense fallback={<Skeleton className="h-44 w-full rounded-card" />}>
+              <MapCard compact lines={rideLines(leg)} points={legPins(leg)} label={`Map to ${to?.title ?? 'the next stop'}`} className="h-44" me={fix} />
+            </Suspense>
+            <Link to={`/leg/${leg.seq}`} aria-label={`Full map and directions to ${to?.title ?? 'the next stop'}`} className="absolute inset-x-0 top-0 h-44 rounded-card" />
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const timeline = (
     <Timeline
       view={view}
@@ -515,6 +576,7 @@ export default function Today() {
       selectedSeq={selectedSeq}
       tomorrowLabel={dayLabel(addDays(trip.day, 1))}
       departedFrom={guide?.riding ? guide.leg.fromId : null}
+      legExtra={desktop ? undefined : legMap}
     />
   )
   const estimates = <p className="mt-2 t-small text-muted">Times and fares are estimates.</p>
@@ -549,7 +611,7 @@ export default function Today() {
           <div className="mt-5 flex flex-col gap-4">
             {banners}
             <NextCard view={view} clock={clock} guide={guide} miniMap={miniMap} />
-            <NotInPlan tripId={trip.tripId} view={view} />
+            <NotInPlan trip={trip} view={view} />
           </div>
           <div className="mt-8 flex-1">
             {timeline}
@@ -585,7 +647,7 @@ export default function Today() {
         <div className="mt-5 flex flex-col gap-4">
           {banners}
           <NextCard view={view} clock={clock} guide={guide} miniMap={miniMap} />
-          <NotInPlan tripId={trip.tripId} view={view} />
+          <NotInPlan trip={trip} view={view} />
         </div>
         <div className="mt-8">
           {timeline}

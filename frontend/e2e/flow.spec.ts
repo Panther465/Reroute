@@ -7,8 +7,9 @@ test.skip(!process.env.E2E_BASE_URL, 'Set E2E_BASE_URL to run against a running 
 const TRIP = 'trip-001'
 
 async function openSimulate(page: Page) {
-  await page.getByRole('button', { name: 'Simulate' }).click()
-  await expect(page.getByRole('heading', { name: 'Simulate' })).toBeVisible()
+  const heading = page.getByRole('heading', { name: 'Simulate' })
+  if (!(await heading.isVisible())) await page.getByRole('button', { name: 'Simulate', exact: true }).click()
+  await expect(heading).toBeVisible()
 }
 
 /** Demo sign-in, reset the sample day and plan it, ending on Today. */
@@ -96,6 +97,24 @@ test('ride a leg: the live dot follows the road, and Roo says when you arrive', 
   await expect(toasts.getByRole('listitem').filter({ hasText: 'You’ve arrived at the meeting' }).or(toasts.getByRole('listitem').filter({ hasText: "You've arrived at the meeting" }))).toBeVisible({
     timeout: 70_000,
   })
+})
+
+test("a task that can't fit today moves to tomorrow in one tap", async ({ page }) => {
+  test.setTimeout(120_000)
+  await planFreshDay(page)
+  // A second fixed meeting at 13:30 leaves the bank no gap today.
+  const login = await page.request.post('/v1/auth/demo', { data: { as: 'traveller' } })
+  const token = ((await login.json()) as { accessToken: string }).accessToken
+  const added = await page.request.post(`/v1/trips/${TRIP}/tasks`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { title: 'Client call', placeId: 'jayanagar-office', durationMin: 60, fixedStart: '2026-10-14T13:30:00+05:30', idempotencyKey: `e2e-call-${Date.now()}` },
+  })
+  expect(added.ok()).toBe(true)
+  await page.reload()
+  const card = page.getByRole('region', { name: /in today’s plan/ })
+  await expect(card.getByText(/The bank needs 2 h 30 min/)).toBeVisible({ timeout: 20_000 })
+  await card.getByRole('listitem').filter({ hasText: 'Bank' }).getByRole('button', { name: 'Move to Thursday' }).click()
+  await expect(page.getByRole('region', { name: /Notifications/ }).getByRole('listitem').filter({ hasText: 'The bank moved to Thursday' })).toBeVisible({ timeout: 30_000 })
 })
 
 test('Roo rides the timeline: tap it to add a task', async ({ page }) => {

@@ -1253,6 +1253,8 @@ export interface components {
             priority?: (1 | 2 | 3) | null;
             /** Hoursunknown */
             hoursUnknown?: boolean | null;
+            /** Day */
+            day?: string | null;
         };
         /** TokenOut */
         TokenOut: {
