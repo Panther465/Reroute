@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     nominatim_url: str = "https://nominatim.openstreetmap.org"
     #: OSRM server for drawing legs along roads on the map (not for planning). Empty draws straight lines.
     road_path_url: str = "https://router.project-osrm.org"
+    #: Natural voices for Roo's alerts (Microsoft Edge's neural voices). Off: the app uses the browser's voice.
+    tts_enabled: bool = True
     nominatim_user_agent: str = "Reroute student project (contact via repository)"
     travel_times_source: Literal["sample", "osrm"] = "sample"
     examples_dir: Path = Path(__file__).resolve().parents[2] / "examples"

@@ -10,6 +10,8 @@ export interface MapLine {
   coords: LngLat[]
   mode: Mode
   dim?: boolean
+  /** The leg the traveller is on or takes next: drawn with a moving flow along it. */
+  active?: boolean
 }
 
 export type PlaceIndex = Map<string, LngLat>

@@ -1,4 +1,4 @@
-import { ChevronRight, History, Languages, LogOut, Luggage, Moon, ShieldCheck, Sun, SunMoon } from 'lucide-react'
+import { ChevronRight, History, Languages, LogOut, Luggage, Moon, ShieldCheck, Sun, SunMoon, Volume2 } from 'lucide-react'
 import { useId, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { api, ApiError } from '@/api/client'
@@ -6,15 +6,16 @@ import { useCurrentTripId, useMe, useTrip } from '@/api/queries'
 import { RerouteLog } from '@/components/RerouteLog'
 import { TripSwitcher } from '@/components/TripSwitcher'
 import { Button } from '@/components/ui/Button'
+import { inputClass } from '@/components/ui/Field'
 import { Segmented, Switch } from '@/components/ui/Choice'
 import { Sheet } from '@/components/ui/Sheet'
 import { ErrorState, Skeleton } from '@/components/ui/States'
 import { useDocumentTitle, useOnline } from '@/lib/hooks'
 import { T, useTl } from '@/lib/i18n'
-import { raise } from '@/lib/alerts'
+import { chime, raise, speak, VOICES } from '@/lib/alerts'
 import { geolocationSupported, startTracking, stopTracking, useLocation } from '@/lib/location'
 import { signOut } from '@/lib/session'
-import { setState, showToast, useStore, type Lang, type Theme } from '@/lib/store'
+import { setState, showToast, useStore, type AlertPrefs, type ChimeStyle, type Lang, type Theme, type VoiceRate } from '@/lib/store'
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   const heading = useTl()(title)
@@ -43,6 +44,9 @@ export default function Me() {
   const lang = useStore((s) => s.lang)
   const alerts = useStore((s) => s.leaveAlerts)
   const alertPrefs = useStore((s) => s.alerts)
+  const setAlerts = (patch: Partial<AlertPrefs>) => setState((s) => ({ alerts: { ...s.alerts, ...patch } }))
+  const voiceSelectId = useId()
+  const volumeId = useId()
   const location = useLocation()
   const [confirm, setConfirm] = useState(false)
   const [deleting, setDeleting] = useState(false)
@@ -147,9 +151,77 @@ export default function Me() {
       <Section title="Alerts">
         <p className="mb-3 t-small text-ink-2">Before you leave, when a task is about to end, when you're nearly there and when you arrive. Every alert also shows on screen.</p>
         <div className="divide-y divide-line rounded-card border border-line bg-surface px-4">
-          <Switch label="Sound" description="A short chime." checked={alertPrefs.sound} onChange={(v) => setState((s) => ({ alerts: { ...s.alerts, sound: v } }))} />
-          <Switch label="Roo says it" description="Roo reads the alert aloud." checked={alertPrefs.voice} onChange={(v) => setState((s) => ({ alerts: { ...s.alerts, voice: v } }))} />
-          {vibrationSupported && <Switch label="Vibration" description="A short buzz." checked={alertPrefs.vibrate} onChange={(v) => setState((s) => ({ alerts: { ...s.alerts, vibrate: v } }))} />}
+          <Switch label="Sound" description="A chime at each alert." checked={alertPrefs.sound} onChange={(v) => setAlerts({ sound: v })} />
+          {alertPrefs.sound && (
+            <div className="py-4">
+              <Segmented<ChimeStyle>
+                label="Chime"
+                value={alertPrefs.chime}
+                onChange={(c) => {
+                  setAlerts({ chime: c })
+                  void chime('nudge', c, alertPrefs.volume)
+                }}
+                options={[
+                  { value: 'bell', label: 'Bell' },
+                  { value: 'soft', label: 'Soft' },
+                  { value: 'marimba', label: 'Wood' },
+                  { value: 'digital', label: 'Beep' },
+                ]}
+              />
+            </div>
+          )}
+          <Switch label="Roo’s voice" description="Roo reads each alert aloud in a natural voice. Without a connection, your phone’s own voice reads it." checked={alertPrefs.voice} onChange={(v) => setAlerts({ voice: v })} />
+          {alertPrefs.voice && (
+            <div className="flex flex-col gap-4 py-4">
+              <div>
+                <label htmlFor={voiceSelectId} className="mb-2 block t-title text-ink">
+                  Voice
+                </label>
+                <select id={voiceSelectId} value={alertPrefs.voiceId} onChange={(e) => setAlerts({ voiceId: e.target.value })} className={inputClass}>
+                  {VOICES.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Segmented<VoiceRate>
+                label="Speed"
+                value={alertPrefs.voiceRate}
+                onChange={(r) => setAlerts({ voiceRate: r })}
+                options={[
+                  { value: 'slow', label: 'Slow' },
+                  { value: 'normal', label: 'Normal' },
+                  { value: 'fast', label: 'Fast' },
+                ]}
+              />
+              <Button variant="secondary" size="md" className="self-start" icon={<Volume2 size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={() => void speak('Hi, I’m Roo. Time to leave for the bank in Koramangala.', alertPrefs)}>
+                Hear Roo
+              </Button>
+            </div>
+          )}
+          {(alertPrefs.sound || alertPrefs.voice) && (
+            <div className="py-4">
+              <label htmlFor={volumeId} className="flex items-baseline justify-between t-title text-ink">
+                Volume
+                <span className="t-small text-ink-2 tnum">{Math.round(alertPrefs.volume * 100)}%</span>
+              </label>
+              <input
+                id={volumeId}
+                type="range"
+                min={10}
+                max={100}
+                step={10}
+                value={Math.round(alertPrefs.volume * 100)}
+                onChange={(e) => setAlerts({ volume: Number(e.target.value) / 100 })}
+                // A sample at the new level once the slider is let go.
+                onPointerUp={() => alertPrefs.sound && void chime('nudge')}
+                onKeyUp={() => alertPrefs.sound && void chime('nudge')}
+                className="mt-2 h-11 w-full cursor-pointer accent-[var(--green)]"
+              />
+            </div>
+          )}
+          {vibrationSupported && <Switch label="Vibration" description="A short buzz." checked={alertPrefs.vibrate} onChange={(v) => setAlerts({ vibrate: v })} />}
           {notificationsSupported && (
             <Switch
               label={tl('Phone notifications').text}

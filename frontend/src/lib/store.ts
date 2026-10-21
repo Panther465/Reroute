@@ -4,6 +4,20 @@ import { useSyncExternalStore } from 'react'
 import { diffDays, type ChangeSet, type DayView } from './timeline'
 
 export type Theme = 'system' | 'light' | 'dark'
+export type ChimeStyle = 'bell' | 'soft' | 'marimba' | 'digital'
+export type VoiceRate = 'slow' | 'normal' | 'fast'
+export interface AlertPrefs {
+  sound: boolean
+  chime: ChimeStyle
+  /** 0 to 1, for the chime and the voice. */
+  volume: number
+  vibrate: boolean
+  voice: boolean
+  /** An Edge neural voice (the server lists them); the phone's own voice is the fallback. */
+  voiceId: string
+  voiceRate: VoiceRate
+}
+export const DEFAULT_ALERTS: AlertPrefs = { sound: true, chime: 'bell', volume: 0.8, vibrate: true, voice: true, voiceId: 'en-IN-NeerjaNeural', voiceRate: 'normal' }
 export type Lang = 'en' | 'hi'
 
 export interface Change extends ChangeSet {
@@ -18,7 +32,7 @@ export interface UiState {
   lang: Lang
   leaveAlerts: boolean
   /** How alerts reach the traveller, beyond the toast every alert shows. */
-  alerts: { sound: boolean; vibrate: boolean; voice: boolean }
+  alerts: AlertPrefs
   demo: { enabled: boolean; offline: boolean }
   /** The trip the traveller chose to look at; null means the most recent one. */
   tripId: string | null
@@ -47,7 +61,7 @@ function defaults(): UiState {
     theme: 'system',
     lang: 'en',
     leaveAlerts: false,
-    alerts: { sound: true, vibrate: true, voice: true },
+    alerts: DEFAULT_ALERTS,
     demo: { enabled: false, offline: false },
     tripId: null,
     change: null,
@@ -69,6 +83,8 @@ function load(): UiState {
       for (const k of PERSISTED) if (saved[k] !== undefined) (base as unknown as Record<string, unknown>)[k] = saved[k]
       // "Go offline" is a demo switch for this visit only: a reload always starts online.
       base.demo = { enabled: !!saved.demo?.enabled, offline: false }
+      // Settings saved by an older version keep their choices; new ones start at their defaults.
+      base.alerts = { ...DEFAULT_ALERTS, ...(saved.alerts ?? {}) }
     }
   } catch {
     /* ignore corrupt storage */
