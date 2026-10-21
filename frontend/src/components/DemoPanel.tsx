@@ -9,7 +9,7 @@ import { Button } from '@/components/ui/Button'
 import { Switch } from '@/components/ui/Choice'
 import { inputClass } from '@/components/ui/Field'
 import { applyServerChange } from '@/lib/actions'
-import { hhmm } from '@/lib/format'
+import { hhmm, lowerFirst } from '@/lib/format'
 import { setState, showToast, useStore } from '@/lib/store'
 import { buildDay, localMinutes } from '@/lib/timeline'
 
@@ -22,6 +22,11 @@ export function DemoPanel({ trip, onLate }: { trip: Trip | undefined; onLate: (d
   if (!demo.enabled || !trip) return null
   const tripId = trip.tripId
   const clock = localMinutes(trip.now, trip.day, trip.utcOffset)
+  // One-tap jumps to the moments worth seeing: the next departure, and the end of the task under way.
+  const view = buildDay(trip, clock)
+  const nextLeave = view?.legs.find((l) => l.status !== 'done' && l.leaveMin > clock)?.leaveMin ?? null
+  const current = view?.stops.find((s) => s.status === 'now' && s.kind === 'task' && s.end > clock) ?? null
+  const plus15 = Math.min(clock + 15, 23 * 60 + 59)
 
   const run = async (label: string, fn: () => Promise<void>) => {
     setBusy(true)
@@ -91,11 +96,35 @@ export function DemoPanel({ trip, onLate }: { trip: Trip | undefined; onLate: (d
               <X size={24} strokeWidth={1.75} aria-hidden="true" />
             </Popover.Close>
           </div>
-          <p className="mt-1 t-small text-muted">For the demo only. The server keeps a simulated clock for this trip.</p>
+          <p className="mt-1 t-small text-muted">For the demo only. Demo time stands still until you move it here.</p>
           <label className="mt-4 block t-title" htmlFor="demo-clock">
             Current time
           </label>
-          <input id="demo-clock" type="time" className={`${inputClass} mt-2 tnum`} defaultValue={hhmm(clock)} key={trip.now} onBlur={(e) => e.target.value && e.target.value !== hhmm(clock) && setClock(e.target.value)} disabled={busy} />
+          <input
+            id="demo-clock"
+            type="time"
+            className={`${inputClass} mt-2 tnum`}
+            defaultValue={hhmm(clock)}
+            key={trip.now}
+            onBlur={(e) => e.target.value && e.target.value !== hhmm(clock) && setClock(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.value && e.currentTarget.value !== hhmm(clock) && setClock(e.currentTarget.value)}
+            disabled={busy}
+          />
+          <div className="mt-2 flex flex-wrap gap-2">
+            <Button variant="secondary" size="md" disabled={busy || plus15 === clock} onClick={() => setClock(hhmm(plus15))}>
+              +15 min
+            </Button>
+            {nextLeave !== null && (
+              <Button variant="secondary" size="md" disabled={busy} onClick={() => setClock(hhmm(nextLeave))}>
+                Next departure, {hhmm(nextLeave)}
+              </Button>
+            )}
+            {current && (
+              <Button variant="secondary" size="md" disabled={busy} onClick={() => setClock(hhmm(current.end))}>
+                End of the {lowerFirst(current.title)}, {hhmm(current.end)}
+              </Button>
+            )}
+          </div>
           <div className="mt-4 grid grid-cols-2 gap-2">
             <Button variant="secondary" size="md" disabled={busy} onClick={() => { setOpen(false); navigate('/'); onLate(15) }}>
               15 min delay

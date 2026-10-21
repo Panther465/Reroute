@@ -56,6 +56,17 @@ test('the day keeps up: leave, mark done, and add a task without planning again'
   await page.reload()
   await expect(page.getByRole('main').getByRole('button', { name: /^Mark done/ }).first()).toBeVisible()
 
+  // Demo time moves in one tap: 15 minutes on, then straight to the next departure.
+  await openSimulate(page)
+  const time = page.getByLabel('Current time')
+  for (const [button, expected] of [[/^\+15 min$/, '08:15'], [/^Next departure, 08:50$/, '08:50']] as const) {
+    const moved = page.waitForResponse((r) => r.url().endsWith(`/v1/trips/${TRIP}/demo/clock`) && r.request().method() === 'POST')
+    await page.getByRole('button', { name: button }).click()
+    expect((await moved).ok()).toBe(true)
+    await expect(time).toHaveValue(expected)
+  }
+  await page.keyboard.press('Escape')
+
   // Add a task on the Plan tab: the day re-plans by itself.
   await page.goto('/plan')
   await page.getByRole('button', { name: 'Add a task' }).click()
