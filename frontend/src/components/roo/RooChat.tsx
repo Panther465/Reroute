@@ -205,7 +205,7 @@ export function RooChat({ trip, clock }: { trip: Trip | undefined; clock: number
     setMood('thinking')
     const local = understand(said, latest.current)
     const t = latest.current.trip
-    if (!local.unknown || !ai || !online || !t) return answer(local, spoken)
+    if ((!local.unknown && !local.guess) || !ai || !online || !t) return answer(local, spoken)
     try {
       const history = msgs.slice(-8).map((m) => ({ role: m.from === 'me' ? ('user' as const) : ('roo' as const), text: m.text.slice(0, 600) }))
       const out = await api.post<RooOut>(`/v1/trips/${t.tripId}/roo`, { message: said.slice(0, 500), history }, { idempotencyKey: newKey('roo') })

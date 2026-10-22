@@ -102,7 +102,7 @@ flowchart LR
 | `postman/` | API collection with response examples |
 | `tests/load/` | k6 load test |
 | `infra/` | NGINX, PostgreSQL roles, OSRM preparation |
-| `docs/` | [API guide](docs/api-guide.md), [decisions](docs/decisions.md), [data and privacy](docs/data-and-privacy.md), [known limits](docs/known-limits.md), [briefs](docs/briefs/) |
+| `docs/` | [API guide](docs/api-guide.md), [testing guide](docs/testing-guide.md), [decisions](docs/decisions.md), [data and privacy](docs/data-and-privacy.md), [known limits](docs/known-limits.md), [briefs](docs/briefs/) |
 
 ## Working outside Docker
 
@@ -137,6 +137,8 @@ cd frontend && pnpm install && pnpm dev
 | Load | 500 virtual users, 95% under 500 ms | `k6 run tests/load/k6.js` |
 
 CI runs all of them except the load test, which runs on demand, and fails if either API's OpenAPI file drifts from `shared/contracts/`.
+
+To test by hand, feature by feature (and with a real Google account), follow [docs/testing-guide.md](docs/testing-guide.md).
 
 ## Configuration
 

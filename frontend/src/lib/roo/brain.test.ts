@@ -30,6 +30,16 @@ describe('Roo understands a change to one task, and asks first', () => {
     expect(understand('change the meeting to 10:30 am', ctx()).action).toEqual({ type: 'time', taskId: 'task-meet', hhmm: '10:30' })
   })
 
+  it('reads "can the bank wait till Thursday" as a move', () => {
+    expect(understand('can the bank wait till thursday?', ctx()).action).toEqual({ type: 'move', taskId: 'task-bank', day: '2026-10-15' })
+  })
+
+  it('a sentence that only names a task is a guess, for the AI helper to answer better', () => {
+    const a = understand('the bank is far from here, honestly', ctx())
+    expect(a.guess).toBe(true)
+    expect(a.action).toBeUndefined()
+  })
+
   it('"it" means the task the conversation is about', () => {
     expect(understand('move it to tomorrow', ctx('07:30', { lastTaskId: 'task-bank' })).action).toEqual({ type: 'move', taskId: 'task-bank', day: '2026-10-15' })
   })

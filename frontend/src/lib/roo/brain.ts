@@ -39,6 +39,8 @@ export interface RooAnswer {
   taskId?: string
   /** Roo couldn't place the sentence. */
   unknown?: boolean
+  /** Roo only recognised a task in it and said what it knows: the AI helper, when on, may do better. */
+  guess?: boolean
 }
 
 export interface RooContext {
@@ -219,7 +221,7 @@ function taskEdit(t: string, ctx: RooContext): RooAnswer | null {
   const trip = ctx.trip
   if (!trip) return null
   const skip = has(t, /\b(skip|drop|cancel|don't need|do not need|no need|forget about|forget the|remove|not going|won't go|can't go|cannot go)\b/)
-  const move = has(t, /\b(tomorrow|next day|another day|day after)\b/) || (has(t, /\b(move|push|shift|postpone|reschedule|do)\b/) && has(t, /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/))
+  const move = has(t, /\b(tomorrow|next day|another day|day after)\b/) || (has(t, /\b(move|push|shift|postpone|reschedule|do|wait|keep)\b/) && has(t, /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/))
   const time = clockIn(t)
   const timeVerb = has(t, /\b(move|change|make|set|reschedule|shift|start|put|book|fix)\b/) || has(t, /\b(at|to)\s+\d/)
   const mins = minutesIn(t)
@@ -343,7 +345,7 @@ export function understand(spoken: string, ctx: RooContext): RooAnswer {
   if (task && view) {
     const stop = view.stops.find((s) => s.id === task.taskId)
     const when = stop ? `at ${hhmm(stop.time)}, until ${hhmm(stop.end)}` : task.fixedStart ? `at ${hhmm(localMinutes(task.fixedStart, task.day, trip?.utcOffset))} on ${weekday(task.day)}` : task.day !== view.day ? `on ${weekday(task.day)}` : 'not in today’s plan'
-    return { reply: `${The(task)} is ${when}, at ${task.place.area}. Want to change it? Say “move it to tomorrow” or “make it an hour”.`, taskId: task.taskId }
+    return { reply: `${The(task)} is ${when}, at ${task.place.area}. Want to change it? Say “move it to tomorrow” or “make it an hour”.`, taskId: task.taskId, guess: true }
   }
 
   return { reply: `I’m not sure I follow. ${HELP}`, unknown: true, mood: 'thinking' }
