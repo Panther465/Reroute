@@ -26,11 +26,11 @@ from app.schemas import (
     FareReportOut,
 )
 from app.schemas import Page as PageOut
-from app.security import User, require_moderator, require_user
+from app.security import User, no_service_writes, require_moderator, require_user
 from app.services import community, contributions
 from app.services.timefmt import parse_offset
 
-router = APIRouter(tags=["Contributions and moderation"], dependencies=[Depends(per_minute_limit)])
+router = APIRouter(tags=["Contributions and moderation"], dependencies=[Depends(per_minute_limit), Depends(no_service_writes)])
 
 
 @router.post("/contributions", response_model=ContributionOut, status_code=status.HTTP_201_CREATED, summary="Add a route or a GPS ride")
