@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from 'motion/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router'
-import { useBookings, useBookingsEnabled, useDay } from '@/api/queries'
+import { useAiHelperEnabled, useBookings, useBookingsEnabled, useDay } from '@/api/queries'
 import type { Booking, Trip } from '@/api/types'
 import { checkIn } from '@/lib/actions'
 import { hhmm, lowerFirst } from '@/lib/format'
@@ -58,14 +58,16 @@ const store = (key: string, on: boolean) => {
 // What Roo says: read from the same day view the Today screen shows
 // ---------------------------------------------------------------------------
 
-function deriveMessage(trip: Trip | undefined, view: DayView | null, clock: number | null, path: string, bookings?: Booking[]): RooMessage | null {
+function deriveMessage(trip: Trip | undefined, view: DayView | null, clock: number | null, path: string, bookings: Booking[] | undefined, ai: boolean): RooMessage | null {
   if (path !== '/') return null
   if (!trip) return { id: 'no-trip', text: 'No trip yet. Shall we set one up?', mood: 'wave', actions: [{ id: 'plan', label: 'Start a trip', primary: true }] }
   const open = trip.tasks.filter((t) => t.day === trip.day && t.state !== 'done' && t.state !== 'skipped')
 
   if (!view || clock == null) {
     if (open.length) return { id: 'need-plan', text: 'You have tasks but no route yet. Want me to work it out?', mood: 'idle', actions: [{ id: 'plan', label: 'Go to Plan', primary: true }] }
-    return { id: 'empty-day', text: 'Nothing planned yet. Tell me about your day?', mood: 'idle', actions: [{ id: 'describe', label: 'Describe my day', primary: true }] }
+    return ai
+      ? { id: 'empty-day', text: 'Nothing planned yet. Tell me about your day?', mood: 'idle', actions: [{ id: 'describe', label: 'Describe my day', primary: true }] }
+      : { id: 'empty-day', text: 'Nothing planned yet. Add your first task?', mood: 'idle', actions: [{ id: 'add', label: 'Add a task', primary: true }] }
   }
   if (trip.openOptions) {
     return { id: 'options', text: 'Your later stops don’t fit any more. Let’s pick a fix together.', mood: 'alert', urgent: true, actions: [{ id: 'options', label: 'Show me the fixes', primary: true }] }
@@ -127,7 +129,7 @@ function deriveMessage(trip: Trip | undefined, view: DayView | null, clock: numb
   return { id: 'on-track', text: 'Your day is on track. Tap me if you need anything.', mood: 'idle' }
 }
 
-function menuFor(trip: Trip | undefined, view: DayView | null, path: string, clock: number | null): RooMessage {
+function menuFor(trip: Trip | undefined, view: DayView | null, path: string, clock: number | null, ai: boolean): RooMessage {
   const actions: RooAction[] = []
   // On Today, Roo rides the timeline: add to the day, or deal with the stop under way, right here.
   if (path === '/' && view && !view.done) {
@@ -143,7 +145,7 @@ function menuFor(trip: Trip | undefined, view: DayView | null, path: string, clo
     actions.push({ id: 'hide', label: 'Hide Roo' })
     return { id: 'menu', text: 'Hi! What shall we do?', mood: 'happy', actions }
   }
-  if (trip) actions.push({ id: 'describe', label: 'Describe my day', primary: true })
+  if (trip) actions.push(ai ? { id: 'describe', label: 'Describe my day', primary: true } : { id: 'add', label: 'Add a task', primary: true })
   if (view && !view.done && view.checkInTask) actions.push({ id: 'more-time', label: 'Need more time' })
   if (path !== '/' && view) actions.push({ id: 'today', label: 'Show today' })
   if (view) actions.push({ id: 'summary', label: 'How’s my day?' })
@@ -293,7 +295,8 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
   const view = useDay(trip, clock)
   const bookingsOn = useBookingsEnabled()
   const bookings = useBookings(bookingsOn ? trip?.tripId : null)
-  const derived = useMemo(() => deriveMessage(trip, view, clock, pathname, bookings.data), [trip, view, clock, pathname, bookings.data])
+  const ai = useAiHelperEnabled()
+  const derived = useMemo(() => deriveMessage(trip, view, clock, pathname, bookings.data, ai), [trip, view, clock, pathname, bookings.data, ai])
 
   const shownPref = useStore((st) => st.roo)
   const hidden = !shownPref
@@ -416,7 +419,7 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
     // A tap closes the menu, but over a message it opens the menu (the message can wait).
     if (open && msg?.id === 'menu') return close()
     if (open && msg && !override) dismissed.current.add(msg.id)
-    const menu = menuFor(trip, view, pathname, clock)
+    const menu = menuFor(trip, view, pathname, clock, ai)
     lastShown.current = menu.id
     tapped.current = true
     setOverride(menu)

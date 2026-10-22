@@ -162,7 +162,9 @@ test('Roo rides the timeline: tap it to add a task', async ({ page }) => {
   const menu = page.getByRole('dialog', { name: 'Roo' })
   await expect(menu).toBeVisible()
   await menu.getByRole('button', { name: 'Add a task' }).click()
-  await expect(page.getByRole('dialog').getByLabel('What do you need to do?')).toBeVisible()
+  // Describe-your-day with the AI helper on; the task form (on Plan) with it off.
+  const sheet = page.getByRole('dialog')
+  await expect(sheet.getByLabel('What do you need to do?').or(sheet.getByLabel('Title', { exact: true }))).toBeVisible()
 })
 
 test('running late, reroute, then undo', async ({ page }) => {

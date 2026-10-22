@@ -5,7 +5,7 @@ import { useSubmitKey } from '@/lib/submitKey'
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { api, ApiError, newKey } from '@/api/client'
-import { keys, queryClient, useCurrentTripId, useTrip, waitForJob } from '@/api/queries'
+import { keys, queryClient, useAiHelperEnabled, useCurrentTripId, useTrip, waitForJob } from '@/api/queries'
 import type { Body, JobAccepted, Place, Task, TaskDraft, TaskIn, Trip, TripIn } from '@/api/types'
 import { PlacePicker } from '@/components/PlacePicker'
 import { TripSwitcher } from '@/components/TripSwitcher'
@@ -147,7 +147,8 @@ function StartForm({ onCreated }: { onCreated: (trip: Trip, text: string) => voi
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
   const { key, after } = useSubmitKey('trip')
-  const describing = text.trim().length >= 3
+  const ai = useAiHelperEnabled()
+  const describing = ai && text.trim().length >= 3
 
   const create = async () => {
     const e: Record<string, string> = {}
@@ -192,6 +193,7 @@ function StartForm({ onCreated }: { onCreated: (trip: Trip, text: string) => voi
           </p>
         </div>
       )}
+      {ai && (
       <div>
         <label htmlFor="start-describe" className="mb-1 block t-title text-ink">
           What do you need to do? <span className="t-small font-normal text-muted">Optional</span>
@@ -210,6 +212,7 @@ function StartForm({ onCreated }: { onCreated: (trip: Trip, text: string) => voi
           className="w-full resize-none rounded-control border-2 border-line bg-surface px-4 py-3 t-body text-ink placeholder:text-muted focus:border-green focus:outline-none"
         />
       </div>
+      )}
       {errors.form && <FieldError id="trip-err">{errors.form}</FieldError>}
       <Button full onClick={create} loading={busy} loadingLabel="Creating your trip…" icon={describing ? <Sparkles size={20} strokeWidth={1.75} aria-hidden="true" /> : undefined}>
         {describing ? 'Plan my day' : 'Create the trip'}
@@ -317,6 +320,7 @@ export default function PlanDay() {
   const online = useOnline()
   const [form, setForm] = useState<{ open: boolean; task: Task | null }>({ open: false, task: null })
   const [aiOpen, setAiOpen] = useState(false)
+  const ai = useAiHelperEnabled()
   const [importOpen, setImportOpen] = useState(false)
   const [creating, setCreating] = useState(false)
   // A trip just started with "What do you need to do?": its text goes straight to the task check.
@@ -331,10 +335,11 @@ export default function PlanDay() {
   // Roo's "Describe my day" lands here with the sheet open, "Start a new trip" from Your trips with the
   // start form; clear the flag so Back doesn't repeat it.
   useEffect(() => {
-    const state = location.state as { openAi?: boolean; newTrip?: boolean } | null
+    const state = location.state as { openAi?: boolean; newTrip?: boolean; addTask?: boolean } | null
     if (state?.openAi) setAiOpen(true)
+    if (state?.addTask) openForm(null)
     if (state?.newTrip) setCreating(true)
-    if (state?.openAi || state?.newTrip) navigate(location.pathname, { replace: true, state: null })
+    if (state?.openAi || state?.newTrip || state?.addTask) navigate(location.pathname, { replace: true, state: null })
   }, [location.state, location.pathname, navigate])
   const [tripsOpen, setTripsOpen] = useState(false)
   const [moving, setMoving] = useState<string | null>(null)
@@ -525,6 +530,8 @@ export default function PlanDay() {
         </div>
         {trip.tasks.length === 0 ? (
           <div className="mt-4 flex flex-col gap-4">
+            {ai && (
+            <>
             <button
               type="button"
               onClick={() => setAiOpen(true)}
@@ -540,7 +547,9 @@ export default function PlanDay() {
               </span>
             </button>
             <p className="text-center t-small text-muted">or</p>
-            <Button variant="secondary" icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={() => openForm(null)} disabled={!online}>
+            </>
+            )}
+            <Button variant={ai ? 'secondary' : 'primary'} icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={() => openForm(null)} disabled={!online}>
               <T k="Add tasks one by one" />
             </Button>
           </div>
@@ -599,9 +608,11 @@ export default function PlanDay() {
         <div className="mt-4 flex flex-wrap gap-3">
           {trip.tasks.length > 0 && (
             <>
-              <Button variant="secondary" size="md" icon={<Sparkles size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={() => setAiOpen(true)} disabled={!online}>
-                Describe your day
-              </Button>
+              {ai && (
+                <Button variant="secondary" size="md" icon={<Sparkles size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={() => setAiOpen(true)} disabled={!online}>
+                  Describe your day
+                </Button>
+              )}
               <Button variant="secondary" size="md" icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={() => openForm(null)} disabled={!online}>
                 <T k="Add a task" />
               </Button>

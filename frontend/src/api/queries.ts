@@ -52,6 +52,11 @@ export function useBookingsEnabled() {
   return useMe().data?.features?.bookings === true
 }
 
+/** "Describe your day" is the optional AI helper (off by default, UI brief 7.18): offered only when the server has it on. */
+export function useAiHelperEnabled() {
+  return useMe().data?.features?.aiHelper === true
+}
+
 export function useTrips(enabled = true) {
   return useQuery({ queryKey: keys.trips, queryFn: () => api.get<TripsPage>('/v1/trips', { query: { limit: 20 } }), enabled })
 }

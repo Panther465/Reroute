@@ -31,7 +31,11 @@ test('add to today from Today: one sentence, and the day updates where you are',
 
   await page.getByRole('button', { name: 'Add to today' }).click()
   const sheet = page.getByRole('dialog')
-  await sheet.getByLabel('What do you need to do?').fill('Coffee with a friend in Koramangala for 30 minutes')
+  // "Describe your day" is the optional AI helper: with it off the + opens the task form instead.
+  const describe = sheet.getByLabel('What do you need to do?')
+  await describe.or(sheet.getByLabel('Title')).first().waitFor()
+  test.skip(!(await describe.isVisible()), 'The AI helper is off on this server (AI_HELPER_ENABLED)')
+  await describe.fill('Coffee with a friend in Koramangala for 30 minutes')
   await sheet.getByRole('button', { name: 'Turn into tasks' }).click()
   await expect(sheet.getByRole('heading', { name: 'Check your tasks' })).toBeVisible({ timeout: 30_000 })
   const unplaced = sheet.getByLabel(/^Where is the /)
@@ -62,7 +66,9 @@ test('start a trip on one screen: describe the day, check the tasks, and it is p
   // A fixed future day, so the plan never depends on the time the test runs.
   await main.getByRole('button', { name: 'Change dates' }).click()
   await main.getByLabel('First day').fill('2030-01-15')
-  await main.getByLabel(/What do you need to do/).fill('Meeting at 10am at the ITPL Road office in Whitefield, then bank work in Koramangala')
+  const describeDay = main.getByLabel(/What do you need to do/)
+  test.skip(!(await describeDay.isVisible()), 'The AI helper is off on this server (AI_HELPER_ENABLED)')
+  await describeDay.fill('Meeting at 10am at the ITPL Road office in Whitefield, then bank work in Koramangala')
   await main.getByRole('button', { name: 'Plan my day' }).click()
 
   // The description comes back as tasks to check; any task without a place gets one.
