@@ -32,7 +32,7 @@ access_log = logging.getLogger("reroute.access")
 
 IDEMPOTENCY_EXEMPT = ("/v1/auth/",)
 #: Sign-in gets the strict per-IP limit; refresh and sign-out their own, looser per-IP one.
-SIGN_IN_PATHS = ("/v1/auth/google", "/v1/auth/demo")
+SIGN_IN_PATHS = ("/v1/auth/google", "/v1/auth/demo", "/v1/auth/signup", "/v1/auth/login")
 SESSION_PATHS = ("/v1/auth/refresh", "/v1/auth/logout")
 #: Live streams must not be buffered or rate limited per event.
 STREAMING_SUFFIX = "/live"

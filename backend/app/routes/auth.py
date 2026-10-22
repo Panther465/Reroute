@@ -1,4 +1,4 @@
-"""Sign-in: Google (authorization code flow) or, locally, the demo account."""
+"""Sign-in: an email and password account, Google (authorization code flow) or, locally, the demo account."""
 
 from __future__ import annotations
 
@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Cookie, Header, Response
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.adapters.google import sign_in_with_code
 from app.clock import demo_key, set_demo_now
@@ -16,8 +16,20 @@ from app.errors import ApiError
 from app.models import Trip, User
 from app.redis_client import get_redis
 from app.routes.me import user_out
-from app.schemas import DemoSignIn, GoogleSignIn, TokenOut
-from app.security import CSRF_COOKIE, REFRESH_COOKIE, check_csrf, clear_cookies, issue_access_token, revoke_refresh, rotate_refresh, start_session
+from app.schemas import DemoSignIn, GoogleSignIn, LoginIn, SignUpIn, TokenOut
+from app.security import (
+    CSRF_COOKIE,
+    REFRESH_COOKIE,
+    check_csrf,
+    clear_cookies,
+    hash_password,
+    issue_access_token,
+    revoke_refresh,
+    rotate_refresh,
+    start_session,
+    verify_password,
+)
+from app.services import wallet
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
@@ -30,6 +42,34 @@ def _token(user: User) -> TokenOut:
     return TokenOut(access_token=token, expires_in=ttl, user=user_out(user))
 
 
+#: A dummy hash to compare against when no account has the email, so a wrong email takes as long as a wrong password.
+_NO_ACCOUNT = hash_password("no account has this email")
+
+
+@router.post("/signup", response_model=TokenOut, response_model_by_alias=True, status_code=201, summary="Create an account with an email and a password")
+def signup(body: SignUpIn, response: Response, db: Db) -> TokenOut:
+    if db.scalar(select(User.user_id).where(func.lower(User.email) == body.email).limit(1)):
+        raise ApiError(409, "An account with this email already exists. Sign in instead.", code="EMAIL_TAKEN")
+    user = User(email=body.email, name=body.name, role="traveller", password_hash=hash_password(body.password))
+    db.add(user)
+    db.flush()
+    wallet.credit_welcome(db, user.user_id)
+    start_session(db, user, response)
+    db.commit()
+    return _token(user)
+
+
+@router.post("/login", response_model=TokenOut, response_model_by_alias=True, summary="Sign in with an email and a password")
+def login(body: LoginIn, response: Response, db: Db) -> TokenOut:
+    user = db.scalar(select(User).where(func.lower(User.email) == body.email, User.password_hash.is_not(None)))
+    if not verify_password(body.password, user.password_hash if user else _NO_ACCOUNT) or user is None:
+        # One answer for a wrong email and a wrong password: it doesn't say which accounts exist.
+        raise ApiError(401, "Email or password is wrong.")
+    start_session(db, user, response)
+    db.commit()
+    return _token(user)
+
+
 @router.post("/google", response_model=TokenOut, response_model_by_alias=True)
 def google(body: GoogleSignIn, response: Response, db: Db) -> TokenOut:
     identity = sign_in_with_code(body.code)
@@ -38,6 +78,7 @@ def google(body: GoogleSignIn, response: Response, db: Db) -> TokenOut:
         user = User(google_sub=identity.sub, email=identity.email, name=identity.name, role="traveller")
         db.add(user)
         db.flush()
+        wallet.credit_welcome(db, user.user_id)
     start_session(db, user, response)
     db.commit()
     return _token(user)

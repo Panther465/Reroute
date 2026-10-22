@@ -302,7 +302,7 @@ def test_book_a_train_ticket_for_the_train_task(client):
 def test_book_a_cab_for_a_leg(client):
     plan_v1(client)
     options = client.get("/v1/trips/trip-001/cab-options", params={"toId": "task-bank"}).json()
-    assert {o["provider"] for o in options} == {"uber", "ola", "rapido"}
+    assert {o["provider"] for o in options} == {"ridenow", "autogo", "zipbike"}
     assert options == sorted(options, key=lambda o: o["fareInr"])
     choice = next(o for o in options if o["vehicle"] == "sedan")
     res = client.post("/v1/trips/trip-001/bookings", json={"kind": "cab", "toId": "task-bank", "optionId": choice["optionId"], "idempotencyKey": key()})
@@ -893,8 +893,8 @@ def test_bookings_exist_only_with_the_demo_login(client, monkeypatch):
 def test_the_user_says_which_features_are_on(client, monkeypatch):
     from app.config import get_settings
 
-    assert client.get("/v1/me").json()["features"] == {"bookings": True, "aiHelper": False, "voices": True}
+    assert client.get("/v1/me").json()["features"] == {"bookings": True, "aiHelper": False, "voices": True, "wallet": True}
     monkeypatch.setattr(get_settings(), "ai_helper_enabled", True)
     monkeypatch.setattr(get_settings(), "tts_enabled", False)
     signed_in = TestClient(app, base_url="https://testserver").post("/v1/auth/demo", json={"as": "traveller"}).json()
-    assert signed_in["user"]["features"] == {"bookings": True, "aiHelper": True, "voices": False}
+    assert signed_in["user"]["features"] == {"bookings": True, "aiHelper": True, "voices": False, "wallet": True}

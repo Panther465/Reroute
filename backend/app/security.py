@@ -35,6 +35,31 @@ def sha256(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+# ---------- passwords ----------
+
+#: scrypt work factors (RFC 7914's interactive setting): about 16 MB and a few tens of milliseconds.
+_SCRYPT = {"n": 2**14, "r": 8, "p": 1}
+
+
+def hash_password(password: str) -> str:
+    """A salted scrypt hash, stored as scrypt$N$r$p$salt$hash. The password itself is never kept."""
+    salt = secrets.token_bytes(16)
+    digest = hashlib.scrypt(password.encode("utf-8"), salt=salt, dklen=32, **_SCRYPT)
+    return f"scrypt${_SCRYPT['n']}${_SCRYPT['r']}${_SCRYPT['p']}${salt.hex()}${digest.hex()}"
+
+
+def verify_password(password: str, stored: str | None) -> bool:
+    """True when `password` matches `stored`, compared in constant time; False for anything malformed."""
+    try:
+        scheme, n, r, p, salt, digest = (stored or "").split("$")
+        if scheme != "scrypt":
+            return False
+        got = hashlib.scrypt(password.encode("utf-8"), salt=bytes.fromhex(salt), n=int(n), r=int(r), p=int(p), dklen=32)
+    except (ValueError, TypeError):
+        return False
+    return hmac.compare_digest(got.hex(), digest)
+
+
 def issue_access_token(user: User, now: datetime | None = None) -> tuple[str, int]:
     s = get_settings()
     now = now or datetime.now(UTC)

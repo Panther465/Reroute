@@ -77,6 +77,7 @@ def _tasks(trip: Trip, data: dict) -> list[Task]:
 def reset_demo_trip(db: Session, trip: Trip) -> None:
     """Put the sample day back to its start: no plans, no check-ins, the four sample tasks, and nothing
     remembered in Redis (reported delays, alerts sent, the trip-ended flag, morning plans)."""
+    from app.services import wallet
     from app.services.loop import forget_trip_state
 
     data = _demo_file()
@@ -84,15 +85,21 @@ def reset_demo_trip(db: Session, trip: Trip) -> None:
         db.execute(delete(model).where(model.trip_id == trip.trip_id))
     db.flush()
     db.add_all(_tasks(trip, data))
+    # The wallet back to its demo balance: bookings made while trying the demo are gone with it.
+    wallet.reset(db, trip.user_id)
     # Seeding may run before Redis is up; the day still resets.
     with contextlib.suppress(redis.RedisError):
         forget_trip_state(trip.trip_id)
 
 
 def seed(db: Session) -> None:
+    from app.services import wallet
+
     for u in DEMO_USERS:
         if db.get(User, u["user_id"]) is None:
             db.add(User(**u, is_demo=True))
+            db.flush()
+            wallet.credit_welcome(db, u["user_id"], wallet.DEMO_INR)
     data = _demo_file()
     seed_places(db, data)
     db.flush()
