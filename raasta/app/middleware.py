@@ -140,7 +140,12 @@ class BodyLimitAndIdempotencyMiddleware:
             parsed = json.loads(body) if body else None
         except ValueError:
             parsed = None
-        key = parsed.get("idempotencyKey") if isinstance(parsed, dict) else None
+        key = None
+        if isinstance(parsed, dict):
+            # Bodies also accept the snake_case field name, so both spellings are keys.
+            key = parsed.get("idempotencyKey")
+            if key is None:
+                key = parsed.get("idempotency_key")
         if not isinstance(key, str) or not 4 <= len(key) <= 128:
             # Validation reports the missing or malformed key with the usual 422.
             await self.app(scope, _replay(body), send)

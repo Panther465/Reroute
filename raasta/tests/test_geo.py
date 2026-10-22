@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import time
 from datetime import UTC, datetime, timedelta
 
-from app.services.geo import LatLng, RidePoint, distance_m, path_length_m, suggest_stops, trim_ride
+from app.services.geo import LatLng, RidePoint, distance_m, downsample, path_length_m, suggest_stops, trim_ride
 
 T0 = datetime(2026, 10, 14, 9, 0, tzinfo=UTC)
 # About 11.1 m per 0.0001 degree of latitude.
@@ -53,3 +54,29 @@ def test_short_pauses_are_not_stops():
     last = moving[-1]
     pause = [RidePoint(last.lat, last.lng, last.t + timedelta(seconds=10))]
     assert suggest_stops(moving + pause) == []
+
+
+def test_jitter_that_never_lasts_30_s_is_linear():
+    """A crafted ride of 20,000 points, all within 15 m and over in 20 s, used to take minutes."""
+    jitter = [RidePoint(12.9 + 0.00005 * (i % 3), 77.6 + 0.00005 * (i % 2), T0 + timedelta(milliseconds=i)) for i in range(20_000)]
+    started = time.perf_counter()
+    assert suggest_stops(jitter) == []
+    assert time.perf_counter() - started < 1.0
+
+
+def test_jitter_that_lasts_is_one_stop():
+    jitter = [RidePoint(12.9 + 0.00005 * (i % 3), 77.6 + 0.00005 * (i % 2), T0 + timedelta(milliseconds=10 * i)) for i in range(20_000)]
+    started = time.perf_counter()
+    stops = suggest_stops(jitter)
+    assert time.perf_counter() - started < 1.0
+    assert len(stops) == 1 and distance_m(stops[0], jitter[0]) < 15
+
+
+def test_downsample_spreads_points_over_time_and_keeps_both_ends():
+    ride = straight_ride(20_000, every_s=1)
+    kept = downsample(list(reversed(ride)), 2000)
+    assert len(kept) == 2000
+    assert kept[0] == ride[0] and kept[-1] == ride[-1]
+    gaps = [(b.t - a.t).total_seconds() for a, b in zip(kept, kept[1:], strict=False)]
+    assert min(gaps) > 0 and max(gaps) <= 2 * (20_000 / 1999)
+    assert downsample(ride[:50], 2000) == ride[:50]
