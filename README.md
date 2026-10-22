@@ -1,12 +1,47 @@
 # Reroute
 
+[![CI](https://github.com/Panther465/Reroute/actions/workflows/ci.yml/badge.svg)](https://github.com/Panther465/Reroute/actions/workflows/ci.yml)
+
 *Running late? We'll reroute your day.*
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/landing-dark.jpg">
+  <img alt="Reroute's landing page: the demo day as a transit line, with the meeting 40 minutes late and a cab to the bank keeping all three tasks for 350 rupees more" src="docs/images/landing-light.jpg">
+</picture>
 
 Reroute is a travel companion for work trips to an unfamiliar Indian city. You enter your tasks once: a meeting at 10:00, a bank that's open till 16:00, an office that closes at 17:00. Reroute plans the day (the order, when to leave, how to travel and what each leg costs) and follows it with you. When you run late, it re-plans the rest of the day: if everything still fits it shifts the times and tells you; if something has to give, it changes nothing and offers two or three explained options.
 
 **Raasta**, the second module, is a crowdsourced, moderated map of shared-auto, e-rickshaw and tempo routes: the stands, the fare, how often they come and when the last one leaves. Reroute uses verified Raasta routes for local legs.
 
 Every travel time and fare is an estimate. All demo data is sample data.
+
+<table>
+  <tr>
+    <td width="25%"><picture><source media="(prefers-color-scheme: dark)" srcset="frontend/public/landing/today-dark.jpg"><img alt="Today: the day as a transit line with the next departure" src="frontend/public/landing/today-light.jpg"></picture></td>
+    <td width="25%"><picture><source media="(prefers-color-scheme: dark)" srcset="docs/images/options-dark.jpg"><img alt="Running 40 minutes late: two explained ways to fix the day" src="docs/images/options-light.jpg"></picture></td>
+    <td width="25%"><picture><source media="(prefers-color-scheme: dark)" srcset="frontend/public/landing/why-dark.jpg"><img alt="Why this plan: the same day planned three ways" src="frontend/public/landing/why-light.jpg"></picture></td>
+    <td width="25%"><picture><source media="(prefers-color-scheme: dark)" srcset="frontend/public/landing/raasta-dark.jpg"><img alt="A leg on a verified Raasta shared-auto route" src="frontend/public/landing/raasta-light.jpg"></picture></td>
+  </tr>
+  <tr>
+    <td>The day as a transit line</td>
+    <td>40 minutes late: you choose</td>
+    <td>Why this plan?</td>
+    <td>A verified shared auto</td>
+  </tr>
+</table>
+
+## What to look at
+
+- **An exact planner, pinned by a golden test.** The planner (`backend/app/services/planner/`) is a pure function: tasks, opening hours, fixed times and travel options in, a plan out, with no clock, network or database. It searches every order up to eight tasks with branch and bound, and `backend/tests/planner/test_golden.py` holds the demo day to the minute: 08:50, 10:00, 12:25, 15:40, 16:50.
+- **Re-planning that knows when to ask.** Fifteen minutes late, the later stops shift by themselves and Undo brings the old plan back. Forty minutes late, nothing changes until you pick one of two or three explained options: a cab to the bank for ₹350 more, or the office moved to tomorrow at 10:00.
+- **It shows its working.** "Why this plan?" sets the chosen day beside the same tasks planned cab-only and with no cab, lists every way Reroute knew for each leg with what it would have changed, and says whether the order search was exact. The worker works this out with the plan and stores it; the API only reads it back.
+- **Never plans inside a request.** The API saves and queues; an RQ worker plans. Plans are immutable versions, so Undo reactivates an earlier one, and a scheduler checks every trip each five minutes, raises leave-now alerts and plans each morning of a multi-day trip from 06:00 local time.
+- **Built for a bad connection.** An installable PWA: the day is cached, check-ins made offline are queued and replayed with idempotency keys, and live changes arrive over server-sent events with a watchdog that reconnects.
+- **Talk to Roo.** Say "I'm 20 minutes late" and Running late opens with 20 filled in; "done", "I've left" and "what's next" work too. Plain patterns, no AI, and nothing changes without your last tap.
+- **A second service with its own rules.** Raasta trims the ends of every recorded ride for privacy, verifies a route only with a moderator or two different riders, lets routes go stale, and serves Reroute over HTTP with a service token: the database roles make reading its tables from Reroute impossible.
+- **Accessible in both themes.** Playwright runs axe on every screen at phone and desktop sizes, in light and in dark; targets are at least 48 px, and motion follows the reduced-motion setting.
+
+Every choice that departs from the briefs is logged with its reason in [docs/decisions.md](docs/decisions.md).
 
 ## Quick start
 
@@ -27,17 +62,27 @@ Try the golden path:
 1. **Plan** → **Plan my day**. The plan leaves the hotel at 08:50; the meeting is 10:00 to 11:00, the bank 12:25, the university office 15:40, back at the hotel 16:50.
 2. Open the **Simulate** panel, set the time to 10:55, then **Running late** → **About 15 min**. Everything still fits, so Reroute shifts the later stops (12:40, 15:55, 17:05) without asking.
 3. Undo it, then report **About 40 min**. Now something must give: **Take a cab to the bank** (+₹350, saves 30 min) or **Keep it cheap** (the office moves to tomorrow at 10:00). Choose one, then Undo.
-4. **Share** your trip and open the link in a private window: family see your stops and progress, never your exact location.
+4. On Today, tap **Why this plan?** to see the day planned three ways and every option for each leg.
+5. Tap Roo on the Now line, then **Talk to Roo**, and say "what's next" (Chrome or Edge; the browser asks for the microphone once).
+6. **Share** your trip and open the link in a private window: family see your stops and progress, never your exact location.
 
 ## How it fits together
 
-```
-Phone (PWA) ──HTTPS──▶ NGINX ─┬─ /v1/raasta/* ──▶ Raasta API ──▶ PostgreSQL (raasta schema), MongoDB (rides)
-                              ├─ /v1/*        ──▶ Reroute API ×2 ──▶ PostgreSQL (public), Redis
-                              └─ /*           ──▶ web app             │
-                                                                        ▼ queue
-                                           Worker (planner, re-plan loop) ──HTTP──▶ Raasta API
-                                           Scheduler (5-minute checks, leave-now alerts, morning plans)
+```mermaid
+flowchart LR
+  phone["Phone (PWA)"] -- HTTPS --> nginx[NGINX]
+  nginx -- "/*" --> web[Web app]
+  nginx -- "/v1/*" --> api["Reroute API ×2"]
+  nginx -- "/v1/raasta/*" --> raasta[Raasta API]
+  api --> pg[("PostgreSQL")]
+  api --> redis[("Redis")]
+  redis -- queue --> worker["Worker: planner, re-plan loop, plan reasons"]
+  scheduler["Scheduler: 5-minute checks, leave-now alerts, morning plans"] --> redis
+  worker --> pg
+  worker -- "HTTP, service token" --> raasta
+  raasta --> rpg[("PostgreSQL, raasta schema")]
+  raasta --> mongo[("MongoDB: rides")]
+  api -. "server-sent events" .-> phone
 ```
 
 - The **planner** is a pure function (`backend/app/services/planner/`): inputs in, plan out, no clock, network or database. Up to eight tasks the search is exact.
@@ -82,16 +127,16 @@ cd frontend && pnpm install && pnpm dev
 
 ## Tests
 
-| Command | What it checks |
-|---|---|
-| `cd backend && pytest` | Planner rules, the golden test from the brief, request guards; API flow tests too when `TEST_DATABASE_URL` points at PostGIS |
-| `cd raasta && pytest` | Trimming, matching, fares, freshness, GTFS, idempotency |
-| `cd frontend && pnpm test` | Timeline view model, API client, offline queue |
-| `npx newman run postman/reroute.postman_collection.json --insecure` | The demo day against a running stack |
-| `cd frontend && E2E_BASE_URL=https://localhost pnpm e2e` | Playwright with axe |
-| `k6 run tests/load/k6.js` | 500 virtual users, 95% under 500 ms |
+| Suite | Size | Command |
+|---|---|---|
+| Reroute API and planner | 187 tests (the API flow tests need `TEST_DATABASE_URL` pointing at PostGIS) | `cd backend && pytest` |
+| Raasta | 107 tests | `cd raasta && pytest` |
+| Web app | 81 tests | `cd frontend && pnpm test` |
+| The demo day over HTTP | 32 requests, 54 assertions | `npx newman run postman/reroute.postman_collection.json --insecure` |
+| End to end with axe | 30 tests, phone and desktop | `cd frontend && E2E_BASE_URL=https://localhost pnpm e2e` |
+| Load | 500 virtual users, 95% under 500 ms | `k6 run tests/load/k6.js` |
 
-CI runs all of them except the load test, which runs on demand.
+CI runs all of them except the load test, which runs on demand, and fails if either API's OpenAPI file drifts from `shared/contracts/`.
 
 ## Configuration
 
