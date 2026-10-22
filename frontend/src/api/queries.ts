@@ -5,7 +5,7 @@ import { useQueued } from '@/lib/offlineQueue'
 import { useStore } from '@/lib/store'
 import { buildDay } from '@/lib/timeline'
 import { api, ApiError } from './client'
-import type { Booking, Contribution, ContributionsPage, Job, Place, PlanInsight, RaastaLegOptions, RaastaRoute, SharedTrip, StandsPage, Summary, Trip, TripsPage, User } from './types'
+import type { Airport, Booking, Contribution, ContributionsPage, Job, Place, PlanInsight, RaastaLegOptions, RaastaRoute, SharedTrip, StandsPage, Summary, Trip, TripsPage, User, Wallet } from './types'
 import { useSessionStatus } from '@/lib/session'
 
 export const queryClient = new QueryClient({
@@ -37,6 +37,8 @@ export const keys = {
   queue: (status: string) => ['raasta', 'queue', status] as const,
   roadPath: (from: string, to: string, profile: string) => ['road', from, to, profile] as const,
   bookings: (tripId: string) => ['bookings', tripId] as const,
+  wallet: ['wallet'] as const,
+  airports: ['airports'] as const,
 }
 
 /** Which queries survive a reload (the rest are cheap to refetch). */
@@ -51,6 +53,21 @@ export function useMe(enabled = true) {
 /** Simulated bookings are a demo: the server says whether they're on, and only then does the app offer them. */
 export function useBookingsEnabled() {
   return useMe().data?.features?.bookings === true
+}
+
+/** The wallet's simulated money pays for simulated bookings: on wherever bookings are. */
+export function useWalletEnabled() {
+  return useMe().data?.features?.wallet === true
+}
+
+export function useWallet(enabled = true) {
+  const on = useWalletEnabled()
+  const signedIn = useSessionStatus() === 'signedIn'
+  return useQuery({ queryKey: keys.wallet, queryFn: () => api.get<Wallet>('/v1/wallet'), enabled: enabled && on && signedIn })
+}
+
+export function useAirports(enabled = true) {
+  return useQuery({ queryKey: keys.airports, queryFn: () => api.get<Airport[]>('/v1/airports'), enabled, staleTime: Infinity })
 }
 
 /** "Describe your day" is the optional AI helper (off by default, UI brief 7.18): offered only when the server has it on. */
