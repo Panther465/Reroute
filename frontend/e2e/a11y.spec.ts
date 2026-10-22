@@ -46,7 +46,7 @@ for (const scheme of ['light', 'dark'] as const) {
 
     test('sign in screen', async ({ page }) => {
       await page.goto('/signin')
-      await expect(page.getByRole('heading', { name: 'Reroute' })).toBeVisible()
+      await expect(page.getByRole('heading', { level: 1, name: /reroute your day/ })).toBeVisible()
       await noSeriousIssues(page, 'signin')
     })
 
