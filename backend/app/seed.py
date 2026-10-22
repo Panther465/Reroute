@@ -99,7 +99,8 @@ def seed(db: Session) -> None:
         if db.get(User, u["user_id"]) is None:
             db.add(User(**u, is_demo=True))
             db.flush()
-            wallet.credit_welcome(db, u["user_id"], wallet.DEMO_INR)
+        # Once per demo account, including ones seeded before the wallet existed.
+        wallet.credit_welcome(db, u["user_id"], wallet.DEMO_INR)
     data = _demo_file()
     seed_places(db, data)
     db.flush()
