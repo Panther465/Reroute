@@ -236,6 +236,61 @@ class MovedOut(Api):
     reason: str
 
 
+class LegChoiceOut(Api):
+    option_id: str
+    label: str
+    mode: Mode
+    travel_min: int
+    fare_inr: int
+    #: The planner's price of the leg on its own: minutes plus the fare divided by `fareDivisor`.
+    cost: float
+    chosen: bool
+    #: Why the planner wouldn't use it (an unverified or stale Raasta route).
+    unusable: str | None = None
+    rough: bool = False
+
+
+class LegInsightOut(Api):
+    seq: int
+    task_id: str | None
+    from_place: str
+    to_place: str
+    #: Every way the travel data offers between the two places, cheapest first; one is `chosen`.
+    choices: list[LegChoiceOut]
+
+
+class DayAlternativeOut(Api):
+    kind: Literal["chosen", "cab_only", "no_cab"]
+    label: str
+    feasible: bool
+    travel_min: int = 0
+    fare_inr: int = 0
+    wait_min: int = 0
+    #: When the day's last leg arrives.
+    ends_at: datetime | None = None
+    #: Titles of the tasks this day couldn't keep.
+    left_out: list[str] = []
+    #: The visit order, by task ID.
+    order: list[str] = []
+    cost: float | None = None
+
+
+class PlanInsightOut(Api):
+    """Why this plan: worked out when the plan was made, from the plan's own inputs."""
+
+    plan_id: str
+    version: int | None
+    task_count: int
+    #: True when the search tried every visit order; `orders` is how many there are.
+    exact: bool
+    orders: int
+    #: ₹`fareDivisor` counts the same as one minute of travel or waiting.
+    fare_divisor: int
+    #: Your plan, then cabs door to door, then no cabs, all planned from the same inputs.
+    days: list[DayAlternativeOut]
+    legs: list[LegInsightOut]
+
+
 class PlanOut(Api):
     plan_id: str
     trip_id: str

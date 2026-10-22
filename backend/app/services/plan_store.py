@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, date, datetime, timezone
 
 from sqlalchemy import func, select, update
@@ -18,6 +19,9 @@ from app.errors import ApiError
 from app.models import Plan, PlanLeg, Task, Trip
 from app.schemas import LegExtraOut, LegOut, MovedOut, PlanOut, SegmentOut, TotalsOut, TransitRefOut
 from app.services.planner import LegOption, PlannedLeg, PlannerInput, PlanResult
+from app.services.planner.insight import plan_insight
+
+log = logging.getLogger("reroute.plans")
 
 
 def _transit(opt: LegOption) -> TransitRefOut | None:
@@ -108,6 +112,7 @@ def new_plan_row(
         option_set_id=option_set_id,
         option_id=option_id,
         option=option,
+        insight=_insight(inp, result),
     )
     leg_rows = [
         PlanLeg(
@@ -125,6 +130,15 @@ def new_plan_row(
         for x in legs
     ]
     return plan, leg_rows
+
+
+def _insight(inp: PlannerInput, result: PlanResult) -> dict | None:
+    """Why this plan, worked out now (in the worker) so the API only reads it. A plan never fails for it."""
+    try:
+        return plan_insight(inp, result).model_dump(mode="json")
+    except Exception:  # an explanation is a bonus: the plan itself is already sound
+        log.exception("Couldn't work out the plan's insight")
+        return None
 
 
 def add_plan(db: Session, plan: Plan, leg_rows: list[PlanLeg]) -> Plan:

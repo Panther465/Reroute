@@ -50,6 +50,28 @@ def test_plan_version_1_matches_the_golden_test(client):
     assert plan["legs"][0]["leaveBy"] == "2026-10-14T08:50:00+05:30"
 
 
+def test_why_this_plan_is_saved_with_the_plan_and_read_back(client):
+    plan_v1(client)
+    res = client.get("/v1/trips/trip-001/plans/1/insight")
+    assert res.status_code == 200, res.text
+    body = res.json()
+    assert body["version"] == 1 and body["exact"] is True and body["fareDivisor"] == 10
+    assert [d["kind"] for d in body["days"]] == ["chosen", "cab_only", "no_cab"]
+    assert body["days"][0]["endsAt"] == "2026-10-14T16:50:00+05:30"
+    assert body["days"][0]["order"] == ["task-meet", "task-bank", "task-office"]
+    assert [leg["taskId"] for leg in body["legs"]] == ["task-meet", "task-bank", "task-office", None]
+    assert all(sum(c["chosen"] for c in leg["choices"]) == 1 for leg in body["legs"])
+
+
+def test_a_plan_saved_without_its_reasons_says_so(client):
+    plan_v1(client)
+    # Plans made before the insight existed have none (the column is the one a plan may gain later).
+    with engine().begin() as conn:
+        conn.execute(text("UPDATE plans SET insight = NULL WHERE trip_id = 'trip-001' AND version = 1"))
+    res = client.get("/v1/trips/trip-001/plans/1/insight")
+    assert res.status_code == 404 and "Plan the day again" in res.json()["error"]["message"]
+
+
 def test_15_minute_delay_shifts_without_asking(client):
     plan_v1(client)
     clock(client, "10:55")

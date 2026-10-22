@@ -295,6 +295,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/trips/{trip_id}/plans/{version}/insight": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Why this plan: the leg choices and the other days the planner weighed
+         * @description Read as saved with the plan: the worker worked it out when it made the plan, so nothing is planned here.
+         */
+        get: operations["get_plan_insight_v1_trips__trip_id__plans__version__insight_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/trips/{trip_id}/plans/{version}/activate": {
         parameters: {
             query?: never;
@@ -762,6 +782,47 @@ export interface components {
             /** Jobid */
             jobId?: string | null;
         };
+        /** DayAlternativeOut */
+        DayAlternativeOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "chosen" | "cab_only" | "no_cab";
+            /** Label */
+            label: string;
+            /** Feasible */
+            feasible: boolean;
+            /**
+             * Travelmin
+             * @default 0
+             */
+            travelMin: number;
+            /**
+             * Fareinr
+             * @default 0
+             */
+            fareInr: number;
+            /**
+             * Waitmin
+             * @default 0
+             */
+            waitMin: number;
+            /** Endsat */
+            endsAt?: string | null;
+            /**
+             * Leftout
+             * @default []
+             */
+            leftOut: string[];
+            /**
+             * Order
+             * @default []
+             */
+            order: string[];
+            /** Cost */
+            cost?: number | null;
+        };
         /** DemoClockIn */
         DemoClockIn: {
             /** Idempotencykey */
@@ -828,6 +889,33 @@ export interface components {
             /** Error */
             error?: string | null;
         };
+        /** LegChoiceOut */
+        LegChoiceOut: {
+            /** Optionid */
+            optionId: string;
+            /** Label */
+            label: string;
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "walk" | "metro" | "shared_auto" | "e_rickshaw" | "tempo" | "cab";
+            /** Travelmin */
+            travelMin: number;
+            /** Fareinr */
+            fareInr: number;
+            /** Cost */
+            cost: number;
+            /** Chosen */
+            chosen: boolean;
+            /** Unusable */
+            unusable?: string | null;
+            /**
+             * Rough
+             * @default false
+             */
+            rough: boolean;
+        };
         /** LegExtraOut */
         LegExtraOut: {
             /** Label */
@@ -847,6 +935,19 @@ export interface components {
              * @default false
              */
             rough: boolean;
+        };
+        /** LegInsightOut */
+        LegInsightOut: {
+            /** Seq */
+            seq: number;
+            /** Taskid */
+            taskId: string | null;
+            /** Fromplace */
+            fromPlace: string;
+            /** Toplace */
+            toPlace: string;
+            /** Choices */
+            choices: components["schemas"]["LegChoiceOut"][];
         };
         /** LegOut */
         LegOut: {
@@ -1028,6 +1129,28 @@ export interface components {
              * @default false
              */
             sample: boolean;
+        };
+        /**
+         * PlanInsightOut
+         * @description Why this plan: worked out when the plan was made, from the plan's own inputs.
+         */
+        PlanInsightOut: {
+            /** Planid */
+            planId: string;
+            /** Version */
+            version: number | null;
+            /** Taskcount */
+            taskCount: number;
+            /** Exact */
+            exact: boolean;
+            /** Orders */
+            orders: number;
+            /** Faredivisor */
+            fareDivisor: number;
+            /** Days */
+            days: components["schemas"]["DayAlternativeOut"][];
+            /** Legs */
+            legs: components["schemas"]["LegInsightOut"][];
         };
         /** PlanOut */
         PlanOut: {
@@ -2310,6 +2433,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlanOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_plan_insight_v1_trips__trip_id__plans__version__insight_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                version: number;
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanInsightOut"];
                 };
             };
             /** @description Validation Error */

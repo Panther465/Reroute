@@ -152,6 +152,9 @@ class Plan(Base):
     option_set_id: Mapped[str | None] = mapped_column(String(40), index=True)
     option_id: Mapped[str | None] = mapped_column(String(20))
     option: Mapped[dict | None] = mapped_column(JsonB)
+    #: Why this plan: the leg choices and the other days the planner weighed (planner/insight.py), saved
+    #: with the plan so the API only reads it.
+    insight: Mapped[dict | None] = mapped_column(JsonB)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
     activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
