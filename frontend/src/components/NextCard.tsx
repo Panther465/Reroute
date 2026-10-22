@@ -6,7 +6,7 @@ import { duration, lowerFirst, rupees } from '@/lib/format'
 import type { LegGuide } from '@/lib/guide'
 import { T } from '@/lib/i18n'
 import { distanceLabel } from '@/lib/progress'
-import type { DayView } from '@/lib/timeline'
+import { samePlace, type DayView } from '@/lib/timeline'
 
 export function NextCard({ view, clock, guide, miniMap }: { view: DayView; clock: number; guide: LegGuide | null; miniMap?: ReactNode }) {
   if (view.done || !guide) {
@@ -51,6 +51,9 @@ export function NextCard({ view, clock, guide, miniMap }: { view: DayView; clock
           {guide.arrived ? 'You’re here' : `${distanceLabel(guide.remainingM!)} to go, about ${duration(guide.etaMin!)}`}
         </p>
       )}
+      {samePlace(leg) ? (
+        <p className="mt-2 t-small text-ink-2">Same place, no travel.</p>
+      ) : (
       <p className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 t-small text-ink-2 tnum">
         <span className="inline-flex items-center gap-2">
           <ModeChain segments={leg.segments} />
@@ -60,6 +63,7 @@ export function NextCard({ view, clock, guide, miniMap }: { view: DayView; clock
         <span>{leg.fareInr ? `About ${rupees(leg.fareInr)}` : 'Free'}</span>
         {!riding && <span>Arrive around {leg.arriveAt}</span>}
       </p>
+      )}
       {leg.rough && (
         <p className="mt-2 flex gap-2 t-small text-muted">
           <Ruler size={16} strokeWidth={2} aria-hidden="true" className="mt-0.5 shrink-0" />A rough estimate from the distance. Reroute has no travel data for this place yet, so allow extra time.

@@ -163,3 +163,11 @@ describe('sharedToDay', () => {
     expect(view.nextLeg?.leaveBy).toBe('11:05')
   })
 })
+
+describe('samePlace', () => {
+  it('treats a leg with no segments (the planner\'s "Already there") as no travel', async () => {
+    const { samePlace } = await import('./timeline')
+    expect(samePlace({ segments: [] })).toBe(true)
+    expect(samePlace({ segments: [{ mode: 'walk', minutes: 5 }] })).toBe(false)
+  })
+})

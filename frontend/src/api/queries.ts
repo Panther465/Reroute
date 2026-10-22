@@ -47,6 +47,11 @@ export function useMe(enabled = true) {
   return useQuery({ queryKey: keys.me, queryFn: () => api.get<User>('/v1/me'), enabled })
 }
 
+/** Simulated bookings are a demo: the server says whether they're on, and only then does the app offer them. */
+export function useBookingsEnabled() {
+  return useMe().data?.features?.bookings === true
+}
+
 export function useTrips(enabled = true) {
   return useQuery({ queryKey: keys.trips, queryFn: () => api.get<TripsPage>('/v1/trips', { query: { limit: 20 } }), enabled })
 }

@@ -67,6 +67,11 @@ function handle(tripId: string, e: LiveEvent) {
     const version = typeof e.data.version === 'number' ? e.data.version : null
     setState({ autoBanner: { text: String(e.data.explanation ?? 'Reroute moved your later stops.'), previousVersion: null, version } })
   }
+  if (e.event === 'plan_updated' && e.data.trigger === 'morning' && e.data.notify) {
+    // The scheduler planned today on its own, early in the morning (it plans a later trip day once it begins).
+    const version = typeof e.data.version === 'number' ? e.data.version : 0
+    void import('./alerts').then(({ raise }) => raise({ key: `morning-${tripId}-${version}`, title: 'Your day is planned. Open Today to see when to leave.', tone: 'nudge' }))
+  }
   if (e.event === 'leave_now') {
     const label = String(e.data.label ?? 'your next leg')
     const inMin = Number(e.data.inMin ?? 0)

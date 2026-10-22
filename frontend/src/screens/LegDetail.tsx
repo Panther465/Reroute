@@ -5,7 +5,7 @@ import { useSubmitKey } from '@/lib/submitKey'
 import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { api, ApiError } from '@/api/client'
-import { keys, queryClient, useBookings, useCurrentTripId, useDay, useRaastaRoute, useTrip } from '@/api/queries'
+import { keys, queryClient, useBookings, useBookingsEnabled, useCurrentTripId, useDay, useRaastaRoute, useTrip } from '@/api/queries'
 import type { Booking, RaastaRoute, Trip } from '@/api/types'
 import { BackButton, useBack } from '@/components/BackButton'
 import { LazyMap } from '@/components/LazyMap'
@@ -24,7 +24,7 @@ import { useRoadPaths } from '@/lib/roads'
 import { useDocumentTitle, useIsDesktop } from '@/lib/hooks'
 import { T } from '@/lib/i18n'
 import { setState, showToast, useStore } from '@/lib/store'
-import { localMinutes, type LegView } from '@/lib/timeline'
+import { localMinutes, samePlace, type LegView } from '@/lib/timeline'
 import type { Mode } from '@/lib/types'
 
 const CabBookingSheet = lazy(() => import('./BookingSheets').then((m) => ({ default: m.CabBookingSheet })))
@@ -297,7 +297,11 @@ export function DetailBody({ model, embedded, onBack, nowIso, trip }: { model: D
         <h2 id="stands-h" className="sr-only">
           Stands
         </h2>
-        <StandLine board={model.board} alight={model.alight} alightNote={model.alightNote} mode={model.segments[0].mode} />
+        {model.segments.length > 0 ? (
+          <StandLine board={model.board} alight={model.alight} alightNote={model.alightNote} mode={model.segments[0].mode} />
+        ) : (
+          <p className="t-body text-ink-2">You're already there: this stop is at the same place as the last one, so there's nothing to travel.</p>
+        )}
       </section>
 
       <section className="mt-6" aria-labelledby="dir-h">
@@ -401,11 +405,12 @@ export function DetailBody({ model, embedded, onBack, nowIso, trip }: { model: D
 
 /** A (demo) cab for this leg, or the ride already booked for it. Today offers it on the next leg only. */
 function LegCab({ trip, leg }: { trip: Trip; leg: LegView }) {
-  const bookings = useBookings(trip.tripId)
+  const bookingsOn = useBookingsEnabled()
+  const bookings = useBookings(bookingsOn ? trip.tripId : null)
   const [booking, setBooking] = useState(false)
   const [viewing, setViewing] = useState<Booking | null>(null)
   const [loaded, setLoaded] = useState(false)
-  if (leg.status === 'done') return null
+  if (!bookingsOn || leg.status === 'done' || samePlace(leg)) return null
   const ride = activeBooking(bookings.data, { toId: leg.toId })
   const to = leg.toId === 'end' ? trip.stayPlace.name : (trip.tasks.find((t) => t.taskId === leg.toId)?.title ?? 'the next stop')
   return (

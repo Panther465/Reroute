@@ -135,7 +135,8 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('status 200', () => pm.response.to.have.status(200));",
-                  "pm.test('role', () => pm.expect(pm.response.json().role).to.eql('traveller'));"
+                  "pm.test('role', () => pm.expect(pm.response.json().role).to.eql('traveller'));",
+                  "pm.test('demo bookings are on', () => pm.expect(pm.response.json().features.bookings).to.eql(true));"
                 ]
               }
             }
@@ -171,7 +172,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"userId\": \"usr-demo-traveller\",\n  \"role\": \"traveller\"\n}"
+              "body": "{\n  \"userId\": \"usr-demo-traveller\",\n  \"role\": \"traveller\",\n  \"features\": {\n    \"bookings\": true,\n    \"aiHelper\": false,\n    \"voices\": true\n  }\n}"
             }
           ]
         },

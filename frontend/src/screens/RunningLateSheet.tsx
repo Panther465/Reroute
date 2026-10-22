@@ -127,8 +127,8 @@ export function RunningLateSheet({
     let optionSetId: string | null = null
     try {
       res = await reportDelay(tripId, task.taskId, delay, keysRef.current.delay)
-      // Accepting names the option set it came from; the set's ID comes with the trip.
-      if (res.result === 'options') optionSetId = (await refetchTrip(tripId).catch(() => null))?.openOptions?.optionSetId ?? null
+      // Accepting names the option set it came from: the check-in says which (older servers: the trip does).
+      if (res.result === 'options') optionSetId = res.optionSetId ?? (await refetchTrip(tripId).catch(() => null))?.openOptions?.optionSetId ?? null
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Couldn't reach Reroute. Try again.")
       setBusy(false)

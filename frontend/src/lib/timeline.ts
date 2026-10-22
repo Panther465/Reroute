@@ -156,6 +156,11 @@ function legView(leg: Leg, day: string, fromId: string, offset: string): LegView
   }
 }
 
+/** A leg between two stops at the same place: no travel, so no line, no map and no cab. */
+export function samePlace(leg: { segments: unknown[] }) {
+  return leg.segments.length === 0
+}
+
 const GONE: Task['state'][] = ['done', 'skipped', 'moved']
 
 function leftOutReason(kind: string, reason: string) {

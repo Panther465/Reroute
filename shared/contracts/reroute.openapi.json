@@ -1498,7 +1498,8 @@
             "schema": {
               "anyOf": [
                 {
-                  "type": "string"
+                  "type": "string",
+                  "format": "date"
                 },
                 {
                   "type": "null"
@@ -3020,6 +3021,17 @@
             "title": "Options",
             "default": []
           },
+          "optionSetId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Optionsetid"
+          },
           "blocked": {
             "anyOf": [
               {
@@ -3086,6 +3098,30 @@
         },
         "type": "object",
         "title": "DemoSignIn"
+      },
+      "FeaturesOut": {
+        "properties": {
+          "bookings": {
+            "type": "boolean",
+            "title": "Bookings"
+          },
+          "aiHelper": {
+            "type": "boolean",
+            "title": "Aihelper"
+          },
+          "voices": {
+            "type": "boolean",
+            "title": "Voices"
+          }
+        },
+        "type": "object",
+        "required": [
+          "bookings",
+          "aiHelper",
+          "voices"
+        ],
+        "title": "FeaturesOut",
+        "description": "What this server has switched on, so the app shows only what works."
       },
       "GoogleSignIn": {
         "properties": {
@@ -3764,7 +3800,8 @@
               "created",
               "late",
               "skipped",
-              "edited"
+              "edited",
+              "morning"
             ],
             "title": "Trigger"
           },
@@ -5355,6 +5392,9 @@
             "type": "boolean",
             "title": "Isdemo",
             "default": false
+          },
+          "features": {
+            "$ref": "#/components/schemas/FeaturesOut"
           }
         },
         "type": "object",
@@ -5362,7 +5402,8 @@
           "userId",
           "email",
           "name",
-          "role"
+          "role",
+          "features"
         ],
         "title": "UserOut"
       },
