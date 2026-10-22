@@ -22,7 +22,7 @@ from app import events
 from app.adapters.google import calendar_events
 from app.adapters.llm import HHMM
 from app.cities import city as supported_city
-from app.clock import now_for, set_demo_now, tz_for
+from app.clock import at_minutes, now_for, set_demo_now, tz_for
 from app.config import get_settings
 from app.deps import CurrentUser, Db, OwnedTrip, demo_only
 from app.errors import ApiError
@@ -40,6 +40,7 @@ from app.schemas import (
     JobAccepted,
     JobOut,
     Page,
+    PlanInsightOut,
     PlanOut,
     PlanRequest,
     PostBody,
@@ -307,6 +308,22 @@ def job_status(job_id: str, user: CurrentUser, db: Db) -> JobOut:
 @router.get("/trips/{trip_id}/plans/{version}", response_model=PlanOut, response_model_by_alias=True)
 def get_plan(version: int, trip: OwnedTrip, db: Db) -> PlanOut:
     return plan_store.plan_out(plan_store.get_version(db, trip.trip_id, version))
+
+
+@router.get(
+    "/trips/{trip_id}/plans/{version}/insight",
+    response_model=PlanInsightOut,
+    response_model_by_alias=True,
+    summary="Why this plan: the leg choices and the other days the planner weighed",
+)
+def get_plan_insight(version: int, trip: OwnedTrip, db: Db) -> PlanInsightOut:
+    """Read as saved with the plan: the worker worked it out when it made the plan, so nothing is planned here."""
+    plan = plan_store.get_version(db, trip.trip_id, version)
+    if not plan.insight:
+        raise ApiError(404, "This plan was made before Reroute kept its reasons. Plan the day again to see them.")
+    tz = tz_for(trip.utc_offset)
+    days = [{**d, "ends_at": at_minutes(plan.day, d["ends_at"], tz) if d.get("ends_at") is not None else None} for d in plan.insight["days"]]
+    return PlanInsightOut.model_validate({**plan.insight, "days": days, "plan_id": plan.plan_id, "version": plan.version})
 
 
 @router.post(

@@ -1252,6 +1252,74 @@
         }
       }
     },
+    "/v1/trips/{trip_id}/plans/{version}/insight": {
+      "get": {
+        "tags": [
+          "trips"
+        ],
+        "summary": "Why this plan: the leg choices and the other days the planner weighed",
+        "description": "Read as saved with the plan: the worker worked it out when it made the plan, so nothing is planned here.",
+        "operationId": "get_plan_insight_v1_trips__trip_id__plans__version__insight_get",
+        "parameters": [
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Version"
+            }
+          },
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanInsightOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/trips/{trip_id}/plans/{version}/activate": {
       "post": {
         "tags": [
@@ -3062,6 +3130,88 @@
         ],
         "title": "CheckinOut"
       },
+      "DayAlternativeOut": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "chosen",
+              "cab_only",
+              "no_cab"
+            ],
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "feasible": {
+            "type": "boolean",
+            "title": "Feasible"
+          },
+          "travelMin": {
+            "type": "integer",
+            "title": "Travelmin",
+            "default": 0
+          },
+          "fareInr": {
+            "type": "integer",
+            "title": "Fareinr",
+            "default": 0
+          },
+          "waitMin": {
+            "type": "integer",
+            "title": "Waitmin",
+            "default": 0
+          },
+          "endsAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Endsat"
+          },
+          "leftOut": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Leftout",
+            "default": []
+          },
+          "order": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Order",
+            "default": []
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "label",
+          "feasible"
+        ],
+        "title": "DayAlternativeOut"
+      },
       "DemoClockIn": {
         "properties": {
           "idempotencyKey": {
@@ -3216,6 +3366,73 @@
         ],
         "title": "JobOut"
       },
+      "LegChoiceOut": {
+        "properties": {
+          "optionId": {
+            "type": "string",
+            "title": "Optionid"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "walk",
+              "metro",
+              "shared_auto",
+              "e_rickshaw",
+              "tempo",
+              "cab"
+            ],
+            "title": "Mode"
+          },
+          "travelMin": {
+            "type": "integer",
+            "title": "Travelmin"
+          },
+          "fareInr": {
+            "type": "integer",
+            "title": "Fareinr"
+          },
+          "cost": {
+            "type": "number",
+            "title": "Cost"
+          },
+          "chosen": {
+            "type": "boolean",
+            "title": "Chosen"
+          },
+          "unusable": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unusable"
+          },
+          "rough": {
+            "type": "boolean",
+            "title": "Rough",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "optionId",
+          "label",
+          "mode",
+          "travelMin",
+          "fareInr",
+          "cost",
+          "chosen"
+        ],
+        "title": "LegChoiceOut"
+      },
       "LegExtraOut": {
         "properties": {
           "label": {
@@ -3266,6 +3483,49 @@
           "fareInr"
         ],
         "title": "LegExtraOut"
+      },
+      "LegInsightOut": {
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          },
+          "taskId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taskid"
+          },
+          "fromPlace": {
+            "type": "string",
+            "title": "Fromplace"
+          },
+          "toPlace": {
+            "type": "string",
+            "title": "Toplace"
+          },
+          "choices": {
+            "items": {
+              "$ref": "#/components/schemas/LegChoiceOut"
+            },
+            "type": "array",
+            "title": "Choices"
+          }
+        },
+        "type": "object",
+        "required": [
+          "seq",
+          "taskId",
+          "fromPlace",
+          "toPlace",
+          "choices"
+        ],
+        "title": "LegInsightOut"
       },
       "LegOut": {
         "properties": {
@@ -3758,6 +4018,68 @@
           "lat"
         ],
         "title": "PlaceOut"
+      },
+      "PlanInsightOut": {
+        "properties": {
+          "planId": {
+            "type": "string",
+            "title": "Planid"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "taskCount": {
+            "type": "integer",
+            "title": "Taskcount"
+          },
+          "exact": {
+            "type": "boolean",
+            "title": "Exact"
+          },
+          "orders": {
+            "type": "integer",
+            "title": "Orders"
+          },
+          "fareDivisor": {
+            "type": "integer",
+            "title": "Faredivisor"
+          },
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DayAlternativeOut"
+            },
+            "type": "array",
+            "title": "Days"
+          },
+          "legs": {
+            "items": {
+              "$ref": "#/components/schemas/LegInsightOut"
+            },
+            "type": "array",
+            "title": "Legs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "planId",
+          "version",
+          "taskCount",
+          "exact",
+          "orders",
+          "fareDivisor",
+          "days",
+          "legs"
+        ],
+        "title": "PlanInsightOut",
+        "description": "Why this plan: worked out when the plan was made, from the plan's own inputs."
       },
       "PlanOut": {
         "properties": {
