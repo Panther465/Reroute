@@ -17,11 +17,11 @@ import { geolocationSupported, startTracking, stopTracking, useLocation } from '
 import { signOut } from '@/lib/session'
 import { setState, showToast, useStore, type AlertPrefs, type ChimeStyle, type Lang, type Theme, type VoiceRate } from '@/lib/store'
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children, className = 'lg:col-start-1' }: { title: string; children: React.ReactNode; className?: string }) {
   const heading = useTl()(title)
   const id = useId()
   return (
-    <section className="mt-8" aria-labelledby={id}>
+    <section className={`mt-8 ${className}`} aria-labelledby={id}>
       <h2 id={id} lang={heading.lang} className="mb-3 t-title text-ink">
         {heading.text}
       </h2>
@@ -89,8 +89,9 @@ export default function Me() {
   }
 
   return (
-    <div className="mx-auto max-w-[560px] px-5 pb-10 pt-6 lg:max-w-[720px] lg:px-8 lg:pt-8">
-      <h1 tabIndex={-1} className="t-display-1 text-ink">
+    // On a desktop the alert settings, the longest group, take the right column; the rest stay on the left.
+    <div className="mx-auto max-w-[560px] px-5 pb-10 pt-6 lg:grid lg:max-w-[1200px] lg:grid-cols-2 lg:grid-rows-[auto_repeat(7,auto)_1fr] lg:items-start lg:gap-x-12 lg:px-8 lg:pt-8">
+      <h1 tabIndex={-1} className="t-display-1 text-ink lg:col-span-2 lg:row-start-1">
         <T k="Me" />
       </h1>
 
@@ -149,7 +150,7 @@ export default function Me() {
         />
       </Section>
 
-      <Section title="Alerts">
+      <Section title="Alerts" className="lg:col-start-2 lg:row-[2/-1]">
         <p className="mb-3 t-small text-ink-2">Before you leave, when a task is about to end, when you're nearly there and when you arrive. Every alert also shows on screen.</p>
         <div className="divide-y divide-line rounded-card border border-line bg-surface px-4">
           <Switch label="Sound" description="A chime at each alert." checked={alertPrefs.sound} onChange={(v) => setAlerts({ sound: v })} />
@@ -295,7 +296,7 @@ export default function Me() {
         </ul>
       </Section>
 
-      <div className="mt-10 flex flex-col items-start gap-3">
+      <div className="mt-10 flex flex-col items-start gap-3 lg:col-start-1">
         <Button variant="destructive" onClick={() => setConfirm(true)} disabled={!online}>
           <T k="Delete my location history" />
         </Button>

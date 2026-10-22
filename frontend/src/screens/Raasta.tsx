@@ -1,17 +1,19 @@
-import { MapPin, Plus, Search } from 'lucide-react'
+import { Hotel, MapPin, Plus, Search } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router'
 import { api, ApiError } from '@/api/client'
 import { useCurrentTripId, useDay, useRaastaRoute, useStands, useTrip } from '@/api/queries'
 import type { Place, RaastaLegOption, RaastaLegOptions } from '@/api/types'
 import { BackButton, useBack } from '@/components/BackButton'
+import { LazyMap } from '@/components/LazyMap'
+import type { MapPoint } from '@/components/MapCard'
 import { AutoRickshaw, ModeIcon, MODE_META, modeTextClass } from '@/components/icons'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { Field, FieldError } from '@/components/ui/Field'
 import { Banner, EmptyState, ErrorState, LoadingRegion, Skeleton } from '@/components/ui/States'
 import { Tag } from '@/components/ui/Tag'
 import { rupees } from '@/lib/format'
-import { useDocumentTitle, useOnline, useTripClock } from '@/lib/hooks'
+import { useDocumentTitle, useIsDesktop, useOnline, useTripClock } from '@/lib/hooks'
 import { T, useTl } from '@/lib/i18n'
 import { localMinutes } from '@/lib/timeline'
 import { DetailBody, DetailSkeleton, modelForRoute, PushedScreen, StatusTag } from './LegDetail'
@@ -79,9 +81,27 @@ export default function RaastaHome() {
     const stop = view?.stops[view.nowIndex]
     const task = trip.tasks.find((x) => x.placeId === stop?.placeId)
     const p = task?.place ?? trip.stayPlace
-    return { name: p.area, near: `${p.lng},${p.lat}` }
+    return { name: p.area, near: `${p.lng},${p.lat}`, lng: p.lng, lat: p.lat, stay: !task }
   }, [trip, view])
   const stands = useStands(here?.near ?? null, 2000)
+  // A desktop has room for the stands on a map, next to their list.
+  const desktop = useIsDesktop()
+  const standPoints = useMemo<MapPoint[]>(() => {
+    if (!here || !stands.data) return []
+    return [
+      { id: 'here', kind: 'stop', lngLat: [here.lng, here.lat], label: here.name, caption: here.name, icon: here.stay ? Hotel : MapPin, state: 'current' },
+      ...stands.data.items.map((st): MapPoint => ({
+        id: st.standId,
+        kind: 'stand',
+        lngLat: [st.location.lng, st.location.lat],
+        label: st.name,
+        onClick: () => {
+          setFrom(st.name)
+          setFromPoint({ name: st.name, lng: st.location.lng, lat: st.location.lat })
+        },
+      })),
+    ]
+  }, [here, stands.data])
 
   type Point = { name: string; lng: number; lat: number }
   const searchBetween = async (resolveEnds: () => Promise<[Point | null, Point | null]>) => {
@@ -131,7 +151,9 @@ export default function RaastaHome() {
   }
 
   return (
-    <div className="mx-auto max-w-[560px] px-5 pb-10 pt-6 lg:max-w-[720px] lg:px-8 lg:pt-8">
+    // On a desktop: find a route on the left; the stands around you, on a map, on the right.
+    <div className="mx-auto max-w-[560px] px-5 pb-10 pt-6 lg:grid lg:max-w-[1200px] lg:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] lg:items-start lg:gap-x-12 lg:px-8 lg:pt-8">
+      <div className="min-w-0">
       <h1 tabIndex={-1} className="t-display-1 text-ink">
         <T k="Raasta" />
       </h1>
@@ -207,11 +229,15 @@ export default function RaastaHome() {
         </section>
       )}
 
-      <section className="mt-8" aria-labelledby="nearby-h">
+      </div>
+
+      <div className="min-w-0 lg:sticky lg:top-24">
+      <section className="mt-8 lg:mt-2" aria-labelledby="nearby-h">
         <h2 id="nearby-h" className="t-display-2 text-ink">
           <T k="Nearby stands" />
         </h2>
         {here && <p className="mt-1 t-small text-muted">Near {here.name}. Tap one to search from it.</p>}
+        {desktop && standPoints.length > 1 && <LazyMap lines={[]} points={standPoints} label={`Map of stands near ${here?.name ?? 'you'}`} className="mt-4 h-72" />}
         {stands.isPending && here ? (
           <LoadingRegion label="Loading stands">
             <Skeleton className="mt-4 h-48 w-full rounded-card" />
@@ -246,10 +272,11 @@ export default function RaastaHome() {
         )}
       </section>
 
-      <div className="mt-8">
+      <div className="mt-8 lg:mt-6">
         <ButtonLink to="/raasta/add" variant="primary" icon={<Plus size={20} strokeWidth={1.75} aria-hidden="true" />}>
           <T k="Add a route" />
         </ButtonLink>
+      </div>
       </div>
     </div>
   )
@@ -263,7 +290,7 @@ export function RaastaRoute() {
   const back = useBack('/raasta')
   const notFound = q.error instanceof ApiError && q.error.status === 404
   return (
-    <PushedScreen>
+    <PushedScreen wide={!!model}>
       {model ? (
         <DetailBody model={model} onBack={back} />
       ) : (

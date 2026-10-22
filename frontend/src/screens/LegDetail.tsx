@@ -261,7 +261,9 @@ export function DetailBody({ model, embedded, onBack, nowIso, trip }: { model: D
   }
 
   return (
-    <div className={embedded ? 'rounded-card border border-line bg-surface p-6' : ''}>
+    // On a desktop the map sits beside the directions, in view while you read them.
+    <div className={embedded ? 'rounded-card border border-line bg-surface p-6' : 'lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] lg:items-start lg:gap-10'}>
+      <div className="min-w-0">
       <header className="flex items-start gap-2">
         {onBack && <BackButton onClick={onBack} />}
         <div className="min-w-0 pt-1">
@@ -380,9 +382,11 @@ export function DetailBody({ model, embedded, onBack, nowIso, trip }: { model: D
         </p>
       )}
 
+      </div>
+
       {!embedded && (
-        <div className="mt-6">
-          <LazyMap lines={model.lines} points={model.points} label={`Map of ${model.title}`} className="h-64" me={fix} />
+        <div className="mt-6 lg:sticky lg:top-24 lg:mt-0">
+          <LazyMap lines={model.lines} points={model.points} label={`Map of ${model.title}`} className="h-64 lg:h-[min(640px,calc(100dvh-8rem))]" me={fix} />
         </div>
       )}
 
@@ -460,7 +464,8 @@ export function LegDetailContent({ trip, leg, embedded }: { trip: Trip; leg: Leg
   )
 }
 
-export function PushedScreen({ children }: { children: ReactNode }) {
+/** A screen pushed over a tab. `wide` lets a two-column layout use a desktop's width. */
+export function PushedScreen({ children, wide }: { children: ReactNode; wide?: boolean }) {
   const desktop = useIsDesktop()
   const reduce = useReducedMotion()
   return (
@@ -468,7 +473,7 @@ export function PushedScreen({ children }: { children: ReactNode }) {
       initial={desktop || reduce ? { opacity: 0 } : { x: '100%' }}
       animate={{ x: 0, opacity: 1 }}
       transition={{ duration: 0.24, ease: EASE_OUT }}
-      className="mx-auto max-w-[560px] px-5 pt-4 lg:max-w-[720px] lg:px-8 lg:pt-8"
+      className={`mx-auto max-w-[560px] px-5 pb-10 pt-4 lg:px-8 lg:pt-8 ${wide ? 'lg:max-w-[1200px]' : 'lg:max-w-[720px]'}`}
     >
       {children}
     </motion.div>
@@ -500,7 +505,7 @@ export default function LegDetail() {
   useDocumentTitle(model?.title ?? 'Leg')
   const loading = tripQ.isPending || (leg?.raasta && route.isPending)
   return (
-    <PushedScreen>
+    <PushedScreen wide={!!model && !loading}>
       {model && !loading ? (
         <>
           {leg?.raasta && route.isError && (

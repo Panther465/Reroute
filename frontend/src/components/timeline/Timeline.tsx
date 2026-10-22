@@ -253,7 +253,7 @@ function LegButton({ readOnly, done, label, onClick, selected, children }: { rea
       type="button"
       onClick={onClick}
       aria-current={selected ? 'true' : undefined}
-      className={`-mx-2 block w-[calc(100%+1rem)] rounded-control px-2 ${pad} text-left transition-colors duration-[var(--dur-quick)] ${look}`}
+      className={`-mx-2 block w-[calc(100%+1rem)] rounded-control px-2 lg:mr-0 lg:w-[calc(100%+0.5rem)] ${pad} text-left transition-colors duration-[var(--dur-quick)] ${look}`}
     >
       <span className="sr-only">{label}</span>
       <span aria-hidden="true">{children}</span>
