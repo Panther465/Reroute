@@ -25,7 +25,7 @@ export function FlipTime({ value, changed, index, reduce }: { value: string; cha
           className="absolute inset-0 rounded-[5px] bg-yellow"
           initial={{ opacity: 1 }}
           animate={{ opacity: 0 }}
-          transition={reduce ? { delay: 2, duration: 0 } : { delay: 0.3 + index * 0.06, duration: 1.1, ease: 'easeOut' }}
+          transition={reduce ? { delay: 2, duration: 0 } : { delay: 0.3 + index * 0.06, duration: 1.1, ease: EASE_OUT }}
         />
       )}
       <AnimatePresence mode="wait" initial={false}>

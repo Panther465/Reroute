@@ -47,7 +47,10 @@ function verdict(days: DayAlternative[], trip: Trip): string[] {
   return lines
 }
 
-function DayRow({ day, trip, maxFare, maxTravel }: { day: DayAlternative; trip: Trip; maxFare: number; maxTravel: number }) {
+// A clip-path reveal (never a width or scale from zero): the bar is its full length from the start.
+const BAR = 'block h-1.5 rounded-full [clip-path:inset(0_0_0_0_round_9999px)] transition-[clip-path] duration-[var(--dur-slow)] ease-[var(--ease-out)] starting:[clip-path:inset(0_100%_0_0_round_9999px)] motion-reduce:transition-none'
+
+function DayRow({ day, trip, maxFare, maxTravel, index }: { day: DayAlternative; trip: Trip; maxFare: number; maxTravel: number; index: number }) {
   const chosen = day.kind === 'chosen'
   const end = ends(day, trip)
   const bar = chosen ? 'bg-green' : 'bg-line-strong'
@@ -73,10 +76,11 @@ function DayRow({ day, trip, maxFare, maxTravel }: { day: DayAlternative; trip: 
               <dd className="t-title text-ink">{duration(day.travelMin)}</dd>
             </div>
           </dl>
-          {/* The same two measures as bars, so the trade-off reads at a glance. */}
+          {/* The same two measures as bars, so the trade-off reads at a glance. They draw in from the left
+              once, one day after another, so the eye compares them as they grow. */}
           <div className="mt-3 grid gap-1.5" aria-hidden="true">
-            <span className={`block h-1.5 rounded-full ${bar}`} style={{ width: `${Math.max(4, (day.fareInr / maxFare) * 100)}%` }} />
-            <span className={`block h-1.5 rounded-full opacity-60 ${bar}`} style={{ width: `${Math.max(4, (day.travelMin / maxTravel) * 100)}%` }} />
+            <span className={`${BAR} ${bar}`} style={{ width: `${Math.max(4, (day.fareInr / maxFare) * 100)}%`, transitionDelay: `${index * 60}ms` }} />
+            <span className={`${BAR} opacity-60 ${bar}`} style={{ width: `${Math.max(4, (day.travelMin / maxTravel) * 100)}%`, transitionDelay: `${index * 60 + 30}ms` }} />
           </div>
           {day.leftOut.length > 0 && <p className="mt-2 t-small text-ink-2">Leaves out {listJoin(day.leftOut.map(lowerFirst))}.</p>}
         </>
@@ -167,8 +171,8 @@ function Body({ insight, trip }: { insight: PlanInsight; trip: Trip }) {
         </h2>
         <p className="mt-1 t-small text-muted">All three planned from the same tasks, places and times. The bars show fares, then time travelling.</p>
         <ul className="mt-3 divide-y divide-line rounded-card border border-line bg-surface">
-          {insight.days.map((d) => (
-            <DayRow key={d.kind} day={d} trip={trip} maxFare={maxFare} maxTravel={maxTravel} />
+          {insight.days.map((d, i) => (
+            <DayRow key={d.kind} day={d} trip={trip} maxFare={maxFare} maxTravel={maxTravel} index={i} />
           ))}
         </ul>
       </section>

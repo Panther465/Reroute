@@ -280,6 +280,27 @@
   }
 }
 
+/* The Now station's pulse: the one thing on screen that loops (UI brief). A CSS animation of transform and
+   opacity runs on the compositor, so a phone left on Today all day isn't running script for it. */
+@keyframes rr-now-pulse {
+  from {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+.rr-now-pulse {
+  animation: rr-now-pulse 1600ms var(--ease-out) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rr-now-pulse {
+    display: none;
+  }
+}
+
 /* Walking legs: a dotted ink line. */
 .rr-walk {
   border-left: 6px dotted var(--ink);

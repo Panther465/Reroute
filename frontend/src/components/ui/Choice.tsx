@@ -37,7 +37,7 @@ export function Segmented<T extends string>({
             key={o.value}
             value={o.value}
             lang={o.lang}
-            className="flex min-h-12 flex-1 basis-0 items-center justify-center gap-2 whitespace-nowrap rounded-[11px] border-2 border-transparent px-3 t-title text-ink-2 transition-colors duration-[var(--dur-quick)] data-[state=on]:border-green data-[state=on]:bg-surface data-[state=on]:text-ink [@media(hover:hover)]:hover:data-[state=off]:bg-surface/60"
+            className="flex min-h-12 flex-1 basis-0 items-center justify-center gap-2 whitespace-nowrap rounded-[11px] border-2 border-transparent px-3 t-title text-ink-2 transition-[color,background-color,border-color,scale] duration-[var(--dur-quick)] motion-safe:active:scale-[0.97] data-[state=on]:border-green data-[state=on]:bg-surface data-[state=on]:text-ink [@media(hover:hover)]:hover:data-[state=off]:bg-surface/60"
           >
             {o.icon}
             {o.label}
@@ -71,7 +71,7 @@ export function ChipGroup<T extends string>({
           return (
             <label
               key={o.value}
-              className={`relative flex min-h-12 cursor-pointer items-center rounded-tag border-2 px-4 t-title transition-colors duration-[var(--dur-quick)] has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus ${
+              className={`relative flex min-h-12 cursor-pointer items-center rounded-tag border-2 px-4 t-title transition-[color,background-color,border-color,scale] duration-[var(--dur-quick)] motion-safe:active:scale-[0.97] has-[:focus-visible]:outline-3 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-focus ${
                 on ? 'border-green bg-green-tint text-green-ink' : 'border-line-strong bg-surface text-ink'
               }`}
             >

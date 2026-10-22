@@ -9,6 +9,7 @@ import type { Booking, Trip } from '@/api/types'
 import { checkIn } from '@/lib/actions'
 import { speak } from '@/lib/alerts'
 import { hhmm, lowerFirst } from '@/lib/format'
+import { EASE_IN_OUT, EASE_OUT } from '@/lib/motion'
 import { useOpenLate } from '@/lib/late'
 import { useRooAnchor } from '@/lib/rooAnchor'
 import { useSheetOpen } from '@/lib/sheets'
@@ -286,14 +287,14 @@ function RooArt({ mood, look, size, reduce }: { mood: Mood; look: { x: number; y
       <motion.g
         style={{ originX: 0.5, originY: 0.1 }}
         animate={waving && !reduce ? { rotate: [0, -40, -10, -40, 0] } : { rotate: 0 }}
-        transition={{ duration: 1.2, ease: 'easeInOut' }}
+        transition={{ duration: 1.2, ease: EASE_IN_OUT }}
       >
         <ellipse cx="67" cy="56" rx="5" ry="8.5" fill="var(--roo-deep)" transform="rotate(-22 67 56)" />
       </motion.g>
       <motion.g
         style={{ originX: 0.5, originY: 1 }}
         animate={reduce || mood === 'sleeping' || mood === 'idle' ? { rotate: 0 } : { rotate: [0, -7, 7, 0] }}
-        transition={{ duration: 1.4, ease: 'easeInOut' }}
+        transition={{ duration: 1.4, ease: EASE_IN_OUT }}
       >
         <path d="M40 28 C39 21 40 16 41 12" stroke="var(--roo-deep)" strokeWidth="2.6" fill="none" strokeLinecap="round" />
         <path d="M41 14 C46 6 55 6 57 10 C53 15 46 16 41 14 Z" fill="var(--roo-leaf)" />
@@ -325,7 +326,7 @@ function BubbleBody({ msg, onAction, onClose }: { msg: RooMessage; onAction: (id
               key={a.id}
               type="button"
               onClick={() => onAction(a.id)}
-              className={`min-h-12 rounded-full px-4 t-small font-bold transition-colors duration-[var(--dur-quick)] ${
+              className={`min-h-12 rounded-full px-4 t-small font-bold transition-[color,background-color,scale] duration-[var(--dur-quick)] motion-safe:active:scale-[0.97] ${
                 a.primary ? 'bg-green text-on-green [@media(hover:hover)]:hover:bg-green-ink' : 'border border-line-strong text-ink [@media(hover:hover)]:hover:bg-sunken'
               }`}
             >
@@ -572,7 +573,15 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
             >
               <motion.span
                 className="block drop-shadow-md"
-                animate={reduce ? {} : mood === 'celebrate' ? { y: [0, -14, 0], transition: { duration: 0.8 } } : mood === 'alert' ? { y: [0, -6, 0], transition: { duration: 0.5 } } : { y: 0 }}
+                animate={
+                  reduce
+                    ? {}
+                    : mood === 'celebrate'
+                      ? { transform: ['translateY(0px)', 'translateY(-14px)', 'translateY(0px)'], transition: { duration: 0.8, ease: EASE_OUT } }
+                      : mood === 'alert'
+                        ? { transform: ['translateY(0px)', 'translateY(-6px)', 'translateY(0px)'], transition: { duration: 0.5, ease: EASE_OUT } }
+                        : { transform: 'translateY(0px)' }
+                }
               >
                 <RooArt mood={mood} look={eyes} size={46} reduce={reduce} />
               </motion.span>

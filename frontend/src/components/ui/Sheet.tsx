@@ -61,17 +61,17 @@ export function Sheet({ open, onOpenChange, title, description, children, footer
                 className="fixed inset-0 z-50 bg-scrim"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1, transition: { duration: 0.16 } }}
-                exit={{ opacity: 0, transition: { duration: 0.24 } }}
+                exit={{ opacity: 0, transition: { duration: 0.14 } }}
               />
             </Dialog.Overlay>
             <Dialog.Content asChild forceMount onCloseAutoFocus={restoreFocus}>
               {desktop ? (
                 <motion.div
                   className="fixed left-1/2 top-1/2 z-50 flex max-h-[88vh] w-[min(560px,calc(100vw-64px))] flex-col rounded-sheet bg-surface text-ink shadow-[var(--shadow-toast)] outline-none"
-                  style={{ x: '-50%', y: '-50%' }}
-                  initial={{ opacity: 0, scale: reduce ? 1 : 0.98 }}
-                  animate={{ opacity: 1, scale: 1, transition: { duration: 0.24, ease: EASE_OUT } }}
-                  exit={{ opacity: 0, scale: reduce ? 1 : 0.98, transition: { duration: 0.14, ease: EASE_OUT } }}
+                  // Whole transform strings, not x/y/scale: the browser animates them off the main thread.
+                  initial={{ opacity: 0, transform: `translate(-50%, -50%) scale(${reduce ? 1 : 0.98})` }}
+                  animate={{ opacity: 1, transform: 'translate(-50%, -50%) scale(1)', transition: { duration: 0.24, ease: EASE_OUT } }}
+                  exit={{ opacity: 0, transform: `translate(-50%, -50%) scale(${reduce ? 1 : 0.98})`, transition: { duration: 0.14, ease: EASE_OUT } }}
                 >
                   <SheetBody title={title} description={description} footer={footer} onClose={() => onOpenChange(false)} titleLang={titleLang}>
                     {children}
