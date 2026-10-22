@@ -56,7 +56,8 @@ Conventions shared with the Reroute API:
 - Every POST takes an `idempotencyKey` (4 to 128 characters) in its body; `idempotency_key` is
   read too. The same key with the same body returns the first response again, with
   `Idempotent-Replayed: true`. The same key with a different body returns 409
-  `IDEMPOTENCY_CONFLICT`. Keys are kept for 24 hours.
+  `IDEMPOTENCY_CONFLICT`. The same request again while the first is still running returns 409
+  `IN_PROGRESS`: retry later with the same key. Keys are kept for 24 hours.
 - Errors: `{"error": {"code": "...", "message": "...", "traceId": "..."}}`. Send `X-Request-ID`
   (8 to 128 of `A-Z a-z 0-9 . _ : -`) to choose the trace ID; it is echoed back on every response,
   unhandled 500s included. 503 `UNAVAILABLE` means MongoDB couldn't store or remove a recorded

@@ -205,7 +205,8 @@ class BodyLimitAndIdempotencyMiddleware:
                 await _send_json(send, 409, error_body("IDEMPOTENCY_CONFLICT", "This idempotency key was already used with a different request body."))
                 return
             if stored.get("state") == "pending":
-                await _send_json(send, 409, error_body("CONFLICT", "The first request with this idempotency key is still running. Try again shortly."))
+                # Its own code, so a client keeps the same key and retries instead of starting a new request.
+                await _send_json(send, 409, error_body("IN_PROGRESS", "The first request with this idempotency key is still running. Try again shortly."))
                 return
             payload = stored["body"].encode()
             headers = [
