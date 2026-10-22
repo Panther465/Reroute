@@ -26,4 +26,5 @@ HEALTHCHECK --interval=15s --timeout=3s --start-period=20s --retries=5 \
   CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8001/v1/raasta/healthz', timeout=2).status == 200 else 1)"
 
 ENTRYPOINT ["./docker-entrypoint.sh"]
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--proxy-headers", "--forwarded-allow-ips", "*"]
+# The API writes its own access log without query strings (they carry coordinates), so uvicorn's is off.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8001", "--proxy-headers", "--forwarded-allow-ips", "*", "--no-access-log"]

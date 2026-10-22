@@ -9,17 +9,17 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.db import get_session
-from app.errors import ApiError
-from app.pagination import Page
+from app.pagination import Page, cursor_value
 from app.ratelimit import per_minute_limit
 from app.routes.deps import parse_lnglat, utc_now
 from app.schemas import LegOptionsOut, RouteOut, StandNear
 from app.schemas import Page as PageOut
+from app.security import no_service_writes
 from app.services import catalog
 from app.services.export import city_gtfs
 from app.services.timefmt import parse_offset
 
-router = APIRouter(tags=["Routes and stands"], dependencies=[Depends(per_minute_limit)])
+router = APIRouter(tags=["Routes and stands"], dependencies=[Depends(per_minute_limit), Depends(no_service_writes)])
 
 
 @router.get("/routes", response_model=LegOptionsOut, summary="Shared-auto options for one leg")
@@ -53,9 +53,7 @@ def stands_near(
     session: Session = Depends(get_session),
 ) -> PageOut[StandNear]:
     centre = parse_lnglat(near, "near")
-    offset = int(page.position.get("o", 0)) if page.position else 0
-    if offset < 0:
-        raise ApiError(400, "BAD_REQUEST", "The cursor is not valid.")
+    offset = cursor_value(page.position, "o", int) if page.position else 0
     items, cursor = catalog.stands_near(session, centre.lng, centre.lat, radius, offset, page.limit)
     return PageOut[StandNear](items=items, next_cursor=cursor)
 

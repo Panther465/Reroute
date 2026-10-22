@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     stand_reuse_radius_m: int = 30
     rate_limit_per_minute: int = 60
     contributions_per_day: int = 10
+    #: The Reroute API sends this as X-Service-Token; its reads then share one larger bucket. Empty turns it off.
+    raasta_service_token: str = ""
+    service_rate_limit_per_minute: int = 3000
     examples_dir: str = "../examples/bengaluru"
     log_level: str = "INFO"
 
@@ -38,6 +41,9 @@ class Settings(BaseSettings):
     def _no_dev_secret_in_production(self) -> Settings:
         if self.app_env == "production" and (self.jwt_secret.startswith(("dev-only", "change-me")) or len(self.jwt_secret.encode()) < 32):
             raise ValueError("Set a real JWT_SECRET (32 or more random bytes) in production")
+        token = self.raasta_service_token
+        if self.app_env == "production" and token and (token.startswith(("dev-only", "change-me")) or len(token) < 32):
+            raise ValueError("Set a real RAASTA_SERVICE_TOKEN (32 or more random characters) in production, or leave it empty")
         return self
 
 

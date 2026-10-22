@@ -2,30 +2,65 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
+from app import cities
 from app.adapters.osrm import Router
-from app.adapters.rides import RideStore
+from app.adapters.rides import RideStore, RideStoreUnavailable
 from app.config import Settings
 from app.errors import ApiError, not_found
-from app.models import Contribution, Route, RouteStand, Stand
-from app.pagination import encode_cursor
+from app.models import Confirmation, Contribution, Route, RouteStand, Stand
+from app.pagination import cursor_value, encode_cursor
 from app.schemas import ContributionDecision, ContributionIn, ContributionOut, Location, TappedStand
 from app.security import User
 from app.services.catalog import point, route_out
-from app.services.geo import LatLng, RidePoint, suggest_stops, trim_ride
+from app.services.freshness import reverified_by_riders
+from app.services.geo import LatLng, RidePoint, downsample, suggest_stops, trim_ride
 from app.services.matching import RouteShape, find_match
 from app.services.timefmt import parse_hhmm, to_local_iso
 
+log = logging.getLogger("raasta")
+
 TRIM_M = 200.0
+#: Rides are thinned to this many points, spread over time, before finding stops and snapping to roads.
+MAX_RIDE_POINTS = 2000
+#: At most this many stands are suggested from one ride, spread along it.
+MAX_SUGGESTED_STANDS = 20
 
 
 def new_id(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:12]}"
+
+
+def _ride_store_down(session: Session, exc: RideStoreUnavailable) -> ApiError:
+    session.rollback()
+    log.warning("ride store unavailable: %s", exc)
+    return ApiError(503, "UNAVAILABLE", "Recorded rides can't be saved or removed right now. Try again in a few minutes.")
+
+
+def _check_area(body: ContributionIn) -> None:
+    """The city must be one Raasta serves, and every tapped stand and ride point must lie inside it."""
+    place = cities.city(body.city_slug)
+    if place is None:
+        raise ApiError(422, "VALIDATION_ERROR", f"Raasta doesn't cover the city {body.city_slug!r}.")
+    for i, s in enumerate(body.stands or []):
+        if s.location is not None and not place.contains(s.location.lng, s.location.lat):
+            raise ApiError(422, "VALIDATION_ERROR", f"stands.{i}.location is outside {place.name}.")
+    for i, p in enumerate(body.points or []):
+        if not place.contains(p.lng, p.lat):
+            raise ApiError(422, "VALIDATION_ERROR", f"points.{i} is outside {place.name}.")
+
+
+def _at_most(items: list[LatLng], n: int) -> list[LatLng]:
+    """`n` items spread evenly through the list, keeping the first and the last."""
+    if len(items) <= n:
+        return items
+    return [items[round(k * (len(items) - 1) / (n - 1))] for k in range(n)]
 
 
 def _resolve_stand(session: Session, city: str, tapped: TappedStand, settings: Settings) -> Stand:
@@ -33,6 +68,8 @@ def _resolve_stand(session: Session, city: str, tapped: TappedStand, settings: S
         stand = session.get(Stand, tapped.stand_id)
         if stand is None:
             raise ApiError(422, "VALIDATION_ERROR", f"Stand {tapped.stand_id} doesn't exist.")
+        if stand.city_slug != city:
+            raise ApiError(422, "VALIDATION_ERROR", f"Stand {tapped.stand_id} is in another city.")
         return stand
     assert tapped.location is not None and tapped.name is not None
     loc = tapped.location
@@ -65,6 +102,39 @@ def _shape(route: Route) -> RouteShape:
     return RouteShape(route.vehicle_type, tuple(LatLng(rs.stand.lat, rs.stand.lng) for rs in route.stands))
 
 
+def _own_evidence(body: ContributionIn) -> bool:
+    """A recorded ride, or at least one stand tapped on the map: not only stand IDs copied from a route."""
+    return body.kind == "gps_ride" or any(s.stand_id is None for s in body.stands or [])
+
+
+def _has_contributed(session: Session, route: Route, user_id: str) -> bool:
+    if route.contributor_id == user_id:
+        return True
+    earlier = select(Contribution.contribution_id).where(Contribution.route_id == route.route_id, Contribution.contributor_id == user_id).limit(1)
+    return session.scalar(earlier) is not None
+
+
+def riders_since_stale(session: Session, route: Route) -> set[str]:
+    """Everyone who vouched for a route since its status last changed: riders confirming it, and contributors whose route matched it."""
+    confirmers = select(Confirmation.user_id).where(Confirmation.route_id == route.route_id, Confirmation.at >= route.status_changed_at)
+    contributors = select(Contribution.contributor_id).where(
+        Contribution.route_id == route.route_id,
+        Contribution.status == "merged",
+        Contribution.created_at >= route.status_changed_at,
+        Contribution.contributor_id.is_not(None),
+    )
+    return {*session.scalars(confirmers), *session.scalars(contributors)}
+
+
+def mark_verified(session: Session, route: Route, now: datetime) -> None:
+    """Verify a route and close what was waiting on it: its new-route contribution or its freshness check."""
+    route.status = "verified"
+    route.status_changed_at = now
+    for waiting in session.scalars(select(Contribution).where(Contribution.route_id == route.route_id, Contribution.status == "waiting")):
+        waiting.status = "verified"
+        waiting.decided_at = now
+
+
 def _contribution_out(session: Session, c: Contribution, settings: Settings, now: datetime, suggested: list[LatLng] | None = None) -> ContributionOut:
     route = session.get(Route, c.route_id) if c.route_id else None
     return ContributionOut(
@@ -85,9 +155,11 @@ def _contribution_out(session: Session, c: Contribution, settings: Settings, now
 def create_contribution(
     session: Session, user: User, body: ContributionIn, router: Router, rides: RideStore, settings: Settings, now: datetime
 ) -> ContributionOut:
+    _check_area(body)
     contribution_id = new_id("con")
     suggested: list[LatLng] = []
     snapped: list[LatLng] | None = None
+    ride: list[RidePoint] | None = None
     payload: dict = {
         "vehicleType": body.vehicle_type,
         "fareInr": body.fare_inr,
@@ -100,13 +172,14 @@ def create_contribution(
         assert body.points is not None
         trimmed = trim_ride([RidePoint(p.lat, p.lng, p.t) for p in body.points], TRIM_M)
         if len(trimmed) < 2:
-            raise ApiError(422, "VALIDATION_ERROR", "This ride is too short to keep once the first and last 200 m are trimmed.")
-        suggested = suggest_stops(trimmed)
-        snapped = router.match(trimmed) or [LatLng(p.lat, p.lng) for p in trimmed]
+            raise ApiError(422, "VALIDATION_ERROR", "This ride is too short to keep once the points within 200 m of its start and end are removed.")
+        sampled = downsample(trimmed, MAX_RIDE_POINTS)
+        suggested = _at_most(suggest_stops(sampled), MAX_SUGGESTED_STANDS)
+        snapped = router.match(sampled) or [LatLng(p.lat, p.lng) for p in sampled]
         tapped = body.stands or [TappedStand(name=f"Stand {i}", location=Location(lat=p.lat, lng=p.lng)) for i, p in enumerate(suggested, start=1)]
         if len(tapped) < 2:
             raise ApiError(422, "VALIDATION_ERROR", "Mark at least two stands while you ride, or add them after the ride.")
-        rides.save(contribution_id, user.user_id, body.city_slug, trimmed, now)
+        ride = trimmed
         payload["pointsKept"] = len(trimmed)
         payload["pointsTrimmed"] = len(body.points) - len(trimmed)
     else:
@@ -134,17 +207,21 @@ def create_contribution(
 
     contribution = Contribution(contribution_id=contribution_id, contributor_id=user.user_id, kind=body.kind, payload=payload, status="waiting", created_at=now)
     if match_id:
-        # A second contributor submitted the same route: it is verified without a moderator.
         existing = session.get(Route, match_id)
         assert existing is not None
-        if existing.status != "verified":
-            existing.status = "verified"
-            existing.status_changed_at = now
-            for waiting in session.scalars(select(Contribution).where(Contribution.route_id == match_id, Contribution.status == "waiting")):
-                waiting.status = "verified"
-                waiting.decided_at = now
+        # A second, different contributor verifies a new route, but only with their own evidence and
+        # only once: copied stand IDs or a resubmission don't count. A stale route needs a moderator
+        # or two different riders since it went stale, so one submission alone never revives it.
+        independent = _own_evidence(body) and not _has_contributed(session, existing, user.user_id)
+        if existing.status == "unverified":
+            verify = independent
+        else:
+            verify = existing.status == "stale" and reverified_by_riders({*riders_since_stale(session, existing), user.user_id})
+        if verify:
+            mark_verified(session, existing, now)
         existing.last_confirmed_at = now
-        existing.confidence = min(1.0, existing.confidence + 0.25)
+        if independent:
+            existing.confidence = min(1.0, existing.confidence + 0.25)
         contribution.status = "merged"
         contribution.route_id = match_id
         contribution.decided_at = now
@@ -172,7 +249,22 @@ def create_contribution(
         session.flush()
         contribution.route_id = route.route_id
     session.add(contribution)
-    session.commit()
+    session.flush()
+    # The ride goes to MongoDB only once everything else is valid, so a refused contribution never leaves one behind.
+    if ride is not None:
+        try:
+            rides.save(contribution_id, user.user_id, body.city_slug, ride, now)
+        except RideStoreUnavailable as exc:
+            raise _ride_store_down(session, exc) from exc
+    try:
+        session.commit()
+    except Exception:
+        if ride is not None:
+            try:
+                rides.delete(contribution_id)
+            except RideStoreUnavailable:
+                log.error("couldn't remove the ride of failed contribution %s", contribution_id)
+        raise
     return _contribution_out(session, contribution, settings, now, suggested)
 
 
@@ -181,8 +273,8 @@ def list_contributions(
 ) -> tuple[list[ContributionOut], str | None]:
     query = select(Contribution).where(Contribution.status == status)
     if after:
-        at = datetime.fromisoformat(after["c"])
-        query = query.where(or_(Contribution.created_at < at, and_(Contribution.created_at == at, Contribution.contribution_id < after["i"])))
+        at, last_id = cursor_value(after, "c", datetime), cursor_value(after, "i", str)
+        query = query.where(or_(Contribution.created_at < at, and_(Contribution.created_at == at, Contribution.contribution_id < last_id)))
     rows = session.scalars(query.order_by(Contribution.created_at.desc(), Contribution.contribution_id.desc()).limit(limit + 1)).all()
     items = [_contribution_out(session, c, settings, now) for c in rows[:limit]]
     cursor = None
@@ -193,13 +285,15 @@ def list_contributions(
 
 
 def decide_contribution(
-    session: Session, moderator: User, contribution_id: str, decision: ContributionDecision, settings: Settings, now: datetime
+    session: Session, moderator: User, contribution_id: str, decision: ContributionDecision, rides: RideStore, settings: Settings, now: datetime
 ) -> ContributionOut:
     c = session.get(Contribution, contribution_id)
     if c is None:
         raise not_found("Contribution")
     if c.status != "waiting":
         raise ApiError(409, "CONFLICT", f"This contribution was already {c.status}.")
+    if decision.action == "approve" and c.contributor_id == moderator.user_id:
+        raise ApiError(403, "FORBIDDEN", "Another moderator has to approve your own contribution.")
     route = session.get(Route, c.route_id) if c.route_id else None
 
     if decision.action == "edit":
@@ -239,5 +333,10 @@ def decide_contribution(
             c.route_id = None
             session.flush()
             session.delete(route)
+        if c.kind == "gps_ride":
+            try:
+                rides.delete(c.contribution_id)
+            except RideStoreUnavailable as exc:
+                raise _ride_store_down(session, exc) from exc
     session.commit()
     return _contribution_out(session, c, settings, now)
