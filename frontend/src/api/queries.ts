@@ -5,7 +5,7 @@ import { useQueued } from '@/lib/offlineQueue'
 import { useStore } from '@/lib/store'
 import { buildDay } from '@/lib/timeline'
 import { api, ApiError } from './client'
-import type { Booking, Contribution, ContributionsPage, Job, Place, RaastaLegOptions, RaastaRoute, SharedTrip, StandsPage, Summary, Trip, TripsPage, User } from './types'
+import type { Booking, Contribution, ContributionsPage, Job, Place, PlanInsight, RaastaLegOptions, RaastaRoute, SharedTrip, StandsPage, Summary, Trip, TripsPage, User } from './types'
 import { useSessionStatus } from '@/lib/session'
 
 export const queryClient = new QueryClient({
@@ -27,6 +27,7 @@ export const keys = {
   trips: ['trips'] as const,
   trip: (id: string) => ['trip', id] as const,
   summary: (id: string, day?: string) => ['summary', id, day ?? ''] as const,
+  insight: (id: string, version: number) => ['insight', id, version] as const,
   shared: (token: string) => ['shared', token] as const,
   places: (q: string, city: string) => ['places', city, q] as const,
   job: (id: string) => ['job', id] as const,
@@ -111,6 +112,17 @@ export function useDay(trip: Trip | undefined, clock?: number | null) {
     // `key` stands for the optimistic sets by value.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [trip, key, clock])
+}
+
+/** Why the active plan: saved with the plan, so a version's insight never changes. */
+export function useInsight(tripId: string | null, version: number | null) {
+  return useQuery({
+    queryKey: keys.insight(tripId ?? 'none', version ?? 0),
+    queryFn: () => api.get<PlanInsight>(`/v1/trips/${tripId}/plans/${version}/insight`),
+    enabled: !!tripId && version !== null,
+    staleTime: Infinity,
+    retry: (n, err) => !(err instanceof ApiError && err.status === 404) && n < 2,
+  })
 }
 
 export function useSummary(tripId: string | null) {

@@ -1,4 +1,4 @@
-import { BellRing, Car, CarTaxiFront, ChevronDown, CircleCheck, LocateFixed, Map as MapIcon, MapPin, MapPinned, Navigation, Plus, Route, Share2, Ticket, TrainFront, TriangleAlert, X } from 'lucide-react'
+import { BellRing, Car, CarTaxiFront, ChevronDown, CircleCheck, LocateFixed, Map as MapIcon, MapPin, MapPinned, Navigation, Plus, Route, Scale, Share2, Ticket, TrainFront, TriangleAlert, X } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation as useRouterLocation, useNavigate } from 'react-router'
 import { useAiHelperEnabled, useBookings, useBookingsEnabled, useCurrentTripId, useDay, useTrip } from '@/api/queries'
@@ -87,8 +87,14 @@ export function TodayHeader({
         ) : (
           <p className="mt-1 t-body text-ink-2">{day}</p>
         )}
-        <div className="mt-3 flex">
+        <div className="mt-3 flex flex-wrap items-center gap-x-4">
           <StatusPill live={status} onOpen={onLog} />
+          {trip.activePlan && (
+            <Link to="/why" className="inline-flex min-h-12 items-center gap-1.5 rounded-control t-small font-bold text-ink-2 underline decoration-line-strong decoration-2 underline-offset-4 [@media(hover:hover)]:hover:text-ink">
+              <Scale size={16} strokeWidth={2} aria-hidden="true" />
+              Why this plan?
+            </Link>
+          )}
         </div>
       </div>
       <div className="-mr-2 flex shrink-0 items-center">
