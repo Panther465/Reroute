@@ -13,11 +13,12 @@ from app.adapters.osrm import Router
 from app.adapters.rides import RideStore, RideStoreUnavailable
 from app.config import Settings
 from app.errors import ApiError, not_found
-from app.models import Contribution, Route, RouteStand, Stand
+from app.models import Confirmation, Contribution, Route, RouteStand, Stand
 from app.pagination import encode_cursor
 from app.schemas import ContributionDecision, ContributionIn, ContributionOut, Location, TappedStand
 from app.security import User
 from app.services.catalog import point, route_out
+from app.services.freshness import reverified_by_riders
 from app.services.geo import LatLng, RidePoint, downsample, suggest_stops, trim_ride
 from app.services.matching import RouteShape, find_match
 from app.services.timefmt import parse_hhmm, to_local_iso
@@ -74,6 +75,39 @@ def _linestring(coords: list[LatLng]):
 
 def _shape(route: Route) -> RouteShape:
     return RouteShape(route.vehicle_type, tuple(LatLng(rs.stand.lat, rs.stand.lng) for rs in route.stands))
+
+
+def _own_evidence(body: ContributionIn) -> bool:
+    """A recorded ride, or at least one stand tapped on the map: not only stand IDs copied from a route."""
+    return body.kind == "gps_ride" or any(s.stand_id is None for s in body.stands or [])
+
+
+def _has_contributed(session: Session, route: Route, user_id: str) -> bool:
+    if route.contributor_id == user_id:
+        return True
+    earlier = select(Contribution.contribution_id).where(Contribution.route_id == route.route_id, Contribution.contributor_id == user_id).limit(1)
+    return session.scalar(earlier) is not None
+
+
+def riders_since_stale(session: Session, route: Route) -> set[str]:
+    """Everyone who vouched for a route since its status last changed: riders confirming it, and contributors whose route matched it."""
+    confirmers = select(Confirmation.user_id).where(Confirmation.route_id == route.route_id, Confirmation.at >= route.status_changed_at)
+    contributors = select(Contribution.contributor_id).where(
+        Contribution.route_id == route.route_id,
+        Contribution.status == "merged",
+        Contribution.created_at >= route.status_changed_at,
+        Contribution.contributor_id.is_not(None),
+    )
+    return {*session.scalars(confirmers), *session.scalars(contributors)}
+
+
+def mark_verified(session: Session, route: Route, now: datetime) -> None:
+    """Verify a route and close what was waiting on it: its new-route contribution or its freshness check."""
+    route.status = "verified"
+    route.status_changed_at = now
+    for waiting in session.scalars(select(Contribution).where(Contribution.route_id == route.route_id, Contribution.status == "waiting")):
+        waiting.status = "verified"
+        waiting.decided_at = now
 
 
 def _contribution_out(session: Session, c: Contribution, settings: Settings, now: datetime, suggested: list[LatLng] | None = None) -> ContributionOut:
@@ -147,17 +181,21 @@ def create_contribution(
 
     contribution = Contribution(contribution_id=contribution_id, contributor_id=user.user_id, kind=body.kind, payload=payload, status="waiting", created_at=now)
     if match_id:
-        # A second contributor submitted the same route: it is verified without a moderator.
         existing = session.get(Route, match_id)
         assert existing is not None
-        if existing.status != "verified":
-            existing.status = "verified"
-            existing.status_changed_at = now
-            for waiting in session.scalars(select(Contribution).where(Contribution.route_id == match_id, Contribution.status == "waiting")):
-                waiting.status = "verified"
-                waiting.decided_at = now
+        # A second, different contributor verifies a new route, but only with their own evidence and
+        # only once: copied stand IDs or a resubmission don't count. A stale route needs a moderator
+        # or two different riders since it went stale, so one submission alone never revives it.
+        independent = _own_evidence(body) and not _has_contributed(session, existing, user.user_id)
+        if existing.status == "unverified":
+            verify = independent
+        else:
+            verify = existing.status == "stale" and reverified_by_riders({*riders_since_stale(session, existing), user.user_id})
+        if verify:
+            mark_verified(session, existing, now)
         existing.last_confirmed_at = now
-        existing.confidence = min(1.0, existing.confidence + 0.25)
+        if independent:
+            existing.confidence = min(1.0, existing.confidence + 0.25)
         contribution.status = "merged"
         contribution.route_id = match_id
         contribution.decided_at = now
@@ -228,6 +266,8 @@ def decide_contribution(
         raise not_found("Contribution")
     if c.status != "waiting":
         raise ApiError(409, "CONFLICT", f"This contribution was already {c.status}.")
+    if decision.action == "approve" and c.contributor_id == moderator.user_id:
+        raise ApiError(403, "FORBIDDEN", "Another moderator has to approve your own contribution.")
     route = session.get(Route, c.route_id) if c.route_id else None
 
     if decision.action == "edit":

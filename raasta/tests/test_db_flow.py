@@ -159,6 +159,70 @@ def test_two_contributors_submitting_the_same_route_verify_it(client):
     assert client.get(f"/v1/raasta/routes/{second.json()['routeId']}").json()["status"] == "verified"
 
 
+def test_copied_stand_ids_or_a_repeat_contributor_do_not_verify_a_new_route(client):
+    tapped = [{"name": "HSR 27th Main", "location": {"lat": 12.9116, "lng": 77.6474}}, {"name": "Silk Board", "location": {"lat": 12.9177, "lng": 77.6233}}]
+    first = client.post("/v1/raasta/contributions", json=_tapped("con-new00001", tapped), headers=auth("rider-1")).json()
+    route_id = first["routeId"]
+
+    def status() -> str:
+        return client.get(f"/v1/raasta/routes/{route_id}").json()["status"]
+
+    copied = [{"standId": s["standId"]} for s in first["route"]["stands"]]
+    r = client.post("/v1/raasta/contributions", json=_tapped("con-new00002", copied), headers=auth("rider-2")).json()
+    assert (r["status"], r["routeId"], status()) == ("merged", route_id, "unverified")
+    r = client.post("/v1/raasta/contributions", json=_tapped("con-new00003", tapped), headers=auth("rider-2")).json()
+    assert (r["status"], status()) == ("merged", "unverified")
+    r = client.post("/v1/raasta/contributions", json=_tapped("con-new00004", tapped), headers=auth("rider-3")).json()
+    assert (r["status"], status()) == ("merged", "verified")
+
+
+def test_one_submission_does_not_revive_a_stale_route(client, engine):
+    with Session(engine) as s:
+        mark_stale(s, NOW, days=0)
+    stands = [{"standId": i} for i in ("std-kor5", "std-forum", "std-dairy", "std-jay4")]
+    r = client.post("/v1/raasta/contributions", json=_tapped("con-stale001", stands), headers=auth("rider-5")).json()
+    assert (r["status"], r["routeId"]) == ("merged", "sample-kor-jay")
+    assert client.get("/v1/raasta/routes/sample-kor-jay").json()["status"] == "stale"
+    # The same person confirming as well is still one rider.
+    same = client.post("/v1/raasta/routes/sample-kor-jay/confirmations", json={"idempotencyKey": "conf-stale001"}, headers=auth("rider-5"))
+    assert same.json()["status"] == "stale"
+    other = client.post("/v1/raasta/routes/sample-kor-jay/confirmations", json={"idempotencyKey": "conf-stale002"}, headers=auth("rider-6"))
+    assert other.json()["status"] == "verified"
+    queue = client.get("/v1/raasta/contributions", params={"status": "waiting"}, headers=auth("mod", "moderator")).json()
+    assert "sample-kor-jay" not in [c["routeId"] for c in queue["items"]]
+
+
+def test_the_sample_stale_route_needs_two_new_riders(client):
+    url = "/v1/raasta/routes/sample-maj-mall/confirmations"
+    assert client.post(url, json={"idempotencyKey": "conf-maj00001"}, headers=auth("r1")).json()["status"] == "stale"
+    assert client.post(url, json={"idempotencyKey": "conf-maj00002"}, headers=auth("r2")).json()["status"] == "verified"
+
+
+def test_a_moderator_cannot_approve_their_own_contribution(client):
+    body = _tapped("con-own00001", [{"standId": "std-ind100"}, {"standId": "std-mg"}])
+    cid = client.post("/v1/raasta/contributions", json=body, headers=auth("mod-a", "moderator")).json()["contributionId"]
+    own = client.patch(f"/v1/raasta/contributions/{cid}", json={"action": "approve"}, headers=auth("mod-a", "moderator"))
+    assert own.status_code == 403 and own.json()["error"]["code"] == "FORBIDDEN"
+    other = client.patch(f"/v1/raasta/contributions/{cid}", json={"action": "approve"}, headers=auth("mod-b", "moderator"))
+    assert other.status_code == 200 and other.json()["route"]["status"] == "verified"
+
+
+def test_one_confirmation_per_rider_per_day(client, engine):
+    url = "/v1/raasta/routes/sample-kor-jay/confirmations"
+    first = client.post(url, json={"idempotencyKey": "conf-day00001"}, headers=auth("r1"))
+    assert first.status_code == 201 and first.json()["confirmationsCount"] == 5
+    rows = _count(engine, "confirmations")
+    again = client.post(url, json={"idempotencyKey": "conf-day00002"}, headers=auth("r1"))
+    assert again.status_code == 201 and again.json() == first.json()
+    assert _count(engine, "confirmations") == rows
+
+    client.app.dependency_overrides[utc_now] = lambda: NOW + timedelta(days=1)
+    next_day = client.post(url, json={"idempotencyKey": "conf-day00003"}, headers=auth("r1")).json()
+    assert _count(engine, "confirmations") == rows + 1
+    assert next_day["confirmationsCount"] == 5  # still five different riders
+    assert next_day["lastConfirmedAt"] > first.json()["lastConfirmedAt"]
+
+
 def test_repeated_contribution_creates_one_route(client):
     stands = [{"standId": "std-ind100"}, {"standId": "std-mg"}]
     body = _tapped("con-dddddddd", stands)
