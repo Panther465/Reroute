@@ -22,6 +22,8 @@ export type RooAction =
   | { type: 'options' }
   | { type: 'theme'; theme: 'light' | 'dark' | 'system' }
   | { type: 'voice'; on: boolean }
+  | { type: 'topup'; amount: number }
+  | { type: 'flight'; to?: string }
 
 /** Screens Roo can point to. */
 export type RooLink = { label: string; to: '/why' | '/summary' | '/plan' | '/raasta' | '/me' }
@@ -41,6 +43,8 @@ export interface RooAnswer {
   unknown?: boolean
   /** Roo only recognised a task in it and said what it knows: the AI helper, when on, may do better. */
   guess?: boolean
+  /** The sentence starts a conversation: Roo asks questions (lib/roo/flows.ts). */
+  flow?: 'replan' | 'newTrip'
 }
 
 export interface RooContext {
@@ -52,6 +56,8 @@ export interface RooContext {
   name?: string | null
   /** The task the conversation is about. */
   lastTaskId?: string | null
+  /** The wallet's balance, when the server has the wallet on. */
+  walletInr?: number | null
 }
 
 const HELP = 'Try “I’m 20 minutes late”, “move the bank to tomorrow”, “make the meeting 2 hours” or “what’s next?”'
@@ -116,6 +122,8 @@ export function confirmFor(action: RooAction, trip: Trip): RooAnswer['confirm'] 
       return { title: 'Plan the day again', detail: 'From where you are now, with every task still to do.', yes: 'Plan it' }
     case 'undo':
       return { title: 'Bring back the earlier plan', detail: 'The last change to your day is undone.', yes: 'Undo it' }
+    case 'topup':
+      return { title: `Add ${rupees(action.amount)} to your wallet`, detail: 'Simulated money: no card or bank is charged.', yes: 'Add it' }
     default:
       return undefined
   }
@@ -209,6 +217,41 @@ export function suggestions(ctx: RooContext): string[] {
 // Understanding a sentence
 // ---------------------------------------------------------------------------
 
+/** Cities the (simulated) airline flies to, as people say them. */
+const AIRPORT_OF: [RegExp, string][] = [
+  [/\b(delhi|new delhi)\b/, 'DEL'],
+  [/\b(mumbai|bombay)\b/, 'BOM'],
+  [/\b(chennai|madras)\b/, 'MAA'],
+  [/\bhyderabad\b/, 'HYD'],
+  [/\b(kolkata|calcutta)\b/, 'CCU'],
+  [/\bgoa\b/, 'GOI'],
+  [/\bpune\b/, 'PNQ'],
+  [/\b(kochi|cochin)\b/, 'COK'],
+  [/\bahmedabad\b/, 'AMD'],
+  [/\b(bengaluru|bangalore)\b/, 'BLR'],
+]
+
+function money(t: string, ctx: RooContext): RooAnswer | null {
+  const amount = t.match(/(?:₹|rs\.?|inr)?\s?(\d[\d,]{1,6})\s*(?:rupees|rs|inr)?/)
+  if (/\b(add|top ?up|put|load|deposit)\b/.test(t) && /\b(wallet|money|balance)\b/.test(t)) {
+    const n = amount ? Number(amount[1].replace(/,/g, '')) : NaN
+    if (!Number.isFinite(n) || n < 100 || n > 50000) return { reply: 'How much shall I add? Say an amount between ₹100 and ₹50,000, like “add 1000 to my wallet”.' }
+    const action: RooAction = { type: 'topup', amount: n }
+    return { reply: `Shall I add ${rupees(n)} to your wallet? It’s simulated money for simulated bookings.`, action, confirm: confirmFor(action, ctx.trip as Trip) }
+  }
+  if (/\b(balance|wallet|how much money)\b/.test(t)) {
+    if (ctx.walletInr == null) return { reply: 'Your wallet lives in Me, with its balance and every booking it paid for.', links: [{ label: 'Open Me', to: '/me' }] }
+    return { reply: `Your wallet has ${rupees(ctx.walletInr)} of simulated money.${ctx.walletInr < 1000 ? ' Say “add 2000 to my wallet” to top it up.' : ''}`, links: [{ label: 'Open my wallet', to: '/me' }], mood: 'happy' }
+  }
+  return null
+}
+
+function flight(t: string): RooAnswer | null {
+  if (!/\b(flight|flights|fly|flying|plane|air ticket)\b/.test(t)) return null
+  const to = AIRPORT_OF.find(([re, code]) => code !== 'BLR' && re.test(t))?.[1]
+  return { reply: to ? 'Let’s find you a flight. Here are SkyHop’s, simulated.' : 'Let’s find you a flight. Where to?', action: { type: 'flight', to } }
+}
+
 function nextTripDay(trip: Trip, text: string): string | null {
   const days: string[] = []
   for (let d = addDays(trip.day, 1); d <= trip.endDate; d = addDays(d, 1)) days.push(d)
@@ -268,7 +311,10 @@ export function understand(spoken: string, ctx: RooContext): RooAnswer {
   if (/\b(who are you|what are you|your name)\b/.test(t)) return { reply: 'I’m Roo, your travel companion. I watch your day, nudge you when it’s time to go, and change the plan when you ask.', mood: 'wave' }
   if (/\b(how are you|how're you|how r u|how do you do)\b/.test(t)) return { reply: `I’m good, thanks for asking! ${status(ctx)}`, mood: 'happy' }
   if (/\b(help|what can you do|what do you do|commands)\b/.test(t)) {
-    return { reply: `I can tell you what’s next, deal with running late, mark stops done, skip or move a task, change its time or length, plan the day again, or undo a change. ${HELP}`, mood: 'happy' }
+    return {
+      reply: `I can tell you what’s next, deal with running late, mark stops done, skip or move a task, change its time or length, re-plan the day with you, start a new trip, book a flight, or top up your wallet. ${HELP}`,
+      mood: 'happy',
+    }
   }
 
   // Settings
@@ -277,11 +323,23 @@ export function understand(spoken: string, ctx: RooContext): RooAnswer {
   if (/\b(mute|be quiet|stop talking|silence|quiet mode|no voice|turn off (the |your )?voice)\b/.test(t)) return { reply: 'I’ll stay quiet. Alerts still show on screen and chime.', action: { type: 'voice', on: false } }
   if (/\b(unmute|turn on (the |your )?voice|speak up|talk out loud|read (it|them) (out|aloud))\b/.test(t)) return { reply: 'I’ll read your alerts out loud again.', action: { type: 'voice', on: true }, mood: 'happy' }
 
+  // Conversations: a new trip, or re-planning today, both start with questions
+  if (/\b(new (plan|trip)|entire(ly)? new|whole new|completely new|brand new|start (over|fresh|from scratch)|from scratch|create (a|another) (new )?(plan|trip))\b/.test(t)) return { reply: '', flow: 'newTrip' }
+  if (/\b(re[- ]?plan|change (my|the) plan|adjust (my|the) (plan|day)|(my )?plans? (have |has )?changed|something (has )?changed)\b/.test(t) && !/\b(plan (my|the) day again|plan (it|everything) again)\b/.test(t)) {
+    return { reply: '', flow: 'replan' }
+  }
+
+  // Money and flights
+  const m = money(t, ctx)
+  if (m) return m
+  const f = flight(t)
+  if (f) return f
+
   // The plan as a whole
   if (/\b(undo|change it back|put it back|revert|go back to the (old|earlier|previous|last) plan|previous plan)\b/.test(t)) {
     return { reply: 'Shall I bring back your earlier plan?', action: { type: 'undo' }, confirm: trip && confirmFor({ type: 'undo' }, trip) }
   }
-  if (/\b(re-?plan|plan (my|the) day( again)?|plan (it|everything) again|optimi[sz]e|re-?route (my|the) day|start over)\b/.test(t)) {
+  if (/\b(plan (my|the) day( again)?|plan (it|everything) again|optimi[sz]e|re-?route (my|the) day)\b/.test(t)) {
     if (!trip) return { reply: 'There’s no trip to plan yet. Start one on Plan.', links: [{ label: 'Go to Plan', to: '/plan' }] }
     return { reply: 'Shall I plan the rest of your day again, from where you are now?', action: { type: 'replan' }, confirm: confirmFor({ type: 'replan' }, trip) }
   }

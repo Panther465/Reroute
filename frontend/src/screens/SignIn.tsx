@@ -61,7 +61,8 @@ export default function SignIn() {
     void loadShell().catch(() => undefined)
     void loadToday().catch(() => undefined)
   }
-  const signedIn = (how: 'created' | 'signedIn' | 'demo') => navigate(how === 'created' ? '/' : from, { replace: true })
+  // A new account meets Roo, who sets up the first trip with them.
+  const signedIn = (how: 'created' | 'signedIn' | 'demo') => navigate(how === 'created' ? '/welcome' : from, { replace: true })
 
   const demoDay = async () => {
     setBusy(true)

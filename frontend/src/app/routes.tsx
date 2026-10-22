@@ -16,6 +16,8 @@ export const router = createBrowserRouter([
     children: [
       { path: '/signin', Component: SignIn },
       { path: '/shared/:token', lazy: screen(() => import('@/screens/FamilyView')) },
+      // A new account meets Roo full screen, outside the tabs.
+      { path: '/welcome', lazy: screen(() => import('@/screens/Welcome')) },
       {
         path: '/',
         lazy: screen(loadShell),

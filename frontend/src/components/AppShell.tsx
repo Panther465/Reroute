@@ -18,6 +18,7 @@ import { useSessionStatus } from '@/lib/session'
 import { T } from '@/lib/i18n'
 import { getState, setState, useAnnouncement, useStore } from '@/lib/store'
 import { LateContext } from '@/lib/late'
+import { connectAllOnce } from '@/lib/partners'
 import { localMinutes } from '@/lib/timeline'
 
 // Loaded the first time they're needed, so the shell stays small.
@@ -187,9 +188,10 @@ export default function AppShell() {
   const clock = useTripClock(serverNow, trip.dataUpdatedAt, trip.data?.clockSimulated ?? false)
   useFocusHeadingOnNavigate(location.pathname)
 
-  // The demo account always gets the Simulate panel.
+  // The demo account always gets the Simulate panel, and every (simulated) booking partner connected.
   useEffect(() => {
     if (me.data?.isDemo && !getState().demo.enabled) setState((s) => ({ demo: { ...s.demo, enabled: true } }))
+    if (me.data?.isDemo) connectAllOnce()
   }, [me.data?.isDemo])
 
   useLive(current.tripId, session === 'signedIn' && online)
@@ -219,6 +221,8 @@ export default function AppShell() {
   }
   // Signed out (or the session ran out): back to Sign in, which returns here afterwards.
   if (session === 'signedOut') return <Navigate to="/signin" replace state={{ from: location.pathname + location.search }} />
+  // An account with no trip yet meets Roo, who sets the first one up (the demo account always has its own).
+  if (location.pathname === '/' && me.data && !me.data.isDemo && !current.isPending && !current.isError && current.tripId === null) return <Navigate to="/welcome" replace />
   const pushed = matches.some((m) => (m.handle as { pushed?: boolean } | undefined)?.pushed)
   const group = location.pathname.split('/')[1] ?? ''
   const openLate = (delay: number | null = null, mode: 'late' | 'options' = 'late') => {
