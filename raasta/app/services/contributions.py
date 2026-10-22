@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import datetime
 
@@ -9,7 +10,7 @@ from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.adapters.osrm import Router
-from app.adapters.rides import RideStore
+from app.adapters.rides import RideStore, RideStoreUnavailable
 from app.config import Settings
 from app.errors import ApiError, not_found
 from app.models import Contribution, Route, RouteStand, Stand
@@ -21,6 +22,8 @@ from app.services.geo import LatLng, RidePoint, downsample, suggest_stops, trim_
 from app.services.matching import RouteShape, find_match
 from app.services.timefmt import parse_hhmm, to_local_iso
 
+log = logging.getLogger("raasta")
+
 TRIM_M = 200.0
 #: Rides are thinned to this many points, spread over time, before finding stops and snapping to roads.
 MAX_RIDE_POINTS = 2000
@@ -28,6 +31,12 @@ MAX_RIDE_POINTS = 2000
 
 def new_id(prefix: str) -> str:
     return f"{prefix}-{uuid.uuid4().hex[:12]}"
+
+
+def _ride_store_down(session: Session, exc: RideStoreUnavailable) -> ApiError:
+    session.rollback()
+    log.warning("ride store unavailable: %s", exc)
+    return ApiError(503, "UNAVAILABLE", "Recorded rides can't be saved or removed right now. Try again in a few minutes.")
 
 
 def _resolve_stand(session: Session, city: str, tapped: TappedStand, settings: Settings) -> Stand:
@@ -90,6 +99,7 @@ def create_contribution(
     contribution_id = new_id("con")
     suggested: list[LatLng] = []
     snapped: list[LatLng] | None = None
+    ride: list[RidePoint] | None = None
     payload: dict = {
         "vehicleType": body.vehicle_type,
         "fareInr": body.fare_inr,
@@ -102,14 +112,14 @@ def create_contribution(
         assert body.points is not None
         trimmed = trim_ride([RidePoint(p.lat, p.lng, p.t) for p in body.points], TRIM_M)
         if len(trimmed) < 2:
-            raise ApiError(422, "VALIDATION_ERROR", "This ride is too short to keep once the first and last 200 m are trimmed.")
+            raise ApiError(422, "VALIDATION_ERROR", "This ride is too short to keep once the points within 200 m of its start and end are removed.")
         sampled = downsample(trimmed, MAX_RIDE_POINTS)
         suggested = suggest_stops(sampled)
         snapped = router.match(sampled) or [LatLng(p.lat, p.lng) for p in sampled]
         tapped = body.stands or [TappedStand(name=f"Stand {i}", location=Location(lat=p.lat, lng=p.lng)) for i, p in enumerate(suggested, start=1)]
         if len(tapped) < 2:
             raise ApiError(422, "VALIDATION_ERROR", "Mark at least two stands while you ride, or add them after the ride.")
-        rides.save(contribution_id, user.user_id, body.city_slug, trimmed, now)
+        ride = trimmed
         payload["pointsKept"] = len(trimmed)
         payload["pointsTrimmed"] = len(body.points) - len(trimmed)
     else:
@@ -175,7 +185,22 @@ def create_contribution(
         session.flush()
         contribution.route_id = route.route_id
     session.add(contribution)
-    session.commit()
+    session.flush()
+    # The ride goes to MongoDB only once everything else is valid, so a refused contribution never leaves one behind.
+    if ride is not None:
+        try:
+            rides.save(contribution_id, user.user_id, body.city_slug, ride, now)
+        except RideStoreUnavailable as exc:
+            raise _ride_store_down(session, exc) from exc
+    try:
+        session.commit()
+    except Exception:
+        if ride is not None:
+            try:
+                rides.delete(contribution_id)
+            except RideStoreUnavailable:
+                log.error("couldn't remove the ride of failed contribution %s", contribution_id)
+        raise
     return _contribution_out(session, contribution, settings, now, suggested)
 
 
@@ -196,7 +221,7 @@ def list_contributions(
 
 
 def decide_contribution(
-    session: Session, moderator: User, contribution_id: str, decision: ContributionDecision, settings: Settings, now: datetime
+    session: Session, moderator: User, contribution_id: str, decision: ContributionDecision, rides: RideStore, settings: Settings, now: datetime
 ) -> ContributionOut:
     c = session.get(Contribution, contribution_id)
     if c is None:
@@ -242,5 +267,10 @@ def decide_contribution(
             c.route_id = None
             session.flush()
             session.delete(route)
+        if c.kind == "gps_ride":
+            try:
+                rides.delete(c.contribution_id)
+            except RideStoreUnavailable as exc:
+                raise _ride_store_down(session, exc) from exc
     session.commit()
     return _contribution_out(session, c, settings, now)

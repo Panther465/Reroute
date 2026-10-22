@@ -37,21 +37,18 @@ def path_length_m(points: Sequence[LatLng | RidePoint]) -> float:
 
 
 def trim_ride(points: Sequence[RidePoint], trim_m: float = 200.0) -> list[RidePoint]:
-    """Drop every point within the first and last `trim_m` metres of the ride.
+    """Keep only the points more than `trim_m` metres, in a straight line, from both the first and the last point.
 
-    Those ends usually reveal where the rider lives or works, so they are never stored.
-    A ride shorter than twice `trim_m` leaves nothing.
+    Those ends usually reveal where the rider lives or works, so they are never stored. The
+    distance is measured in a straight line, not along the path, so GPS jitter while the rider
+    waits at the start can't use up the margin. A ride that never gets that far from both ends
+    leaves nothing.
     """
     pts = sorted(points, key=lambda p: p.t)
     if len(pts) < 2:
         return []
-    cumulative = [0.0]
-    for i in range(1, len(pts)):
-        cumulative.append(cumulative[-1] + distance_m(pts[i - 1], pts[i]))
-    total = cumulative[-1]
-    if total <= 2 * trim_m:
-        return []
-    return [p for p, d in zip(pts, cumulative, strict=True) if trim_m < d < total - trim_m]
+    first, last = pts[0], pts[-1]
+    return [p for p in pts if distance_m(p, first) > trim_m and distance_m(p, last) > trim_m]
 
 
 def downsample(points: Sequence[RidePoint], max_points: int = 2000) -> list[RidePoint]:

@@ -15,7 +15,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.orm import Session
 
 from app.adapters.osrm import get_router
-from app.adapters.rides import get_ride_store
+from app.adapters.rides import RideStoreUnavailable, get_ride_store
 from app.db import Base, get_session
 from app.main import create_app
 from app.routes.deps import utc_now
@@ -41,13 +41,28 @@ class NoRouting:
 
 
 class MemoryRides:
+    """A fake ride store. Set `down` to make every call fail like an unreachable MongoDB."""
+
     def __init__(self) -> None:
         self.saved: dict[str, list] = {}
+        self.saves = 0
+        self.down = False
+
+    def _check(self) -> None:
+        if self.down:
+            raise RideStoreUnavailable("mongo is down")
 
     def save(self, contribution_id, user_id, city_slug, points, at):  # noqa: ANN001
+        self._check()
+        self.saves += 1
         self.saved[contribution_id] = list(points)
 
+    def delete(self, contribution_id):  # noqa: ANN001
+        self._check()
+        self.saved.pop(contribution_id, None)
+
     def delete_for_user(self, user_id):  # noqa: ANN001
+        self._check()
         return 0
 
 
@@ -152,11 +167,17 @@ def test_repeated_contribution_creates_one_route(client):
     assert a.json() == b.json() and b.headers["idempotent-replayed"] == "true"
 
 
-def test_recorded_ride_is_trimmed_and_needs_stands(client):
+RIDE_STANDS = [
+    {"name": "Ride start stand", "location": {"lat": 12.9025, "lng": 77.60}},
+    {"name": "Ride end stand", "location": {"lat": 12.9095, "lng": 77.60}},
+]
+
+
+def _ride(key: str, stands: list[dict] | None = None) -> dict:
     t0 = datetime(2026, 10, 14, 4, 0, tzinfo=UTC)
     points = [{"lat": 12.90 + i * 0.0002, "lng": 77.60, "t": (t0 + timedelta(seconds=10 * i)).isoformat()} for i in range(60)]
-    body = {
-        "idempotencyKey": "con-ride0001",
+    return {
+        "idempotencyKey": key,
         "kind": "gps_ride",
         "vehicleType": "e_rickshaw",
         "fareInr": 20,
@@ -164,16 +185,67 @@ def test_recorded_ride_is_trimmed_and_needs_stands(client):
         "firstTrip": "07:00",
         "lastTrip": "22:00",
         "points": points,
-        "stands": [
-            {"name": "Ride start stand", "location": {"lat": 12.9025, "lng": 77.60}},
-            {"name": "Ride end stand", "location": {"lat": 12.9095, "lng": 77.60}},
-        ],
+        "stands": RIDE_STANDS if stands is None else stands,
     }
-    r = client.post("/v1/raasta/contributions", json=body, headers=auth("rider-3"))
+
+
+def _count(engine, table: str) -> int:  # noqa: ANN001
+    with engine.connect() as conn:
+        return conn.execute(text(f"SELECT count(*) FROM raasta.{table}")).scalar_one()
+
+
+def test_recorded_ride_is_trimmed_and_needs_stands(client):
+    r = client.post("/v1/raasta/contributions", json=_ride("con-ride0001"), headers=auth("rider-3"))
     assert r.status_code == 201, r.text
     saved = client.rides.saved[r.json()["contributionId"]]
     assert 0 < len(saved) < 60
     assert r.json()["payload"]["pointsTrimmed"] > 0
+
+
+def test_a_refused_ride_is_never_stored(client):
+    missing = client.post("/v1/raasta/contributions", json=_ride("con-ride0002", [{"standId": "std-nope"}, {"standId": "std-kor5"}]), headers=auth("rider-3"))
+    twice = client.post("/v1/raasta/contributions", json=_ride("con-ride0003", [{"standId": "std-kor5"}, {"standId": "std-kor5"}]), headers=auth("rider-3"))
+    assert missing.status_code == twice.status_code == 422
+    assert client.rides.saves == 0 and client.rides.saved == {}
+
+
+def test_ride_store_down_is_503_and_adds_nothing(client, engine):
+    routes, contributions = _count(engine, "routes"), _count(engine, "contributions")
+    client.rides.down = True
+    r = client.post("/v1/raasta/contributions", json=_ride("con-ride0004"), headers=auth("rider-3"))
+    assert r.status_code == 503 and r.json()["error"]["code"] == "UNAVAILABLE"
+    assert (_count(engine, "routes"), _count(engine, "contributions")) == (routes, contributions)
+    client.rides.down = False
+    assert client.post("/v1/raasta/contributions", json=_ride("con-ride0004"), headers=auth("rider-3")).status_code == 201
+
+
+def test_a_failed_commit_removes_the_saved_ride(client, engine):
+    class CommitFails(Session):
+        def commit(self) -> None:
+            raise RuntimeError("the database went away")
+
+    def failing_session():
+        with CommitFails(engine, expire_on_commit=False) as s:
+            yield s
+
+    client.app.dependency_overrides[get_session] = failing_session
+    r = TestClient(client.app, raise_server_exceptions=False).post("/v1/raasta/contributions", json=_ride("con-ride0005"), headers=auth("rider-3"))
+    assert r.status_code == 500
+    assert client.rides.saves == 1 and client.rides.saved == {}
+
+
+def test_rejecting_a_ride_deletes_it(client):
+    created = client.post("/v1/raasta/contributions", json=_ride("con-ride0006"), headers=auth("rider-3")).json()
+    cid = created["contributionId"]
+    assert cid in client.rides.saved
+    reject = {"action": "reject", "reason": "not a real route"}
+    client.rides.down = True
+    down = client.patch(f"/v1/raasta/contributions/{cid}", json=reject, headers=auth("mod", "moderator"))
+    assert down.status_code == 503 and cid in client.rides.saved
+    client.rides.down = False
+    r = client.patch(f"/v1/raasta/contributions/{cid}", json=reject, headers=auth("mod", "moderator"))
+    assert r.status_code == 200 and r.json()["status"] == "rejected"
+    assert cid not in client.rides.saved
 
 
 def test_moderator_approves_edits_and_rejects(client):

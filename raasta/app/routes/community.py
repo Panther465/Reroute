@@ -67,10 +67,11 @@ def decide_contribution(
     body: ContributionDecision,
     moderator: User = Depends(require_moderator),
     session: Session = Depends(get_session),
+    rides: RideStore = Depends(get_ride_store),
     settings: Settings = Depends(get_settings),
     now: datetime = Depends(utc_now),
 ) -> ContributionOut:
-    return contributions.decide_contribution(session, moderator, contribution_id, body, settings, now)
+    return contributions.decide_contribution(session, moderator, contribution_id, body, rides, settings, now)
 
 
 @router.post("/routes/{route_id}/confirmations", response_model=ConfirmationOut, status_code=status.HTTP_201_CREATED, summary="Confirm that a route still runs")
