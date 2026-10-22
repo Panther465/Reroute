@@ -55,10 +55,14 @@ export interface UiState {
   started: { tripId: string; toId: string; day?: string; at?: number } | null
   /** The chat with Roo is open. */
   rooChat: boolean
+  /** Simulated partners the traveller has connected in Me (RideNow, RailGo, SkyHop…). */
+  connections: Record<string, boolean>
+  /** Roo reads its chat replies aloud. */
+  rooVoice: boolean
 }
 
 const KEY = 'reroute:prefs:v2'
-const PERSISTED: (keyof UiState)[] = ['theme', 'lang', 'leaveAlerts', 'alerts', 'demo', 'roo', 'started', 'tripId']
+const PERSISTED: (keyof UiState)[] = ['theme', 'lang', 'leaveAlerts', 'alerts', 'demo', 'roo', 'started', 'tripId', 'connections', 'rooVoice']
 
 function defaults(): UiState {
   return {
@@ -77,6 +81,8 @@ function defaults(): UiState {
     optimisticDone: [],
     started: null,
     rooChat: false,
+    connections: {},
+    rooVoice: true,
   }
 }
 

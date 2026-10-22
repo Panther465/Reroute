@@ -9,6 +9,7 @@ import { keys, queryClient, useAiHelperEnabled, useCurrentTripId, useTrip, waitF
 import type { Body, JobAccepted, Place, Task, TaskDraft, TaskIn, Trip, TripIn } from '@/api/types'
 import { PlacePicker } from '@/components/PlacePicker'
 import { TripSwitcher } from '@/components/TripSwitcher'
+import { TripBookings } from '@/components/TripBookings'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { Field, FieldError } from '@/components/ui/Field'
 import { Sheet } from '@/components/ui/Sheet'
@@ -489,7 +490,7 @@ export default function PlanDay() {
 
   return (
     // On a desktop the tasks fill the left; the trip and the button that plans it sit in a column beside them.
-    <div className="mx-auto max-w-[560px] px-5 pb-10 pt-6 lg:grid lg:max-w-[1200px] lg:grid-cols-[minmax(0,1fr)_380px] lg:grid-rows-[auto_auto_1fr] lg:gap-x-12 lg:px-8 lg:pt-8">
+    <div className="mx-auto max-w-[560px] px-5 pb-10 pt-6 lg:grid lg:max-w-[1200px] lg:grid-cols-[minmax(0,1fr)_380px] lg:grid-rows-[auto_auto_auto_1fr] lg:gap-x-12 lg:px-8 lg:pt-8">
       <h1 tabIndex={-1} className="t-display-1 text-ink lg:col-span-2">
         <T k={trip.activePlan ? 'Your trip' : 'New trip'} />
       </h1>
@@ -524,7 +525,7 @@ export default function PlanDay() {
       <TripSwitcher open={tripsOpen} onOpenChange={setTripsOpen} />
       </div>
 
-      <section className="mt-8 lg:col-start-1 lg:row-span-2 lg:row-start-2 lg:mt-6" aria-labelledby="tasks-h">
+      <section className="mt-8 lg:col-start-1 lg:row-span-3 lg:row-start-2 lg:mt-6" aria-labelledby="tasks-h">
         <div className="flex items-end justify-between gap-3">
           <h2 id="tasks-h" className="t-display-2 text-ink">
             <T k="Your tasks" />
@@ -661,6 +662,8 @@ export default function PlanDay() {
         </p>
         {!online && <p className="mt-2 t-small text-ink-2">Planning needs a connection. Your plan so far still works.</p>}
       </div>
+
+      <TripBookings trip={trip} className="mt-10 lg:col-start-2 lg:row-start-4 lg:mt-8 lg:self-start" />
 
       <TaskFormSheet trip={trip} open={form.open} onOpenChange={(o) => setForm((f) => ({ ...f, open: o }))} initial={form.task} onSave={saveTask} onRemove={removeTask} />
       {googleEnabled && (

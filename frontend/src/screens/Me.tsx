@@ -2,7 +2,8 @@ import { ChevronRight, History, Languages, LogOut, Luggage, Moon, ShieldCheck, S
 import { useId, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { api, ApiError } from '@/api/client'
-import { useCurrentTripId, useMe, useTrip } from '@/api/queries'
+import { useCurrentTripId, useMe, useTrip, useWalletEnabled } from '@/api/queries'
+import { ConnectedServices, WalletPanel } from '@/components/money/Money'
 import { RerouteLog } from '@/components/RerouteLog'
 import { TripSwitcher } from '@/components/TripSwitcher'
 import { Button } from '@/components/ui/Button'
@@ -17,11 +18,11 @@ import { geolocationSupported, startTracking, stopTracking, useLocation } from '
 import { signOut } from '@/lib/session'
 import { setState, showToast, useStore, type AlertPrefs, type ChimeStyle, type Lang, type Theme, type VoiceRate } from '@/lib/store'
 
-function Section({ title, children, className = 'lg:col-start-1' }: { title: string; children: React.ReactNode; className?: string }) {
+function Section({ title, children, className = '' }: { title: string; children: React.ReactNode; className?: string }) {
   const heading = useTl()(title)
   const id = useId()
   return (
-    <section className={`mt-8 ${className}`} aria-labelledby={id}>
+    <section className={`mt-8 break-inside-avoid ${className}`} aria-labelledby={id}>
       <h2 id={id} lang={heading.lang} className="mb-3 t-title text-ink">
         {heading.text}
       </h2>
@@ -44,6 +45,8 @@ export default function Me() {
   const lang = useStore((s) => s.lang)
   const alerts = useStore((s) => s.leaveAlerts)
   const roo = useStore((s) => s.roo)
+  const rooVoice = useStore((s) => s.rooVoice)
+  const walletOn = useWalletEnabled()
   const alertPrefs = useStore((s) => s.alerts)
   const setAlerts = (patch: Partial<AlertPrefs>) => setState((s) => ({ alerts: { ...s.alerts, ...patch } }))
   const voiceSelectId = useId()
@@ -89,11 +92,12 @@ export default function Me() {
   }
 
   return (
-    // On a desktop the alert settings, the longest group, take the right column; the rest stay on the left.
-    <div className="mx-auto max-w-[560px] px-5 pb-10 pt-6 lg:grid lg:max-w-[1200px] lg:grid-cols-2 lg:grid-rows-[auto_repeat(7,auto)_1fr] lg:items-start lg:gap-x-12 lg:px-8 lg:pt-8">
-      <h1 tabIndex={-1} className="t-display-1 text-ink lg:col-span-2 lg:row-start-1">
+    <div className="mx-auto max-w-[560px] px-5 pb-10 pt-6 lg:max-w-[1200px] lg:px-8 lg:pt-8">
+      <h1 tabIndex={-1} className="t-display-1 text-ink">
         <T k="Me" />
       </h1>
+      {/* On a desktop the groups flow down two columns, in the same order as on a phone. */}
+      <div className="lg:columns-2 lg:gap-12">
 
       <Section title="Profile">
         {me.isPending ? (
@@ -120,6 +124,18 @@ export default function Me() {
           )
         )}
       </Section>
+
+      {walletOn && (
+        <>
+          <Section title="Wallet">
+            <WalletPanel />
+          </Section>
+          <Section title="Connected services">
+            <p className="-mt-1 mb-3 t-small text-ink-2">Partners Reroute books through. All simulated: connecting one links nothing real.</p>
+            <ConnectedServices />
+          </Section>
+        </>
+      )}
 
       <Section title="Language">
         <Segmented<Lang>
@@ -150,7 +166,7 @@ export default function Me() {
         />
       </Section>
 
-      <Section title="Alerts" className="lg:col-start-2 lg:row-[2/-1]">
+      <Section title="Alerts">
         <p className="mb-3 t-small text-ink-2">Before you leave, when a task is about to end, when you're nearly there and when you arrive. Every alert also shows on screen.</p>
         <div className="divide-y divide-line rounded-card border border-line bg-surface px-4">
           <Switch label="Sound" description="A chime at each alert." checked={alertPrefs.sound} onChange={(v) => setAlerts({ sound: v })} />
@@ -246,7 +262,9 @@ export default function Me() {
 
       <Section title="Roo">
         <div className="rounded-card border border-line bg-surface px-4">
-          <Switch label="Roo on Today" description="Roo rides the Now line on Today, with a menu for the stop under way. Alerts still come when it's off." checked={roo} onChange={(v) => setState({ roo: v })} />
+          <Switch label="Roo on Today" description="Roo rides the Now line on Today; tap it to chat. Alerts still come when it's off." checked={roo} onChange={(v) => setState({ roo: v })} />
+          <div className="border-t border-line" />
+          <Switch label="Roo reads its replies aloud" description="In the chat, Roo speaks as well as types. The speaker button in the chat turns it off too." checked={rooVoice} onChange={(v) => setState({ rooVoice: v })} />
         </div>
       </Section>
 
@@ -296,7 +314,7 @@ export default function Me() {
         </ul>
       </Section>
 
-      <div className="mt-10 flex flex-col items-start gap-3 lg:col-start-1">
+      <div className="mt-10 flex break-inside-avoid flex-col items-start gap-3">
         <Button variant="destructive" onClick={() => setConfirm(true)} disabled={!online}>
           <T k="Delete my location history" />
         </Button>
@@ -310,6 +328,7 @@ export default function Me() {
         >
           <T k="Sign out" />
         </Button>
+      </div>
       </div>
 
       <Sheet

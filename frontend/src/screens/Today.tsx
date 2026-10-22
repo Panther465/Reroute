@@ -1,4 +1,4 @@
-import { BellRing, Car, CarTaxiFront, ChevronDown, CircleCheck, LocateFixed, Map as MapIcon, MapPin, MapPinned, Navigation, Plus, Route, Scale, Share2, Ticket, TrainFront, TriangleAlert, X } from 'lucide-react'
+import { BellRing, Car, CarTaxiFront, ChevronDown, CircleCheck, LocateFixed, Map as MapIcon, MapPin, MapPinned, Navigation, Plane, Plus, Route, Scale, Share2, Ticket, TrainFront, TriangleAlert, X } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation as useRouterLocation, useNavigate } from 'react-router'
 import { useAiHelperEnabled, useBookings, useBookingsEnabled, useCurrentTripId, useDay, useTrip } from '@/api/queries'
@@ -16,7 +16,7 @@ import { ApiError } from '@/api/client'
 import { applyServerChange, checkIn, moveTaskToDay, playLater, playTaskEdit, replanDay, undo, undoVersionOf } from '@/lib/actions'
 import { duration, lowerFirst } from '@/lib/format'
 import { stopIcon } from '@/lib/stopIcon'
-import { activeBooking, isTrainTask } from '@/lib/bookings'
+import { activeBooking, isFlightTask, isTrainTask } from '@/lib/bookings'
 import type { MapPoint } from '@/components/MapCard'
 import { legLines, type MapLine } from '@/lib/geo'
 import { useDayGuide } from '@/lib/dayAlerts'
@@ -36,6 +36,7 @@ const TaskSheet = lazy(() => import('./TaskSheet').then((m) => ({ default: m.Tas
 const RerouteLog = lazy(() => import('@/components/RerouteLog').then((m) => ({ default: m.RerouteLog })))
 const CheckInConfirm = lazy(() => import('./CheckInConfirm').then((m) => ({ default: m.CheckInConfirm })))
 const TrainBookingSheet = lazy(() => import('./BookingSheets').then((m) => ({ default: m.TrainBookingSheet })))
+const FlightBookingSheet = lazy(() => import('./BookingSheets').then((m) => ({ default: m.FlightBookingSheet })))
 const CabBookingSheet = lazy(() => import('./BookingSheets').then((m) => ({ default: m.CabBookingSheet })))
 const BookingSheet = lazy(() => import('./BookingSheets').then((m) => ({ default: m.BookingSheet })))
 const AiPlannerSheet = lazy(() => import('./AiPlannerSheet').then((m) => ({ default: m.AiPlannerSheet })))
@@ -222,7 +223,9 @@ export default function Today() {
   const [trainFor, setTrainFor] = useState<Task | null>(null)
   const [cabFor, setCabFor] = useState<{ toId: string; name: string } | null>(null)
   const [viewing, setViewing] = useState<Booking | null>(null)
-  const bookingLoaded = useLoadedOnce(!!trainFor || !!cabFor || !!viewing)
+  // A flight sheet, open (with where to, when Roo was asked for one).
+  const [flightTo, setFlightTo] = useState<{ to?: string } | null>(null)
+  const bookingLoaded = useLoadedOnce(!!trainFor || !!cabFor || !!viewing || !!flightTo)
   const tripsLoaded = useLoadedOnce(tripsOpen)
   const logLoaded = useLoadedOnce(logOpen)
   const shareLoaded = useLoadedOnce(shareOpen)
@@ -261,7 +264,7 @@ export default function Today() {
   // Roo on the timeline asks for "Add a task" or "Edit this stop"; do it here, then clear the request.
   const routerLocation = useRouterLocation()
   useEffect(() => {
-    const ask = routerLocation.state as { add?: number; addText?: string; stop?: string; bookTrain?: string } | null
+    const ask = routerLocation.state as { add?: number; addText?: string; stop?: string; bookTrain?: string; bookFlight?: { to?: string } } | null
     if (!ask || !view) return
     // Without the AI helper, a task is added with the form on Plan (and the request goes with it).
     if (ask.add && !ai) return void navigate('/plan', { state: { addTask: true } })
@@ -272,6 +275,7 @@ export default function Today() {
     }
     if (ask.stop) setStop(view.stops.find((s) => s.id === ask.stop) ?? null)
     if (ask.bookTrain) setTrainFor(trip?.tasks.find((t) => t.taskId === ask.bookTrain) ?? null)
+    if (ask.bookFlight) setFlightTo(ask.bookFlight)
     navigate(routerLocation.pathname, { replace: true, state: null })
   }, [routerLocation.state, view]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -383,6 +387,18 @@ export default function Today() {
   )
   const tripSheets = (
     <Suspense fallback={null}>
+      {bookingLoaded && flightTo && (
+        <FlightBookingSheet
+          trip={trip}
+          initialTo={flightTo.to}
+          open
+          onOpenChange={(o) => !o && setFlightTo(null)}
+          onBooked={(b) => {
+            setFlightTo(null)
+            setViewing(b)
+          }}
+        />
+      )}
       {bookingLoaded && trainFor && (
         <TrainBookingSheet
           key={trainFor.taskId}
@@ -635,7 +651,23 @@ export default function Today() {
   // A train task offers its (demo) ticket; once booked, the stop shows the PNR and status.
   const trainExtra = (taskId: string) => {
     const task = trip.tasks.find((t) => t.taskId === taskId)
-    if (!bookingsOn || !task || !isTrainTask(task) || task.state === 'done') return null
+    if (!bookingsOn || !task || task.state === 'done') return null
+    // A flight task offers a (demo) flight; once one is booked, its PNR.
+    if (isFlightTask(task)) {
+      const flight = bookings.data?.find((b) => b.kind === 'flight' && b.status === 'confirmed')
+      return flight ? (
+        <button type="button" onClick={() => setViewing(flight)} className="mt-1 inline-flex min-h-12 items-center gap-2 rounded-full border border-green bg-green-tint px-3 t-small font-bold text-ink">
+          <Plane size={18} strokeWidth={1.75} aria-hidden="true" className="shrink-0" />
+          PNR {flight.reference}, {String(flight.details.flightNo)}
+        </button>
+      ) : (
+        <button type="button" onClick={() => setFlightTo({})} className={`mt-1 ${linkButton}`}>
+          <Plane size={18} strokeWidth={1.75} aria-hidden="true" />
+          Book flight
+        </button>
+      )
+    }
+    if (!isTrainTask(task)) return null
     const ticket = activeBooking(bookings.data, { taskId: task.taskId })
     return ticket ? (
       <button type="button" onClick={() => setViewing(ticket)} className="mt-1 inline-flex min-h-12 items-center gap-2 rounded-full border border-green bg-green-tint px-3 t-small font-bold text-ink">
