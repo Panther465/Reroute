@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import logging
+import threading
+from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 from fastapi import FastAPI
@@ -103,6 +105,35 @@ def test_same_key_with_a_different_body_is_409(redis):
     r = client.post("/echo", json={"idempotencyKey": "chk-00000002", "n": 2})
     assert r.status_code == 409
     assert r.json()["error"]["code"] == "IDEMPOTENCY_CONFLICT"
+
+
+def test_a_repeat_while_the_first_is_still_running_is_in_progress(redis):
+    """Distinct from IDEMPOTENCY_CONFLICT: the client keeps the same key and retries."""
+    entered, release = threading.Event(), threading.Event()
+    app = FastAPI()
+    install_error_handlers(app)
+
+    @app.post("/slow", status_code=201)
+    def slow(body: Echo) -> dict:
+        entered.set()
+        release.wait(5)
+        return {"n": body.n}
+
+    app.add_middleware(BodyLimitAndIdempotencyMiddleware, redis_getter=lambda: get_redis())
+    app.add_middleware(RequestIdMiddleware)
+    client = TestClient(app)
+    body = {"idempotencyKey": "chk-00000012", "n": 1}
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        first = pool.submit(client.post, "/slow", json=body)
+        assert entered.wait(5)
+        try:
+            repeat = client.post("/slow", json=body)
+        finally:
+            release.set()
+        assert first.result(timeout=5).status_code == 201
+    assert repeat.status_code == 409 and repeat.json()["error"]["code"] == "IN_PROGRESS"
+    # Once the first has finished, the same request replays its answer.
+    assert client.post("/slow", json=body).headers["idempotent-replayed"] == "true"
 
 
 def test_the_same_key_on_another_route_is_not_replayed(redis):
