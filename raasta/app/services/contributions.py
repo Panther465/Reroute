@@ -17,11 +17,13 @@ from app.pagination import encode_cursor
 from app.schemas import ContributionDecision, ContributionIn, ContributionOut, Location, TappedStand
 from app.security import User
 from app.services.catalog import point, route_out
-from app.services.geo import LatLng, RidePoint, suggest_stops, trim_ride
+from app.services.geo import LatLng, RidePoint, downsample, suggest_stops, trim_ride
 from app.services.matching import RouteShape, find_match
 from app.services.timefmt import parse_hhmm, to_local_iso
 
 TRIM_M = 200.0
+#: Rides are thinned to this many points, spread over time, before finding stops and snapping to roads.
+MAX_RIDE_POINTS = 2000
 
 
 def new_id(prefix: str) -> str:
@@ -101,8 +103,9 @@ def create_contribution(
         trimmed = trim_ride([RidePoint(p.lat, p.lng, p.t) for p in body.points], TRIM_M)
         if len(trimmed) < 2:
             raise ApiError(422, "VALIDATION_ERROR", "This ride is too short to keep once the first and last 200 m are trimmed.")
-        suggested = suggest_stops(trimmed)
-        snapped = router.match(trimmed) or [LatLng(p.lat, p.lng) for p in trimmed]
+        sampled = downsample(trimmed, MAX_RIDE_POINTS)
+        suggested = suggest_stops(sampled)
+        snapped = router.match(sampled) or [LatLng(p.lat, p.lng) for p in sampled]
         tapped = body.stands or [TappedStand(name=f"Stand {i}", location=Location(lat=p.lat, lng=p.lng)) for i, p in enumerate(suggested, start=1)]
         if len(tapped) < 2:
             raise ApiError(422, "VALIDATION_ERROR", "Mark at least two stands while you ride, or add them after the ride.")

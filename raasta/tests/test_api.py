@@ -12,6 +12,7 @@ from app.errors import install_error_handlers
 from app.main import create_app
 from app.middleware import BodyLimitAndIdempotencyMiddleware, RequestIdMiddleware
 from app.redis_client import get_redis
+from app.schemas import ApiModel, IdempotencyKey
 from app.security import decode_access_token
 
 from .conftest import make_token
@@ -34,12 +35,24 @@ class Echo(BaseModel):
     n: int
 
 
+class EchoApi(ApiModel):
+    """Like every Raasta body: camelCase, but the snake_case field names are accepted too."""
+
+    idempotency_key: IdempotencyKey
+    n: int
+
+
 def _echo_app(calls: list[int]) -> FastAPI:
     app = FastAPI()
     install_error_handlers(app)
 
     @app.post("/echo", status_code=201)
     def echo(body: Echo) -> dict:
+        calls.append(body.n)
+        return {"n": body.n, "call": len(calls)}
+
+    @app.post("/echo-api", status_code=201)
+    def echo_api(body: EchoApi) -> dict:
         calls.append(body.n)
         return {"n": body.n, "call": len(calls)}
 
@@ -63,6 +76,19 @@ def test_same_key_and_body_returns_the_first_response(redis):
     assert first.json() == second.json() == {"n": 7, "call": 1}
     assert second.headers["idempotent-replayed"] == "true"
     assert calls == [7]
+
+
+@pytest.mark.parametrize("field", ["idempotencyKey", "idempotency_key"])
+def test_either_spelling_of_the_key_is_idempotent(redis, field):
+    calls: list[int] = []
+    client = TestClient(_echo_app(calls))
+    body = {field: "chk-00000010", "n": 4}
+    first = client.post("/echo-api", json=body)
+    second = client.post("/echo-api", json=body)
+    assert first.status_code == second.status_code == 201
+    assert second.headers["idempotent-replayed"] == "true"
+    assert calls == [4]
+    assert client.post("/echo-api", json={field: "chk-00000010", "n": 5}).status_code == 409
 
 
 def test_same_key_with_a_different_body_is_409(redis):
