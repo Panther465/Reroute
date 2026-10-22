@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.errors import ApiError, not_found
 from app.models import Confirmation, Contribution, FareReport, Route
-from app.pagination import encode_cursor
+from app.pagination import cursor_value, encode_cursor
 from app.schemas import ConfirmationOut, FareReportOut
 from app.security import User
 from app.services.catalog import confirmations_count, get_route
@@ -66,8 +66,8 @@ def report_fare(session: Session, user: User, route_id: str, fare_inr: int, sett
 def list_fare_reports(session: Session, status: str, after: dict | None, limit: int, settings: Settings) -> tuple[list[FareReportOut], str | None]:
     query = select(FareReport).where(FareReport.status == status)
     if after:
-        at = datetime.fromisoformat(after["c"])
-        query = query.where(or_(FareReport.at < at, and_(FareReport.at == at, FareReport.fare_report_id < after["i"])))
+        at, last_id = cursor_value(after, "c", datetime), cursor_value(after, "i", str)
+        query = query.where(or_(FareReport.at < at, and_(FareReport.at == at, FareReport.fare_report_id < last_id)))
     rows = session.scalars(query.order_by(FareReport.at.desc(), FareReport.fare_report_id.desc()).limit(limit + 1)).all()
     cursor = encode_cursor({"c": rows[limit - 1].at.isoformat(), "i": rows[limit - 1].fare_report_id}) if len(rows) > limit else None
     return [_fare_out(r, settings) for r in rows[:limit]], cursor

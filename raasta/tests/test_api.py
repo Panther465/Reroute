@@ -7,10 +7,14 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
+from app.adapters.osrm import get_router
+from app.adapters.rides import get_ride_store
 from app.config import get_settings
+from app.db import get_session
 from app.errors import install_error_handlers
 from app.main import create_app
 from app.middleware import BodyLimitAndIdempotencyMiddleware, RequestIdMiddleware
+from app.pagination import encode_cursor
 from app.redis_client import get_redis
 from app.schemas import ApiModel, IdempotencyKey
 from app.security import decode_access_token
@@ -220,6 +224,80 @@ def test_per_minute_rate_limit(api):
 
 def test_health(api):
     assert api.get("/v1/raasta/healthz").json() == {"status": "ok", "service": "raasta"}
+
+
+# ---------- validation that happens before the database ----------
+
+
+class Offline:
+    """Stands in for the database, OSRM and MongoDB: these requests must be refused before reaching them."""
+
+    def __getattr__(self, name: str):
+        raise AssertionError(f"the request used .{name}; it should have been refused first")
+
+
+@pytest.fixture
+def offline_api(redis):
+    app = create_app()
+    for dependency in (get_session, get_router, get_ride_store):
+        app.dependency_overrides[dependency] = Offline
+    return TestClient(app)
+
+
+USER = {"Authorization": f"Bearer {make_token('rider-1')}"}
+MODERATOR = {"Authorization": f"Bearer {make_token('mod-1', 'moderator')}"}
+
+
+@pytest.mark.parametrize("cursor", [encode_cursor({"o": "ten"}), encode_cursor({"o": -1}), encode_cursor({"o": 10**30}), encode_cursor({"o": True}), "%%%"])
+def test_malformed_stand_cursors_are_400(offline_api, cursor):
+    r = offline_api.get("/v1/raasta/stands", params={"near": "77.6195,12.9352", "cursor": cursor})
+    assert r.status_code == 400 and r.json()["error"]["code"] == "BAD_REQUEST"
+
+
+@pytest.mark.parametrize("path", ["/v1/raasta/contributions", "/v1/raasta/fare-reports"])
+@pytest.mark.parametrize(
+    "position",
+    [
+        {"c": "yesterday", "i": "con-1"},
+        {"c": "2026-10-14T10:00:00+05:30"},
+        {"c": 5, "i": "con-1"},
+        {"c": "2026-10-14T10:00:00", "i": "con-1"},
+        {"c": "2026-10-14T10:00:00+05:30", "i": ["con-1"]},
+    ],
+)
+def test_malformed_queue_cursors_are_400(offline_api, path, position):
+    r = offline_api.get(path, params={"cursor": encode_cursor(position)}, headers=MODERATOR)
+    assert r.status_code == 400 and r.json()["error"]["code"] == "BAD_REQUEST"
+
+
+def _contribution(**changes) -> dict:  # noqa: ANN003
+    body = {
+        "idempotencyKey": "con-area0001",
+        "kind": "stands_tapped",
+        "vehicleType": "shared_auto",
+        "fareInr": 20,
+        "frequencyMin": 10,
+        "firstTrip": "07:00",
+        "lastTrip": "21:00",
+        "stands": [{"name": "Koramangala", "location": {"lat": 12.934, "lng": 77.6185}}, FORUM],
+    }
+    return {**body, **changes}
+
+
+FORUM = {"name": "Forum", "location": {"lat": 12.9346, "lng": 77.6112}}
+DELHI = {"name": "Connaught Place", "location": {"lat": 28.6315, "lng": 77.2167}}
+RIDE_WITH_A_ZERO = [{"lat": 12.93, "lng": 77.61, "t": "2026-10-14T09:00:00+05:30"}, {"lat": 0, "lng": 0, "t": "2026-10-14T09:00:10+05:30"}]
+
+
+@pytest.mark.parametrize("changes", [{"citySlug": "mumbai"}, {"stands": [DELHI, FORUM]}, {"kind": "gps_ride", "stands": None, "points": RIDE_WITH_A_ZERO}])
+def test_contributions_outside_a_served_city_are_422(offline_api, changes):
+    r = offline_api.post("/v1/raasta/contributions", json=_contribution(**changes), headers=USER)
+    assert r.status_code == 422 and r.json()["error"]["code"] == "VALIDATION_ERROR"
+
+
+def test_gtfs_only_for_served_cities(offline_api):
+    r = offline_api.get("/v1/raasta/cities/mumbai/gtfs.zip")
+    assert r.status_code == 404 and r.json()["error"]["code"] == "NOT_FOUND"
 
 
 # ---------- tokens ----------

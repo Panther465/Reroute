@@ -9,12 +9,13 @@ from datetime import datetime
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
+from app import cities
 from app.adapters.osrm import Router
 from app.adapters.rides import RideStore, RideStoreUnavailable
 from app.config import Settings
 from app.errors import ApiError, not_found
 from app.models import Confirmation, Contribution, Route, RouteStand, Stand
-from app.pagination import encode_cursor
+from app.pagination import cursor_value, encode_cursor
 from app.schemas import ContributionDecision, ContributionIn, ContributionOut, Location, TappedStand
 from app.security import User
 from app.services.catalog import point, route_out
@@ -28,6 +29,8 @@ log = logging.getLogger("raasta")
 TRIM_M = 200.0
 #: Rides are thinned to this many points, spread over time, before finding stops and snapping to roads.
 MAX_RIDE_POINTS = 2000
+#: At most this many stands are suggested from one ride, spread along it.
+MAX_SUGGESTED_STANDS = 20
 
 
 def new_id(prefix: str) -> str:
@@ -40,11 +43,33 @@ def _ride_store_down(session: Session, exc: RideStoreUnavailable) -> ApiError:
     return ApiError(503, "UNAVAILABLE", "Recorded rides can't be saved or removed right now. Try again in a few minutes.")
 
 
+def _check_area(body: ContributionIn) -> None:
+    """The city must be one Raasta serves, and every tapped stand and ride point must lie inside it."""
+    place = cities.city(body.city_slug)
+    if place is None:
+        raise ApiError(422, "VALIDATION_ERROR", f"Raasta doesn't cover the city {body.city_slug!r}.")
+    for i, s in enumerate(body.stands or []):
+        if s.location is not None and not place.contains(s.location.lng, s.location.lat):
+            raise ApiError(422, "VALIDATION_ERROR", f"stands.{i}.location is outside {place.name}.")
+    for i, p in enumerate(body.points or []):
+        if not place.contains(p.lng, p.lat):
+            raise ApiError(422, "VALIDATION_ERROR", f"points.{i} is outside {place.name}.")
+
+
+def _at_most(items: list[LatLng], n: int) -> list[LatLng]:
+    """`n` items spread evenly through the list, keeping the first and the last."""
+    if len(items) <= n:
+        return items
+    return [items[round(k * (len(items) - 1) / (n - 1))] for k in range(n)]
+
+
 def _resolve_stand(session: Session, city: str, tapped: TappedStand, settings: Settings) -> Stand:
     if tapped.stand_id:
         stand = session.get(Stand, tapped.stand_id)
         if stand is None:
             raise ApiError(422, "VALIDATION_ERROR", f"Stand {tapped.stand_id} doesn't exist.")
+        if stand.city_slug != city:
+            raise ApiError(422, "VALIDATION_ERROR", f"Stand {tapped.stand_id} is in another city.")
         return stand
     assert tapped.location is not None and tapped.name is not None
     loc = tapped.location
@@ -130,6 +155,7 @@ def _contribution_out(session: Session, c: Contribution, settings: Settings, now
 def create_contribution(
     session: Session, user: User, body: ContributionIn, router: Router, rides: RideStore, settings: Settings, now: datetime
 ) -> ContributionOut:
+    _check_area(body)
     contribution_id = new_id("con")
     suggested: list[LatLng] = []
     snapped: list[LatLng] | None = None
@@ -148,7 +174,7 @@ def create_contribution(
         if len(trimmed) < 2:
             raise ApiError(422, "VALIDATION_ERROR", "This ride is too short to keep once the points within 200 m of its start and end are removed.")
         sampled = downsample(trimmed, MAX_RIDE_POINTS)
-        suggested = suggest_stops(sampled)
+        suggested = _at_most(suggest_stops(sampled), MAX_SUGGESTED_STANDS)
         snapped = router.match(sampled) or [LatLng(p.lat, p.lng) for p in sampled]
         tapped = body.stands or [TappedStand(name=f"Stand {i}", location=Location(lat=p.lat, lng=p.lng)) for i, p in enumerate(suggested, start=1)]
         if len(tapped) < 2:
@@ -247,8 +273,8 @@ def list_contributions(
 ) -> tuple[list[ContributionOut], str | None]:
     query = select(Contribution).where(Contribution.status == status)
     if after:
-        at = datetime.fromisoformat(after["c"])
-        query = query.where(or_(Contribution.created_at < at, and_(Contribution.created_at == at, Contribution.contribution_id < after["i"])))
+        at, last_id = cursor_value(after, "c", datetime), cursor_value(after, "i", str)
+        query = query.where(or_(Contribution.created_at < at, and_(Contribution.created_at == at, Contribution.contribution_id < last_id)))
     rows = session.scalars(query.order_by(Contribution.created_at.desc(), Contribution.contribution_id.desc()).limit(limit + 1)).all()
     items = [_contribution_out(session, c, settings, now) for c in rows[:limit]]
     cursor = None
