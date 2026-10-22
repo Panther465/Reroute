@@ -7,6 +7,7 @@ import { useLocation, useNavigate } from 'react-router'
 import { useAiHelperEnabled, useBookings, useBookingsEnabled, useDay } from '@/api/queries'
 import type { Booking, Trip } from '@/api/types'
 import { checkIn } from '@/lib/actions'
+import { speak } from '@/lib/alerts'
 import { hhmm, lowerFirst } from '@/lib/format'
 import { useOpenLate } from '@/lib/late'
 import { useRooAnchor } from '@/lib/rooAnchor'
@@ -14,10 +15,11 @@ import { useSheetOpen } from '@/lib/sheets'
 import { setState, showToast, useStore } from '@/lib/store'
 import { activeBooking, isTrainTask } from '@/lib/bookings'
 import { addDays, localMinutes, type DayView } from '@/lib/timeline'
+import { listenOnce, parseCommand, voiceSupported, VoiceError, type VoiceCommand } from '@/lib/voice'
 
 type Mood = 'idle' | 'happy' | 'alert' | 'sleeping' | 'celebrate' | 'wave'
 // Labels avoid "Running late" and "Plan my day": those name the screens' own buttons.
-type ActionId = 'done' | 'more-time' | 'options' | 'describe' | 'plan' | 'summary' | 'today' | 'hide' | 'add' | 'edit' | 'book-train' | 'later'
+type ActionId = 'done' | 'more-time' | 'options' | 'describe' | 'plan' | 'summary' | 'today' | 'hide' | 'add' | 'edit' | 'book-train' | 'later' | 'talk' | 'stop'
 
 interface RooAction {
   id: ActionId
@@ -134,6 +136,7 @@ function menuFor(trip: Trip | undefined, view: DayView | null, path: string, clo
   // On Today, Roo rides the timeline: add to the day, or deal with the stop under way, right here.
   if (path === '/' && view && !view.done) {
     actions.push({ id: 'add', label: 'Add a task', primary: true })
+    if (voiceSupported()) actions.push({ id: 'talk', label: 'Talk to Roo' })
     const task = view.checkInTask
     const stop = task ? view.stops.find((s) => s.id === task.taskId) : undefined
     if (task && stop) {
@@ -151,6 +154,66 @@ function menuFor(trip: Trip | undefined, view: DayView | null, path: string, clo
   if (view) actions.push({ id: 'summary', label: 'How’s my day?' })
   actions.push({ id: 'hide', label: 'Hide Roo' })
   return { id: 'menu', text: 'Hi! What can I do for you?', mood: 'happy', actions }
+}
+
+// ---------------------------------------------------------------------------
+// Talking to Roo: what it does with a sentence, and what it says back (out loud as well)
+// ---------------------------------------------------------------------------
+
+const VOICE_HELP = 'Try “I’m 20 minutes late”, “done”, “I’ve left” or “what’s next”.'
+
+interface VoiceReply {
+  /** Shown in the bubble; none when the screen answers instead (a sheet opens, or Roo celebrates). */
+  msg: RooMessage | null
+  words: string
+  then?: 'late' | 'done' | 'left' | 'add'
+  /** The delay to fill in on Running late. */
+  minutes?: number | null
+}
+
+/** A spoken sentence never changes the plan by itself: a delay opens Running late filled in, for one more tap. */
+function voiceReply(cmd: VoiceCommand, view: DayView | null, clock: number | null, leftFor: string | null): VoiceReply {
+  if (cmd.kind === 'unknown') {
+    return { msg: { id: 'voice-unknown', text: `I heard “${cmd.heard}”. ${VOICE_HELP}`, mood: 'idle', actions: [{ id: 'talk', label: 'Try again', primary: true }] }, words: `Sorry, I didn’t get that. ${VOICE_HELP}` }
+  }
+  if (cmd.kind === 'add') return { msg: null, words: 'Okay. What’s the task?', then: 'add' }
+  if (!view || clock == null || view.done) {
+    const text = view?.done ? 'That’s everything for today.' : 'There’s no plan for today yet.'
+    return { msg: { id: 'voice-no-plan', text, mood: 'idle' }, words: text }
+  }
+  const leg = view.nextLeg
+  const to = leg ? view.stops.find((s) => s.id === leg.toId) : undefined
+  const dest = to ? (to.kind === 'end' ? 'the hotel' : `the ${lowerFirst(to.title)}`) : 'your next stop'
+
+  if (cmd.kind === 'late') {
+    const ok = cmd.minutes != null && cmd.minutes >= 5 && cmd.minutes <= 240
+    return { msg: null, words: ok ? `Okay, ${cmd.minutes} minutes late. Check it, then confirm.` : 'How late are you? Pick it here.', then: 'late', minutes: ok ? cmd.minutes : null }
+  }
+  if (cmd.kind === 'done') {
+    const task = view.checkInTask
+    const stop = task ? view.stops.find((s) => s.id === task.taskId) : undefined
+    if (!task || !stop) return { msg: { id: 'voice-nothing-done', text: 'There’s nothing to mark done right now.', mood: 'idle' }, words: 'There’s nothing to mark done right now.' }
+    // As on Today: done long before it starts is more likely a slip than a fact.
+    if (stop.time - clock > 10) {
+      const text = `The ${lowerFirst(task.title)} starts at ${hhmm(stop.time)}. Tap Mark done if it’s really finished.`
+      return { msg: { id: 'voice-early', text, mood: 'idle' }, words: text }
+    }
+    return { msg: null, words: `The ${lowerFirst(task.title)} is done. Nice one!`, then: 'done' }
+  }
+  if (!leg) return { msg: { id: 'voice-no-leg', text: 'No more travel today.', mood: 'idle' }, words: 'No more travel today.' }
+  const arrive = `You should arrive around ${leg.arriveAt}.`
+  if (cmd.kind === 'left') {
+    if (leftFor === leg.toId) return { msg: { id: 'voice-on-way', text: `You’re already on your way. ${arrive}`, mood: 'happy' }, words: `You’re already on your way. ${arrive}` }
+    const here = view.checkInTask ? view.stops.find((s) => s.id === view.checkInTask?.taskId) : undefined
+    if (here?.status === 'now') {
+      const text = `Finish the ${lowerFirst(here.title)} first. Say “done” when it’s over.`
+      return { msg: { id: 'voice-finish-first', text, mood: 'idle' }, words: text }
+    }
+    const text = leg.toId === 'end' ? 'On your way back. Safe travels.' : `On your way to ${dest}. ${arrive}`
+    return { msg: { id: `voice-left-${leg.seq}`, text, mood: 'happy' }, words: text, then: 'left' }
+  }
+  const text = clock >= leg.leaveMin ? `Leave now for ${dest}. ${arrive}` : `Leave at ${leg.leaveBy} for ${dest}. ${arrive}`
+  return { msg: { id: `voice-next-${leg.seq}`, text, mood: clock >= leg.leaveMin ? 'alert' : 'idle' }, words: text }
 }
 
 // ---------------------------------------------------------------------------
@@ -300,6 +363,12 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
 
   const shownPref = useStore((st) => st.roo)
   const hidden = !shownPref
+  const leftFor = useStore((st) => (st.started && st.started.tripId === trip?.tripId ? st.started.toId : null))
+  // A spoken answer arrives seconds after the tap: it acts on the day as it is then.
+  const latest = useRef({ trip, view, clock, leftFor })
+  latest.current = { trip, view, clock, leftFor }
+  const listening = useRef<AbortController | null>(null)
+  useEffect(() => () => listening.current?.abort(), [])
   const [greeted, setGreeted] = useState(() => stored(GREETED_KEY))
   const [override, setOverride] = useState<RooMessage | null>(null)
   const [open, setOpen] = useState(false)
@@ -385,6 +454,9 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
 
   const close = () => {
     clearTimeout(fadeTimer.current)
+    // Closing Roo while it listens turns the microphone off.
+    listening.current?.abort()
+    listening.current = null
     setOpen(false)
     if (msg?.id === 'greet') {
       setGreeted(true)
@@ -407,10 +479,52 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
     else if (id === 'add') navigate('/', { state: { add: Date.now() } })
     else if (id === 'book-train' && msg?.ref) navigate('/', { state: { bookTrain: msg.ref } })
     else if (id === 'edit' && view?.checkInTask) navigate('/', { state: { stop: view.checkInTask.taskId } })
+    else if (id === 'talk') listen()
     else if (id === 'hide') {
       setState({ roo: false })
       showToast({ title: 'Roo is hidden. Bring it back in Me.' })
     }
+  }
+
+  const show = (m: RooMessage) => {
+    lastShown.current = m.id
+    setOverride(m)
+    setOpen(true)
+    schedule(m)
+  }
+
+  const obey = (cmd: VoiceCommand) => {
+    const { trip: t, view: v, clock: c, leftFor: left } = latest.current
+    const r = voiceReply(cmd, v, c, left)
+    if (r.msg) show(r.msg)
+    else {
+      setOverride(null)
+      setOpen(false)
+    }
+    if (r.then === 'late') openLate(r.minutes)
+    else if (r.then === 'add') navigate('/', { state: { add: Date.now() } })
+    else if (r.then === 'done' && t && v && c != null) checkIn(t.tripId, v, c)
+    else if (r.then === 'left' && t && v?.nextLeg && c != null) setState({ started: { tripId: t.tripId, toId: v.nextLeg.toId, day: t.day, at: c } })
+    void speak(r.words)
+  }
+
+  const listen = () => {
+    const ctl = new AbortController()
+    listening.current = ctl
+    const m: RooMessage = { id: 'listening', text: `Listening… ${VOICE_HELP}`, mood: 'alert', urgent: true, actions: [{ id: 'stop', label: 'Stop listening' }] }
+    show(m)
+    listenOnce({ signal: ctl.signal })
+      .then((heard) => {
+        if (listening.current !== ctl) return
+        listening.current = null
+        obey(parseCommand(heard))
+      })
+      .catch((e: unknown) => {
+        if (listening.current !== ctl) return
+        listening.current = null
+        const text = e instanceof VoiceError ? e.message : 'I couldn’t listen just now. Tap the buttons instead.'
+        show({ id: 'voice-error', text, mood: 'idle' })
+      })
   }
 
   // A menu opened by a tap takes keyboard focus; a message Roo raises by itself never does.
