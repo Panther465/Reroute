@@ -38,7 +38,7 @@ A real Bengaluru day was tried end to end through the API: a trip for today stay
    docker compose up -d --build
    ```
 
-4. Open https://localhost: **Sign in with Google** now shows under the demo button.
+4. Open https://localhost: **Continue with Google** on the home page now works. Without the client ID it stays greyed out, with "Google sign-in isn't set up on this server yet."
 
 ### Optional: the AI helper
 
