@@ -77,6 +77,17 @@
     background: var(--green-tint);
     color: var(--green-ink);
   }
+  /* The parts the browser draws carry the palette too. */
+  html {
+    caret-color: var(--green);
+    accent-color: var(--green);
+    scrollbar-color: var(--line-strong) transparent;
+  }
+  a,
+  .underline {
+    text-underline-offset: 0.2em;
+    text-decoration-thickness: from-font;
+  }
 }
 
 /* Type scale (section 6.2). rem keeps text zoom working. */
@@ -89,6 +100,13 @@
     font-family: var(--font-display);
     font-stretch: 75%;
     letter-spacing: -0.01em;
+  }
+  /* Titles are words, not figures: a little wider than the times, so words don't run together. */
+  .t-display-1,
+  .t-display-2 {
+    font-stretch: 87.5%;
+    letter-spacing: 0;
+    text-wrap: balance;
   }
   .t-display-1 {
     font-weight: 800;
@@ -244,7 +262,7 @@
   animation: rr-toast-in var(--dur-base) var(--ease-out);
 }
 .rr-toast[data-state='closed'] {
-  animation: rr-toast-out var(--dur-quick) var(--ease-in) forwards;
+  animation: rr-toast-out var(--dur-quick) var(--ease-out) forwards;
 }
 .rr-toast[data-swipe='move'] {
   transform: translateY(var(--radix-toast-swipe-move-y));
@@ -254,7 +272,7 @@
   transition: transform var(--dur-quick) var(--ease-out);
 }
 .rr-toast[data-swipe='end'] {
-  animation: rr-toast-out var(--dur-quick) var(--ease-in) forwards;
+  animation: rr-toast-out var(--dur-quick) var(--ease-out) forwards;
 }
 @media (prefers-reduced-motion: reduce) {
   .rr-toast[data-state='open'] {
@@ -270,6 +288,28 @@
   border-left: 6px dashed currentColor;
 }
 
+/* MapLibre's own controls take the app's surfaces, so they don't glare white on the night map. */
 .maplibregl-ctrl-attrib {
   font-size: 0.8125rem;
+}
+.maplibregl-ctrl.maplibregl-ctrl-attrib,
+.maplibregl-ctrl-group {
+  background: var(--surface);
+  color: var(--ink-2);
+}
+.maplibregl-ctrl-attrib a {
+  color: var(--ink-2);
+}
+.maplibregl-ctrl-group button + button {
+  border-top-color: var(--line);
+}
+:root[data-theme='dark'] .maplibregl-ctrl-group .maplibregl-ctrl-icon,
+:root[data-theme='dark'] .maplibregl-ctrl-attrib-button {
+  filter: invert(1);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .maplibregl-ctrl-group .maplibregl-ctrl-icon,
+  :root:not([data-theme='light']) .maplibregl-ctrl-attrib-button {
+    filter: invert(1);
+  }
 }

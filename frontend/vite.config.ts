@@ -1,5 +1,5 @@
 /// <reference types="vitest/config" />
-import { defineConfig } from 'vite'
+import { defineConfig, type ProxyOptions } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'node:path'
@@ -79,11 +79,15 @@ export default defineConfig(({ mode }) => ({
   },
   server: {
     port: 5173,
-    proxy: {
-      // Raasta first: its prefix is more specific than /v1.
-      '/v1/raasta': { target: 'http://localhost:8001', changeOrigin: true },
-      '/v1': { target: 'http://localhost:8000', changeOrigin: true },
-    },
+    // API_PROXY=https://localhost sends both APIs through the Docker stack's NGINX (its local
+    // certificate is self-signed, hence secure: false); unset, the APIs run outside Docker.
+    proxy: (process.env.API_PROXY
+      ? { '/v1': { target: process.env.API_PROXY, changeOrigin: true, secure: false } }
+      : {
+          // Raasta first: its prefix is more specific than /v1.
+          '/v1/raasta': { target: 'http://localhost:8001', changeOrigin: true },
+          '/v1': { target: 'http://localhost:8000', changeOrigin: true },
+        }) as Record<string, ProxyOptions>,
   },
   test: {
     environment: 'jsdom',

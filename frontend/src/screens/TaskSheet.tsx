@@ -4,7 +4,7 @@ import { ApiError } from '@/api/client'
 import type { Body, Task, TaskIn, Trip } from '@/api/types'
 import { Button } from '@/components/ui/Button'
 import { Sheet } from '@/components/ui/Sheet'
-import { Tag } from '@/components/ui/Tag'
+import { FixedTag, HoursTag, PriorityTag } from '@/components/ui/Tag'
 import { applyServerChange, checkIn, playLater, playTaskEdit, saveTaskEdit, sendSkip, SKIP_TOAST } from '@/lib/actions'
 import { duration, hhmm } from '@/lib/format'
 import { T } from '@/lib/i18n'
@@ -94,17 +94,9 @@ export function TaskSheet({ trip, view, clock, stop, onClose }: { trip: Trip; vi
               {hhmm(stop.time)} to {hhmm(stop.end)}, {duration(stop.end - stop.time)}
             </p>
             <div className="flex flex-wrap gap-2">
-              {task.fixedStart && (
-                <Tag tone="blue">
-                  <span aria-hidden="true">📌</span> Fixed {task.fixedStart}
-                </Tag>
-              )}
-              {task.window && (
-                <Tag tone="green-outline">
-                  <span aria-hidden="true">🕓</span> Open till {task.window.closesAt}
-                </Tag>
-              )}
-              <Tag tone="grey-outline">{task.priority === 1 ? 'Must do' : task.priority === 2 ? 'Should do' : 'If there is time'}</Tag>
+              {task.fixedStart && <FixedTag at={task.fixedStart} />}
+              {task.window && <HoursTag closesAt={task.window.closesAt} />}
+              <PriorityTag priority={task.priority} always />
             </div>
             {finished && <p className="t-body text-ink-2">Done. Nice work.</p>}
             {!finished && stop.status === 'now' && <p className="t-body text-ink-2">Mark it done when you finish. If it runs over, use Running late.</p>}

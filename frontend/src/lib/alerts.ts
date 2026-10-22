@@ -4,7 +4,7 @@
 // relies on sound alone. Every alert fires once.
 import { apiBase, getAccessToken, refreshSession } from '@/api/client'
 import { notify } from './live'
-import { announce, getState, showToast, type ChimeStyle, type VoiceRate } from './store'
+import { getState, showToast, type ChimeStyle, type VoiceRate } from './store'
 
 export type Tone = 'nudge' | 'urgent' | 'arrive'
 
@@ -135,8 +135,9 @@ async function naturalClip(text: string, voiceId: string, rate: VoiceRate): Prom
   return blobUrl
 }
 
-function phoneVoice(text: string, rate: VoiceRate, volume: number) {
-  if (!('speechSynthesis' in window)) return
+/** Resolves when the phone has finished saying it (or after a while, if the browser never says). */
+function phoneVoice(text: string, rate: VoiceRate, volume: number): Promise<void> {
+  if (!('speechSynthesis' in window)) return Promise.resolve()
   const u = new SpeechSynthesisUtterance(text)
   // The alerts are written in English, so an English (India) voice reads them, whatever the app language.
   u.lang = 'en-IN'
@@ -146,10 +147,34 @@ function phoneVoice(text: string, rate: VoiceRate, volume: number) {
   u.rate = rate === 'slow' ? 0.85 : rate === 'fast' ? 1.15 : 1
   u.volume = volume
   window.speechSynthesis.cancel()
-  window.speechSynthesis.speak(u)
+  return new Promise((done) => {
+    const stop = setTimeout(done, SPEECH_LIMIT_MS)
+    u.onend = u.onerror = () => {
+      clearTimeout(stop)
+      done()
+    }
+    window.speechSynthesis.speak(u)
+  })
 }
 
-/** Roo says it: the chosen natural voice, or the phone's own voice when that can't be fetched. */
+/** The longest an alert's voice may hold the next alert back. */
+const SPEECH_LIMIT_MS = 15_000
+
+/** Wait for a clip to finish (or be paused by the next one), at most SPEECH_LIMIT_MS. */
+function finished(el: HTMLAudioElement): Promise<void> {
+  return new Promise((done) => {
+    const stop = setTimeout(done, SPEECH_LIMIT_MS)
+    const end = () => {
+      clearTimeout(stop)
+      done()
+    }
+    el.addEventListener('ended', end, { once: true })
+    el.addEventListener('pause', end, { once: true })
+    el.addEventListener('error', end, { once: true })
+  })
+}
+
+/** Roo says it: the chosen natural voice, or the phone's own voice when that can't be fetched. Resolves once it's said. */
 export async function speak(text: string, prefs = getState().alerts) {
   playing?.pause()
   try {
@@ -158,10 +183,14 @@ export async function speak(text: string, prefs = getState().alerts) {
     el.volume = prefs.volume
     playing = el
     await el.play()
+    await finished(el)
   } catch {
-    phoneVoice(text, prefs.voiceRate, prefs.volume)
+    await phoneVoice(text, prefs.voiceRate, prefs.volume)
   }
 }
+
+// Alerts sound one after another: two in the same minute (leave soon, and a task ending) never talk over each other.
+let sounding: Promise<void> = Promise.resolve()
 
 // ---------- The alert ----------
 export function raise(spec: AlertSpec, opts: { force?: boolean } = {}) {
@@ -171,14 +200,18 @@ export function raise(spec: AlertSpec, opts: { force?: boolean } = {}) {
   }
   const prefs = getState().alerts
   const tone = spec.tone ?? 'nudge'
+  // The toast is announced to screen readers by itself (a polite live region), so it isn't announced twice.
   showToast({ title: spec.title })
-  announce(spec.title)
   if (prefs.vibrate && 'vibrate' in navigator) navigator.vibrate?.(tone === 'urgent' ? [180, 90, 180] : tone === 'arrive' ? [80, 60, 80, 60, 200] : 120)
-  // The chime first, then Roo's voice, so they never talk over each other.
-  void (async () => {
-    if (prefs.sound) await chime(tone, prefs.chime, prefs.volume)
-    if (prefs.voice) await speak(spec.speech ?? spec.title, prefs)
-  })()
+  // The chime first, then Roo's voice, after any alert still sounding.
+  sounding = sounding.then(async () => {
+    try {
+      if (prefs.sound) await chime(tone, prefs.chime, prefs.volume)
+      if (prefs.voice) await speak(spec.speech ?? spec.title, prefs)
+    } catch {
+      /* a sound that fails must not hold back the next alert */
+    }
+  })
   // On screen, the toast says it; the phone notification is for when Reroute is in the background.
   if (getState().leaveAlerts && 'Notification' in window && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
     void notify('Reroute', { body: spec.title, tag: spec.tag ?? spec.key, silent: prefs.sound || prefs.voice })

@@ -1,24 +1,25 @@
 import * as Tabs from '@radix-ui/react-tabs'
 import { ArrowDown, ArrowUp, Flag, MapPin, Plus, X } from 'lucide-react'
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useBlocker, useNavigate } from 'react-router'
 import { api, ApiError, newKey } from '@/api/client'
 import { useCurrentTripId, useStands, useTrip } from '@/api/queries'
 import type { Body, Contribution, ContributionIn, VehicleType } from '@/api/types'
 import { BackButton, useBack } from '@/components/BackButton'
+import { LazyMap } from '@/components/LazyMap'
 import { AutoRickshaw, ERickshaw } from '@/components/icons'
 import { Button } from '@/components/ui/Button'
 import { Segmented } from '@/components/ui/Choice'
 import { Field, FieldError } from '@/components/ui/Field'
 import { Sheet } from '@/components/ui/Sheet'
-import { Banner, Skeleton } from '@/components/ui/States'
+import { Banner } from '@/components/ui/States'
 import { routeLine, type LngLat } from '@/lib/geo'
+import { useSubmitKey } from '@/lib/submitKey'
 import { useDocumentTitle, useOnline } from '@/lib/hooks'
 import { T } from '@/lib/i18n'
 import { showToast } from '@/lib/store'
 import { PushedScreen } from './LegDetail'
 
-const MapCard = lazy(() => import('@/components/MapCard'))
 
 interface PickedStand {
   key: string
@@ -131,9 +132,7 @@ function TapStands({ near, onSubmit, busy, error }: { near: string | null; onSub
     <div>
       <p className="mt-4 t-body text-ink-2">Tap the stands in the order the vehicle stops. Tap an empty spot on the map to add a stand that isn't there yet.</p>
       <div className="mt-4">
-        <Suspense fallback={<Skeleton className="h-72 w-full rounded-card" />}>
-          <MapCard lines={lines} points={points} label="Map of stands. Tap a stand to add it." className="h-72" onMapClick={([lng, lat]) => setPending({ lng, lat })} />
-        </Suspense>
+        <LazyMap lines={lines} points={points} label="Map of stands. Tap a stand to add it." className="h-72" onMapClick={([lng, lat]) => setPending({ lng, lat })} />
       </div>
       {pending && (
         <div className="mt-4 rounded-card border border-line bg-surface p-4">
@@ -339,7 +338,7 @@ export default function AddRoute() {
   const near = trip ? `${trip.stayPlace.lng},${trip.stayPlace.lat}` : '77.5946,12.9716'
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string>()
-  const [key] = useState(() => newKey('con'))
+  const { key, after } = useSubmitKey('con')
   const [tab, setTab] = useState('tap')
   const [rideDirty, setRideDirty] = useState(false)
   const sent = useRef(false)
@@ -367,6 +366,7 @@ export default function AddRoute() {
       showToast({ title: "Sent for checking. We'll show it once it's verified." })
       navigate('/raasta')
     } catch (err) {
+      after(err)
       setError(err instanceof ApiError ? err.message : "Couldn't send the route. Try again.")
     } finally {
       setBusy(false)

@@ -20,7 +20,7 @@ afterEach(() => {
 const lastToast = () => getToasts().at(-1)!
 
 describe('check in with Undo', () => {
-  it('fills the station at once but sends nothing until the 5-second Undo window has passed', async () => {
+  it('fills the station at once but sends nothing until the Undo toast closes', async () => {
     const trip = goldenTrip('10:55')
     const post = vi.spyOn(api, 'post').mockResolvedValue({ result: 'on_time' })
     vi.spyOn(api, 'get').mockResolvedValue({ ...trip, tasks: trip.tasks.map((t) => (t.taskId === 'task-meet' ? { ...t, state: 'done' } : t)) })
@@ -31,7 +31,12 @@ describe('check in with Undo', () => {
     expect(lastToast().onUndo).toBeTypeOf('function')
     expect(post).not.toHaveBeenCalled()
 
+    // Still open (hovered or focused, so its timer waits): Undo stays available.
     await vi.advanceTimersByTimeAsync(CHECKIN_UNDO_MS)
+    expect(post).not.toHaveBeenCalled()
+    // The toast's timer runs out and it closes: now it goes.
+    settleToast(lastToast().id, 'close')
+    await vi.advanceTimersByTimeAsync(0)
     expect(post).toHaveBeenCalledTimes(1)
     expect(post.mock.calls[0][0]).toBe('/v1/trips/trip-001/checkins')
     expect(post.mock.calls[0][1]).toMatchObject({ taskId: 'task-meet', kind: 'done' })
@@ -60,11 +65,21 @@ describe('check in with Undo', () => {
     expect(post).toHaveBeenCalledTimes(1)
   })
 
+  it('goes out anyway if the toast never closes', async () => {
+    const trip = goldenTrip('10:55')
+    const post = vi.spyOn(api, 'post').mockResolvedValue({ result: 'on_time' })
+    vi.spyOn(api, 'get').mockResolvedValue(trip)
+    checkIn(trip.tripId, buildDay(trip)!, 655)
+    await vi.advanceTimersByTimeAsync(CHECKIN_UNDO_MS * 6)
+    expect(post).toHaveBeenCalledTimes(1)
+  })
+
   it('offline, it waits in the queue with its key, which keeps the station filled', async () => {
     const trip = goldenTrip('10:55')
     vi.spyOn(api, 'post').mockRejectedValue(new ApiError(0, 'OFFLINE', "You're offline. Try again when you have signal."))
     checkIn(trip.tripId, buildDay(trip)!, 655)
-    await vi.advanceTimersByTimeAsync(CHECKIN_UNDO_MS)
+    settleToast(lastToast().id, 'close')
+    await vi.advanceTimersByTimeAsync(0)
     expect(queued().map((q) => [q.taskId, q.kind])).toEqual([['task-meet', 'done']])
     expect(getState().optimisticDone).toEqual([])
   })

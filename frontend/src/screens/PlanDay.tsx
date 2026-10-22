@@ -1,5 +1,7 @@
-import { CalendarPlus, ChevronRight, Plus, Sparkles, TriangleAlert } from 'lucide-react'
+import { CalendarDays, CalendarPlus, ChevronRight, Hotel, MapPin, Plus, Sparkles, TriangleAlert } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
+import { EASE_OUT } from '@/lib/motion'
+import { useSubmitKey } from '@/lib/submitKey'
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { api, ApiError, newKey } from '@/api/client'
@@ -11,13 +13,13 @@ import { Button } from '@/components/ui/Button'
 import { Field, FieldError } from '@/components/ui/Field'
 import { Sheet } from '@/components/ui/Sheet'
 import { Banner, ErrorState, LoadingRegion, Skeleton } from '@/components/ui/States'
-import { Tag } from '@/components/ui/Tag'
+import { DurationTag, FixedTag, HoursTag, PriorityTag, Tag } from '@/components/ui/Tag'
 import { addTask, moveTaskToDay, saveTaskEdit, type EditOutcome } from '@/lib/actions'
 import { duration, hhmm } from '@/lib/format'
 import { CALENDAR_SCOPE, googleEnabled, requestGoogleCode } from '@/lib/google'
 import { useDocumentTitle, useOnline } from '@/lib/hooks'
 import { T } from '@/lib/i18n'
-import { stopEmoji } from '@/lib/stopEmoji'
+import { StopIcon } from '@/lib/stopIcon'
 import { nextToken, setState, showToast } from '@/lib/store'
 import { addDays, buildDay, dayLabel, localMinutes, weekday } from '@/lib/timeline'
 import { AiPlannerSheet } from './AiPlannerSheet'
@@ -26,10 +28,10 @@ import { TaskFormSheet, tripDays } from './TaskForm'
 function TaskTags({ task, trip }: { task: Task; trip: Trip }) {
   return (
     <span className="mt-2 flex flex-wrap gap-2">
-      {task.fixedStart && <Tag tone="ink">Fixed {hhmm(localMinutes(task.fixedStart, task.day, trip.utcOffset))}</Tag>}
-      {task.window && <Tag tone="green-outline">Open till {task.window.closesAt}</Tag>}
-      {task.durationMin > 0 && <Tag tone="grey-outline">{duration(task.durationMin)}</Tag>}
-      {task.priority === 1 && <Tag tone="grey-outline">Must do</Tag>}
+      {task.fixedStart && <FixedTag at={hhmm(localMinutes(task.fixedStart, task.day, trip.utcOffset))} />}
+      {task.window && <HoursTag closesAt={task.window.closesAt} />}
+      {task.durationMin > 0 && <DurationTag min={task.durationMin} />}
+      <PriorityTag priority={task.priority} />
       {task.state === 'done' && <Tag tone="green">Done</Tag>}
       {task.state === 'skipped' && <Tag tone="sunken">Skipped</Tag>}
       {task.state === 'moved' && <Tag tone="sunken">Moved to {weekday(task.day)}</Tag>}
@@ -68,9 +70,7 @@ function TaskRow({
   return (
     <li>
       <button type="button" disabled={disabled || done} onClick={onOpen} className="flex w-full items-start gap-3 px-4 py-4 text-left disabled:cursor-default [@media(hover:hover)]:hover:enabled:bg-sunken/60">
-        <span aria-hidden="true" className={`flex size-10 shrink-0 items-center justify-center rounded-full text-xl ${done ? 'bg-sunken' : issue ? 'bg-red-tint' : 'bg-green-tint'}`}>
-          {stopEmoji(task.title)}
-        </span>
+        <StopIcon title={task.title} size={20} className={`mt-0.5 shrink-0 ${done ? 'text-muted' : issue ? 'text-red-ink' : 'text-ink-2'}`} />
         <span className="min-w-0 flex-1">
           <span className="flex flex-wrap items-baseline justify-between gap-x-3">
             <span className={`t-title ${done ? 'text-ink-2 line-through decoration-1' : 'text-ink'}`}>{task.title}</span>
@@ -109,7 +109,7 @@ export function DrawLine({ className = '' }: { className?: string }) {
   const reduce = useReducedMotion()
   return (
     <svg viewBox="0 0 120 24" className={`h-6 w-30 ${className}`} aria-hidden="true">
-      <motion.path d="M10 12H110" stroke="var(--green)" strokeWidth="6" strokeLinecap="round" fill="none" initial={{ pathLength: reduce ? 1 : 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }} />
+      <motion.path d="M10 12H110" stroke="var(--green)" strokeWidth="6" strokeLinecap="round" fill="none" initial={{ pathLength: reduce ? 1 : 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.6, ease: EASE_OUT }} />
       {[10, 60, 110].map((x, i) => (
         <motion.circle
           key={x}
@@ -121,7 +121,7 @@ export function DrawLine({ className = '' }: { className?: string }) {
           strokeWidth="3"
           initial={reduce ? false : { scale: 0.6, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
-          transition={{ delay: i * 0.2 + 0.05, duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+          transition={{ delay: i * 0.2 + 0.05, duration: 0.24, ease: EASE_OUT }}
           style={{ transformOrigin: `${x}px 12px` }}
         />
       ))}
@@ -146,7 +146,7 @@ function StartForm({ onCreated }: { onCreated: (trip: Trip, text: string) => voi
   const [text, setText] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState(false)
-  const [key] = useState(() => newKey('trip'))
+  const { key, after } = useSubmitKey('trip')
   const describing = text.trim().length >= 3
 
   const create = async () => {
@@ -165,6 +165,7 @@ function StartForm({ onCreated }: { onCreated: (trip: Trip, text: string) => voi
       await queryClient.refetchQueries({ queryKey: keys.trips })
       onCreated(trip, describing ? text.trim() : '')
     } catch (err) {
+      after(err)
       setErrors({ form: err instanceof ApiError ? err.message : "Couldn't create the trip. Try again." })
       setBusy(false)
     }
@@ -486,19 +487,23 @@ export default function PlanDay() {
       <h1 tabIndex={-1} className="t-display-1 text-ink">
         <T k={trip.activePlan ? 'Your trip' : 'New trip'} />
       </h1>
-      <dl className="mt-6 grid gap-x-6 gap-y-3 rounded-card border border-line bg-surface p-4 sm:grid-cols-3">
-        <div>
-          <dt className="t-small text-muted">City</dt>
-          <dd className="t-title text-ink">{trip.cityName}</dd>
-        </div>
-        <div>
-          <dt className="t-small text-muted">Dates</dt>
-          <dd className="t-title text-ink">{trip.startDate === trip.endDate ? dayLabel(trip.startDate) : `${dayLabel(trip.startDate)} to ${dayLabel(trip.endDate)}`}</dd>
-        </div>
-        <div>
-          <dt className="t-small text-muted">Staying at</dt>
-          <dd className="t-title text-ink">{trip.stayLabel}</dd>
-        </div>
+      {/* The trip at a glance: an icon names each fact, the words carry it. */}
+      <dl className="mt-6 flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
+        {(
+          [
+            [MapPin, 'City', trip.cityName],
+            [CalendarDays, 'Dates', trip.startDate === trip.endDate ? dayLabel(trip.startDate) : `${dayLabel(trip.startDate)} to ${dayLabel(trip.endDate)}`],
+            [Hotel, 'Staying at', trip.stayLabel],
+          ] as const
+        ).map(([Icon, term, value]) => (
+          <div key={term} className="flex items-start gap-3">
+            <dt className="flex shrink-0 pt-0.5 text-muted">
+              <Icon size={20} strokeWidth={1.75} aria-hidden="true" />
+              <span className="sr-only">{term}</span>
+            </dt>
+            <dd className="t-title text-ink">{value}</dd>
+          </div>
+        ))}
       </dl>
       {trip.sample && <p className="mt-2 t-small text-muted">This is the sample demo trip. Its places and travel times are sample data.</p>}
       <p className="mt-2 flex flex-wrap gap-x-4">
@@ -575,7 +580,7 @@ export default function PlanDay() {
                   )}
                   {closed.length > 0 && (
                     <details className="group mt-2">
-                      <summary className="flex min-h-11 cursor-pointer items-center gap-1.5 rounded-control t-small font-bold text-ink-2">
+                      <summary className="flex min-h-12 cursor-pointer items-center gap-1.5 rounded-control t-small font-bold text-ink-2">
                         <ChevronRight size={16} strokeWidth={2} aria-hidden="true" className="transition-transform group-open:rotate-90" />
                         Done and skipped ({closed.length})
                       </summary>

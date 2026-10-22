@@ -85,6 +85,9 @@ export function backoff(attempt: number, random = Math.random) {
   return Math.round(cap / 2 + random() * (cap / 2))
 }
 
+/** Reconnect after this long without a byte, pings included (the server pings every 15 s). */
+export const IDLE_MS = 45_000
+
 export function useLive(tripId: string | null, enabled: boolean) {
   useEffect(() => {
     if (!tripId || !enabled) return
@@ -117,19 +120,30 @@ export function useLive(tripId: string | null, enabled: boolean) {
           if (connected) void queryClient.invalidateQueries({ queryKey: keys.trip(tripId!) })
           connected = true
           const reader = res.body.pipeThrough(new TextDecoderStream()).getReader()
+          // The server pings every 15 s. Silence for longer is a connection that died without closing (a
+          // network handover): cancel it so the loop reconnects, or leave-now alerts would never arrive.
+          let heard = Date.now()
+          const watchdog = setInterval(() => {
+            if (Date.now() - heard > IDLE_MS) void reader.cancel()
+          }, IDLE_MS / 3)
           let buffer = ''
-          for (;;) {
-            const { value, done } = await reader.read()
-            if (done) break
-            const parsed = parseSse(buffer + value)
-            buffer = parsed.rest
-            for (const e of parsed.events) {
-              try {
-                handle(tripId!, e)
-              } catch {
-                /* one bad event must not end the stream */
+          try {
+            for (;;) {
+              const { value, done } = await reader.read()
+              if (done) break
+              heard = Date.now()
+              const parsed = parseSse(buffer + value)
+              buffer = parsed.rest
+              for (const e of parsed.events) {
+                try {
+                  handle(tripId!, e)
+                } catch {
+                  /* one bad event must not end the stream */
+                }
               }
             }
+          } finally {
+            clearInterval(watchdog)
           }
         } catch {
           if (ctrl.signal.aborted) return

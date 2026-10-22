@@ -2,9 +2,11 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import * as maplibregl from 'maplibre-gl'
 import type { GeoJSONSource, Map as MLMap } from 'maplibre-gl'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
-import { LocateFixed, Navigation, WifiOff } from 'lucide-react'
+import { LocateFixed, Navigation, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import { MODE_META } from '@/components/icons'
+import { MapUnavailable } from '@/components/LazyMap'
 import { useOnline } from '@/lib/hooks'
 import type { LngLat, MapLine } from '@/lib/geo'
 import type { Fix } from '@/lib/location'
@@ -17,8 +19,8 @@ export interface MapPoint {
   label: string
   number?: number
   onClick?: () => void
-  /** A stop drawn as a pin with this emoji (and its name under it on the full map). */
-  emoji?: string
+  /** A stop drawn as a pin with this icon (and its name under it on the full map). */
+  icon?: LucideIcon
   caption?: string
   /** Where the stop sits in the day: done stops fade, the next one pulses. */
   state?: 'done' | 'current' | 'next' | 'later'
@@ -153,18 +155,18 @@ function bounds(pts: LngLat[]) {
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 
-/** A stop as a pin: an emoji in a coloured head, a pointed tail, and its name beneath (full map). */
-function pinNode(p: MapPoint, compact: boolean, reduce: boolean) {
+/** A stop as a pin: its icon in a coloured head, a pointed tail, and its name beneath (full map). The icon is
+ * rendered into the `data-pin-icon` slot through a portal, so it is the same lucide icon as everywhere else. */
+function pinNode(p: MapPoint, compact: boolean) {
   const node = document.createElement('div')
   node.className = 'flex flex-col items-center'
-  const tone = p.state === 'done' ? 'bg-muted' : p.state === 'next' ? 'bg-green' : p.state === 'current' ? 'bg-yellow' : 'bg-ink'
-  const size = compact ? 'size-7 text-sm' : 'size-10 text-xl'
+  const tone = p.state === 'done' ? 'bg-muted text-on-ink' : p.state === 'next' ? 'bg-green text-on-green' : p.state === 'current' ? 'bg-yellow text-on-yellow' : 'bg-ink text-on-ink'
+  const size = compact ? 'size-7' : 'size-10'
   const fade = p.state === 'done' ? 'opacity-70' : ''
-  const pulse = p.state === 'next' && !reduce ? '<span class="absolute -inset-1.5 animate-ping rounded-full bg-green opacity-30"></span>' : ''
   node.innerHTML = `
-    <div class="relative flex ${size} items-center justify-center rounded-full border-[3px] border-surface ${tone} shadow-lg ${fade}">${pulse}<span class="relative leading-none">${esc(p.emoji ?? '📍')}</span></div>
+    <div class="relative flex ${size} items-center justify-center rounded-full border-[3px] border-surface ${tone} shadow-lg ${fade}"><span data-pin-icon class="flex"></span></div>
     <div class="-mt-1.5 size-2.5 rotate-45 ${tone} ${fade}"></div>
-    ${!compact && p.caption ? `<span class="mt-1 max-w-36 truncate rounded-full bg-surface/95 px-2 py-0.5 text-[12px] font-bold leading-5 text-ink shadow">${esc(p.caption)}</span>` : ''}`
+    ${!compact && p.caption ? `<span class="mt-1 max-w-36 truncate rounded-full bg-surface px-2 py-0.5 text-[13px] font-bold leading-5 text-ink shadow">${esc(p.caption)}</span>` : ''}`
   node.setAttribute('role', 'img')
   node.setAttribute('aria-label', p.label)
   return node
@@ -173,15 +175,7 @@ function pinNode(p: MapPoint, compact: boolean, reduce: boolean) {
 export default function MapCard(props: MapCardProps) {
   const online = useOnline()
   const theme = useResolvedTheme()
-  if (!online) {
-    return (
-      <div className={`flex flex-col justify-center rounded-card border border-line bg-surface p-5 ${props.className ?? 'h-64'}`}>
-        <WifiOff size={24} strokeWidth={1.75} aria-hidden="true" className="text-muted" />
-        <p className="mt-3 t-title text-ink">The map needs a connection</p>
-        <p className="mt-1 t-small text-ink-2">The written directions still work offline.</p>
-      </div>
-    )
-  }
+  if (!online) return <MapUnavailable className={props.className} />
   return <MapInner key={theme} {...props} theme={theme} />
 }
 
@@ -194,6 +188,7 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState(false)
   const [following, setFollowing] = useState(false)
+  const [pins, setPins] = useState<{ key: string; host: HTMLElement; Icon: LucideIcon }[]>([])
   const clickRef = useRef(onMapClick)
   clickRef.current = onMapClick
   // Markers read the latest points (and their click handlers) from here, so they're rebuilt only when the points change.
@@ -206,6 +201,12 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
   const touched = useRef(false)
   const frame = useRef(0)
   const flowFrame = useRef(0)
+  // The latest lines, for callbacks set up once with the map (its load and reveal), which would otherwise
+  // draw the lines of the first render over newer ones (road shapes that arrive during the reveal).
+  const linesRef = useRef(lines)
+  linesRef.current = lines
+  // Restarts the flow along the active leg when it can run again (see the map's load handler).
+  const kickFlow = useRef<() => void>(() => {})
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
   const padding = compact ? 32 : { top: 72, bottom: 64, left: 56, right: 56 }
 
@@ -243,6 +244,14 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
       refit()
     })
     resize.observe(el.current)
+    let onScreen = true
+    const seen = new IntersectionObserver(([entry]) => {
+      onScreen = entry.isIntersecting
+      kickFlow.current()
+    })
+    seen.observe(el.current)
+    const onVisibility = () => kickFlow.current()
+    document.addEventListener('visibilitychange', onVisibility)
     const timeout = setTimeout(() => !map.loaded() && setFailed(true), 12000)
     map.on('error', (e: { error?: { message?: string } }) => {
       if (String(e.error?.message ?? '').includes('style')) setFailed(true)
@@ -261,7 +270,7 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
       const surface = token('--surface')
       map.addSource('me-accuracy', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({ id: 'me-accuracy', type: 'fill', source: 'me-accuracy', paint: { 'fill-color': token('--blue'), 'fill-opacity': 0.14 } })
-      map.addSource('route', { type: 'geojson', data: toFC(lines, draw && !reduce ? 0 : 1) })
+      map.addSource('route', { type: 'geojson', data: toFC(linesRef.current, draw && !reduce ? 0 : 1) })
       // A soft glow under the route, a crisp casing, the coloured line, then the flow on the active leg.
       map.addLayer({
         id: 'route-glow',
@@ -297,8 +306,15 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
         paint: { 'line-color': surface, 'line-width': compact ? 2 : 3, 'line-opacity': 0.9, 'line-dasharray': FLOW[0] },
       })
       if (!reduce) {
+        // The flow runs only while it can be seen: a map with an active leg, on screen, in a visible page.
+        // Otherwise it stops (no frame is asked for) and starts again when that changes.
         let step = 0
+        const running = () => onScreen && !document.hidden && linesRef.current.some((l) => l.active)
         const animate = (t: number) => {
+          if (!running()) {
+            flowFrame.current = 0
+            return
+          }
           const next = Math.floor(t / 60) % FLOW.length
           if (next !== step && map.getLayer('route-flow')) {
             step = next
@@ -306,7 +322,10 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
           }
           flowFrame.current = requestAnimationFrame(animate)
         }
-        flowFrame.current = requestAnimationFrame(animate)
+        kickFlow.current = () => {
+          if (!flowFrame.current && running()) flowFrame.current = requestAnimationFrame(animate)
+        }
+        kickFlow.current()
       }
       map.resize()
       refit()
@@ -315,7 +334,7 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
         const t0 = performance.now()
         const step = (t: number) => {
           const p = Math.min(1, (t - t0) / 700)
-          ;(map.getSource('route') as GeoJSONSource | undefined)?.setData(toFC(lines, 1 - Math.pow(1 - p, 3)))
+          ;(map.getSource('route') as GeoJSONSource | undefined)?.setData(toFC(linesRef.current, 1 - Math.pow(1 - p, 3)))
           if (p < 1) frame.current = requestAnimationFrame(step)
         }
         frame.current = requestAnimationFrame(step)
@@ -324,8 +343,12 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
     return () => {
       clearTimeout(timeout)
       resize.disconnect()
+      seen.disconnect()
+      document.removeEventListener('visibilitychange', onVisibility)
+      kickFlow.current = () => {}
       cancelAnimationFrame(frame.current)
       cancelAnimationFrame(flowFrame.current)
+      flowFrame.current = 0
       markers.current.forEach((m) => m.remove())
       meMarker.current?.remove()
       meMarker.current = null
@@ -340,19 +363,24 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
   useEffect(() => {
     const src = mapRef.current?.getSource('route') as GeoJSONSource | undefined
     if (ready && src) src.setData(toFC(lines))
+    kickFlow.current()
   }, [lines, ready])
 
-  // Markers: stops as emoji pins, stands as rings, the traveller (by check-ins) as a yellow "now" dot.
+  // Markers: stops as icon pins, stands as rings, the traveller (by check-ins) as a yellow "now" dot.
   // A new array with the same points (every render of the parent) keeps the markers; only a change rebuilds them.
-  const pointsKey = points.map((p) => `${p.id}:${p.lngLat.join(',')}:${p.kind}:${p.number ?? ''}:${p.label}:${p.state ?? ''}:${p.emoji ?? ''}:${p.onClick ? 1 : 0}`).join('|')
+  const pointsKey = points.map((p) => `${p.id}:${p.lngLat.join(',')}:${p.kind}:${p.number ?? ''}:${p.label}:${p.state ?? ''}:${p.icon?.displayName ?? ''}:${p.onClick ? 1 : 0}`).join('|')
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
     markers.current.forEach((m) => m.remove())
+    const pins: { key: string; host: HTMLElement; Icon: LucideIcon }[] = []
     markers.current = points.map((p) => {
-      if (p.kind === 'stop' && p.emoji) {
+      if (p.kind === 'stop' && p.icon) {
+        const node = pinNode(p, !!compact)
+        const host = node.querySelector<HTMLElement>('[data-pin-icon]')
+        if (host) pins.push({ key: p.id, host, Icon: p.icon })
         // The pin's tail tip sits on the place.
-        return new maplibregl.Marker({ element: pinNode(p, !!compact, reduce), anchor: 'top', offset: [0, compact ? -32 : -48] }).setLngLat(p.lngLat).addTo(map)
+        return new maplibregl.Marker({ element: node, anchor: 'top', offset: [0, compact ? -32 : -48] }).setLngLat(p.lngLat).addTo(map)
       }
       const size = p.number ? 'size-8' : p.kind === 'user' ? 'size-5' : compact ? 'size-3' : 'size-4'
       const look =
@@ -386,6 +414,7 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
       }
       return new maplibregl.Marker({ element: node }).setLngLat(p.lngLat).addTo(map)
     })
+    setPins(pins)
     // pointsKey stands for the points by value.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pointsKey, ready])
@@ -460,8 +489,9 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
       <div className="absolute inset-0">
         <div ref={el} className="h-full w-full" aria-label={compact ? undefined : label} role={compact ? undefined : 'region'} aria-hidden={compact || undefined} />
       </div>
+      {pins.map(({ key, host, Icon }) => createPortal(<Icon size={compact ? 14 : 20} strokeWidth={2} aria-hidden="true" />, host, key))}
       {eta && !compact && (
-        <div className="pointer-events-none absolute left-3 top-3 z-10 flex items-center gap-3 rounded-card border border-line bg-surface/95 px-4 py-2.5 shadow-[var(--shadow-toast)] backdrop-blur-sm">
+        <div className="pointer-events-none absolute left-3 top-3 z-10 flex items-center gap-3 rounded-card border border-line bg-surface px-4 py-2.5 shadow-[var(--shadow-toast)]">
           <Navigation size={20} strokeWidth={1.75} aria-hidden="true" className="text-blue" />
           <div>
             <p className="t-title text-ink tnum">{eta.primary}</p>
@@ -471,7 +501,7 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
       )}
       {compact && (
         <span aria-hidden="true" className="absolute bottom-1 right-1.5 rounded bg-surface/90 px-1.5 text-[11px] leading-5 text-ink-2">
-          © OpenStreetMap · OpenFreeMap
+          © OpenStreetMap, OpenFreeMap
         </span>
       )}
       {me && !compact && ready && (
@@ -482,7 +512,7 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
             setFollowing((f) => !f)
           }}
           aria-pressed={following}
-          className={`absolute bottom-3 left-3 z-10 inline-flex min-h-11 items-center gap-2 rounded-full border px-4 t-small font-bold shadow-sm ${
+          className={`absolute bottom-3 left-3 z-10 inline-flex min-h-12 items-center gap-2 rounded-full border px-4 t-small font-bold shadow-sm ${
             following ? 'border-blue bg-blue-tint text-ink' : 'border-line bg-surface text-ink [@media(hover:hover)]:hover:bg-sunken'
           }`}
         >

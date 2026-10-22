@@ -5,7 +5,7 @@ import { api, ApiError } from '@/api/client'
 import { useCurrentTripId, useDay, useRaastaRoute, useStands, useTrip } from '@/api/queries'
 import type { Place, RaastaLegOption, RaastaLegOptions } from '@/api/types'
 import { BackButton, useBack } from '@/components/BackButton'
-import { ModeIcon, MODE_META, modeTextClass } from '@/components/icons'
+import { AutoRickshaw, ModeIcon, MODE_META, modeTextClass } from '@/components/icons'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { Field, FieldError } from '@/components/ui/Field'
 import { Banner, EmptyState, ErrorState, LoadingRegion, Skeleton } from '@/components/ui/States'
@@ -146,11 +146,9 @@ export default function RaastaHome() {
           type="button"
           onClick={searchNext}
           disabled={!online || searching}
-          className="mt-6 flex w-full items-center gap-3 rounded-card border-2 border-green bg-green-tint/50 p-4 text-left [@media(hover:hover)]:hover:enabled:bg-green-tint disabled:opacity-60"
+          className="mt-6 flex w-full items-center gap-3 rounded-card border border-green bg-surface p-4 text-left transition-colors duration-[var(--dur-quick)] [@media(hover:hover)]:hover:enabled:bg-green-tint active:enabled:bg-green-tint disabled:opacity-60"
         >
-          <span aria-hidden="true" className="text-2xl">
-            🛺
-          </span>
+          <AutoRickshaw size={28} className="shrink-0 text-green" />
           <span className="min-w-0 flex-1">
             <span className="block t-caption text-green-ink">Your next leg, leave {next.leaveBy}</span>
             <span className="block t-title text-ink">

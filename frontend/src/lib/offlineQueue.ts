@@ -1,7 +1,8 @@
 // Check-ins made offline wait here with their idempotency keys and go out when the phone is back
 // online. Idempotency makes the retry safe: the server answers a repeated key with the first result.
 import { useSyncExternalStore } from 'react'
-import { ApiError, isSignedOutError } from '@/api/client'
+import { isSignedOutError } from '@/api/client'
+import { keyIsSpent } from '@/lib/submitKey'
 
 export interface QueuedCheckin {
   tripId: string
@@ -56,10 +57,21 @@ export function useQueued(tripId?: string) {
 }
 
 /**
- * Send queued check-ins in order. Stops at the first network failure (still offline) and keeps the
- * rest. A check-in the server refuses (4xx) is dropped: retrying it would never succeed.
+ * Send queued check-ins in order. Stops at the first one that can't go yet and keeps the rest: no
+ * connection, signed out, a rate limit, a 5xx, or "already being processed". A check-in the server
+ * answered for good (a 4xx it keeps under the key, like a task that no longer exists) is dropped:
+ * retrying it would never succeed. One flush at a time: a flapping connection can't send twice.
  */
-export async function flush(send: (item: QueuedCheckin) => Promise<unknown>): Promise<{ sent: number; dropped: number }> {
+export function flush(send: (item: QueuedCheckin) => Promise<unknown>): Promise<{ sent: number; dropped: number }> {
+  running ??= sendAll(send).finally(() => {
+    running = null
+  })
+  return running
+}
+
+let running: Promise<{ sent: number; dropped: number }> | null = null
+
+async function sendAll(send: (item: QueuedCheckin) => Promise<unknown>) {
   let sent = 0
   let dropped = 0
   for (const item of [...read()]) {
@@ -67,11 +79,8 @@ export async function flush(send: (item: QueuedCheckin) => Promise<unknown>): Pr
       await send(item)
       sent++
     } catch (err) {
-      if (err instanceof ApiError && err.offline) break
-      // Signed out: keep it, and send it once the traveller is back in.
-      if (isSignedOutError(err)) break
-      if (err instanceof ApiError && err.status >= 400 && err.status < 500) dropped++
-      else break
+      if (isSignedOutError(err) || !keyIsSpent(err)) break
+      dropped++
     }
     write(read().filter((q) => q.idempotencyKey !== item.idempotencyKey))
   }

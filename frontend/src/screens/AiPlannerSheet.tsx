@@ -1,5 +1,6 @@
 import { Bot, Sparkles, Trash2 } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { EASE_OUT } from '@/lib/motion'
 import { useEffect, useRef, useState } from 'react'
 import { api, ApiError, newKey } from '@/api/client'
 import { keys, queryClient } from '@/api/queries'
@@ -7,9 +8,9 @@ import type { Place, TaskDraft, Trip } from '@/api/types'
 import { PlacePicker } from '@/components/PlacePicker'
 import { Button } from '@/components/ui/Button'
 import { Sheet } from '@/components/ui/Sheet'
-import { Tag } from '@/components/ui/Tag'
+import { DurationTag, FixedTag, PriorityTag } from '@/components/ui/Tag'
 import { addTask, type EditOutcome } from '@/lib/actions'
-import { duration, hhmm, lowerFirst } from '@/lib/format'
+import { hhmm, lowerFirst } from '@/lib/format'
 import { localMinutes } from '@/lib/timeline'
 
 interface AiPlannerSheetProps {
@@ -38,24 +39,23 @@ function DraftCard({ item, index, trip, onPlace, onRemove }: { item: Item; index
       initial={reduce ? { opacity: 0 } : { opacity: 0, y: 12 }}
       animate={{ opacity: 1, y: 0 }}
       exit={reduce ? { opacity: 0 } : { opacity: 0, x: -40 }}
-      transition={{ duration: 0.2, delay: index * 0.06, ease: [0.16, 1, 0.3, 1] }}
+      transition={{ duration: 0.2, delay: index * 0.06, ease: EASE_OUT }}
       className="rounded-card border border-line bg-surface p-4"
     >
       <div className="flex items-start gap-3">
         <div className="min-w-0 flex-1">
           <p className="t-title text-ink">{draft.title}</p>
           <div className="mt-2 flex flex-wrap gap-2">
-            {draft.fixedStart && <Tag tone="ink">{hhmm(localMinutes(draft.fixedStart, draft.fixedStart.slice(0, 10), trip.utcOffset))}</Tag>}
-            <Tag tone="grey-outline">{duration(draft.durationMin)}</Tag>
-            {draft.priority === 1 && <Tag tone="green">Must do</Tag>}
-            {draft.priority === 3 && <Tag tone="sunken">If there is time</Tag>}
+            {draft.fixedStart && <FixedTag at={hhmm(localMinutes(draft.fixedStart, draft.fixedStart.slice(0, 10), trip.utcOffset))} />}
+            <DurationTag min={draft.durationMin} />
+            <PriorityTag priority={draft.priority} />
           </div>
         </div>
         <button
           type="button"
           onClick={onRemove}
           aria-label={`Remove ${draft.title}`}
-          className="-mr-2 -mt-2 flex size-11 shrink-0 items-center justify-center rounded-full text-muted [@media(hover:hover)]:hover:bg-red-tint [@media(hover:hover)]:hover:text-red-ink"
+          className="-mr-2 -mt-2 flex size-12 shrink-0 items-center justify-center rounded-full text-muted [@media(hover:hover)]:hover:bg-red-tint [@media(hover:hover)]:hover:text-red-ink"
         >
           <Trash2 size={18} strokeWidth={1.75} aria-hidden="true" />
         </button>

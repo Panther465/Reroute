@@ -1,7 +1,7 @@
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { CalendarClock, CircleUserRound, ListChecks } from 'lucide-react'
 import { motion, MotionConfig } from 'motion/react'
-import { lazy, Suspense, useEffect, useRef, useState } from 'react'
+import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Navigate, NavLink, Outlet, ScrollRestoration, useLocation, useMatches } from 'react-router'
 import { AutoRickshaw, RouteMark } from '@/components/icons'
 import { TodaySkeleton } from '@/components/TodaySkeleton'
@@ -95,8 +95,7 @@ function TabBar() {
   )
 }
 
-function TopBar() {
-  const demo = useStore((s) => s.demo.enabled)
+function TopBar({ demo }: { demo?: ReactNode }) {
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-surface">
       <a
@@ -137,7 +136,7 @@ function TopBar() {
             ))}
           </ul>
         </nav>
-        {demo && <span className="ml-auto rounded-tag bg-sunken px-2 py-0.5 t-caption text-ink-2">Demo</span>}
+        {demo}
       </div>
     </header>
   )
@@ -199,6 +198,11 @@ export default function AppShell() {
     setLate({ open: true, delay, mode })
   }
   const moderator = me.data?.role === 'moderator' || me.data?.role === 'admin'
+  const demoBar = demoEnabled && trip.data && (
+    <Suspense fallback={null}>
+      <DemoPanel trip={trip.data} onLate={openLate} inTopBar={desktop} />
+    </Suspense>
+  )
 
   return (
     <LateContext.Provider value={openLate}>
@@ -206,7 +210,8 @@ export default function AppShell() {
       <MotionConfig reducedMotion="user">
         <Tooltip.Provider delayDuration={400}>
           <div className="min-h-dvh bg-ground text-ink">
-            {desktop && <TopBar />}
+            {desktop && <TopBar demo={demoBar} />}
+            {!desktop && demoBar}
             <motion.main
               id="main"
               tabIndex={-1}
@@ -234,14 +239,10 @@ export default function AppShell() {
                 />
               </Suspense>
             )}
-            {demoEnabled && trip.data && (
+            {/* Roo lives on Today's Now line only; it never floats over the other screens. */}
+            {location.pathname === '/' && (
               <Suspense fallback={null}>
-                <DemoPanel trip={trip.data} onLate={openLate} />
-              </Suspense>
-            )}
-            {!pushed && (
-              <Suspense fallback={null}>
-                <Roo trip={trip.data ?? undefined} clock={clock ?? null} demoActive={demoEnabled && !!trip.data} />
+                <Roo trip={trip.data ?? undefined} clock={clock ?? null} />
               </Suspense>
             )}
             <Toaster tripId={current.tripId} />

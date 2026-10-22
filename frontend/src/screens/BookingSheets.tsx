@@ -1,7 +1,8 @@
-import { Car, Minus, Plus, Star, TrainFront } from 'lucide-react'
+import { Bike, Car, CarTaxiFront, Check, Minus, Plus, Star, TrainFront } from 'lucide-react'
+import { AutoRickshaw } from '@/components/icons'
 import { useEffect, useId, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { api, ApiError, newKey } from '@/api/client'
+import { api, ApiError } from '@/api/client'
 import { useMe } from '@/api/queries'
 import type { Booking, CabOption, Task, TrainOption, Trip } from '@/api/types'
 import { Button } from '@/components/ui/Button'
@@ -10,6 +11,7 @@ import { Sheet } from '@/components/ui/Sheet'
 import { Banner } from '@/components/ui/States'
 import { Tag } from '@/components/ui/Tag'
 import { book, cancelBooking, DEMO_NOTE, pause } from '@/lib/bookings'
+import { useSubmitKey } from '@/lib/submitKey'
 import { dayLabel } from '@/lib/timeline'
 import { duration, rupees } from '@/lib/format'
 import { announce, showToast } from '@/lib/store'
@@ -23,7 +25,7 @@ function Processing({ steps, step }: { steps: string[]; step: number }) {
       {steps.map((s, i) => (
         <p key={s} className={`flex items-center gap-3 t-body ${i <= step ? 'text-ink' : 'text-muted'}`}>
           <span aria-hidden="true" className={`flex size-6 items-center justify-center rounded-full ${i < step ? 'bg-green text-on-green' : i === step ? 'border-2 border-green border-t-transparent motion-safe:animate-spin' : 'border-2 border-line'}`}>
-            {i < step ? '✓' : ''}
+            {i < step && <Check size={14} strokeWidth={2.5} />}
           </span>
           {s}
         </p>
@@ -48,7 +50,7 @@ export function TrainBookingSheet({ trip, task, open, onOpenChange, onBooked }: 
   const [people, setPeople] = useState<{ name: string; age: string }[]>([{ name: '', age: '' }])
   const [error, setError] = useState<string>()
   const [progress, setProgress] = useState(0)
-  const [key] = useState(() => newKey('bkg'))
+  const { key, after } = useSubmitKey('bkg')
   const listId = useId()
 
   useEffect(() => {
@@ -90,6 +92,7 @@ export function TrainBookingSheet({ trip, task, open, onOpenChange, onBooked }: 
       announce(`Ticket booked. PNR ${booking.reference}. ${String(booking.details.bookingStatus)}.`)
       onBooked(booking)
     } catch (err) {
+      after(err)
       setError(err instanceof ApiError ? err.message : "Couldn't book the ticket. Try again.")
       setStep('pay')
     }
@@ -145,7 +148,7 @@ export function TrainBookingSheet({ trip, task, open, onOpenChange, onBooked }: 
                           const id = `${t.trainNo}-${c.code}`
                           const picked = train?.trainNo === t.trainNo && cls === c.code
                           return (
-                            <label key={id} htmlFor={id} className={`flex min-h-11 cursor-pointer flex-col rounded-control border-2 px-3 py-1.5 ${picked ? 'border-green bg-green-tint' : 'border-line'}`}>
+                            <label key={id} htmlFor={id} className={`flex min-h-12 cursor-pointer flex-col rounded-control border-2 px-3 py-1.5 ${picked ? 'border-green bg-green-tint' : 'border-line'}`}>
                               <input
                                 id={id}
                                 type="radio"
@@ -222,7 +225,7 @@ export function CabBookingSheet({ trip, toId, toName, open, onOpenChange, onBook
   const [busy, setBusy] = useState(false)
   const [progress, setProgress] = useState(0)
   const [error, setError] = useState<string>()
-  const [key] = useState(() => newKey('bkg'))
+  const { key, after } = useSubmitKey('bkg')
   const options = useQuery({
     queryKey: ['cab-options', trip.tripId, toId],
     queryFn: () => api.get<CabOption[]>(`/v1/trips/${trip.tripId}/cab-options`, { query: { toId } }),
@@ -245,6 +248,9 @@ export function CabBookingSheet({ trip, toId, toName, open, onOpenChange, onBook
       announce(`${picked.providerLabel} ${picked.vehicleLabel} booked. ${String(booking.details.driverName)} arrives in ${String(booking.details.etaMin)} minutes. OTP ${String(booking.details.otp)}.`)
       onBooked(booking)
     } catch (err) {
+      after(err)
+      // The ride may have gone ("isn't on offer any more"): show what's on offer now.
+      if (err instanceof ApiError && err.status >= 400 && err.status < 500) void options.refetch()
       setError(err instanceof ApiError ? err.message : "Couldn't book the ride. Try again.")
     } finally {
       setBusy(false)
@@ -375,13 +381,13 @@ export function BookingSheet({ trip, booking, onOpenChange }: { trip: Trip; book
         ) : (
           <div className="rounded-card border border-line bg-surface p-4">
             <div className="flex items-center gap-3">
-              <span aria-hidden="true" className="flex size-12 items-center justify-center rounded-full bg-green-tint text-2xl">
-                {d.vehicle === 'auto' ? '🛺' : d.vehicle === 'bike' ? '🏍️' : '🚕'}
+              <span aria-hidden="true" className="flex size-12 shrink-0 items-center justify-center rounded-full bg-sunken text-ink">
+                {d.vehicle === 'auto' ? <AutoRickshaw size={24} /> : d.vehicle === 'bike' ? <Bike size={24} strokeWidth={1.75} /> : <CarTaxiFront size={24} strokeWidth={1.75} />}
               </span>
               <div className="min-w-0 flex-1">
                 <p className="t-title text-ink">{String(d.driverName)}</p>
                 <p className="flex items-center gap-1 t-small text-ink-2">
-                  <Star size={14} aria-hidden="true" className="fill-current text-yellow" /> {String(d.rating)} · {String(d.providerLabel)} {String(d.vehicleLabel)}
+                  <Star size={14} aria-hidden="true" className="fill-current text-ink-2" /> {String(d.rating)}, {String(d.providerLabel)} {String(d.vehicleLabel)}
                 </p>
               </div>
               <span className="t-title text-ink tnum">{rupees(booking.fareInr)}</span>

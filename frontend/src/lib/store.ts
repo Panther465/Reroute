@@ -34,6 +34,8 @@ export interface UiState {
   /** How alerts reach the traveller, beyond the toast every alert shows. */
   alerts: AlertPrefs
   demo: { enabled: boolean; offline: boolean }
+  /** Roo on Today's Now line; "Hide Roo" turns it off and Me turns it back on. */
+  roo: boolean
   /** The trip the traveller chose to look at; null means the most recent one. */
   tripId: string | null
   // Transient, never persisted
@@ -54,7 +56,7 @@ export interface UiState {
 }
 
 const KEY = 'reroute:prefs:v2'
-const PERSISTED: (keyof UiState)[] = ['theme', 'lang', 'leaveAlerts', 'alerts', 'demo', 'started', 'tripId']
+const PERSISTED: (keyof UiState)[] = ['theme', 'lang', 'leaveAlerts', 'alerts', 'demo', 'roo', 'started', 'tripId']
 
 function defaults(): UiState {
   return {
@@ -63,6 +65,7 @@ function defaults(): UiState {
     leaveAlerts: false,
     alerts: DEFAULT_ALERTS,
     demo: { enabled: false, offline: false },
+    roo: true,
     tripId: null,
     change: null,
     reveal: 0,
@@ -222,7 +225,10 @@ interface PlayOpts {
 export function playChange({ kind, before, after, toast, undoVersion, banner }: PlayOpts) {
   if (before && after) {
     const diff = diffDays(before, after)
-    setState({ change: { ...diff, token: nextToken(), kind, before, pillDelayMs: kind === 'reroute' ? 1000 : 0 }, pendingDelay: null })
+    const token = nextToken()
+    setState({ change: { ...diff, token, kind, before, pillDelayMs: kind === 'reroute' ? 1000 : 0 }, pendingDelay: null })
+    // Once it has played, the change is done: coming back to Today later doesn't play it again.
+    setTimeout(() => getState().change?.token === token && setState({ change: null }), kind === 'reroute' ? 2600 : 900)
     if (toast) {
       const delay = kind === 'reroute' && !prefersReducedMotion() ? 1200 : 0
       setTimeout(() => showToast({ title: toast, undoVersion: undoVersion ?? null }), delay)

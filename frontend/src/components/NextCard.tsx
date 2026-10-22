@@ -1,4 +1,4 @@
-import { CircleCheck, Navigation } from 'lucide-react'
+import { CircleCheck, Navigation, Ruler } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { ModeChain } from '@/components/timeline/ModeChain'
 import { ButtonLink } from '@/components/ui/Button'
@@ -6,29 +6,20 @@ import { duration, lowerFirst, rupees } from '@/lib/format'
 import type { LegGuide } from '@/lib/guide'
 import { T } from '@/lib/i18n'
 import { distanceLabel } from '@/lib/progress'
-import { stopEmoji } from '@/lib/stopEmoji'
 import type { DayView } from '@/lib/timeline'
 
 export function NextCard({ view, clock, guide, miniMap }: { view: DayView; clock: number; guide: LegGuide | null; miniMap?: ReactNode }) {
   if (view.done || !guide) {
     const end = view.stops[view.stops.length - 1]
     return (
-      <section aria-labelledby="next-title" className="relative overflow-hidden rounded-card border border-line bg-surface p-5 pl-6">
-        <span aria-hidden="true" className="absolute inset-y-0 left-0 w-1.5 bg-green" />
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="flex items-center gap-2 t-caption text-green-ink">
-              <CircleCheck size={20} strokeWidth={1.75} aria-hidden="true" />
-              <T k="Your day is done" />
-            </p>
-            <h2 id="next-title" className="mt-2 t-display-2 text-ink">
-              Back at {end ? end.title : 'your stay'}
-            </h2>
-          </div>
-          <span aria-hidden="true" className="flex size-12 shrink-0 items-center justify-center rounded-full bg-green-tint text-2xl">
-            🎉
-          </span>
-        </div>
+      <section aria-labelledby="next-title" className="rounded-card border border-line bg-surface p-5">
+        <p className="flex items-center gap-2 t-caption text-green-ink">
+          <CircleCheck size={18} strokeWidth={2} aria-hidden="true" />
+          <T k="Your day is done" />
+        </p>
+        <h2 id="next-title" className="mt-2 t-display-2 text-ink">
+          Back at {end ? end.title : 'your stay'}
+        </h2>
         <ButtonLink to="/summary" variant="primary" className="mt-4">
           See the day summary
         </ButtonLink>
@@ -40,23 +31,15 @@ export function NextCard({ view, clock, guide, miniMap }: { view: DayView; clock
   const where = to.kind === 'end' ? `your stay, ${to.title}` : `the ${lowerFirst(to.title)} in ${to.area}`
   const live = riding && guide.remainingM != null
   return (
-    <section aria-labelledby="next-title" className="relative overflow-hidden rounded-card border border-line bg-surface p-5 pl-6">
-      <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1.5 transition-colors duration-[var(--dur-base)] ${riding ? 'bg-blue' : soon ? 'bg-yellow' : 'bg-green'}`} />
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <p className="t-caption text-ink-2">{riding ? 'Arrive around' : <T k={soon ? 'Leave now' : 'Leave by'} />}</p>
-          <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
-            <span className={`inline-block rounded-tag t-time-lg tnum transition-colors duration-[var(--dur-base)] ${soon ? 'bg-yellow px-2 text-on-yellow' : 'text-ink'}`}>
-              <span className="sr-only">{riding ? 'Arrive around ' : soon ? 'Leave now, by ' : 'Leave by '}</span>
-              {riding ? leg.arriveAt : leg.leaveBy}
-            </span>
-            {!riding && leg.leaveMin - clock > 0 && leg.leaveMin - clock <= 90 && <span className="t-title text-ink-2 tnum">in {duration(Math.round(leg.leaveMin - clock))}</span>}
-          </p>
-        </div>
-        <span aria-hidden="true" className="flex size-12 shrink-0 items-center justify-center rounded-full bg-green-tint text-2xl">
-          {stopEmoji(to.title, to.kind)}
+    <section aria-labelledby="next-title" className="rounded-card border border-line bg-surface p-5">
+      <p className={`t-caption ${riding ? 'text-blue' : 'text-ink-2'}`}>{riding ? 'Arrive around' : <T k={soon ? 'Leave now' : 'Leave by'} />}</p>
+      <p className="mt-1 flex flex-wrap items-baseline gap-x-2">
+        <span className={`inline-block rounded-tag t-time-lg tnum transition-colors duration-[var(--dur-base)] ${soon ? 'bg-yellow px-2 text-on-yellow' : 'text-ink'}`}>
+          <span className="sr-only">{riding ? 'Arrive around ' : soon ? 'Leave now, by ' : 'Leave by '}</span>
+          {riding ? leg.arriveAt : leg.leaveBy}
         </span>
-      </div>
+        {!riding && leg.leaveMin - clock > 0 && leg.leaveMin - clock <= 90 && <span className="t-title text-ink-2 tnum">in {duration(Math.round(leg.leaveMin - clock))}</span>}
+      </p>
       <h2 id="next-title" className="mt-3 t-title text-ink">
         {riding ? `On the way to ${where}` : `Leave for ${where}`}
       </h2>
@@ -77,7 +60,11 @@ export function NextCard({ view, clock, guide, miniMap }: { view: DayView; clock
         <span>{leg.fareInr ? `About ${rupees(leg.fareInr)}` : 'Free'}</span>
         {!riding && <span>Arrive around {leg.arriveAt}</span>}
       </p>
-      {leg.rough && <p className="mt-2 t-small text-muted">≈ A rough estimate from the distance. Reroute has no travel data for this place yet, so allow extra time.</p>}
+      {leg.rough && (
+        <p className="mt-2 flex gap-2 t-small text-muted">
+          <Ruler size={16} strokeWidth={2} aria-hidden="true" className="mt-0.5 shrink-0" />A rough estimate from the distance. Reroute has no travel data for this place yet, so allow extra time.
+        </p>
+      )}
       {miniMap && <div className="mt-4">{miniMap}</div>}
     </section>
   )
