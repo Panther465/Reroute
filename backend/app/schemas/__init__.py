@@ -53,6 +53,8 @@ class FeaturesOut(Api):
     ai_helper: bool
     #: Natural voices for Roo's alerts (TTS_ENABLED); otherwise the phone's own voice.
     voices: bool
+    #: The simulated wallet that pays for simulated bookings (only with the demo login, like bookings).
+    wallet: bool = False
 
 
 class UserOut(Api):
@@ -77,6 +79,44 @@ class GoogleSignIn(Api):
 
 class DemoSignIn(Api):
     as_role: Literal["traveller", "moderator"] = Field(default="traveller", alias="as")
+
+
+Email = Annotated[str, StringConstraints(strip_whitespace=True, to_lower=True, min_length=3, max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
+Password = Annotated[str, StringConstraints(min_length=8, max_length=128)]
+
+
+class SignUpIn(Api):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+    email: Email
+    password: Password
+
+
+class LoginIn(Api):
+    email: Email
+    password: Annotated[str, StringConstraints(min_length=1, max_length=128)]
+
+
+# ---------- wallet (simulated money) ----------
+
+
+class WalletEntryOut(Api):
+    entry_id: str
+    amount_inr: int
+    kind: Literal["welcome", "topup", "booking", "refund"]
+    label: str
+    booking_id: str | None
+    created_at: datetime
+
+
+class WalletOut(Api):
+    balance_inr: int
+    entries: list[WalletEntryOut]
+    #: Always true: simulated money. Nothing real is charged.
+    demo: bool = True
+
+
+class TopUpIn(PostBody):
+    amount_inr: int = Field(ge=100, le=50000)
 
 
 # ---------- places ----------
@@ -590,7 +630,8 @@ class TrainOptionOut(Api):
 
 class CabOptionOut(Api):
     option_id: str
-    provider: Literal["uber", "ola", "rapido"]
+    #: Invented, simulated partners: RideNow (cars), AutoGo (autos), ZipBike (bikes).
+    provider: Literal["ridenow", "autogo", "zipbike"]
     provider_label: str
     vehicle: Literal["bike", "auto", "mini", "sedan"]
     vehicle_label: str
@@ -604,8 +645,37 @@ class PassengerIn(Api):
     age: int = Field(ge=1, le=120)
 
 
+class FlightFareOut(Api):
+    cabin: Literal["economy", "business"]
+    label: str
+    fare_inr: int
+    seats_left: int
+
+
+class FlightOptionOut(Api):
+    flight_no: str
+    airline: str
+    origin: str
+    destination: str
+    origin_city: str
+    destination_city: str
+    date: date
+    departs: str
+    arrives: str
+    arrives_next_day: int
+    duration_min: int
+    stops: int
+    fares: list[FlightFareOut]
+
+
+class AirportOut(Api):
+    code: str
+    city: str
+    name: str
+
+
 class BookingIn(PostBody):
-    kind: Literal["train", "cab"]
+    kind: Literal["train", "cab", "flight"]
     #: Train: the task the ticket is for, where to, which train and class, and who travels.
     task_id: str | None = None
     destination: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=60)] | None = None
@@ -615,12 +685,18 @@ class BookingIn(PostBody):
     #: Cab: the stop the leg goes to (a task ID, or "end") and the chosen option.
     to_id: str | None = None
     option_id: str | None = None
+    #: Flight: airports (IATA codes), the day, the flight and the cabin (plus passengers above).
+    origin: Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")] | None = None
+    flight_to: Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")] | None = None
+    flight_date: date | None = None
+    flight_no: str | None = None
+    cabin: Literal["economy", "business"] | None = None
 
 
 class BookingOut(Api):
     booking_id: str
     trip_id: str
-    kind: Literal["train", "cab"]
+    kind: Literal["train", "cab", "flight"]
     task_id: str | None
     to_id: str | None
     provider: str

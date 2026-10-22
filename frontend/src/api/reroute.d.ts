@@ -4,6 +4,40 @@
  */
 
 export interface paths {
+    "/v1/auth/signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create an account with an email and a password */
+        post: operations["signup_v1_auth_signup_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sign in with an email and a password */
+        post: operations["login_v1_auth_login_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/google": {
         parameters: {
             query?: never;
@@ -498,7 +532,7 @@ export interface paths {
         /** Your simulated tickets and rides */
         get: operations["list_bookings_v1_trips__trip_id__bookings_get"];
         put?: never;
-        /** Book a train ticket or a cab (simulated) */
+        /** Book a train ticket, a flight or a cab (simulated), paid from the wallet */
         post: operations["create_booking_v1_trips__trip_id__bookings_post"];
         delete?: never;
         options?: never;
@@ -540,6 +574,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/airports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Airports the simulated airline flies between */
+        get: operations["airports_v1_airports_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/trips/{trip_id}/flight-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Sample flights between two airports on a day (demo) */
+        get: operations["flight_options_v1_trips__trip_id__flight_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/trips/{trip_id}/bookings/{booking_id}/cancel": {
         parameters: {
             query?: never;
@@ -551,6 +619,40 @@ export interface paths {
         put?: never;
         /** Cancel a simulated booking */
         post: operations["cancel_booking_v1_trips__trip_id__bookings__booking_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/wallet": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your wallet: the balance and its latest entries (simulated money) */
+        get: operations["get_wallet_v1_wallet_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/wallet/topups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add simulated money to your wallet */
+        post: operations["top_up_v1_wallet_topups_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -649,6 +751,15 @@ export interface components {
             /** Text */
             text: string;
         };
+        /** AirportOut */
+        AirportOut: {
+            /** Code */
+            code: string;
+            /** City */
+            city: string;
+            /** Name */
+            name: string;
+        };
         /** BlockedOut */
         BlockedOut: {
             /** Taskid */
@@ -666,7 +777,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "train" | "cab";
+            kind: "train" | "cab" | "flight";
             /** Taskid */
             taskId?: string | null;
             /** Destination */
@@ -681,6 +792,16 @@ export interface components {
             toId?: string | null;
             /** Optionid */
             optionId?: string | null;
+            /** Origin */
+            origin?: string | null;
+            /** Flightto */
+            flightTo?: string | null;
+            /** Flightdate */
+            flightDate?: string | null;
+            /** Flightno */
+            flightNo?: string | null;
+            /** Cabin */
+            cabin?: ("economy" | "business") | null;
         };
         /** BookingOut */
         BookingOut: {
@@ -692,7 +813,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "train" | "cab";
+            kind: "train" | "cab" | "flight";
             /** Taskid */
             taskId: string | null;
             /** Toid */
@@ -731,7 +852,7 @@ export interface components {
              * Provider
              * @enum {string}
              */
-            provider: "uber" | "ola" | "rapido";
+            provider: "ridenow" | "autogo" | "zipbike";
             /** Providerlabel */
             providerLabel: string;
             /**
@@ -873,6 +994,57 @@ export interface components {
             aiHelper: boolean;
             /** Voices */
             voices: boolean;
+            /**
+             * Wallet
+             * @default false
+             */
+            wallet: boolean;
+        };
+        /** FlightFareOut */
+        FlightFareOut: {
+            /**
+             * Cabin
+             * @enum {string}
+             */
+            cabin: "economy" | "business";
+            /** Label */
+            label: string;
+            /** Fareinr */
+            fareInr: number;
+            /** Seatsleft */
+            seatsLeft: number;
+        };
+        /** FlightOptionOut */
+        FlightOptionOut: {
+            /** Flightno */
+            flightNo: string;
+            /** Airline */
+            airline: string;
+            /** Origin */
+            origin: string;
+            /** Destination */
+            destination: string;
+            /** Origincity */
+            originCity: string;
+            /** Destinationcity */
+            destinationCity: string;
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Departs */
+            departs: string;
+            /** Arrives */
+            arrives: string;
+            /** Arrivesnextday */
+            arrivesNextDay: number;
+            /** Durationmin */
+            durationMin: number;
+            /** Stops */
+            stops: number;
+            /** Fares */
+            fares: components["schemas"]["FlightFareOut"][];
         };
         /** GoogleSignIn */
         GoogleSignIn: {
@@ -1063,6 +1235,13 @@ export interface components {
              * @default false
              */
             canUndo: boolean;
+        };
+        /** LoginIn */
+        LoginIn: {
+            /** Email */
+            email: string;
+            /** Password */
+            password: string;
         };
         /** MovedOut */
         MovedOut: {
@@ -1427,6 +1606,15 @@ export interface components {
             /** Legs */
             legs: components["schemas"]["SharedLegOut"][];
         };
+        /** SignUpIn */
+        SignUpIn: {
+            /** Name */
+            name: string;
+            /** Email */
+            email: string;
+            /** Password */
+            password: string;
+        };
         /** SummaryLegOut */
         SummaryLegOut: {
             /** Fromname */
@@ -1644,6 +1832,13 @@ export interface components {
             expiresIn: number;
             user: components["schemas"]["UserOut"];
         };
+        /** TopUpIn */
+        TopUpIn: {
+            /** Idempotencykey */
+            idempotencyKey: string;
+            /** Amountinr */
+            amountInr: number;
+        };
         /** TotalsOut */
         TotalsOut: {
             /** Travelmin */
@@ -1844,6 +2039,39 @@ export interface components {
             /** Label */
             label: string;
         };
+        /** WalletEntryOut */
+        WalletEntryOut: {
+            /** Entryid */
+            entryId: string;
+            /** Amountinr */
+            amountInr: number;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "welcome" | "topup" | "booking" | "refund";
+            /** Label */
+            label: string;
+            /** Bookingid */
+            bookingId: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+        };
+        /** WalletOut */
+        WalletOut: {
+            /** Balanceinr */
+            balanceInr: number;
+            /** Entries */
+            entries: components["schemas"]["WalletEntryOut"][];
+            /**
+             * Demo
+             * @default true
+             */
+            demo: boolean;
+        };
         /** WindowIn */
         WindowIn: {
             /** Opensat */
@@ -1867,6 +2095,72 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    signup_v1_auth_signup_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignUpIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    login_v1_auth_login_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TokenOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     google_v1_auth_google_post: {
         parameters: {
             query?: never;
@@ -3062,6 +3356,63 @@ export interface operations {
             };
         };
     };
+    airports_v1_airports_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AirportOut"][];
+                };
+            };
+        };
+    };
+    flight_options_v1_trips__trip_id__flight_options_get: {
+        parameters: {
+            query: {
+                from: string;
+                to: string;
+                date: string;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FlightOptionOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     cancel_booking_v1_trips__trip_id__bookings__booking_id__cancel_post: {
         parameters: {
             query?: never;
@@ -3087,6 +3438,72 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BookingOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_wallet_v1_wallet_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WalletOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    top_up_v1_wallet_topups_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopUpIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WalletOut"];
                 };
             };
             /** @description Validation Error */

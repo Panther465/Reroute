@@ -42,6 +42,22 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(200))
     role: Mapped[str] = mapped_column(String(20), default="traveller")
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
+    #: A scrypt hash (app.security.hash_password), for an account made with email and password.
+    password_hash: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class WalletEntry(Base):
+    """Simulated money in or out of a traveller's wallet. The balance is the sum of the entries."""
+
+    __tablename__ = "wallet_entries"
+
+    entry_id: Mapped[str] = mapped_column(String(40), primary_key=True, default=lambda: new_id("wal"))
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.user_id", ondelete="CASCADE"), index=True)
+    amount_inr: Mapped[int] = mapped_column(Integer)
+    kind: Mapped[str] = mapped_column(String(12))
+    label: Mapped[str] = mapped_column(String(200))
+    booking_id: Mapped[str | None] = mapped_column(String(40))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -192,7 +208,7 @@ class Checkin(Base):
 
 
 class Booking(Base):
-    """A simulated train ticket or cab ride (a demo: nothing real is booked or charged)."""
+    """A simulated train ticket, flight or cab ride (a demo: nothing real is booked; the wallet's simulated money pays)."""
 
     __tablename__ = "bookings"
 

@@ -1,10 +1,13 @@
-"""Simulated bookings: a train ticket for a train task, a cab for a leg. A demo: nothing real is booked or charged.
+"""Simulated bookings: a train ticket for a train task, a flight, a cab for a leg. A demo: nothing real is booked.
 
-Like the demo clock, these routes exist only with DEMO_LOGIN=true; otherwise every one answers 404.
+They're paid from the wallet's simulated money: the booking and its charge commit together, and a
+cancellation refunds. Like the demo clock, these routes exist only with DEMO_LOGIN=true; otherwise
+every one answers 404.
 """
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query
@@ -14,9 +17,9 @@ from app.clock import minutes_of_day, tz_for
 from app.deps import CurrentUser, Db, OwnedTrip, demo_only
 from app.errors import ApiError
 from app.models import Booking, Task, Trip
-from app.schemas import BookingIn, BookingOut, CabOptionOut, PostBody, TrainClassOut, TrainOptionOut
+from app.schemas import AirportOut, BookingIn, BookingOut, CabOptionOut, FlightFareOut, FlightOptionOut, PostBody, TrainClassOut, TrainOptionOut
 from app.services import booking_sim as sim
-from app.services import plan_store
+from app.services import plan_store, wallet
 
 router = APIRouter(prefix="/v1", tags=["bookings"], dependencies=[Depends(demo_only)])
 
@@ -103,12 +106,90 @@ def cab_options(trip: OwnedTrip, db: Db, to_id: Annotated[str, Query(alias="toId
     ]
 
 
+def _flight_out(f: sim.FlightOption) -> FlightOptionOut:
+    return FlightOptionOut(
+        flight_no=f.flight_no,
+        airline=sim.AIRLINE,
+        origin=f.origin,
+        destination=f.destination,
+        origin_city=sim.AIRPORTS[f.origin][0],
+        destination_city=sim.AIRPORTS[f.destination][0],
+        date=f.day,
+        departs=sim.hhmm(f.departs),
+        arrives=sim.hhmm(f.arrives),
+        arrives_next_day=f.arrives // (24 * 60),
+        duration_min=f.duration_min,
+        stops=f.stops,
+        fares=[FlightFareOut(cabin=x.cabin, label=x.label, fare_inr=x.fare_inr, seats_left=x.seats_left) for x in f.fares],
+    )
+
+
+def _flights(origin: str, to: str, day: date) -> list[sim.FlightOption]:
+    if origin not in sim.AIRPORTS or to not in sim.AIRPORTS or origin == to:
+        raise ApiError(422, "Choose two different airports SkyHop flies between.", code="VALIDATION_ERROR")
+    return sim.flight_options(origin, to, day)
+
+
+@router.get("/airports", response_model=list[AirportOut], response_model_by_alias=True, summary="Airports the simulated airline flies between")
+def airports() -> list[AirportOut]:
+    return [AirportOut(code=code, city=city, name=name) for code, (city, name, _lat, _lng) in sim.AIRPORTS.items()]
+
+
+@router.get(
+    "/trips/{trip_id}/flight-options",
+    response_model=list[FlightOptionOut],
+    response_model_by_alias=True,
+    summary="Sample flights between two airports on a day (demo)",
+)
+def flight_options(
+    trip: OwnedTrip,
+    origin: Annotated[str, Query(alias="from", pattern=r"^[A-Z]{3}$")],
+    to: Annotated[str, Query(pattern=r"^[A-Z]{3}$")],
+    day: Annotated[date, Query(alias="date")],
+) -> list[FlightOptionOut]:
+    return [_flight_out(f) for f in _flights(origin, to, day)]
+
+
 @router.post(
-    "/trips/{trip_id}/bookings", response_model=BookingOut, response_model_by_alias=True, status_code=201, summary="Book a train ticket or a cab (simulated)"
+    "/trips/{trip_id}/bookings",
+    response_model=BookingOut,
+    response_model_by_alias=True,
+    status_code=201,
+    summary="Book a train ticket, a flight or a cab (simulated), paid from the wallet",
 )
 def create_booking(body: BookingIn, trip: OwnedTrip, user: CurrentUser, db: Db) -> BookingOut:
     seed = f"{trip.trip_id}|{body.idempotency_key}"
-    if body.kind == "train":
+    if body.kind == "flight":
+        if not body.origin or not body.flight_to or not body.flight_date or not body.flight_no or not body.cabin or not body.passengers:
+            raise ApiError(422, "Choose the airports, a day, a flight, a cabin and who is flying.", code="VALIDATION_ERROR")
+        flight = next((f for f in _flights(body.origin, body.flight_to, body.flight_date) if f.flight_no == body.flight_no), None)
+        fare = next((x for x in flight.fares if x.cabin == body.cabin), None) if flight else None
+        if flight is None or fare is None:
+            raise ApiError(422, "That flight or cabin is no longer on offer. Search again.", code="VALIDATION_ERROR")
+        pnr, passengers = sim.book_flight(flight, fare.cabin, [p.model_dump() for p in body.passengers], seed)
+        booking = Booking(
+            trip_id=trip.trip_id,
+            kind="flight",
+            provider="skyhop",
+            reference=pnr,
+            fare_inr=fare.fare_inr * len(passengers),
+            details={
+                "airline": sim.AIRLINE,
+                "flightNo": flight.flight_no,
+                "origin": flight.origin,
+                "destination": flight.destination,
+                "originCity": sim.AIRPORTS[flight.origin][0],
+                "destinationCity": sim.AIRPORTS[flight.destination][0],
+                "date": str(flight.day),
+                "departs": sim.hhmm(flight.departs),
+                "arrives": sim.hhmm(flight.arrives),
+                "arrivesNextDay": flight.arrives // (24 * 60),
+                "cabin": fare.cabin,
+                "cabinLabel": fare.label,
+                "passengers": passengers,
+            },
+        )
+    elif body.kind == "train":
         task = _task(db, trip, body.task_id)
         if not body.destination or not body.train_no or not body.travel_class or not body.passengers:
             raise ApiError(422, "Choose where to, a train, a class and who's travelling.", code="VALIDATION_ERROR")
@@ -121,7 +202,7 @@ def create_booking(body: BookingIn, trip: OwnedTrip, user: CurrentUser, db: Db) 
             trip_id=trip.trip_id,
             kind="train",
             task_id=task.task_id,
-            provider="irctc",
+            provider=sim.RAIL,
             reference=pnr,
             fare_inr=cls.fare_inr * len(passengers),
             details={
@@ -156,9 +237,21 @@ def create_booking(body: BookingIn, trip: OwnedTrip, user: CurrentUser, db: Db) 
             details={"providerLabel": option.provider_label, "vehicle": option.vehicle, "vehicleLabel": option.vehicle_label, **driver},
         )
     db.add(booking)
+    db.flush()
+    # Paid from the wallet in the same transaction: not enough money, and nothing is booked.
+    wallet.charge(db, trip.user_id, booking.fare_inr, _label(booking), booking.booking_id)
     db.commit()
     db.refresh(booking)
     return _out(booking)
+
+
+def _label(b: Booking) -> str:
+    d = b.details
+    if b.kind == "flight":
+        return f"Flight {d['flightNo']}, {d['originCity']} to {d['destinationCity']}"
+    if b.kind == "train":
+        return f"Train {d['trainNo']} to {d['destination']}"
+    return f"{d['providerLabel']} {d['vehicleLabel'].lower()} ride"
 
 
 @router.post("/trips/{trip_id}/bookings/{booking_id}/cancel", response_model=BookingOut, response_model_by_alias=True, summary="Cancel a simulated booking")
@@ -168,9 +261,11 @@ def cancel_booking(booking_id: str, body: PostBody, trip: OwnedTrip, db: Db) -> 
         raise ApiError(404, "Booking not found.")
     if booking.status != "cancelled":
         booking.status = "cancelled"
-        # A demo refund: trains keep a small clerkage, cabs cancelled before pickup refund in full.
-        refund = max(0, booking.fare_inr - 60 * len(booking.details.get("passengers", []))) if booking.kind == "train" else booking.fare_inr
+        # A demo refund: trains keep a small clerkage, flights a cancellation fee, cabs before pickup nothing.
+        fee = {"train": 60, "flight": 500}.get(booking.kind, 0) * len(booking.details.get("passengers", []))
+        refund = max(0, booking.fare_inr - fee)
         booking.details = {**booking.details, "refundInr": refund}
+        wallet.refund(db, trip.user_id, refund, f"Refund: {_label(booking)}", booking.booking_id)
         db.commit()
         db.refresh(booking)
     return _out(booking)

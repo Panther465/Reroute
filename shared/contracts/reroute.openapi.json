@@ -6,6 +6,88 @@
     "version": "1.0.0"
   },
   "paths": {
+    "/v1/auth/signup": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Create an account with an email and a password",
+        "operationId": "signup_v1_auth_signup_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignUpIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/auth/login": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Sign in with an email and a password",
+        "operationId": "login_v1_auth_login_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TokenOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/auth/google": {
       "post": {
         "tags": [
@@ -2099,7 +2181,7 @@
         "tags": [
           "bookings"
         ],
-        "summary": "Book a train ticket or a cab (simulated)",
+        "summary": "Book a train ticket, a flight or a cab (simulated), paid from the wallet",
         "operationId": "create_booking_v1_trips__trip_id__bookings_post",
         "parameters": [
           {
@@ -2316,6 +2398,123 @@
         }
       }
     },
+    "/v1/airports": {
+      "get": {
+        "tags": [
+          "bookings"
+        ],
+        "summary": "Airports the simulated airline flies between",
+        "operationId": "airports_v1_airports_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AirportOut"
+                  },
+                  "type": "array",
+                  "title": "Response Airports V1 Airports Get"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/flight-options": {
+      "get": {
+        "tags": [
+          "bookings"
+        ],
+        "summary": "Sample flights between two airports on a day (demo)",
+        "operationId": "flight_options_v1_trips__trip_id__flight_options_get",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$",
+              "title": "From"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Z]{3}$",
+              "title": "To"
+            }
+          },
+          {
+            "name": "date",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date",
+              "title": "Date"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/FlightOptionOut"
+                  },
+                  "title": "Response Flight Options V1 Trips  Trip Id  Flight Options Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/trips/{trip_id}/bookings/{booking_id}/cancel": {
       "post": {
         "tags": [
@@ -2376,6 +2575,114 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/BookingOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/wallet": {
+      "get": {
+        "tags": [
+          "wallet"
+        ],
+        "summary": "Your wallet: the balance and its latest entries (simulated money)",
+        "operationId": "get_wallet_v1_wallet_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/wallet/topups": {
+      "post": {
+        "tags": [
+          "wallet"
+        ],
+        "summary": "Add simulated money to your wallet",
+        "operationId": "top_up_v1_wallet_topups_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TopUpIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WalletOut"
                 }
               }
             }
@@ -2734,6 +3041,29 @@
         ],
         "title": "AiHelperIn"
       },
+      "AirportOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "city": {
+            "type": "string",
+            "title": "City"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "city",
+          "name"
+        ],
+        "title": "AirportOut"
+      },
       "BlockedOut": {
         "properties": {
           "taskId": {
@@ -2770,7 +3100,8 @@
             "type": "string",
             "enum": [
               "train",
-              "cab"
+              "cab",
+              "flight"
             ],
             "title": "Kind"
           },
@@ -2856,6 +3187,68 @@
               }
             ],
             "title": "Optionid"
+          },
+          "origin": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{3}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Origin"
+          },
+          "flightTo": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Z]{3}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flightto"
+          },
+          "flightDate": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flightdate"
+          },
+          "flightNo": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flightno"
+          },
+          "cabin": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "economy",
+                  "business"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cabin"
           }
         },
         "type": "object",
@@ -2879,7 +3272,8 @@
             "type": "string",
             "enum": [
               "train",
-              "cab"
+              "cab",
+              "flight"
             ],
             "title": "Kind"
           },
@@ -2966,9 +3360,9 @@
           "provider": {
             "type": "string",
             "enum": [
-              "uber",
-              "ola",
-              "rapido"
+              "ridenow",
+              "autogo",
+              "zipbike"
             ],
             "title": "Provider"
           },
@@ -3331,6 +3725,11 @@
           "voices": {
             "type": "boolean",
             "title": "Voices"
+          },
+          "wallet": {
+            "type": "boolean",
+            "title": "Wallet",
+            "default": false
           }
         },
         "type": "object",
@@ -3341,6 +3740,115 @@
         ],
         "title": "FeaturesOut",
         "description": "What this server has switched on, so the app shows only what works."
+      },
+      "FlightFareOut": {
+        "properties": {
+          "cabin": {
+            "type": "string",
+            "enum": [
+              "economy",
+              "business"
+            ],
+            "title": "Cabin"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "fareInr": {
+            "type": "integer",
+            "title": "Fareinr"
+          },
+          "seatsLeft": {
+            "type": "integer",
+            "title": "Seatsleft"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cabin",
+          "label",
+          "fareInr",
+          "seatsLeft"
+        ],
+        "title": "FlightFareOut"
+      },
+      "FlightOptionOut": {
+        "properties": {
+          "flightNo": {
+            "type": "string",
+            "title": "Flightno"
+          },
+          "airline": {
+            "type": "string",
+            "title": "Airline"
+          },
+          "origin": {
+            "type": "string",
+            "title": "Origin"
+          },
+          "destination": {
+            "type": "string",
+            "title": "Destination"
+          },
+          "originCity": {
+            "type": "string",
+            "title": "Origincity"
+          },
+          "destinationCity": {
+            "type": "string",
+            "title": "Destinationcity"
+          },
+          "date": {
+            "type": "string",
+            "format": "date",
+            "title": "Date"
+          },
+          "departs": {
+            "type": "string",
+            "title": "Departs"
+          },
+          "arrives": {
+            "type": "string",
+            "title": "Arrives"
+          },
+          "arrivesNextDay": {
+            "type": "integer",
+            "title": "Arrivesnextday"
+          },
+          "durationMin": {
+            "type": "integer",
+            "title": "Durationmin"
+          },
+          "stops": {
+            "type": "integer",
+            "title": "Stops"
+          },
+          "fares": {
+            "items": {
+              "$ref": "#/components/schemas/FlightFareOut"
+            },
+            "type": "array",
+            "title": "Fares"
+          }
+        },
+        "type": "object",
+        "required": [
+          "flightNo",
+          "airline",
+          "origin",
+          "destination",
+          "originCity",
+          "destinationCity",
+          "date",
+          "departs",
+          "arrives",
+          "arrivesNextDay",
+          "durationMin",
+          "stops",
+          "fares"
+        ],
+        "title": "FlightOptionOut"
       },
       "GoogleSignIn": {
         "properties": {
@@ -3815,6 +4323,29 @@
           "undone"
         ],
         "title": "LogEntryOut"
+      },
+      "LoginIn": {
+        "properties": {
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "minLength": 3,
+            "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "email",
+          "password"
+        ],
+        "title": "LoginIn"
       },
       "MovedOut": {
         "properties": {
@@ -4842,6 +5373,36 @@
         ],
         "title": "SharedTripOut"
       },
+      "SignUpIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 80,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "email": {
+            "type": "string",
+            "maxLength": 320,
+            "minLength": 3,
+            "pattern": "^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$",
+            "title": "Email"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "email",
+          "password"
+        ],
+        "title": "SignUpIn"
+      },
       "SummaryLegOut": {
         "properties": {
           "fromName": {
@@ -5556,6 +6117,29 @@
         ],
         "title": "TokenOut"
       },
+      "TopUpIn": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 4,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Idempotencykey"
+          },
+          "amountInr": {
+            "type": "integer",
+            "maximum": 50000.0,
+            "minimum": 100.0,
+            "title": "Amountinr"
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotencyKey",
+          "amountInr"
+        ],
+        "title": "TopUpIn"
+      },
       "TotalsOut": {
         "properties": {
           "travelMin": {
@@ -6034,6 +6618,84 @@
           "label"
         ],
         "title": "VoiceOut"
+      },
+      "WalletEntryOut": {
+        "properties": {
+          "entryId": {
+            "type": "string",
+            "title": "Entryid"
+          },
+          "amountInr": {
+            "type": "integer",
+            "title": "Amountinr"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "welcome",
+              "topup",
+              "booking",
+              "refund"
+            ],
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "bookingId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bookingid"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Createdat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entryId",
+          "amountInr",
+          "kind",
+          "label",
+          "bookingId",
+          "createdAt"
+        ],
+        "title": "WalletEntryOut"
+      },
+      "WalletOut": {
+        "properties": {
+          "balanceInr": {
+            "type": "integer",
+            "title": "Balanceinr"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/WalletEntryOut"
+            },
+            "type": "array",
+            "title": "Entries"
+          },
+          "demo": {
+            "type": "boolean",
+            "title": "Demo",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "balanceInr",
+          "entries"
+        ],
+        "title": "WalletOut"
       },
       "WindowIn": {
         "properties": {
