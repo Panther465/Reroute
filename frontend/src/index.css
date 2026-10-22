@@ -301,6 +301,55 @@
   }
 }
 
+/* Roo breathes: a slow rise and settle, so it reads as alive even when it has nothing to say. Transform only,
+   on the compositor, and still with reduced motion. (A deliberate second loop beside the Now pulse.) */
+@keyframes rr-roo-breathe {
+  0%,
+  100% {
+    transform: translateY(0) scale(1, 1);
+  }
+  50% {
+    transform: translateY(-1.5px) scale(1.02, 0.985);
+  }
+}
+.rr-roo-breathe {
+  animation: rr-roo-breathe 3.6s var(--ease-in-out) infinite;
+  transform-origin: 50% 100%;
+}
+
+/* Roo is typing: three dots that rise in turn. */
+@keyframes rr-typing {
+  0%,
+  60%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+.rr-typing > span[aria-hidden] {
+  width: 7px;
+  height: 7px;
+  border-radius: 9999px;
+  background: var(--ink-2);
+  animation: rr-typing 1.1s var(--ease-in-out) infinite;
+}
+.rr-typing > span[aria-hidden]:nth-of-type(3) {
+  animation-delay: 0.15s;
+}
+.rr-typing > span[aria-hidden]:nth-of-type(4) {
+  animation-delay: 0.3s;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rr-roo-breathe,
+  .rr-typing > span[aria-hidden] {
+    animation: none;
+  }
+}
+
 /* Walking legs: a dotted ink line. */
 .rr-walk {
   border-left: 6px dotted var(--ink);

@@ -155,13 +155,21 @@ test('book a train ticket and a cab (simulated)', async ({ page }) => {
   await expect(main.getByRole('button', { name: /OTP \d{4}/ })).toBeVisible()
 })
 
-test('Roo rides the timeline: tap it to add a task', async ({ page }) => {
+test('Roo rides the timeline: tap it to chat, and it changes the day when asked', async ({ page }) => {
   test.setTimeout(120_000)
   await planFreshDay(page)
-  await page.getByRole('button', { name: 'Roo, your travel companion. Add a task or change this stop' }).click()
-  const menu = page.getByRole('dialog', { name: 'Roo' })
-  await expect(menu).toBeVisible()
-  await menu.getByRole('button', { name: 'Add a task' }).click()
+  await page.getByRole('button', { name: 'Roo, your travel companion. Chat with Roo' }).click()
+  const chat = page.getByRole('dialog', { name: 'Roo' })
+  await expect(chat).toBeVisible()
+  await expect(chat.getByRole('log', { name: 'Conversation with Roo' })).toContainText(/Good (morning|afternoon|evening), Arjun!/)
+
+  // Asked to move a task, Roo offers a card; nothing changes until it's tapped.
+  await chat.getByLabel('Message Roo').fill('move the bank to tomorrow')
+  await chat.getByRole('button', { name: 'Send' }).click()
+  await chat.getByRole('button', { name: 'Not now' }).click()
+  await expect(chat.getByRole('log')).toContainText('Okay, I’ll leave it as it is.')
+
+  await chat.getByRole('group', { name: 'Suggestions' }).getByRole('button', { name: 'Add a task' }).click()
   // Describe-your-day with the AI helper on; the task form (on Plan) with it off.
   const sheet = page.getByRole('dialog')
   await expect(sheet.getByLabel('What do you need to do?').or(sheet.getByLabel('Title', { exact: true }))).toBeVisible()

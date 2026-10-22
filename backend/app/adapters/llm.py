@@ -83,10 +83,84 @@ async def extract_tasks_llm(text: str, city: str, trip_date: str, client: httpx.
 
 
 async def _ask_gemini(prompt: str, api_key: str, model: str, client: httpx.AsyncClient | None) -> str:
+    return await _generate(SYSTEM_PROMPT, prompt, _TASKS_SCHEMA, 0.2, api_key, model, client)
+
+
+# ---------- talking to Roo ----------
+
+#: What Roo may offer to do. The app shows a card for each change; nothing happens until the traveller taps it.
+ROO_ACTIONS = ("none", "late", "done", "left", "skip", "move", "duration", "time", "add", "replan", "undo", "why", "summary", "theme")
+
+_ROO_SCHEMA: dict[str, Any] = {
+    "type": "OBJECT",
+    "properties": {
+        "reply": {"type": "STRING"},
+        "action": {"type": "STRING", "enum": list(ROO_ACTIONS)},
+        "taskId": {"type": "STRING", "nullable": True},
+        "minutes": {"type": "INTEGER", "nullable": True},
+        "time": {"type": "STRING", "nullable": True},
+        "day": {"type": "STRING", "nullable": True},
+        "text": {"type": "STRING", "nullable": True},
+        "theme": {"type": "STRING", "nullable": True},
+    },
+    "required": ["reply", "action"],
+}
+
+ROO_PROMPT = """\
+You are Roo, a small, warm travel companion inside Reroute, an app that plans a traveller's work day \
+in an Indian city and re-plans it when they run late. You talk with the traveller about their day.
+
+Answer with ONE JSON object:
+- "reply": what you say. Friendly, plain English, at most two short sentences. No emoji, no markdown.
+- "action": one of none, late, done, left, skip, move, duration, time, add, replan, undo, why, summary, theme.
+- "taskId": for skip, move, duration and time, the id of the task from the day below. Otherwise null.
+- "minutes": for late, how late (5 to 240); for duration, the task's new length (15 to 720). Otherwise null.
+- "time": for time, the new fixed start as "HH:MM" (24-hour). Otherwise null.
+- "day": for move, the trip day to move the task to as "YYYY-MM-DD". Otherwise null.
+- "text": for add, the new task in the traveller's words. Otherwise null.
+- "theme": for theme, "light", "dark" or "system". Otherwise null.
+
+Actions: late = the traveller is running late; done = the current task is finished; left = they have \
+left for the next stop; skip = drop a task today; move = do a task on another trip day; duration = change \
+how long a task takes; time = give a task a fixed start; add = a new task; replan = plan the rest of the \
+day again; undo = bring back the earlier plan; why = they ask why the plan is like this; summary = how the \
+day is going or what it cost; theme = light or dark mode.
+
+Rules:
+- Use only the tasks, places, times and fares listed below. Never invent a place, a route, a fare or a time.
+- You never change anything yourself. For a change, say what you'd do and ask; the app asks the \
+traveller to confirm. Don't say it's done.
+- If the traveller asks something you can't do, say so kindly and suggest what you can do.
+- For anything unrelated to the trip, answer in one friendly sentence and bring them back to their day.
+- Answer questions about the day (what's next, when to leave, when they'll be back) from the day below, \
+with action none.
+"""
+
+
+async def roo_chat(message: str, history: list[tuple[str, str]], context: str, client: httpx.AsyncClient | None = None) -> dict[str, Any] | None:
+    """Roo's answer to one message, from Gemini; None without a key or when Gemini fails (the app answers itself)."""
+    settings = get_settings()
+    if not settings.gemini_api_key:
+        return None
+    # The conversation goes in as one transcript: a model turn first is rejected by some Gemini models.
+    lines = [f"{'Traveller' if role == 'user' else 'Roo'}: {text}" for role, text in history]
+    prompt = f"{context}\n\nConversation so far:\n{chr(10).join(lines) or '(none)'}\n\nTraveller: {message}"
+    try:
+        raw = json.loads(await _generate(ROO_PROMPT, prompt, _ROO_SCHEMA, 0.4, settings.gemini_api_key, settings.gemini_model, client))
+    except httpx.HTTPStatusError as err:
+        log.warning("Gemini answered %s for Roo", err.response.status_code)
+        return None
+    except (httpx.HTTPError, ValueError, LookupError, TypeError):
+        log.warning("Gemini call for Roo failed", exc_info=True)
+        return None
+    return raw if isinstance(raw, dict) else None
+
+
+async def _generate(system: str, prompt: str, schema: dict[str, Any], temperature: float, api_key: str, model: str, client: httpx.AsyncClient | None) -> str:
     body = {
-        "systemInstruction": {"parts": [{"text": SYSTEM_PROMPT}]},
+        "systemInstruction": {"parts": [{"text": system}]},
         "contents": [{"role": "user", "parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0.2, "responseMimeType": "application/json", "responseSchema": _TASKS_SCHEMA},
+        "generationConfig": {"temperature": temperature, "responseMimeType": "application/json", "responseSchema": schema},
     }
     # The key goes in a header, not the URL, so it never lands in access or error logs.
     url = GEMINI_URL.format(model=model)

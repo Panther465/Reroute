@@ -9,6 +9,7 @@ describe('parseCommand', () => {
     expect(parseCommand('late by 15')).toEqual({ kind: 'late', minutes: 15 })
     expect(parseCommand('I need more time')).toEqual({ kind: 'late', minutes: null })
     expect(parseCommand("I'm an hour late")).toEqual({ kind: 'late', minutes: 60 })
+    expect(parseCommand('I need ten more minutes')).toEqual({ kind: 'late', minutes: 10 })
   })
 
   it('a delay wins: "done, but late" is still a delay', () => {

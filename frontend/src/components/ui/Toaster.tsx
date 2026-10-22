@@ -2,11 +2,12 @@ import * as Toast from '@radix-ui/react-toast'
 import { X } from 'lucide-react'
 import { undo } from '@/lib/actions'
 import { T } from '@/lib/i18n'
-import { dismissToast, settleToast, useToasts } from '@/lib/store'
+import { dismissToast, settleToast, useStore, useToasts } from '@/lib/store'
 
 /** Inverted toast (ink background) with Undo. Radix pauses it on hover or focus and supports swipe. */
 export function Toaster({ tripId }: { tripId: string | null }) {
   const toasts = useToasts()
+  const chat = useStore((s) => s.rooChat)
   return (
     <Toast.Provider duration={8000} swipeDirection="down" label="Notification">
       {toasts.map((item) => {
@@ -46,7 +47,10 @@ export function Toaster({ tripId }: { tripId: string | null }) {
           </Toast.Root>
         )
       })}
-      <Toast.Viewport className="fixed inset-x-0 bottom-[calc(140px+env(safe-area-inset-bottom))] z-[60] mx-auto flex w-full max-w-[560px] flex-col gap-2 px-5 outline-none lg:bottom-8 lg:left-auto lg:right-8 lg:mx-0 lg:w-[420px] lg:px-0" />
+      {/* On a desktop, toasts sit left of Roo's chat while it's open, never over its input. */}
+      <Toast.Viewport
+        className={`fixed inset-x-0 bottom-[calc(140px+env(safe-area-inset-bottom))] z-[60] mx-auto flex w-full max-w-[560px] flex-col gap-2 px-5 outline-none lg:bottom-8 lg:left-auto lg:mx-0 lg:w-[420px] lg:px-0 ${chat ? 'lg:right-[440px]' : 'lg:right-8'}`}
+      />
     </Toast.Provider>
   )
 }

@@ -27,16 +27,16 @@ const WORDS: Record<string, number> = {
 }
 
 /** Minutes in a spoken delay: "20 minutes", "twenty minutes", "half an hour", "an hour and a half". */
-function minutesIn(text: string): number | null {
+export function minutesIn(text: string): number | null {
   if (/\b(an?|one) hour and a half\b|\bhour and a half\b|\b1\.5 hours?\b/.test(text)) return 90
   if (/\bhalf an hour\b|\bhalf hour\b/.test(text)) return 30
   if (/\bquarter of an hour\b|\bquarter hour\b/.test(text)) return 15
   const hours = text.match(/\b(\d+|an?|one|two)\s*(hours?|hrs?)\b/)
   if (hours) return ({ a: 1, an: 1, one: 1, two: 2 }[hours[1]] ?? Number(hours[1])) * 60
-  const digits = text.match(/\b(\d{1,3})\s*(minutes?|mins?|m)\b/) ?? text.match(/\blate by (\d{1,3})\b/) ?? text.match(/\b(\d{1,3})\s+late\b/)
+  const digits = text.match(/\b(\d{1,3})\s*(?:more\s+|extra\s+)?(minutes?|mins?|m)\b/) ?? text.match(/\blate by (\d{1,3})\b/) ?? text.match(/\b(\d{1,3})\s+late\b/)
   if (digits) return Number(digits[1])
   for (const [word, n] of Object.entries(WORDS).sort((a, b) => b[0].length - a[0].length)) {
-    if (new RegExp(`\\b${word}\\s*(minutes?|mins?)\\b`).test(text)) return n
+    if (new RegExp(`\\b${word}\\s*(?:more\\s+|extra\\s+)?(minutes?|mins?)\\b`).test(text)) return n
   }
   return null
 }
@@ -44,7 +44,7 @@ function minutesIn(text: string): number | null {
 /** What a sentence asks for. Delays win over everything else: "I'm done, but 10 minutes late" is a delay. */
 export function parseCommand(spoken: string): VoiceCommand {
   const text = spoken.toLowerCase().replace(/[’']/g, "'").replace(/[.,!?]/g, ' ').replace(/\s+/g, ' ').trim()
-  if (/\b(late|behind|delayed|running over|overrun|more time|stuck)\b/.test(text)) return { kind: 'late', minutes: minutesIn(text) }
+  if (/\b(late|behind|delayed|running over|overrun|more time|stuck)\b|\b(more|extra) (minutes?|mins?)\b/.test(text)) return { kind: 'late', minutes: minutesIn(text) }
   if (/\b(what's next|what is next|next stop|when (do|should) i (leave|go)|where (do|should) i go)\b/.test(text)) return { kind: 'next' }
   if (/\b(i've left|i have left|leaving now|on my way|heading out|i'm leaving|i am leaving)\b/.test(text)) return { kind: 'left' }
   if (/\b(done|finished|completed?|all set|wrapped up)\b/.test(text)) return { kind: 'done' }

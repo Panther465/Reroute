@@ -44,6 +44,8 @@ from app.schemas import (
     PlanOut,
     PlanRequest,
     PostBody,
+    RooIn,
+    RooOut,
     SummaryOut,
     TaskDraftOut,
     TaskIn,
@@ -482,6 +484,27 @@ async def ai_task_drafts(body: AiHelperIn, trip: OwnedTrip, db: Db) -> list[Task
             )
         )
     return drafts
+
+
+@router.post(
+    "/trips/{trip_id}/roo",
+    response_model=RooOut,
+    response_model_by_alias=True,
+    summary="Talk to Roo: one message understood, with at most one change it offers (AI helper)",
+)
+async def talk_to_roo(body: RooIn, trip: OwnedTrip, db: Db) -> RooOut:
+    """Roo answers from the day as it is. It only offers a change: the app asks the traveller before making it."""
+    if not get_settings().ai_helper_enabled:
+        raise ApiError(404, "The AI helper is not enabled on this server.")
+    from app.adapters.llm import roo_chat
+    from app.services.roo import clean_answer, day_context
+
+    view = await run_in_threadpool(trip_out, db, trip, now_for(trip.trip_id))
+    raw = await roo_chat(body.message, [(t.role, t.text) for t in body.history[-12:]], day_context(view))
+    answer = clean_answer(raw, view, body.message) if raw else None
+    if answer is None:
+        raise ApiError(503, "Roo can't think that through right now. Try saying it another way.", code="UNAVAILABLE")
+    return RooOut.model_validate(answer)
 
 
 # ---------- demo clock (DEMO_LOGIN only) ----------

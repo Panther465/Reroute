@@ -537,6 +537,34 @@ class AiHelperIn(PostBody):
     text: Annotated[str, StringConstraints(min_length=3, max_length=2000)]
 
 
+class RooTurnIn(Api):
+    role: Literal["user", "roo"]
+    text: Annotated[str, StringConstraints(max_length=600)]
+
+
+class RooIn(PostBody):
+    message: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=500)]
+    #: The conversation so far, oldest first; the app sends the last few turns.
+    history: Annotated[list[RooTurnIn], Field(max_length=12)] = []
+
+
+class RooActionOut(Api):
+    """A change Roo offers. The app asks the traveller before doing it."""
+
+    type: Literal["late", "done", "left", "skip", "move", "duration", "time", "add", "replan", "undo", "why", "summary", "theme"]
+    task_id: str | None = None
+    minutes: int | None = None
+    time: str | None = None
+    day: date | None = None
+    text: str | None = None
+    theme: Literal["light", "dark", "system"] | None = None
+
+
+class RooOut(Api):
+    reply: str
+    action: RooActionOut | None = None
+
+
 class TrainClassOut(Api):
     code: str
     label: str

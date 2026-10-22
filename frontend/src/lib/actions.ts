@@ -217,7 +217,12 @@ export async function addTask(tripId: string, body: Body<TaskIn>, idempotencyKey
 
 /** Move a task to another day of the trip; today re-plans without it, and the change plays. */
 export async function moveTaskToDay(tripId: string, taskId: string, day: string, before: DayView | null) {
-  const res = await api.patch<TaskEdit>(`/v1/trips/${tripId}/tasks/${taskId}`, { day })
+  await editTask(tripId, taskId, { day }, before)
+}
+
+/** Change part of a task (its length, its start time, its day), wait for the re-plan, and play the change. */
+export async function editTask(tripId: string, taskId: string, patch: TaskPatch, before: DayView | null) {
+  const res = await api.patch<TaskEdit>(`/v1/trips/${tripId}/tasks/${taskId}`, patch)
   const outcome: EditOutcome = res.jobId ? await waitReplan(tripId, res.jobId) : 'saved'
   await playTaskEdit(tripId, before, outcome)
 }

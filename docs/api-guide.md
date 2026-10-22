@@ -69,3 +69,5 @@ POST /v1/trips/:id/bookings/:bookingId/cancel {"idempotencyKey"}  → cancelled,
 - `GET /v1/places?q=…&city=bengaluru` searches places in a covered city: known places first, then OpenStreetMap.
 
 `POST /v1/trips/:id/task-drafts` (describe your day) and `POST /v1/trips/:id/calendar-import` return draft tasks and save nothing. Each draft's `placeText` is matched like a place search (known places first, then OpenStreetMap): `placeId` and `place` hold the best match, or are null when nothing matched and the traveller must choose.
+
+`POST /v1/trips/:id/roo` (AI helper only) answers one chat message to Roo: `{message, history: [{role: "user"|"roo", text}]}` gives `{reply, action}`. `action` is null or one change Roo offers (`late`, `done`, `left`, `skip`, `move`, `duration`, `time`, `add`, `replan`, `undo`, `why`, `summary`, `theme`, with `taskId`, `minutes`, `time`, `day`, `text` or `theme` as the type needs). It is checked against the trip and saves nothing: the app asks the traveller, then calls the usual endpoints. 503 `UNAVAILABLE` means Gemini couldn't answer; the app answers from the phone instead.

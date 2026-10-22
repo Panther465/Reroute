@@ -7,20 +7,18 @@ import { useLocation, useNavigate } from 'react-router'
 import { useAiHelperEnabled, useBookings, useBookingsEnabled, useDay } from '@/api/queries'
 import type { Booking, Trip } from '@/api/types'
 import { checkIn } from '@/lib/actions'
-import { speak } from '@/lib/alerts'
 import { hhmm, lowerFirst } from '@/lib/format'
-import { EASE_IN_OUT, EASE_OUT } from '@/lib/motion'
+import { EASE_OUT } from '@/lib/motion'
 import { useOpenLate } from '@/lib/late'
 import { useRooAnchor } from '@/lib/rooAnchor'
 import { useSheetOpen } from '@/lib/sheets'
-import { setState, showToast, useStore } from '@/lib/store'
+import { setState, useStore } from '@/lib/store'
 import { activeBooking, isTrainTask } from '@/lib/bookings'
 import { addDays, localMinutes, type DayView } from '@/lib/timeline'
-import { listenOnce, parseCommand, voiceSupported, VoiceError, type VoiceCommand } from '@/lib/voice'
+import { RooArt, type Mood } from './roo/RooArt'
 
-type Mood = 'idle' | 'happy' | 'alert' | 'sleeping' | 'celebrate' | 'wave'
 // Labels avoid "Running late" and "Plan my day": those name the screens' own buttons.
-type ActionId = 'done' | 'more-time' | 'options' | 'describe' | 'plan' | 'summary' | 'today' | 'hide' | 'add' | 'edit' | 'book-train' | 'later' | 'talk' | 'stop'
+type ActionId = 'done' | 'more-time' | 'options' | 'describe' | 'plan' | 'summary' | 'add' | 'book-train' | 'later' | 'chat'
 
 interface RooAction {
   id: ActionId
@@ -58,7 +56,7 @@ const store = (key: string, on: boolean) => {
 }
 
 // ---------------------------------------------------------------------------
-// What Roo says: read from the same day view the Today screen shows
+// What Roo says by itself: read from the same day view the Today screen shows
 // ---------------------------------------------------------------------------
 
 function deriveMessage(trip: Trip | undefined, view: DayView | null, clock: number | null, path: string, bookings: Booking[] | undefined, ai: boolean): RooMessage | null {
@@ -129,186 +127,7 @@ function deriveMessage(trip: Trip | undefined, view: DayView | null, clock: numb
   if (leg && to && leg.leaveMin - clock <= 90) {
     return { id: `next-${leg.seq}-${leg.leaveMin}`, text: `Next: leave at ${leg.leaveBy} for ${dest}. Plenty of time.`, mood: 'idle' }
   }
-  return { id: 'on-track', text: 'Your day is on track. Tap me if you need anything.', mood: 'idle' }
-}
-
-function menuFor(trip: Trip | undefined, view: DayView | null, path: string, clock: number | null, ai: boolean): RooMessage {
-  const actions: RooAction[] = []
-  // On Today, Roo rides the timeline: add to the day, or deal with the stop under way, right here.
-  if (path === '/' && view && !view.done) {
-    actions.push({ id: 'add', label: 'Add a task', primary: true })
-    if (voiceSupported()) actions.push({ id: 'talk', label: 'Talk to Roo' })
-    const task = view.checkInTask
-    const stop = task ? view.stops.find((s) => s.id === task.taskId) : undefined
-    if (task && stop) {
-      if (stop.status === 'now' && clock != null && clock >= stop.time) actions.push({ id: 'done', label: `Mark the ${lowerFirst(task.title)} done` })
-      actions.push({ id: 'edit', label: `Edit the ${lowerFirst(task.title)}` })
-      actions.push({ id: 'more-time', label: 'Need more time' })
-    }
-    actions.push({ id: 'summary', label: 'How’s my day?' })
-    actions.push({ id: 'hide', label: 'Hide Roo' })
-    return { id: 'menu', text: 'Hi! What shall we do?', mood: 'happy', actions }
-  }
-  if (trip) actions.push(ai ? { id: 'describe', label: 'Describe my day', primary: true } : { id: 'add', label: 'Add a task', primary: true })
-  if (view && !view.done && view.checkInTask) actions.push({ id: 'more-time', label: 'Need more time' })
-  if (path !== '/' && view) actions.push({ id: 'today', label: 'Show today' })
-  if (view) actions.push({ id: 'summary', label: 'How’s my day?' })
-  actions.push({ id: 'hide', label: 'Hide Roo' })
-  return { id: 'menu', text: 'Hi! What can I do for you?', mood: 'happy', actions }
-}
-
-// ---------------------------------------------------------------------------
-// Talking to Roo: what it does with a sentence, and what it says back (out loud as well)
-// ---------------------------------------------------------------------------
-
-const VOICE_HELP = 'Try “I’m 20 minutes late”, “done”, “I’ve left” or “what’s next”.'
-
-interface VoiceReply {
-  /** Shown in the bubble; none when the screen answers instead (a sheet opens, or Roo celebrates). */
-  msg: RooMessage | null
-  words: string
-  then?: 'late' | 'done' | 'left' | 'add'
-  /** The delay to fill in on Running late. */
-  minutes?: number | null
-}
-
-/** A spoken sentence never changes the plan by itself: a delay opens Running late filled in, for one more tap. */
-function voiceReply(cmd: VoiceCommand, view: DayView | null, clock: number | null, leftFor: string | null): VoiceReply {
-  if (cmd.kind === 'unknown') {
-    return { msg: { id: 'voice-unknown', text: `I heard “${cmd.heard}”. ${VOICE_HELP}`, mood: 'idle', actions: [{ id: 'talk', label: 'Try again', primary: true }] }, words: `Sorry, I didn’t get that. ${VOICE_HELP}` }
-  }
-  if (cmd.kind === 'add') return { msg: null, words: 'Okay. What’s the task?', then: 'add' }
-  if (!view || clock == null || view.done) {
-    const text = view?.done ? 'That’s everything for today.' : 'There’s no plan for today yet.'
-    return { msg: { id: 'voice-no-plan', text, mood: 'idle' }, words: text }
-  }
-  const leg = view.nextLeg
-  const to = leg ? view.stops.find((s) => s.id === leg.toId) : undefined
-  const dest = to ? (to.kind === 'end' ? 'the hotel' : `the ${lowerFirst(to.title)}`) : 'your next stop'
-
-  if (cmd.kind === 'late') {
-    const ok = cmd.minutes != null && cmd.minutes >= 5 && cmd.minutes <= 240
-    return { msg: null, words: ok ? `Okay, ${cmd.minutes} minutes late. Check it, then confirm.` : 'How late are you? Pick it here.', then: 'late', minutes: ok ? cmd.minutes : null }
-  }
-  if (cmd.kind === 'done') {
-    const task = view.checkInTask
-    const stop = task ? view.stops.find((s) => s.id === task.taskId) : undefined
-    if (!task || !stop) return { msg: { id: 'voice-nothing-done', text: 'There’s nothing to mark done right now.', mood: 'idle' }, words: 'There’s nothing to mark done right now.' }
-    // As on Today: done long before it starts is more likely a slip than a fact.
-    if (stop.time - clock > 10) {
-      const text = `The ${lowerFirst(task.title)} starts at ${hhmm(stop.time)}. Tap Mark done if it’s really finished.`
-      return { msg: { id: 'voice-early', text, mood: 'idle' }, words: text }
-    }
-    return { msg: null, words: `The ${lowerFirst(task.title)} is done. Nice one!`, then: 'done' }
-  }
-  if (!leg) return { msg: { id: 'voice-no-leg', text: 'No more travel today.', mood: 'idle' }, words: 'No more travel today.' }
-  const arrive = `You should arrive around ${leg.arriveAt}.`
-  if (cmd.kind === 'left') {
-    if (leftFor === leg.toId) return { msg: { id: 'voice-on-way', text: `You’re already on your way. ${arrive}`, mood: 'happy' }, words: `You’re already on your way. ${arrive}` }
-    const here = view.checkInTask ? view.stops.find((s) => s.id === view.checkInTask?.taskId) : undefined
-    if (here?.status === 'now') {
-      const text = `Finish the ${lowerFirst(here.title)} first. Say “done” when it’s over.`
-      return { msg: { id: 'voice-finish-first', text, mood: 'idle' }, words: text }
-    }
-    const text = leg.toId === 'end' ? 'On your way back. Safe travels.' : `On your way to ${dest}. ${arrive}`
-    return { msg: { id: `voice-left-${leg.seq}`, text, mood: 'happy' }, words: text, then: 'left' }
-  }
-  const text = clock >= leg.leaveMin ? `Leave now for ${dest}. ${arrive}` : `Leave at ${leg.leaveBy} for ${dest}. ${arrive}`
-  return { msg: { id: `voice-next-${leg.seq}`, text, mood: clock >= leg.leaveMin ? 'alert' : 'idle' }, words: text }
-}
-
-// ---------------------------------------------------------------------------
-// The character
-// ---------------------------------------------------------------------------
-
-const BLINK_CSS = `@keyframes roo-blink { 0%, 93%, 100% { transform: scaleY(1) } 96% { transform: scaleY(0.1) } }`
-
-function Eyes({ mood, look }: { mood: Mood; look: { x: number; y: number } }) {
-  const ink = 'var(--roo-ink)'
-  if (mood === 'sleeping') {
-    return (
-      <g stroke={ink} strokeWidth="2.4" fill="none" strokeLinecap="round">
-        <path d="M24 47 Q30 51 36 47" />
-        <path d="M44 47 Q50 51 56 47" />
-      </g>
-    )
-  }
-  if (mood === 'happy' || mood === 'celebrate' || mood === 'wave') {
-    return (
-      <g stroke={ink} strokeWidth="2.6" fill="none" strokeLinecap="round">
-        <path d="M24 48 Q30 41 36 48" />
-        <path d="M44 48 Q50 41 56 48" />
-      </g>
-    )
-  }
-  const ry = mood === 'alert' ? 9.5 : 8.5
-  return (
-    <g style={{ animation: 'roo-blink 4.5s ease-in-out infinite', transformOrigin: '40px 46px' }}>
-      <ellipse cx="30" cy="46" rx="7.5" ry={ry} fill="#fff" />
-      <ellipse cx="50" cy="46" rx="7.5" ry={ry} fill="#fff" />
-      <circle cx={31 + look.x} cy={47 + look.y} r="4.3" fill={ink} />
-      <circle cx={51 + look.x} cy={47 + look.y} r="4.3" fill={ink} />
-      <circle cx={29.4 + look.x} cy={45 + look.y} r="1.6" fill="#fff" />
-      <circle cx={49.4 + look.x} cy={45 + look.y} r="1.6" fill="#fff" />
-      {mood === 'alert' && (
-        <g stroke={ink} strokeWidth="2.2" strokeLinecap="round">
-          <path d="M23 35 L35 32" />
-          <path d="M57 35 L45 32" />
-        </g>
-      )}
-    </g>
-  )
-}
-
-function Mouth({ mood }: { mood: Mood }) {
-  const ink = 'var(--roo-ink)'
-  if (mood === 'sleeping') return <path d="M37 61 Q40 63 43 61" stroke={ink} strokeWidth="2" fill="none" strokeLinecap="round" />
-  if (mood === 'alert') return <ellipse cx="40" cy="62" rx="3.2" ry="3.8" fill={ink} />
-  if (mood === 'happy' || mood === 'celebrate' || mood === 'wave') {
-    return (
-      <g>
-        <path d="M31 58 Q40 70 49 58 Z" fill={ink} />
-        <path d="M35 63 Q40 67 45 63 Q40 61 35 63 Z" fill="var(--roo-blush)" />
-      </g>
-    )
-  }
-  return <path d="M33 59 Q40 65 47 59" stroke={ink} strokeWidth="2.4" fill="none" strokeLinecap="round" />
-}
-
-function RooArt({ mood, look, size, reduce }: { mood: Mood; look: { x: number; y: number }; size: number; reduce: boolean }) {
-  const waving = mood === 'wave' || mood === 'celebrate'
-  return (
-    <svg viewBox="0 0 80 88" width={size} height={size * 1.1} aria-hidden="true" overflow="visible">
-      <style>{BLINK_CSS}</style>
-      <ellipse cx="40" cy="84" rx="20" ry="3.5" fill="#000" opacity="0.18" />
-      <ellipse cx="29" cy="77" rx="7.5" ry="5" fill="var(--roo-deep)" />
-      <ellipse cx="51" cy="77" rx="7.5" ry="5" fill="var(--roo-deep)" />
-      <ellipse cx="13" cy="56" rx="5" ry="8.5" fill="var(--roo-deep)" transform="rotate(22 13 56)" />
-      <motion.g
-        style={{ originX: 0.5, originY: 0.1 }}
-        animate={waving && !reduce ? { rotate: [0, -40, -10, -40, 0] } : { rotate: 0 }}
-        transition={{ duration: 1.2, ease: EASE_IN_OUT }}
-      >
-        <ellipse cx="67" cy="56" rx="5" ry="8.5" fill="var(--roo-deep)" transform="rotate(-22 67 56)" />
-      </motion.g>
-      <motion.g
-        style={{ originX: 0.5, originY: 1 }}
-        animate={reduce || mood === 'sleeping' || mood === 'idle' ? { rotate: 0 } : { rotate: [0, -7, 7, 0] }}
-        transition={{ duration: 1.4, ease: EASE_IN_OUT }}
-      >
-        <path d="M40 28 C39 21 40 16 41 12" stroke="var(--roo-deep)" strokeWidth="2.6" fill="none" strokeLinecap="round" />
-        <path d="M41 14 C46 6 55 6 57 10 C53 15 46 16 41 14 Z" fill="var(--roo-leaf)" />
-        <path d="M40 16 C35 10 27 10 25 13 C29 18 36 18 40 16 Z" fill="var(--roo-leaf)" />
-      </motion.g>
-      <ellipse cx="40" cy="52" rx="29" ry="27" fill="var(--roo-body)" />
-      <ellipse cx="40" cy="63" rx="17" ry="11.5" fill="#fff" opacity="0.15" />
-      <ellipse cx="28" cy="36" rx="9" ry="5.5" fill="#fff" opacity="0.25" transform="rotate(-28 28 36)" />
-      <Eyes mood={mood} look={look} />
-      <Mouth mood={mood} />
-      <ellipse cx="19" cy="57" rx="4.6" ry="2.9" fill="var(--roo-blush)" opacity="0.6" />
-      <ellipse cx="61" cy="57" rx="4.6" ry="2.9" fill="var(--roo-blush)" opacity="0.6" />
-    </svg>
-  )
+  return { id: 'on-track', text: 'Your day is on track. Tap me to chat.', mood: 'idle' }
 }
 
 // ---------------------------------------------------------------------------
@@ -351,6 +170,10 @@ function BubbleBody({ msg, onAction, onClose }: { msg: RooMessage; onAction: (id
 // Roo
 // ---------------------------------------------------------------------------
 
+/**
+ * Roo on Today's Now line: it breathes, looks around, follows the pointer, speaks up when there's news,
+ * and opens a chat when tapped (components/roo/RooChat).
+ */
 export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | null }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
@@ -363,13 +186,8 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
   const derived = useMemo(() => deriveMessage(trip, view, clock, pathname, bookings.data, ai), [trip, view, clock, pathname, bookings.data, ai])
 
   const shownPref = useStore((st) => st.roo)
+  const chatting = useStore((st) => st.rooChat)
   const hidden = !shownPref
-  const leftFor = useStore((st) => (st.started && st.started.tripId === trip?.tripId ? st.started.toId : null))
-  // A spoken answer arrives seconds after the tap: it acts on the day as it is then.
-  const latest = useRef({ trip, view, clock, leftFor })
-  latest.current = { trip, view, clock, leftFor }
-  const listening = useRef<AbortController | null>(null)
-  useEffect(() => () => listening.current?.abort(), [])
   const [greeted, setGreeted] = useState(() => stored(GREETED_KEY))
   const [override, setOverride] = useState<RooMessage | null>(null)
   const [open, setOpen] = useState(false)
@@ -378,7 +196,7 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
 
   // Hello waits for Today: on the start form it would sit over "Plan my day", the one button that matters.
   const greeting: RooMessage | null =
-    greeted || pathname !== '/' ? null : { id: 'greet', text: 'Hi, I’m Roo! I’ll keep an eye on your day and nudge you when it’s time. Tap me anytime.', mood: 'wave' }
+    greeted || pathname !== '/' ? null : { id: 'greet', text: 'Hi, I’m Roo! I’ll keep an eye on your day and nudge you when it’s time. Tap me to chat, any time.', mood: 'wave' }
   const msg = override ?? greeting ?? (derived && !dismissed.current.has(derived.id) ? derived : null)
 
   const schedule = useCallback((m: RooMessage) => {
@@ -427,13 +245,16 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doneKey])
 
-  // Eyes follow the pointer on devices that have one.
+  // Eyes follow the pointer on devices that have one; left alone for a while, Roo glances about.
   const artRef = useRef<HTMLButtonElement>(null)
   const [look, setLook] = useState({ x: 0, y: 0 })
+  const lastMove = useRef(0)
   useEffect(() => {
-    if (reduce || hidden || !window.matchMedia('(pointer: fine)').matches) return
+    if (reduce || hidden) return
     let frame = 0
+    const fine = window.matchMedia('(pointer: fine)').matches
     const onMove = (e: PointerEvent) => {
+      lastMove.current = Date.now()
       cancelAnimationFrame(frame)
       frame = requestAnimationFrame(() => {
         const r = artRef.current?.getBoundingClientRect()
@@ -446,18 +267,23 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
         setLook((l) => (l.x === next.x && l.y === next.y ? l : next))
       })
     }
-    window.addEventListener('pointermove', onMove, { passive: true })
+    if (fine) window.addEventListener('pointermove', onMove, { passive: true })
+    let back: ReturnType<typeof setTimeout> | undefined
+    const glance = setInterval(() => {
+      if (document.hidden || Date.now() - lastMove.current < 4000) return
+      setLook({ x: Math.random() < 0.5 ? -2.4 : 2.4, y: Math.random() < 0.5 ? -1 : 0.5 })
+      back = setTimeout(() => setLook({ x: 0, y: 0 }), 1300)
+    }, 7000)
     return () => {
       window.removeEventListener('pointermove', onMove)
       cancelAnimationFrame(frame)
+      clearInterval(glance)
+      clearTimeout(back)
     }
   }, [reduce, hidden])
 
   const close = () => {
     clearTimeout(fadeTimer.current)
-    // Closing Roo while it listens turns the microphone off.
-    listening.current?.abort()
-    listening.current = null
     setOpen(false)
     if (msg?.id === 'greet') {
       setGreeted(true)
@@ -476,79 +302,24 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
     else if (id === 'describe') navigate('/plan', { state: { openAi: true } })
     else if (id === 'plan') navigate('/plan')
     else if (id === 'summary') navigate('/summary')
-    else if (id === 'today') navigate('/')
     else if (id === 'add') navigate('/', { state: { add: Date.now() } })
     else if (id === 'book-train' && msg?.ref) navigate('/', { state: { bookTrain: msg.ref } })
-    else if (id === 'edit' && view?.checkInTask) navigate('/', { state: { stop: view.checkInTask.taskId } })
-    else if (id === 'talk') listen()
-    else if (id === 'hide') {
-      setState({ roo: false })
-      showToast({ title: 'Roo is hidden. Bring it back in Me.' })
-    }
+    else if (id === 'chat') setState({ rooChat: true })
   }
 
-  const show = (m: RooMessage) => {
-    lastShown.current = m.id
-    setOverride(m)
-    setOpen(true)
-    schedule(m)
-  }
-
-  const obey = (cmd: VoiceCommand) => {
-    const { trip: t, view: v, clock: c, leftFor: left } = latest.current
-    const r = voiceReply(cmd, v, c, left)
-    if (r.msg) show(r.msg)
-    else {
-      setOverride(null)
-      setOpen(false)
-    }
-    if (r.then === 'late') openLate(r.minutes)
-    else if (r.then === 'add') navigate('/', { state: { add: Date.now() } })
-    else if (r.then === 'done' && t && v && c != null) checkIn(t.tripId, v, c)
-    else if (r.then === 'left' && t && v?.nextLeg && c != null) setState({ started: { tripId: t.tripId, toId: v.nextLeg.toId, day: t.day, at: c } })
-    void speak(r.words)
-  }
-
-  const listen = () => {
-    const ctl = new AbortController()
-    listening.current = ctl
-    const m: RooMessage = { id: 'listening', text: `Listening… ${VOICE_HELP}`, mood: 'alert', urgent: true, actions: [{ id: 'stop', label: 'Stop listening' }] }
-    show(m)
-    listenOnce({ signal: ctl.signal })
-      .then((heard) => {
-        if (listening.current !== ctl) return
-        listening.current = null
-        obey(parseCommand(heard))
-      })
-      .catch((e: unknown) => {
-        if (listening.current !== ctl) return
-        listening.current = null
-        const text = e instanceof VoiceError ? e.message : 'I couldn’t listen just now. Tap the buttons instead.'
-        show({ id: 'voice-error', text, mood: 'idle' })
-      })
-  }
-
-  // A menu opened by a tap takes keyboard focus; a message Roo raises by itself never does.
-  const tapped = useRef(false)
+  // A tap opens the chat. A message Roo was showing can wait: the chat's hello says where the day stands.
   const tap = () => {
-    // A tap closes the menu, but over a message it opens the menu (the message can wait).
-    if (open && msg?.id === 'menu') return close()
-    if (open && msg && !override) dismissed.current.add(msg.id)
-    const menu = menuFor(trip, view, pathname, clock, ai)
-    lastShown.current = menu.id
-    tapped.current = true
-    setOverride(menu)
-    setOpen(true)
-    schedule(menu)
+    if (open && msg) close()
+    setState({ rooChat: true })
   }
   const anchor = useRooAnchor()
-  // A message waits while a sheet is open: the sheet's buttons and Escape belong to it.
+  // A message waits while a sheet or the chat is open: their buttons and Escape belong to them.
   const sheetOpen = useSheetOpen()
 
   if (hidden) return null
 
-  const shown = open && msg && !sheetOpen ? msg : null
-  const mood: Mood = shown?.mood ?? (derived?.mood === 'sleeping' ? 'sleeping' : derived?.urgent ? 'alert' : 'idle')
+  const shown = open && msg && !sheetOpen && !chatting ? msg : null
+  const mood: Mood = chatting ? 'happy' : (shown?.mood ?? (derived?.mood === 'sleeping' ? 'sleeping' : derived?.urgent ? 'alert' : 'idle'))
   const eyes = shown ? { x: -1.5, y: -2 } : look
 
   // On Today, Roo rides the timeline at the Now line; its words open in a popover above the page.
@@ -562,29 +333,34 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
       >
         <Popover.Anchor asChild>
           <div className="relative">
-            {/* The button stays still (a steady target); only Roo inside it moves, and only when it has news. */}
+            {/* The button stays still (a steady target); only Roo inside it moves. */}
             <button
               ref={artRef}
               type="button"
               onClick={tap}
-              aria-label={open && msg?.id === 'menu' ? 'Roo, your travel companion. Close the menu' : 'Roo, your travel companion. Add a task or change this stop'}
-              aria-expanded={open && msg?.id === 'menu'}
-              className="flex size-12 cursor-pointer items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--focus)]"
+              aria-label="Roo, your travel companion. Chat with Roo"
+              aria-haspopup="dialog"
+              aria-expanded={chatting}
+              className="group flex size-12 cursor-pointer items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--focus)]"
             >
-              <motion.span
-                className="block drop-shadow-md"
-                animate={
-                  reduce
-                    ? {}
-                    : mood === 'celebrate'
-                      ? { transform: ['translateY(0px)', 'translateY(-14px)', 'translateY(0px)'], transition: { duration: 0.8, ease: EASE_OUT } }
-                      : mood === 'alert'
-                        ? { transform: ['translateY(0px)', 'translateY(-6px)', 'translateY(0px)'], transition: { duration: 0.5, ease: EASE_OUT } }
-                        : { transform: 'translateY(0px)' }
-                }
-              >
-                <RooArt mood={mood} look={eyes} size={46} reduce={reduce} />
-              </motion.span>
+              <span className="rr-roo-breathe block">
+                <span className="block transition-[scale] duration-[var(--dur-quick)] motion-safe:group-active:scale-[0.9]">
+                  <motion.span
+                    className="block drop-shadow-md"
+                    animate={
+                      reduce
+                        ? {}
+                        : mood === 'celebrate'
+                          ? { transform: ['translateY(0px)', 'translateY(-14px)', 'translateY(0px)'], transition: { duration: 0.8, ease: EASE_OUT } }
+                          : mood === 'alert'
+                            ? { transform: ['translateY(0px)', 'translateY(-6px)', 'translateY(0px)'], transition: { duration: 0.5, ease: EASE_OUT } }
+                            : { transform: 'translateY(0px)' }
+                    }
+                  >
+                    <RooArt mood={mood} look={eyes} size={46} reduce={reduce} />
+                  </motion.span>
+                </span>
+              </span>
             </button>
           </div>
         </Popover.Anchor>
@@ -595,16 +371,12 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
               align="end"
               sideOffset={6}
               collisionPadding={16}
-              onOpenAutoFocus={(e) => {
-                if (!tapped.current) e.preventDefault()
-                tapped.current = false
-              }}
+              // A message Roo raises never takes focus.
+              onOpenAutoFocus={(e) => e.preventDefault()}
               onInteractOutside={(e) => {
                 if (artRef.current?.contains(e.target as Node)) e.preventDefault()
               }}
-              // A message Roo raises is announced as a status; only the menu a tap opens is a dialog.
-              role={shown.id === 'menu' ? 'dialog' : 'status'}
-              aria-label={shown.id === 'menu' ? 'Roo' : undefined}
+              role="status"
               className="relative z-[60] w-[min(300px,calc(100vw-32px))] rounded-card border border-line bg-surface p-4 pr-14 text-left shadow-[var(--shadow-toast)]"
             >
               <BubbleBody msg={shown} onAction={act} onClose={close} />
@@ -618,5 +390,4 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
   }
 
   return null
-
 }
