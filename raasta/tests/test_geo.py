@@ -34,6 +34,24 @@ def test_trim_never_keeps_the_ends_even_if_points_arrive_out_of_order():
     assert all(distance_m(p, ride[-1]) > 200 for p in kept)  # ride[-1] is the true start after sorting
 
 
+def test_jitter_while_waiting_at_the_start_does_not_use_up_the_trim():
+    """Five minutes at the start with GPS jumping 30 m back and forth adds ~870 m of path but goes nowhere."""
+    start = RidePoint(12.9, 77.6, T0)
+    waiting = [RidePoint(12.9 + 0.00027 * (i % 2), 77.6, T0 + timedelta(seconds=10 * i)) for i in range(30)]
+    riding = [RidePoint(12.9 + (i + 1) * STEP, 77.6, waiting[-1].t + timedelta(seconds=5 * (i + 1))) for i in range(100)]
+    assert path_length_m(waiting) > 800
+    kept = trim_ride(waiting + riding, 200)
+    assert kept
+    assert all(distance_m(p, start) > 200 and distance_m(p, riding[-1]) > 200 for p in kept)
+
+
+def test_a_ride_that_ends_where_it_started_keeps_only_the_far_part():
+    out = straight_ride(60)
+    back = [RidePoint(p.lat, p.lng, out[-1].t + timedelta(seconds=5 * (i + 1))) for i, p in enumerate(reversed(out[:-1]))]
+    kept = trim_ride(out + back, 200)
+    assert kept and all(distance_m(p, out[0]) > 200 for p in kept)
+
+
 def test_ride_shorter_than_400_m_leaves_nothing():
     assert trim_ride(straight_ride(30), 200) == []  # ~320 m
     assert trim_ride(straight_ride(1), 200) == []
