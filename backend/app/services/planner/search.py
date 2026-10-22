@@ -17,6 +17,7 @@ from .hashing import inputs_hash
 from .models import (
     Blocked,
     LegOption,
+    Mode,
     MovedTask,
     PlannedLeg,
     PlannerInput,
@@ -27,7 +28,13 @@ from .models import (
 from .timing import LegTiming, leg_cost_scaled, time_leg
 from .util import hhmm, lower_first
 
+#: Prefix of the "Already there" option: staying put between two stops at the same place.
 STAY = "__stay__"
+
+
+def stay_option(place: str) -> LegOption:
+    """No travel-time source has a leg from a place to itself, so the planner adds one: 0 minutes, ₹0."""
+    return LegOption(option_id=f"{STAY}:{place}", mode=Mode.WALK, label="Already there", segments=(), travel_min=0, fare_inr=0)
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,6 +62,11 @@ def _build_ctx(inp: PlannerInput) -> _Ctx:
         main = tuple(sorted((o for o in opts if o.is_main and (allowed is None or o.mode in allowed)), key=lambda o: o.option_id))
         options[(a, b)] = main
         extras[(a, b)] = tuple(sorted((o for o in opts if not o.is_main), key=lambda o: o.option_id))
+    # A checkout at the hotel, two tasks at one place, or the way home from a task at the hotel:
+    # staying put is always possible, whatever modes the objective allows.
+    for place in {inp.start.place_id, inp.stay_place_id, *(t.place_id for t in inp.tasks)}:
+        if not options.get((place, place)):
+            options[(place, place)] = (stay_option(place),)
     tasks = sorted(inp.tasks, key=lambda t: t.task_id)
     return _Ctx(inp, tasks, options, extras)
 
@@ -101,22 +113,28 @@ def _exact(ctx: _Ctx) -> list[Step] | None:
 
     # Admissible lower bound on the rest of the day: each unvisited task costs at least its
     # cheapest incoming leg (or the left-out penalty, if it may be left out), plus the cheapest
-    # leg home. Waiting is never negative, so the bound never overestimates.
-    def cheapest_into(place: str) -> int:
+    # leg home. Waiting is never negative, so the bound never overestimates. A free leg from a
+    # place to itself counts only where it can be taken: into a task when the day starts there or
+    # another task is there too, and home when a task is at the place of stay (or, before any
+    # task, when the day starts there).
+    def cheapest_into(place: str, self_leg: bool) -> int:
         return min(
-            (d * rule.weight_travel * o.travel_min + o.fare_inr for (_, b), opts in ctx.options.items() if b == place for o in opts),
+            (d * rule.weight_travel * o.travel_min + o.fare_inr for (a, b), opts in ctx.options.items() if b == place and (a != b or self_leg) for o in opts),
             default=10**9,
         )
 
-    into = [cheapest_into(x.place_id) for x in tasks]
+    start_place, stay = inp.start.place_id, inp.stay_place_id
+    into = [cheapest_into(x.place_id, x.place_id == start_place or any(y is not x and y.place_id == x.place_id for y in tasks)) for x in tasks]
     floor = [min(into[i], moved_scaled) if _left_out_kind(inp, tasks[i]) is not None else into[i] for i in range(n)]
-    home = cheapest_into(inp.stay_place_id)
+    task_at_stay = any(x.place_id == stay for x in tasks)
+    home = cheapest_into(stay, task_at_stay)
+    home_first = cheapest_into(stay, task_at_stay or start_place == stay)
     lower: dict[int, int] = {}
 
     def lower_bound(mask: int) -> int:
         lb = lower.get(mask)
         if lb is None:
-            lb = home + sum(floor[i] for i in range(n) if not mask >> i & 1)
+            lb = (home if mask else home_first) + sum(floor[i] for i in range(n) if not mask >> i & 1)
             lower[mask] = lb
         return lb
 

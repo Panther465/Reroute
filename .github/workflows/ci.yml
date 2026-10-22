@@ -42,11 +42,12 @@ jobs:
       - name: Tests (planner, golden test, API flow) with coverage
         run: pytest --cov=app --cov-report=term-missing --cov-fail-under=70
       - name: OpenAPI file matches the code
+        # Written the way shared/contracts/ is generated: UTF-8, LF line endings, a final newline.
         env:
           APP_ENV: test
         run: |
-          python -c "import json; from app.main import app; print(json.dumps(app.openapi(), indent=2, ensure_ascii=False))" > /tmp/reroute.openapi.json
-          diff -q /tmp/reroute.openapi.json ../shared/contracts/reroute.openapi.json
+          python -c "import json; from pathlib import Path; from app.main import app; Path('/tmp/reroute.openapi.json').write_text(json.dumps(app.openapi(), indent=2, ensure_ascii=False) + chr(10), encoding='utf-8', newline=chr(10))"
+          diff -u ../shared/contracts/reroute.openapi.json /tmp/reroute.openapi.json
 
   raasta:
     name: Raasta API
@@ -75,8 +76,16 @@ jobs:
           cache: pip
           cache-dependency-path: raasta/pyproject.toml
       - run: pip install -e ".[dev]"
-      - run: ruff check app tests
+      - name: Lint
+        run: ruff check app tests && ruff format --check app tests
       - run: pytest --cov=app --cov-report=term-missing --cov-fail-under=70
+      - name: OpenAPI file matches the code
+        # Generated the same way as Reroute's: UTF-8, LF line endings, a final newline.
+        env:
+          APP_ENV: test
+        run: |
+          python -c "import json; from pathlib import Path; from app.main import app; Path('/tmp/raasta.openapi.json').write_text(json.dumps(app.openapi(), indent=2, ensure_ascii=False) + chr(10), encoding='utf-8', newline=chr(10))"
+          diff -u ../shared/contracts/raasta.openapi.json /tmp/raasta.openapi.json
 
   frontend:
     name: Web app

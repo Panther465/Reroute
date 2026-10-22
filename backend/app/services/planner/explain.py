@@ -6,9 +6,24 @@ from .util import count_word, hhmm, lower_first, rupees
 
 
 def shifted(minutes: int, automatic: bool, behind_min: int | None = None) -> str:
-    if automatic and behind_min:
+    """`minutes` is how far the next leave-by time moved: positive is later, negative earlier."""
+    if automatic and behind_min and minutes > 0:
         return f"You were {behind_min} min behind. Reroute moved your later stops {minutes} min later."
-    return f"Your day still fits. Every later stop moves {minutes} min later. No extra cost."
+    if minutes > 0:
+        return f"Your day still fits. Every later stop moves {minutes} min later. No extra cost."
+    if minutes < 0:
+        return f"Your day still fits. Your next stop moves {-minutes} min earlier. No extra cost."
+    return "Your day still fits. Your later stops have new times. No extra cost."
+
+
+def fixed_at_risk(title: str, arrival: int, start: int, buffer_min: int) -> str:
+    """A delay reported on the way to a fixed task: when the traveller gets there, against its start."""
+    name = lower_first(title)
+    if arrival > start:
+        return f"You'll reach the {name} at about {hhmm(arrival)}, after its {hhmm(start)} start."
+    if arrival == start:
+        return f"You'll reach the {name} at about {hhmm(arrival)}, just as it starts; you need {buffer_min} min before it."
+    return f"You'll reach the {name} at about {hhmm(arrival)}, {start - arrival} min before its {hhmm(start)} start; you need {buffer_min}."
 
 
 def on_time() -> str:

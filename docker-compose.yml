@@ -3,7 +3,11 @@
 #
 # Host ports stay clear of databases a developer may already run: PostgreSQL 55432, Redis 56379,
 # MongoDB 57017, HTTP 8080 (redirects to HTTPS). Override with POSTGRES_HOST_PORT, REDIS_HOST_PORT,
-# MONGO_HOST_PORT, HTTP_PORT and HTTPS_PORT.
+# MONGO_HOST_PORT, HTTP_PORT and HTTPS_PORT. Everything listens on 127.0.0.1 only; set BIND_ADDR
+# (for example 0.0.0.0) to open the app to other machines.
+#
+# For a deployment: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+# (production settings, no demo login, and every secret must be set).
 #
 # Road routing (OSRM) is optional for the Bengaluru demo, which uses the sample travel-time snapshot.
 # To route real places: docker compose --profile routing up --build  (first run prepares the map; minutes).
@@ -18,15 +22,18 @@ x-api-env: &api-env
   GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
   GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
   RAASTA_BASE_URL: http://raasta:8001
+  # The worker's pass to Raasta's service rate limit; Raasta below has the same value.
+  RAASTA_SERVICE_TOKEN: ${RAASTA_SERVICE_TOKEN:-dev-only-service-token-change-me-0123456789}
   TRAVEL_TIMES_SOURCE: ${TRAVEL_TIMES_SOURCE:-sample}
   OSRM_CAR_URL: http://osrm-car:5000
   OSRM_FOOT_URL: http://osrm-foot:5000
   PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://localhost}
-  AI_HELPER_ENABLED: ${AI_HELPER_ENABLED:-true}
+  AI_HELPER_ENABLED: ${AI_HELPER_ENABLED:-false}
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}
   GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash-lite}
   RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
   AUTH_RATE_LIMIT_PER_MINUTE: ${AUTH_RATE_LIMIT_PER_MINUTE:-10}
+  SESSION_RATE_LIMIT_PER_MINUTE: ${SESSION_RATE_LIMIT_PER_MINUTE:-60}
 
 services:
   postgres:
@@ -79,6 +86,7 @@ services:
       MONGO_URL: mongodb://mongo:27017
       MONGO_DB: reroute
       JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-dev-only-change-me}
+      RAASTA_SERVICE_TOKEN: ${RAASTA_SERVICE_TOKEN:-dev-only-service-token-change-me-0123456789}
       OSRM_URL: ${RAASTA_OSRM_URL:-}
       EXAMPLES_DIR: /srv/examples/bengaluru
       SEED_ON_START: "true"
@@ -156,7 +164,7 @@ services:
       - ./infra/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
       - ./infra/nginx/start.sh:/start.sh:ro
       - certs:/etc/nginx/certs
-    ports: ["${HTTPS_PORT:-443}:443", "${HTTP_PORT:-8080}:80"]
+    ports: ["${BIND_ADDR:-127.0.0.1}:${HTTPS_PORT:-443}:443", "${BIND_ADDR:-127.0.0.1}:${HTTP_PORT:-8080}:80"]
     healthcheck:
       test: ["CMD", "wget", "-q", "--spider", "--no-check-certificate", "https://127.0.0.1/v1/healthz"]
       interval: 10s
@@ -168,13 +176,29 @@ services:
       web: { condition: service_started }
 
   # ---- Road routing (optional profile) ----
+  # The OSRM image has no wget or curl, so a curl container downloads the map first. An interrupted
+  # download resumes (-C -) and only a complete file is renamed into place.
+  osrm-download:
+    profiles: [routing]
+    image: curlimages/curl:8.10.1
+    user: "0:0" # the volume belongs to root
+    volumes: [osrm:/data]
+    environment:
+      OSM_EXTRACT_URL: ${OSM_EXTRACT_URL:-https://download.geofabrik.de/asia/india/southern-zone-latest.osm.pbf}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        if [ -f /data/region.osm.pbf ]; then echo "Map already downloaded."; exit 0; fi;
+        curl -fL --retry 5 -C - -o /data/region.osm.pbf.part "$$OSM_EXTRACT_URL"
+        && mv /data/region.osm.pbf.part /data/region.osm.pbf
+
   osrm-prep:
     profiles: [routing]
     image: ghcr.io/project-osrm/osrm-backend:v5.27.1
     volumes: [osrm:/data, ./infra/osrm:/scripts:ro]
     entrypoint: ["/bin/sh", "/scripts/prepare.sh"]
-    environment:
-      OSM_EXTRACT_URL: ${OSM_EXTRACT_URL:-https://download.geofabrik.de/asia/india/southern-zone-latest.osm.pbf}
+    depends_on:
+      osrm-download: { condition: service_completed_successfully }
 
   osrm-car:
     restart: unless-stopped

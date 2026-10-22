@@ -19,12 +19,10 @@ from app.clock import at_minutes, minutes_of_day, tz_for
 from app.models import Place, Plan, Task, Trip
 from app.redis_client import get_redis
 from app.services.plan_store import active_plan
-from app.services.planner import Objective, PlannerInput, PlanTask, RuleSettings, Start, Window
+from app.services.planner import Objective, PlannerInput, PlanTask, RuleSettings, Start, TravelSnapshot, Window
 from app.services.planner.util import to_minutes
 
 RULE = RuleSettings()
-#: States that take a task out of the day it was planned for. A moved task is plannable again on its new day.
-GONE = ("done", "skipped", "moved")
 FINISHED = ("done", "skipped")
 #: A reported delay is remembered until the end of the day, so later automatic checks keep it.
 READY_TTL_SECONDS = 24 * 3600
@@ -37,6 +35,11 @@ def _ready_key(trip_id: str, task_id: str) -> str:
 def trip_day(trip: Trip, now: datetime) -> date:
     local = now.astimezone(tz_for(trip.utc_offset)).date()
     return min(max(local, trip.start_date), trip.end_date)
+
+
+def gone(task: Task, day: date) -> bool:
+    """Done, skipped, or moved away from `day`. A moved task is plannable again on its new day."""
+    return task.state in FINISHED or (task.state == "moved" and task.day != day)
 
 
 @dataclass
@@ -56,18 +59,30 @@ class DayContext:
     behind_min: int = 0
     #: A delay reported on the way to a fixed task: (task, expected arrival in minutes).
     fixed_at_risk: tuple[Task, int] | None = None
+    #: Open tasks the active plan couldn't fit and named as "unplaced". Re-plans leave them out (they
+    #: didn't fit, and including them would break "shift only"); a fresh plan tries them again.
+    unplaced_ids: set[str] = field(default_factory=set)
 
     @property
     def today_tasks(self) -> list[Task]:
         return [t for t in self.tasks.values() if t.planned_day == self.day]
 
-    def planner_tasks(self) -> list[Task]:
+    def planner_tasks(self, include_unplaced: bool = False) -> list[Task]:
         """Tasks still to plan today. A task moved here from an earlier day counts (its `day` is today)."""
         current_id = self.current.task_id if self.current else None
         return sorted(
-            (t for t in self.tasks.values() if t.day == self.day and t.state not in FINISHED and t.task_id != current_id),
+            (
+                t
+                for t in self.tasks.values()
+                if t.day == self.day and t.state not in FINISHED and t.task_id != current_id and (include_unplaced or t.task_id not in self.unplaced_ids)
+            ),
             key=lambda t: t.task_id,
         )
+
+    def carried_unplaced(self) -> list[dict]:
+        """The active plan's "unplaced" entries still open, to keep them named in a re-planned version."""
+        moved = self.active.moved if self.active is not None else []
+        return [m for m in moved or [] if m.get("kind") == "unplaced" and m.get("taskId") in self.unplaced_ids]
 
     @property
     def day_finished(self) -> bool:
@@ -94,6 +109,11 @@ def sense(db: Session, trip: Trip, now: datetime, delay_min: int = 0, done_at: d
         ctx.start = Start(place_id=trip.stay_place_id, ready_at=ready, kind="stay")
         return ctx
 
+    ctx.unplaced_ids = {
+        m["taskId"]
+        for m in plan.moved or []
+        if m.get("kind") == "unplaced" and (t := tasks.get(m.get("taskId") or "")) is not None and t.day == day and t.state not in FINISHED
+    }
     legs = list(plan.legs)
     ctx.done_legs = list(plan.done_legs or [])
     # Only a leg to a task checked in done was travelled: the traveller never went to a skipped task.
@@ -103,7 +123,7 @@ def sense(db: Session, trip: Trip, now: datetime, delay_min: int = 0, done_at: d
         task = tasks.get(leg.get("taskId") or "")
         if task is None:
             break
-        if task.state in GONE:
+        if gone(task, day):
             passed = i + 1
             if task.state == "done":
                 reached.append(leg)
@@ -119,7 +139,7 @@ def sense(db: Session, trip: Trip, now: datetime, delay_min: int = 0, done_at: d
     if ctx.current is None and not reached and ctx.done_legs:
         last = ctx.done_legs[-1]
         task = tasks.get(last.get("taskId") or "")
-        if task is not None and task.state not in GONE:
+        if task is not None and not gone(task, day):
             ctx.current, ctx.current_leg = task, last
             ctx.remaining_legs = legs[passed:]
 
@@ -188,22 +208,37 @@ def to_plan_task(task: Task, day: date, tz: timezone) -> PlanTask:
     )
 
 
-def planner_input(db: Session, ctx: DayContext, adapter: TravelTimeAdapter, objective: Objective | None = None) -> PlannerInput:
-    tasks = ctx.planner_tasks()
-    place_ids = {ctx.trip.stay_place_id, ctx.start.place_id, *(t.place_id for t in tasks)}  # type: ignore[union-attr]
+# Planner inputs come in three steps, so the loop can fetch travel times (Raasta, OSRM: the network)
+# before it takes the trip's lock, and only build the input under it.
+
+
+def needed_places(ctx: DayContext, include_unplaced: bool = False) -> frozenset[str]:
+    """Every place the rest of the day may visit: where the traveller is, the place of stay and each task's place."""
+    return frozenset({ctx.trip.stay_place_id, ctx.start.place_id, *(t.place_id for t in ctx.planner_tasks(include_unplaced))})  # type: ignore[union-attr]
+
+
+def fetch_snapshot(db: Session, ctx: DayContext, adapter: TravelTimeAdapter, place_ids: frozenset[str]) -> TravelSnapshot:
     places = db.scalars(select(Place).where(Place.place_id.in_(place_ids))).all()
-    snapshot = adapter.snapshot(ctx.trip.city_slug, [PlacePoint(p.place_id, p.lng, p.lat) for p in sorted(places, key=lambda p: p.place_id)], ctx.day)
+    return adapter.snapshot(ctx.trip.city_slug, [PlacePoint(p.place_id, p.lng, p.lat) for p in sorted(places, key=lambda p: p.place_id)], ctx.day)
+
+
+def build_input(ctx: DayContext, snapshot: TravelSnapshot, objective: Objective | None = None, include_unplaced: bool = False) -> PlannerInput:
     return PlannerInput(
         rule=RULE,
         day=ctx.day,
         utc_offset=ctx.trip.utc_offset,
         stay_place_id=ctx.trip.stay_place_id,
         start=ctx.start,  # type: ignore[arg-type]
-        tasks=tuple(to_plan_task(t, ctx.day, ctx.tz) for t in tasks),
+        tasks=tuple(to_plan_task(t, ctx.day, ctx.tz) for t in ctx.planner_tasks(include_unplaced)),
         snapshot=snapshot,
         has_next_day=ctx.day < ctx.trip.end_date,
         objective=objective or Objective(),
     )
+
+
+def planner_input(db: Session, ctx: DayContext, adapter: TravelTimeAdapter, objective: Objective | None = None, include_unplaced: bool = False) -> PlannerInput:
+    snapshot = fetch_snapshot(db, ctx, adapter, needed_places(ctx, include_unplaced))
+    return build_input(ctx, snapshot, objective, include_unplaced)
 
 
 def next_day(d: date) -> date:
