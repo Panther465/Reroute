@@ -95,7 +95,8 @@ export function DemoPanel({ trip, onLate, inTopBar = false }: { trip: Trip | und
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
-      <div className={inTopBar ? 'ml-auto flex items-center gap-2' : 'flex min-h-12 items-center justify-between gap-3 border-b border-line bg-sunken px-5'}>
+      {/* data-demo-bar: product screenshots leave the demo chrome out. */}
+      <div data-demo-bar="" className={inTopBar ? 'ml-auto flex items-center gap-2' : 'flex min-h-12 items-center justify-between gap-3 border-b border-line bg-sunken px-5'}>
         <p className="t-small text-ink-2 tnum">
           <span className="font-bold text-ink">Demo</span> time {hhmm(clock)}
         </p>

@@ -16,7 +16,7 @@ const STATIONS = [
   { x: O, name: 'Office', before: '15:40', after: '15:50' },
 ]
 
-function FlipTime({ value, changed, index, reduce }: { value: string; changed: boolean; index: number; reduce: boolean }) {
+export function FlipTime({ value, changed, index, reduce }: { value: string; changed: boolean; index: number; reduce: boolean }) {
   return (
     <span className="relative inline-block rounded-[5px] px-1" style={{ perspective: 200 }}>
       {changed && (

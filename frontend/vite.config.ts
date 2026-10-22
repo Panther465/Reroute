@@ -56,7 +56,8 @@ export default defineConfig(({ mode }) => ({
         // API responses are cached by the persisted query cache, not the service worker.
         navigateFallbackDenylist: [/^\/v1\//],
         // MapLibre is large and its map needs a connection anyway: cache it the first time a map opens.
-        globIgnores: ['**/maplibre*'],
+        // The landing page's screenshots are for first-time visitors, not for offline use.
+        globIgnores: ['**/maplibre*', 'landing/**'],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/assets/maplibre'),
