@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+import contextlib
+import logging
+from datetime import date, datetime
 
 from sqlalchemy import select
 
@@ -14,8 +16,10 @@ from app.db import session_scope
 from app.errors import ApiError
 from app.models import Plan, Task, Trip
 from app.redis_client import get_redis
-from app.services import loop
+from app.services import loop, morning
 from app.services.day import trip_day
+
+log = logging.getLogger("reroute.jobs")
 
 
 def default_adapter():
@@ -38,8 +42,40 @@ def plan_trip(trip_id: str, trigger: str = "created", checkin_id: str | None = N
         try:
             plan = loop.create_plan(db, trip, _adapter(), now_for(trip_id), trigger=trigger, checkin_id=checkin_id)
         except ApiError as exc:
-            return {"error": exc.message, "code": exc.code}
+            return {"error": exc.message, "code": exc.code, **exc.extra}
         return {"planId": plan.plan_id, "planVersion": plan.version}
+
+
+def morning_plan(trip_id: str, day: str) -> dict:
+    """Plan a trip day in the morning. The scheduler queues it once per trip-day; a failed run is retried
+    after 30 minutes. The day is checked again here and under the trip's lock: the traveller may have
+    planned it meanwhile."""
+    key = morning.lock_key(trip_id, date.fromisoformat(day))
+    try:
+        with session_scope() as db:
+            trip = db.get(Trip, trip_id)
+            if trip is None:
+                return {"error": "Trip not found."}
+            now = now_for(trip_id)
+            if morning.due_day(db, trip, now) != date.fromisoformat(day):
+                return {"result": "not_due"}
+            try:
+                plan = loop.create_plan(db, trip, _adapter(), now, trigger="morning")
+            except ApiError as exc:
+                if exc.code == "NOT_DUE":
+                    return {"result": "not_due"}
+                log.warning("Morning plan for %s on %s failed: %s", trip_id, day, exc.code)
+                _retry_morning_later(key)
+                return {"error": exc.message, "code": exc.code, **exc.extra}
+            return {"planId": plan.plan_id, "planVersion": plan.version}
+    except Exception:
+        _retry_morning_later(key)
+        raise
+
+
+def _retry_morning_later(key: str) -> None:
+    with contextlib.suppress(Exception):
+        get_redis().expire(key, morning.RETRY_SECONDS)
 
 
 def replan_trip(trip_id: str, delay_min: int = 0, automatic: bool = False, checkin_id: str | None = None, done_at: str | None = None) -> dict:
@@ -47,16 +83,19 @@ def replan_trip(trip_id: str, delay_min: int = 0, automatic: bool = False, check
         trip = db.get(Trip, trip_id)
         if trip is None:
             return {"error": "Trip not found."}
-        outcome = loop.run(
-            db,
-            trip,
-            _adapter(),
-            now_for(trip_id),
-            delay_min=delay_min,
-            automatic=automatic,
-            checkin_id=checkin_id,
-            done_at=datetime.fromisoformat(done_at) if done_at else None,
-        )
+        try:
+            outcome = loop.run(
+                db,
+                trip,
+                _adapter(),
+                now_for(trip_id),
+                delay_min=delay_min,
+                automatic=automatic,
+                checkin_id=checkin_id,
+                done_at=datetime.fromisoformat(done_at) if done_at else None,
+            )
+        except ApiError as exc:
+            return {"error": exc.message, "code": exc.code}
         return {
             "result": outcome.result,
             "reasonCodes": outcome.reason_codes,
@@ -101,11 +140,17 @@ def send_leave_now_alerts(trip_id: str) -> None:
                             "label": leg["label"],
                         },
                     )
-        open_tasks = db.scalar(select(Task.task_id).where(Task.trip_id == trip_id, Task.day == trip.end_date, Task.state.notin_(("done", "skipped"))).limit(1))
+        # Tasks the plan named as unplaced won't happen: they don't keep the trip from ending.
+        unplaced = {m["taskId"] for m in plan.moved or [] if m.get("kind") == "unplaced"}
+        open_tasks = [
+            t
+            for t in db.scalars(select(Task.task_id).where(Task.trip_id == trip_id, Task.day == trip.end_date, Task.state.notin_(("done", "skipped"))))
+            if t not in unplaced
+        ]
         if (
             plan.day == trip.end_date
             and day == trip.end_date
-            and open_tasks is None
+            and not open_tasks
             and now_min > minutes_of_day(datetime.fromisoformat(plan.legs[-1]["arriveAt"]), day, tz)
             and r.set(f"trip_ended:{trip_id}", "1", nx=True, ex=7 * 86400)
         ):

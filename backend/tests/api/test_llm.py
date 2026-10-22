@@ -47,6 +47,15 @@ def test_gemini_reply_becomes_validated_tasks(monkeypatch):
     assert "Bengaluru" in body["contents"][0]["parts"][0]["text"]
 
 
+def test_an_impossible_fixed_time_from_gemini_is_dropped(monkeypatch):
+    monkeypatch.setattr(get_settings(), "gemini_api_key", "test-key")
+    reply = [
+        {"title": "Call", "placeText": "", "durationMin": 30, "fixedStart": t, "priority": 2} for t in ("25:99", "24:00", "09:60", "9:30", "23:59", "00:00")
+    ]
+    tasks = asyncio.run(extract_tasks_llm("calls", "Bengaluru", DAY, client=_gemini([], reply)))
+    assert [t["fixedStart"] for t in tasks] == [None, None, None, None, "23:59", "00:00"]
+
+
 def test_used_up_free_quota_falls_back_to_the_pattern_parser(monkeypatch):
     monkeypatch.setattr(get_settings(), "gemini_api_key", "test-key")
     seen: list[httpx.Request] = []

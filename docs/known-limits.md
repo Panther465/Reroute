@@ -14,7 +14,9 @@ Honest gaps in this build. Each is a deliberate scope choice or waits on the tea
 
 ## Features
 
-- **The AI helper** ("Describe your day") is enabled by default. With `GEMINI_API_KEY` set (a free key from Google AI Studio) it asks Gemini to read the description. Without a key, or once the free tier's per-minute or daily quota is used up, it falls back to a pattern-based parser that handles common day descriptions.
+- **The AI helper** ("Describe your day") is off by default, as the brief says; set `AI_HELPER_ENABLED=true` to turn it on. With `GEMINI_API_KEY` set (a free key from Google AI Studio) it asks Gemini to read the description. Without a key, or once the free tier's per-minute or daily quota is used up, it falls back to a pattern-based parser that handles common day descriptions. A fixed time it can't read as a real "HH:MM" is dropped, and the traveller sets it.
+- **Morning planning** plans a later trip day on its own from 06:00 local time (`MORNING_PLAN_FROM_MIN`), from the place of stay, but only for a trip the traveller has planned before and only for a day with tasks and no plan yet. It runs once per trip day; if it fails (for example when a fixed time can't be kept) it tries again after 30 minutes, and the traveller can always plan the day themselves, which shows the reason. The scheduler looks at trips running around the server's real date, so a trip on the demo clock is planned in the morning only when its dates are around today; the demo trip (October 2026 sample dates) is planned with "Plan my day" as before.
+- **Bookings are a demo.** Train tickets and cab rides are simulated: sample trains, invented drivers, nothing booked or charged. They exist only with `DEMO_LOGIN=true` (404 otherwise, and `features.bookings` is false), and they keep passenger names and ages with the trip.
 - **Google sign-in and Calendar import** need `GOOGLE_CLIENT_ID` and `GOOGLE_CLIENT_SECRET`. Without them the web app hides both buttons and the demo login works.
 - **Location is not collected.** The re-plan loop works from check-ins and the clock; the `location_timeline` collection and its deletion endpoint are in place for when the team adds location sharing.
 - **Leave-now browser notifications** need the traveller's permission, asked from the Me screen.
@@ -31,5 +33,8 @@ Honest gaps in this build. Each is a deliberate scope choice or waits on the tea
 ## Operations
 
 - **The NGINX certificate is self-signed** for local use, so browsers won't install the offline service worker until you trust it (mkcert works). Deploy with a real certificate.
+- **Locally, everything listens on 127.0.0.1.** Set `BIND_ADDR=0.0.0.0` to open the app to other devices (a phone on the same Wi-Fi), or deploy with `docker-compose.prod.yml`, which listens on all addresses and refuses to start without real secrets.
+- **Reroute and Raasta share one JWT secret (HS256)** so Raasta can verify Reroute's access tokens. A per-service key pair, so Raasta could verify without being able to sign, is a recorded follow-up.
+- **When Raasta is busy or down**, Reroute plans with the last answer it got about each route (kept 24 hours) and waits out Raasta's `Retry-After`. After a day without an answer, Raasta's routes count as unverified until it's back.
 - **The k6 load test** runs on demand (`Load test` workflow) with a raised per-user rate limit, because all virtual users share the demo account.
 - **A manual NVDA screen-reader check** is required by the brief and isn't automated.

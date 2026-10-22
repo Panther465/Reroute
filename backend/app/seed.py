@@ -5,10 +5,12 @@ Idempotent: run it as often as you like. Usage: python -m app.seed
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 from datetime import date, datetime
 
+import redis
 from geoalchemy2.elements import WKTElement
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -73,12 +75,18 @@ def _tasks(trip: Trip, data: dict) -> list[Task]:
 
 
 def reset_demo_trip(db: Session, trip: Trip) -> None:
-    """Put the sample day back to its start: no plans, no check-ins, the four sample tasks."""
+    """Put the sample day back to its start: no plans, no check-ins, the four sample tasks, and nothing
+    remembered in Redis (reported delays, alerts sent, the trip-ended flag, morning plans)."""
+    from app.services.loop import forget_trip_state
+
     data = _demo_file()
     for model in (Booking, Checkin, RerouteLog, ShareLink, Plan, Task):
         db.execute(delete(model).where(model.trip_id == trip.trip_id))
     db.flush()
     db.add_all(_tasks(trip, data))
+    # Seeding may run before Redis is up; the day still resets.
+    with contextlib.suppress(redis.RedisError):
+        forget_trip_state(trip.trip_id)
 
 
 def seed(db: Session) -> None:

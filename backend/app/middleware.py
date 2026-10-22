@@ -11,6 +11,7 @@ import contextlib
 import hashlib
 import json
 import logging
+import re
 import time
 import uuid
 
@@ -27,10 +28,20 @@ from app.redis_client import get_redis
 from app.security import decode_access_token
 
 log = logging.getLogger("reroute.guard")
+access_log = logging.getLogger("reroute.access")
 
 IDEMPOTENCY_EXEMPT = ("/v1/auth/",)
+#: Sign-in gets the strict per-IP limit; refresh and sign-out their own, looser per-IP one.
+SIGN_IN_PATHS = ("/v1/auth/google", "/v1/auth/demo")
+SESSION_PATHS = ("/v1/auth/refresh", "/v1/auth/logout")
 #: Live streams must not be buffered or rate limited per event.
 STREAMING_SUFFIX = "/live"
+#: Share tokens are secrets (only their hash is stored), so request logs never show them.
+_SHARE_TOKEN = re.compile(r"^(/v1/shared/|/shared/)[^/]+")
+
+
+def masked_path(path: str) -> str:
+    return _SHARE_TOKEN.sub(r"\1***", path)
 
 
 def _subject(request: Request) -> str:
@@ -50,7 +61,11 @@ def _subject(request: Request) -> str:
 
 
 class TraceIdMiddleware:
-    """Pure ASGI so it wraps everything, including errors raised by other middleware."""
+    """Pure ASGI so it wraps everything, including errors raised by other middleware.
+
+    It also writes the request log (uvicorn's own access log is off): method, path, status, time and
+    trace ID. No query string (place searches and read-aloud text travel there) and no share token.
+    """
 
     def __init__(self, app: ASGIApp):
         self.app = app
@@ -63,13 +78,23 @@ class TraceIdMiddleware:
         incoming = headers.get(b"x-request-id", b"").decode("latin-1")
         trace = incoming if 8 <= len(incoming) <= 64 and incoming.replace("-", "").isalnum() else uuid.uuid4().hex
         scope.setdefault("state", {})["trace_id"] = trace
+        began = time.perf_counter()
+        status = 500
 
         async def send_with_trace(message: Message) -> None:
+            nonlocal status
             if message["type"] == "http.response.start":
+                status = message["status"]
                 message.setdefault("headers", []).append((b"x-request-id", trace.encode()))
             await send(message)
 
-        await self.app(scope, receive, send_with_trace)
+        try:
+            await self.app(scope, receive, send_with_trace)
+        finally:
+            path = scope.get("path", "")
+            if not path.endswith("/healthz"):
+                ms = round((time.perf_counter() - began) * 1000)
+                access_log.info("%s %s %s %dms trace=%s", scope.get("method", ""), masked_path(path), status, ms, trace, extra={"traceId": trace})
 
 
 class GuardMiddleware(BaseHTTPMiddleware):
@@ -89,11 +114,14 @@ class GuardMiddleware(BaseHTTPMiddleware):
         r = get_redis()
         subject = _subject(request)
 
-        # 429: per-user (or per-IP) limits; sign-in routes get a stricter per-IP limit.
+        # 429: per-user (or per-IP) limits; sign-in gets a strict per-IP limit, refresh and sign-out their own.
         if not path.endswith(STREAMING_SUFFIX):
-            is_auth = path.startswith("/v1/auth/")
-            limit = settings.auth_rate_limit_per_minute if is_auth else settings.rate_limit_per_minute
-            bucket = ("auth:" + _subject_ip(request)) if is_auth else subject
+            if path in SIGN_IN_PATHS:
+                limit, bucket = settings.auth_rate_limit_per_minute, "auth:" + _subject_ip(request)
+            elif path in SESSION_PATHS:
+                limit, bucket = settings.session_rate_limit_per_minute, "session:" + _subject_ip(request)
+            else:
+                limit, bucket = settings.rate_limit_per_minute, subject
             window = int(time.time() // 60)
             key = f"rl:{bucket}:{window}"
             try:
@@ -139,7 +167,9 @@ class GuardMiddleware(BaseHTTPMiddleware):
             log.warning("Idempotency store unavailable", extra={"traceId": trace})
             return await call_next(request)
         if not locked:
-            return JSONResponse(error_body("CONFLICT", "The same request is already being processed.", trace), status_code=409)
+            # Its own code, not CONFLICT: the first copy is still running, so a client retrying from its
+            # offline queue keeps the request and tries again, rather than dropping it as refused.
+            return JSONResponse(error_body("IN_PROGRESS", "The same request is already being processed.", trace), status_code=409)
         if stored is not None:
             saved = json.loads(stored)
             if saved["hash"] != body_hash:

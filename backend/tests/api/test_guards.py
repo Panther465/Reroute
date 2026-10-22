@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -37,6 +39,13 @@ def make_app() -> FastAPI:
     def boom():
         raise errors.ApiError(404, "Trip not found.")
 
+    for path in ("/v1/auth/demo", "/v1/auth/google", "/v1/auth/refresh", "/v1/auth/logout"):
+        app.add_api_route(path, lambda: {"ok": True}, methods=["POST"])
+
+    @app.get("/v1/shared/{token}")
+    def shared(token: str):
+        return {"ok": True}
+
     return app
 
 
@@ -70,6 +79,19 @@ def test_keys_are_scoped_to_the_caller(client):
     assert a.json()["calls"] == 1 and b.json()["calls"] == 2
 
 
+def test_a_duplicate_still_in_flight_is_in_progress_not_a_conflict(client, fake_redis):
+    # The first copy holds the key's lock while it runs (here: it never finished releasing it).
+    fake_redis.set("idem:reroute:ip:testclient:key-00000005:lock", "1", ex=30)
+    res = client.post("/v1/echo", json={"idempotencyKey": "key-00000005", "value": 1})
+    assert res.status_code == 409
+    assert res.json()["error"]["code"] == "IN_PROGRESS"
+    # Once it's done, the same request replays its answer; a different body is still a real conflict.
+    fake_redis.delete("idem:reroute:ip:testclient:key-00000005:lock")
+    assert client.post("/v1/echo", json={"idempotencyKey": "key-00000005", "value": 1}).status_code == 200
+    other = client.post("/v1/echo", json={"idempotencyKey": "key-00000005", "value": 2})
+    assert other.json()["error"]["code"] == "IDEMPOTENCY_CONFLICT"
+
+
 def test_errors_use_one_shape_with_a_trace_id(client):
     res = client.get("/v1/boom", headers={"X-Request-ID": "trace-12345678"})
     assert res.status_code == 404
@@ -95,6 +117,49 @@ def test_rate_limit_returns_429(monkeypatch):
     c = TestClient(make_app())
     codes = [c.get("/v1/boom").status_code for _ in range(5)]
     assert codes[:3] == [404, 404, 404] and codes[3:] == [429, 429]
+
+
+def test_sign_in_and_session_routes_have_their_own_per_ip_limits(monkeypatch):
+    monkeypatch.setattr(get_settings(), "auth_rate_limit_per_minute", 2)
+    monkeypatch.setattr(get_settings(), "session_rate_limit_per_minute", 3)
+    monkeypatch.setattr(get_settings(), "rate_limit_per_minute", 100)
+    c = TestClient(make_app())
+    # Google and demo sign-in share the strict bucket.
+    assert [c.post(p).status_code for p in ("/v1/auth/demo", "/v1/auth/google", "/v1/auth/demo")] == [200, 200, 429]
+    # Refresh and sign-out don't use it up, and have a bucket of their own.
+    assert [c.post(p).status_code for p in ("/v1/auth/refresh", "/v1/auth/logout", "/v1/auth/refresh", "/v1/auth/refresh")] == [200, 200, 200, 429]
+    assert c.get("/v1/boom").status_code == 404
+
+
+def test_the_request_log_masks_share_tokens_and_drops_query_strings(caplog):
+    caplog.set_level(logging.INFO, logger="reroute.access")
+    c = TestClient(make_app())
+    c.get("/v1/shared/s3cret-token-value?text=hello", headers={"X-Request-ID": "trace-87654321"})
+    c.get("/v1/boom?q=Koramangala")
+    lines = [r.getMessage() for r in caplog.records if r.name == "reroute.access"]
+    assert lines[0].startswith("GET /v1/shared/*** 200 ") and lines[0].endswith("trace=trace-87654321")
+    assert lines[1].startswith("GET /v1/boom 404 ")
+    assert not any("s3cret" in line or "hello" in line or "Koramangala" in line for line in lines)
+
+
+def test_tokens_missing_a_required_claim_are_refused():
+    import jwt
+
+    from app.security import AUDIENCE, ISSUER
+
+    claims = {"iss": ISSUER, "aud": AUDIENCE, "sub": "usr-x", "typ": "access", "exp": 4102444800}  # no "iat"
+    token = jwt.encode(claims, get_settings().jwt_secret, algorithm="HS256")
+    with pytest.raises(errors.ApiError) as exc:
+        decode_access_token(token)
+    assert exc.value.status == 401
+
+
+@pytest.mark.parametrize("token", ["", "dev-only-service-token-change-me-0123456789", "short-but-real"])
+def test_production_needs_a_real_raasta_service_token(token):
+    production = {"app_env": "production", "demo_login": False, "queue_sync": False, "jwt_secret": "x" * 40}
+    with pytest.raises(ValidationError, match="RAASTA_SERVICE_TOKEN"):
+        Settings(**production, raasta_service_token=token)
+    assert Settings(**production, raasta_service_token="r" * 40).raasta_service_token == "r" * 40
 
 
 def test_every_post_requires_an_idempotency_key():

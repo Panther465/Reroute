@@ -172,3 +172,92 @@ def test_raasta_unreachable_means_no_raasta_legs(fake_redis):
     adapter = RaastaHttpAdapter("http://raasta", client=httpx.Client(transport=httpx.MockTransport(down)), redis_client=fake_redis)
     assert adapter.leg_options(KOR, JAY, DAY, "+05:30") == []
     assert adapter.routes(["sample-kor-jay"]) == {}
+
+
+ROUTE = {"status": "verified", "firstTrip": "07:00", "lastTrip": "21:30", "fareInr": 30, "frequencyMin": 10}
+LEG = {
+    "routeId": "sample-kor-jay",
+    "vehicleType": "shared_auto",
+    "status": "verified",
+    "fareInr": 30,
+    "firstTrip": "07:00",
+    "lastTrip": "21:30",
+    "walkFromMin": 3,
+    "walkToMin": 4,
+    "expectedWaitMin": 5,
+    "rideDistanceM": 5000,
+}
+
+
+class FlakyRaasta:
+    """Answers well until told otherwise; counts the calls and keeps the service token it was sent."""
+
+    def __init__(self):
+        self.answer: httpx.Response | Exception | None = None
+        self.calls = 0
+        self.tokens: list[str | None] = []
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.calls += 1
+        self.tokens.append(request.headers.get("x-service-token"))
+        if isinstance(self.answer, Exception):
+            raise self.answer
+        if self.answer is not None:
+            return self.answer
+        return httpx.Response(200, json=ROUTE if "/routes/" in request.url.path else {"items": [LEG], "extras": []})
+
+    def adapter(self, redis, token: str | None = ""):
+        return RaastaHttpAdapter("http://raasta", client=httpx.Client(transport=httpx.MockTransport(self)), redis_client=redis, service_token=token)
+
+
+def test_raasta_calls_carry_the_service_token(fake_redis):
+    raasta = FlakyRaasta()
+    raasta.adapter(fake_redis, "s" * 40).routes(["sample-kor-jay"])
+    raasta.adapter(None, "").routes(["sample-kor-jay"])
+    assert raasta.tokens == ["s" * 40, None]
+
+
+def test_a_failing_raasta_falls_back_to_the_last_good_answer(fake_redis):
+    raasta = FlakyRaasta()
+    adapter = raasta.adapter(fake_redis)
+    good_routes, good_legs = adapter.routes(["sample-kor-jay"]), adapter.leg_options(KOR, JAY, DAY, "+05:30")
+    # The few-minute cache ran out and Raasta now fails: the routes stay verified, the legs stay offered.
+    for name in ("raasta:route:sample-kor-jay", *[k for k in fake_redis.scan_iter("raasta:legs:*") if not k.endswith(":good")]):
+        fake_redis.delete(name)
+    raasta.answer = httpx.Response(503)
+    assert adapter.routes(["sample-kor-jay"]) == good_routes and good_routes["sample-kor-jay"].status == "verified"
+    assert adapter.leg_options(KOR, JAY, DAY, "+05:30") == good_legs
+
+
+def test_raasta_saying_retry_after_is_left_alone_until_then(fake_redis):
+    raasta = FlakyRaasta()
+    adapter = raasta.adapter(fake_redis)
+    raasta.answer = httpx.Response(429, headers={"Retry-After": "120"})
+    assert adapter.routes(["sample-kor-jay"]) == {}
+    assert 110 < fake_redis.ttl("raasta:backoff") <= 120
+    calls = raasta.calls
+    adapter.routes(["sample-kor-jay"])
+    adapter.leg_options(KOR, JAY, DAY, "+05:30")
+    assert raasta.calls == calls  # not asked again while backing off
+
+
+def test_raasta_unreachable_backs_off_and_uses_the_last_good_legs(fake_redis):
+    raasta = FlakyRaasta()
+    adapter = raasta.adapter(fake_redis)
+    good = adapter.leg_options(KOR, JAY, DAY, "+05:30")
+    for name in [k for k in fake_redis.scan_iter("raasta:legs:*") if not k.endswith(":good")]:
+        fake_redis.delete(name)
+    raasta.answer = httpx.ConnectError("refused")
+    assert adapter.leg_options(KOR, JAY, DAY, "+05:30") == good
+    assert fake_redis.exists("raasta:backoff")
+
+
+def test_only_a_404_makes_a_route_unverified(fake_redis):
+    raasta = FlakyRaasta()
+    adapter = raasta.adapter(fake_redis)
+    adapter.routes(["sample-kor-jay"])
+    fake_redis.delete("raasta:route:sample-kor-jay")
+    raasta.answer = httpx.Response(404, json={"error": {"code": "NOT_FOUND"}})
+    assert adapter.routes(["sample-kor-jay"]) == {}
+    # Raasta said it doesn't know the route: the last good answer is forgotten, not used.
+    assert not fake_redis.exists("raasta:route:sample-kor-jay:good") and not fake_redis.exists("raasta:backoff")
