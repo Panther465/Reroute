@@ -136,13 +136,14 @@ def _checkin_out(db, trip: Trip, checkin: Checkin, outcome: dict | None, job_id:
 
 @router.post("/trips", response_model=TripOut, response_model_by_alias=True, status_code=201)
 def create_trip(body: TripIn, user: CurrentUser, db: Db) -> TripOut:
-    if supported_city(body.city_slug) is None:
+    where = supported_city(body.city_slug)
+    if where is None:
         raise ApiError(422, "Reroute doesn't cover that city yet.", code="VALIDATION_ERROR")
     place = _place(db, body.stay_place_id, body.city_slug)
     trip = Trip(
         user_id=user.user_id,
         city_slug=body.city_slug,
-        city_name=body.city_name,
+        city_name=where.name,
         start_date=body.start_date,
         end_date=body.end_date,
         stay_place_id=place.place_id,

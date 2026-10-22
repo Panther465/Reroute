@@ -40,7 +40,8 @@ def client(database, monkeypatch):
     with engine().begin() as conn:
         conn.execute(
             text(
-                "TRUNCATE users, places, trips, tasks, plans, plan_legs, checkins, share_links, reroute_log, refresh_tokens, bookings RESTART IDENTITY CASCADE"
+                "TRUNCATE users, places, trips, tasks, plans, plan_legs, checkins, share_links, reroute_log, refresh_tokens, bookings, cities"
+                " RESTART IDENTITY CASCADE"
             )
         )
     with session_scope() as db:

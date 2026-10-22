@@ -114,7 +114,16 @@ class SampleSnapshotAdapter:
     def snapshot(self, city_slug: str, places: list[PlacePoint], day: date) -> TravelSnapshot:
         path = self.examples_dir / city_slug / "travel-times.json"
         if not path.exists():
-            return TravelSnapshot(snapshot_id=f"{city_slug}-empty", pairs=())
+            # A city without sample data: rough cab and walk estimates between every two places.
+            fares = cab_fares(self.examples_dir, city_slug)
+            pairs = tuple(
+                PairOptions(from_place=a.place_id, to_place=b.place_id, options=rough_options(a, b, fares))
+                for a in places
+                for b in places
+                if a.place_id != b.place_id
+            )
+            digest = hashlib.sha256(json.dumps([p.model_dump(mode="json") for p in pairs], sort_keys=True).encode()).hexdigest()[:8]
+            return TravelSnapshot(snapshot_id=f"{city_slug}-rough-{digest}", pairs=pairs)
         data = json.loads(path.read_text(encoding="utf-8"))
         known = {p["from"] for p in data["pairs"]} | {p["to"] for p in data["pairs"]}
         wanted = {p.place_id for p in places}

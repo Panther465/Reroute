@@ -5,7 +5,7 @@ import { useQueued } from '@/lib/offlineQueue'
 import { useStore } from '@/lib/store'
 import { buildDay } from '@/lib/timeline'
 import { api, ApiError } from './client'
-import type { Airport, AuthOptions, Booking, Contribution, ContributionsPage, Job, Place, PlanInsight, RaastaLegOptions, RaastaRoute, SharedTrip, StandsPage, Summary, Trip, TripsPage, User, Wallet } from './types'
+import type { Airport, AuthOptions, Booking, City, Contribution, ContributionsPage, Job, Place, PlanInsight, RaastaLegOptions, RaastaRoute, SharedTrip, StandsPage, Summary, Trip, TripsPage, User, Wallet } from './types'
 import { useSessionStatus } from '@/lib/session'
 
 export const queryClient = new QueryClient({
@@ -162,6 +162,17 @@ export function useShared(token: string) {
 }
 
 /** Place search in the trip's city. The server knows each city's name, and answers 422 for a city it doesn't cover. */
+/** Cities and towns in India by name, or in a sentence that mentions one. */
+export function useCitySearch(q: string) {
+  const query = q.trim()
+  return useQuery({
+    queryKey: ['cities', query.toLowerCase()],
+    queryFn: () => api.get<City[]>('/v1/cities', { query: { q: query } }),
+    enabled: query.length >= 2,
+    staleTime: 60 * 60_000,
+  })
+}
+
 export function usePlaceSearch(q: string, city: string) {
   const query = q.trim()
   return useQuery({

@@ -8,7 +8,7 @@ from fastapi import APIRouter, Query
 from fastapi.concurrency import run_in_threadpool
 
 from app.adapters.road_path import RoadPaths
-from app.cities import CITIES
+from app.cities import covers
 from app.deps import CurrentUser
 from app.errors import ApiError
 from app.redis_client import get_redis
@@ -22,7 +22,7 @@ LNG_LAT = r"^-?\d{1,3}(\.\d{1,8})?,-?\d{1,2}(\.\d{1,8})?$"
 def _point(text: str) -> tuple[float, float]:
     lng, lat = (float(x) for x in text.split(","))
     # Only places in a city Reroute covers: this isn't a general routing proxy.
-    if not any(c.contains(lng, lat) for c in CITIES.values()):
+    if not covers(lng, lat):
         raise ApiError(422, "That place is outside the cities Reroute covers.", code="VALIDATION_ERROR")
     return lng, lat
 

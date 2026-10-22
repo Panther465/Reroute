@@ -131,6 +131,15 @@ class TopUpIn(PostBody):
 # ---------- places ----------
 
 
+class CityOut(Api):
+    """A city to plan in. Only Bengaluru has sample data (metro, shared autos); elsewhere times are rough estimates."""
+
+    slug: str
+    name: str
+    state: str | None = None
+    sample: bool = False
+
+
 class PlaceOut(Api):
     place_id: str
     name: str
