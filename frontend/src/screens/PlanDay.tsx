@@ -488,10 +488,12 @@ export default function PlanDay() {
   }
 
   return (
-    <div className="mx-auto max-w-[560px] px-5 pb-10 pt-6 lg:max-w-[720px] lg:px-8 lg:pt-8">
-      <h1 tabIndex={-1} className="t-display-1 text-ink">
+    // On a desktop the tasks fill the left; the trip and the button that plans it sit in a column beside them.
+    <div className="mx-auto max-w-[560px] px-5 pb-10 pt-6 lg:grid lg:max-w-[1200px] lg:grid-cols-[minmax(0,1fr)_380px] lg:grid-rows-[auto_auto_1fr] lg:gap-x-12 lg:px-8 lg:pt-8">
+      <h1 tabIndex={-1} className="t-display-1 text-ink lg:col-span-2">
         <T k={trip.activePlan ? 'Your trip' : 'New trip'} />
       </h1>
+      <div className="lg:col-start-2 lg:row-start-2">
       {/* The trip at a glance: an icon names each fact, the words carry it. */}
       <dl className="mt-6 flex flex-col gap-3 rounded-card border border-line bg-surface p-4">
         {(
@@ -520,8 +522,9 @@ export default function PlanDay() {
         </Button>
       </p>
       <TripSwitcher open={tripsOpen} onOpenChange={setTripsOpen} />
+      </div>
 
-      <section className="mt-8" aria-labelledby="tasks-h">
+      <section className="mt-8 lg:col-start-1 lg:row-span-2 lg:row-start-2 lg:mt-6" aria-labelledby="tasks-h">
         <div className="flex items-end justify-between gap-3">
           <h2 id="tasks-h" className="t-display-2 text-ink">
             <T k="Your tasks" />
@@ -627,7 +630,7 @@ export default function PlanDay() {
         {!online && <p className="mt-2 t-small text-ink-2">Adding and editing tasks needs a connection.</p>}
       </section>
 
-      <div className="mt-10">
+      <div className="mt-10 lg:col-start-2 lg:row-start-3 lg:mt-6 lg:self-start lg:rounded-card lg:border lg:border-line lg:bg-surface lg:p-5">
         {planning === 'drawing' ? (
           <div role="status" className="flex min-h-[52px] items-center gap-4 rounded-control bg-surface px-5">
             <DrawLine />

@@ -93,13 +93,14 @@ export default function Summary() {
   }
 
   return (
-    <PushedScreen>
+    <PushedScreen wide>
       {header(`${weekday(s.day)} in ${s.cityName}`, s.headline)}
 
       <div className="mt-6">
         <MiniLine summary={s} />
       </div>
 
+      <div className="lg:mt-4 lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:items-start lg:gap-12">
       <section className="mt-6" aria-labelledby="done-h">
         <h2 id="done-h" className="t-title text-ink">
           Done today
@@ -129,8 +130,9 @@ export default function Summary() {
         </ul>
       </section>
 
-      <div className="mt-8">
+      <div className="mt-8 lg:mt-6">
         <ExpenseSlip summary={s} offset={offset} />
+      </div>
       </div>
     </PushedScreen>
   )

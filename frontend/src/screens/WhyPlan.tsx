@@ -156,7 +156,9 @@ function Body({ insight, trip }: { insight: PlanInsight; trip: Trip }) {
   const maxFare = Math.max(1, ...feasible.map((d) => d.fareInr))
   const maxTravel = Math.max(1, ...feasible.map((d) => d.travelMin))
   return (
-    <>
+    // On a desktop: the verdict, the three days and how Reroute chose on the left; every leg beside them.
+    <div className="lg:grid lg:grid-cols-2 lg:items-start lg:gap-12">
+      <div className="min-w-0">
       <div className="mt-6 flex flex-col gap-1">
         {verdict(insight.days, trip).map((line) => (
           <p key={line} className="t-title text-ink">
@@ -191,8 +193,10 @@ function Body({ insight, trip }: { insight: PlanInsight; trip: Trip }) {
         </p>
         <Constraints trip={trip} />
       </section>
+      </div>
 
-      <section className="mt-8" aria-labelledby="legs-h">
+      <div className="min-w-0 lg:mt-6">
+      <section className="mt-8 lg:mt-0" aria-labelledby="legs-h">
         <h2 id="legs-h" className="t-title text-ink">
           Leg by leg
         </h2>
@@ -203,7 +207,8 @@ function Body({ insight, trip }: { insight: PlanInsight; trip: Trip }) {
         </ul>
       </section>
       <p className="mt-6 t-small text-muted">Times and fares are estimates.</p>
-    </>
+      </div>
+    </div>
   )
 }
 
@@ -267,5 +272,10 @@ export default function WhyPlan() {
       </PushedScreen>
     )
   }
-  return <PushedScreen>{header}{q.data && <Body insight={q.data} trip={trip.data} />}</PushedScreen>
+  return (
+    <PushedScreen wide>
+      {header}
+      {q.data && <Body insight={q.data} trip={trip.data} />}
+    </PushedScreen>
+  )
 }
