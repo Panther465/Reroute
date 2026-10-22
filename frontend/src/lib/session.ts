@@ -90,6 +90,15 @@ export async function signInWithGoogle(code: string) {
   accept(await api.post<Token>('/v1/auth/google', { code }, { noRefresh: true }))
 }
 
+/** A new account with an email and a password. It starts with no trips, and Roo meets it on /welcome. */
+export async function signUp(name: string, email: string, password: string) {
+  accept(await api.post<Token>('/v1/auth/signup', { name, email, password }, { noRefresh: true }))
+}
+
+export async function signInWithPassword(email: string, password: string) {
+  accept(await api.post<Token>('/v1/auth/login', { email, password }, { noRefresh: true }))
+}
+
 export async function signOut() {
   try {
     await fetch(`${apiBase}/v1/auth/logout`, { method: 'POST', credentials: 'include', headers: { 'X-CSRF-Token': cookie('rr_csrf') } })
