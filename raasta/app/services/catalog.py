@@ -35,8 +35,13 @@ def shown_fare(session: Session, route: Route, now: datetime) -> int:
     return current_fare(((r.fare_inr, r.at) for r in rows), now, route.fare_inr)
 
 
+def confirmations_count(session: Session, route_id: str) -> int:
+    """How many different riders have confirmed the route."""
+    return int(session.scalar(select(func.count(func.distinct(Confirmation.user_id))).where(Confirmation.route_id == route_id)) or 0)
+
+
 def route_out(session: Session, route: Route, settings: Settings, now: datetime) -> RouteOut:
-    count = session.scalar(select(func.count()).select_from(Confirmation).where(Confirmation.route_id == route.route_id)) or 0
+    count = confirmations_count(session, route.route_id)
     path = route.path_coords or [[rs.stand.lng, rs.stand.lat] for rs in route.stands]
     return RouteOut(
         route_id=route.route_id,
@@ -52,7 +57,7 @@ def route_out(session: Session, route: Route, settings: Settings, now: datetime)
         source=route.source,  # type: ignore[arg-type]
         confidence=route.confidence,
         last_confirmed_at=to_local_iso(route.last_confirmed_at, settings.city_utc_offset),
-        confirmations_count=int(count),
+        confirmations_count=count,
         sample=route.sample,
     )
 

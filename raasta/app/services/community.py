@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
@@ -13,34 +13,33 @@ from app.models import Confirmation, Contribution, FareReport, Route
 from app.pagination import encode_cursor
 from app.schemas import ConfirmationOut, FareReportOut
 from app.security import User
-from app.services.catalog import get_route
-from app.services.contributions import new_id
+from app.services.catalog import confirmations_count, get_route
+from app.services.contributions import mark_verified, new_id, riders_since_stale
 from app.services.freshness import STALE_AFTER_DAYS, is_stale, reverified_by_riders
-from app.services.timefmt import to_local_iso
+from app.services.timefmt import parse_offset, to_local_iso
 
 
 def confirm_route(session: Session, user: User, route_id: str, settings: Settings, now: datetime) -> ConfirmationOut:
-    route = get_route(session, route_id)
-    session.add(Confirmation(route_id=route_id, user_id=user.user_id, at=now))
-    route.last_confirmed_at = now
-    session.flush()
-    if route.status == "stale":
-        riders = session.scalars(select(Confirmation.user_id).where(Confirmation.route_id == route_id, Confirmation.at >= route.status_changed_at))
-        if reverified_by_riders(riders):
-            route.status = "verified"
-            route.status_changed_at = now
-            for check in session.scalars(
-                select(Contribution).where(Contribution.route_id == route_id, Contribution.kind == "freshness_check", Contribution.status == "waiting")
-            ):
-                check.status = "verified"
-                check.decided_at = now
-    count = session.scalar(select(func.count()).select_from(Confirmation).where(Confirmation.route_id == route_id)) or 0
+    """One confirmation per rider per route per local day; a repeat returns the current state."""
+    # Locking the route row serialises confirmations of one route, so a double tap can't add two.
+    route = session.get(Route, route_id, with_for_update=True)
+    if route is None:
+        raise not_found("Route")
+    day_start = now.astimezone(parse_offset(settings.city_utc_offset)).replace(hour=0, minute=0, second=0, microsecond=0)
+    today = select(Confirmation.confirmation_id).where(Confirmation.route_id == route_id, Confirmation.user_id == user.user_id, Confirmation.at >= day_start)
+    if session.scalar(today.limit(1)) is None:
+        session.add(Confirmation(route_id=route_id, user_id=user.user_id, at=now))
+        route.last_confirmed_at = now
+        session.flush()
+        if route.status == "stale" and reverified_by_riders(riders_since_stale(session, route)):
+            mark_verified(session, route, now)
+    count = confirmations_count(session, route_id)
     session.commit()
     return ConfirmationOut(
         route_id=route_id,
         status=route.status,
         last_confirmed_at=to_local_iso(route.last_confirmed_at, settings.city_utc_offset),
-        confirmations_count=int(count),
+        confirmations_count=count,
     )  # type: ignore[arg-type]
 
 
