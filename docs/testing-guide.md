@@ -172,6 +172,7 @@ Each row says which account to use (**D** for demo, **R** for real, **Both**).
 | **Simulate → Expire share links** | D | The family link says it has ended |
 | **Summary** (Roo's "How's my day?" or the end of the day) | Both | Tasks done, the mini line, the expense slip; **Download the slip** and **Share with my office** |
 | **Me**: Language हिन्दी, Theme Light/Dark/System | Both | The interface switches language and theme at once |
+| **The sun or moon button** (home page, Roo's welcome, the desktop top bar, Today's header on a phone) | Both | Light and dark swap with a short cross-fade; the choice stays after a reload, with no flash of the other theme |
 | **Me → Alerts**: sound, chime, Roo's voice, **Hear Roo**, volume, vibration, phone notifications | Both | **Hear Roo** speaks; notifications ask for permission once |
 | **Me → Reroute log** | Both | Every plan and change with its reason |
 | **Me → Delete my location history** | Both | Confirms, then deletes |

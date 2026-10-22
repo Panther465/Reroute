@@ -12,6 +12,7 @@ import { Button, ButtonLink } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
 import { Banner, EmptyState, ErrorState, Skeleton } from '@/components/ui/States'
 import { Tag } from '@/components/ui/Tag'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { ApiError } from '@/api/client'
 import { applyServerChange, checkIn, moveTaskToDay, playLater, playTaskEdit, replanDay, undo, undoVersionOf } from '@/lib/actions'
 import { duration, lowerFirst } from '@/lib/format'
@@ -65,6 +66,7 @@ export function TodayHeader({
   onTrips?: () => void
 }) {
   const day = `${dayLabel(trip.day)}, day ${trip.dayIndex} of ${trip.dayCount}`
+  const desktop = useIsDesktop()
   return (
     <header className="flex items-start justify-between gap-3">
       <div className="min-w-0">
@@ -107,6 +109,7 @@ export function TodayHeader({
         <IconButton label="Share live trip" onClick={onShare}>
           <Share2 size={24} strokeWidth={1.75} aria-hidden="true" />
         </IconButton>
+        {!desktop && <ThemeToggle className="text-ink" />}
       </div>
     </header>
   )

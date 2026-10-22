@@ -383,3 +383,10 @@
     filter: invert(1);
   }
 }
+
+/* Switching light and dark cross-fades the whole page (lib/theme.ts switchTheme). */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--dur-base);
+  animation-timing-function: var(--ease-out);
+}

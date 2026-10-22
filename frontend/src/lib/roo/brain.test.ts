@@ -64,6 +64,7 @@ describe('Roo answers about the day', () => {
     expect(understand('can you plan my day again', ctx()).action).toEqual({ type: 'replan' })
     expect(understand('undo that', ctx()).action).toEqual({ type: 'undo' })
     expect(understand('switch to dark mode', ctx()).action).toEqual({ type: 'theme', theme: 'dark' })
+    expect(understand('white mode please', ctx()).action).toEqual({ type: 'theme', theme: 'light' })
   })
 
   it('opens Add a task with what was said', () => {

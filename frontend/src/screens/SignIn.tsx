@@ -5,10 +5,12 @@ import { ApiError } from '@/api/client'
 import { useAuthOptions } from '@/api/queries'
 import { AuthCard } from '@/components/AuthCard'
 import { RouteMark } from '@/components/icons'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/Button'
 import { loadShell, loadToday } from '@/app/lazy'
 import { useDocumentTitle } from '@/lib/hooks'
 import { signInDemo, useSessionStatus } from '@/lib/session'
+import { useResolvedTheme } from '@/lib/theme'
 
 // The live demo (and the animation library) loads after the page is up; its box holds the space meanwhile.
 const LandingDemo = lazy(() => import('@/components/LandingDemo').then((m) => ({ default: m.LandingDemo })))
@@ -17,12 +19,10 @@ const SOURCE = 'https://github.com/Panther465/Reroute'
 
 /** A real screen of the app, in the theme the reader is using: its top, where the screen says what it is. */
 function Screen({ name, alt }: { name: string; alt: string }) {
+  const theme = useResolvedTheme()
   return (
     <div className="aspect-[390/470] w-full overflow-hidden rounded-card border border-line bg-surface">
-      <picture>
-        <source srcSet={`/landing/${name}-dark.jpg`} media="(prefers-color-scheme: dark)" />
-        <img src={`/landing/${name}-light.jpg`} alt={alt} width={390} height={844} loading="lazy" decoding="async" className="block h-auto w-full" />
-      </picture>
+      <img src={`/landing/${name}-${theme}.jpg`} alt={alt} width={390} height={844} loading="lazy" decoding="async" className="block h-auto w-full" />
     </div>
   )
 }
@@ -89,10 +89,13 @@ export default function SignIn() {
           <RouteMark size={32} />
           <span className="font-display text-[1.75rem] font-extrabold leading-none text-ink [font-stretch:75%]">Reroute</span>
         </span>
-        <a href={SOURCE} className="inline-flex min-h-12 items-center gap-1 rounded-control px-2 t-small font-bold text-ink-2 underline decoration-line-strong decoration-2 underline-offset-4 [@media(hover:hover)]:hover:text-ink">
-          Source code
-          <ArrowUpRight size={16} strokeWidth={2} aria-hidden="true" />
-        </a>
+        <span className="flex items-center gap-1">
+          <a href={SOURCE} className="inline-flex min-h-12 items-center gap-1 rounded-control px-2 t-small font-bold text-ink-2 underline decoration-line-strong decoration-2 underline-offset-4 [@media(hover:hover)]:hover:text-ink">
+            Source code
+            <ArrowUpRight size={16} strokeWidth={2} aria-hidden="true" />
+          </a>
+          <ThemeToggle />
+        </span>
       </header>
 
       <main className="mx-auto max-w-[1200px] px-5 lg:px-8">

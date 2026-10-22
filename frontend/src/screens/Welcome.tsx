@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router'
 import { useAiHelperEnabled, useMe } from '@/api/queries'
 import { RouteMark } from '@/components/icons'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { ChatThread } from '@/components/roo/ChatThread'
 import type { Mood } from '@/components/roo/RooArt'
 import { RooPet } from '@/components/roo/RooPet'
@@ -63,6 +64,7 @@ export default function Welcome() {
           <span className="font-display text-[1.5rem] font-extrabold leading-none text-ink [font-stretch:75%]">Reroute</span>
         </span>
         <span className="flex items-center gap-1">
+          <ThemeToggle />
           <button
             type="button"
             onClick={() => setState({ rooVoice: !voice })}

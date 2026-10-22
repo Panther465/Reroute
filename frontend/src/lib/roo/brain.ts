@@ -319,7 +319,7 @@ export function understand(spoken: string, ctx: RooContext): RooAnswer {
 
   // Settings
   if (/\b(dark|night)\s*(mode|theme)\b|\bgo dark\b|\bturn (the )?lights off\b/.test(t)) return { reply: 'Dark mode it is. Easier on the eyes at night.', action: { type: 'theme', theme: 'dark' }, mood: 'happy' }
-  if (/\b(light|day|bright)\s*(mode|theme)\b/.test(t)) return { reply: 'Light mode it is.', action: { type: 'theme', theme: 'light' }, mood: 'happy' }
+  if (/\b(light|day|bright|white)\s*(mode|theme)\b/.test(t)) return { reply: 'Light mode it is.', action: { type: 'theme', theme: 'light' }, mood: 'happy' }
   if (/\b(mute|be quiet|stop talking|silence|quiet mode|no voice|turn off (the |your )?voice)\b/.test(t)) return { reply: 'I’ll stay quiet. Alerts still show on screen and chime.', action: { type: 'voice', on: false } }
   if (/\b(unmute|turn on (the |your )?voice|speak up|talk out loud|read (it|them) (out|aloud))\b/.test(t)) return { reply: 'I’ll read your alerts out loud again.', action: { type: 'voice', on: true }, mood: 'happy' }
 

@@ -5,6 +5,7 @@ import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'rea
 import { Navigate, NavLink, Outlet, ScrollRestoration, useLocation, useMatches } from 'react-router'
 import { AutoRickshaw, RouteMark } from '@/components/icons'
 import { RooArt } from '@/components/roo/RooArt'
+import { ThemeToggle } from '@/components/ThemeToggle'
 import { TodaySkeleton } from '@/components/TodaySkeleton'
 import { Toaster } from '@/components/ui/Toaster'
 import { useCurrentTripId, useMe, useTrip } from '@/api/queries'
@@ -140,14 +141,17 @@ function TopBar({ demo }: { demo?: ReactNode }) {
           </ul>
         </nav>
         {demo}
-        <AskRoo className={demo ? '' : 'ml-auto'} />
+        <div className={`flex items-center gap-2 ${demo ? '' : 'ml-auto'}`}>
+          <ThemeToggle />
+          <AskRoo />
+        </div>
       </div>
     </header>
   )
 }
 
 /** On a desktop, Roo is a click away from every screen. */
-function AskRoo({ className }: { className: string }) {
+function AskRoo() {
   const open = useStore((s) => s.rooChat)
   return (
     <button
@@ -155,7 +159,7 @@ function AskRoo({ className }: { className: string }) {
       onClick={() => setState({ rooChat: !getState().rooChat })}
       aria-expanded={open}
       aria-haspopup="dialog"
-      className={`flex min-h-12 shrink-0 items-center gap-2 rounded-full border pl-1.5 pr-4 t-title transition-colors duration-[var(--dur-quick)] ${open ? 'border-green bg-green-tint text-ink' : 'border-line text-ink [@media(hover:hover)]:hover:bg-sunken'} ${className}`}
+      className={`flex min-h-12 shrink-0 items-center gap-2 rounded-full border pl-1.5 pr-4 t-title transition-colors duration-[var(--dur-quick)] ${open ? 'border-green bg-green-tint text-ink' : 'border-line text-ink [@media(hover:hover)]:hover:bg-sunken'}`}
     >
       <span className="flex size-9 items-end justify-center" aria-hidden="true">
         <RooArt mood="happy" size={30} reduce />

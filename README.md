@@ -137,7 +137,7 @@ cd frontend && pnpm install && pnpm dev
 | Raasta | 107 tests | `cd raasta && pytest` |
 | Web app | 102 tests | `cd frontend && pnpm test` |
 | The demo day over HTTP | 32 requests, 54 assertions | `npx newman run postman/reroute.postman_collection.json --insecure` |
-| End to end with axe | 38 tests, phone and desktop | `cd frontend && E2E_BASE_URL=https://localhost pnpm e2e` |
+| End to end with axe | 40 tests, phone and desktop | `cd frontend && E2E_BASE_URL=https://localhost pnpm e2e` |
 | Load | 500 virtual users, 95% under 500 ms | `k6 run tests/load/k6.js` |
 
 CI runs all of them except the load test, which runs on demand, and fails if either API's OpenAPI file drifts from `shared/contracts/`.
