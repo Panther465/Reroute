@@ -1,7 +1,7 @@
 import { BellRing, Car, CarTaxiFront, ChevronDown, CircleCheck, LocateFixed, Map as MapIcon, MapPin, MapPinned, Navigation, Plus, Route, Share2, Ticket, TrainFront, TriangleAlert, X } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation as useRouterLocation, useNavigate } from 'react-router'
-import { useBookings, useBookingsEnabled, useCurrentTripId, useDay, useTrip } from '@/api/queries'
+import { useAiHelperEnabled, useBookings, useBookingsEnabled, useCurrentTripId, useDay, useTrip } from '@/api/queries'
 import type { Booking, Task, Trip } from '@/api/types'
 import { NextCard } from '@/components/NextCard'
 import { LazyMap } from '@/components/LazyMap'
@@ -209,6 +209,7 @@ export default function Today() {
   const [mapSeq, setMapSeq] = useState<number | null>(null)
   // Simulated bookings: the train ticket or cab being booked, and the booking being viewed.
   const bookingsOn = useBookingsEnabled()
+  const ai = useAiHelperEnabled()
   const bookings = useBookings(bookingsOn ? current.tripId : null)
   const [trainFor, setTrainFor] = useState<Task | null>(null)
   const [cabFor, setCabFor] = useState<{ toId: string; name: string } | null>(null)
@@ -254,6 +255,8 @@ export default function Today() {
   useEffect(() => {
     const ask = routerLocation.state as { add?: number; stop?: string; bookTrain?: string } | null
     if (!ask || !view) return
+    // Without the AI helper, a task is added with the form on Plan (and the request goes with it).
+    if (ask.add && !ai) return void navigate('/plan', { state: { addTask: true } })
     if (ask.add) {
       addBefore.current = view
       setAddOpen(true)
@@ -361,6 +364,8 @@ export default function Today() {
   const onLeg = (leg: LegView) => (desktop ? setSelected(leg.seq) : navigate(`/leg/${leg.seq}`))
   // The day as it looked when "Add to today" opened, so the change plays once the tasks are in.
   const openAdd = () => {
+    // Without the AI helper, a task is added with the form on Plan, and the day re-plans from there.
+    if (!ai) return navigate('/plan', { state: { addTask: true } })
     addBefore.current = view
     setAddOpen(true)
   }

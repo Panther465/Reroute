@@ -117,9 +117,12 @@ jobs:
       - name: Start everything with one command
         # Every browser test signs in as the one demo user from one IP, so the per-user and sign-in
         # limits are raised for this run only.
+        # The AI helper is off by default (UI brief 7.18); it is on here so the describe-your-day flows are
+        # tested too (the pattern parser, with no Gemini key). With it off those two tests skip.
         env:
           AUTH_RATE_LIMIT_PER_MINUTE: "1000"
           RATE_LIMIT_PER_MINUTE: "1000"
+          AI_HELPER_ENABLED: "true"
         run: docker compose up -d --build --wait --wait-timeout 600
       - name: Postman collection (Newman)
         run: npx --yes newman@6 run postman/reroute.postman_collection.json --insecure --reporters cli
