@@ -71,3 +71,10 @@ POST /v1/trips/:id/bookings/:bookingId/cancel {"idempotencyKey"}  → cancelled,
 `POST /v1/trips/:id/task-drafts` (describe your day) and `POST /v1/trips/:id/calendar-import` return draft tasks and save nothing. Each draft's `placeText` is matched like a place search (known places first, then OpenStreetMap): `placeId` and `place` hold the best match, or are null when nothing matched and the traveller must choose.
 
 `POST /v1/trips/:id/roo` (AI helper only) answers one chat message to Roo: `{message, history: [{role: "user"|"roo", text}]}` gives `{reply, action}`. `action` is null or one change Roo offers (`late`, `done`, `left`, `skip`, `move`, `duration`, `time`, `add`, `replan`, `undo`, `why`, `summary`, `theme`, with `taskId`, `minutes`, `time`, `day`, `text` or `theme` as the type needs). It is checked against the trip and saves nothing: the app asks the traveller, then calls the usual endpoints. 503 `UNAVAILABLE` means Gemini couldn't answer; the app answers from the phone instead.
+
+## Accounts, the wallet and flights
+
+- `POST /v1/auth/signup {name, email, password}` creates an account (201, the same `TokenOut` as the other sign-ins, and the refresh cookie). A taken email is 409 `EMAIL_TAKEN`. `POST /v1/auth/login {email, password}` signs in; any failure is 401 "Email or password is wrong."
+- `GET /v1/wallet` gives `{balanceInr, entries}`; `POST /v1/wallet/topups {amountInr}` (100 to 50,000) adds simulated money. Both need `DEMO_LOGIN`, like bookings, and `features.wallet` says so.
+- `GET /v1/airports` lists the airports; `GET /v1/trips/:id/flight-options?from=BLR&to=DEL&date=2026-10-15` the sample flights. Book one with `POST /v1/trips/:id/bookings {kind: "flight", origin, flightTo, flightDate, flightNo, cabin, passengers}`.
+- Every booking is paid from the wallet: too little money is 409 `INSUFFICIENT_FUNDS`, saying how much to add.

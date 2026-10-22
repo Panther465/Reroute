@@ -8,11 +8,12 @@ The demo account is a prepared day on a simulated clock. A real account is an or
 
 | | Demo account | Real account |
 |---|---|---|
-| Sign in | **Use the demo account** | **Sign in with Google** only. There is no email and password sign-up. The button appears only once Google is set up (below). |
+| Sign in | **Use the demo account** | **Create account** with a name, email and password on the home screen, or **Continue with Google** once Google is set up (below). Trips are kept with the account. |
+| First visit | The sample day | **Roo, full screen**, introduces itself and sets up the first trip by chatting, then plans it |
 | Cities | Bengaluru | **Bengaluru only.** Any other city answers "Reroute doesn't cover that city yet." |
 | Travel options | Metro, shared autos, walks and cabs from the sample travel-time file | Places you search for get **a rough cab estimate**, and a walk under 1.5 km, from the straight-line distance, marked "Rough estimate". No metro or shared auto until real routing data is set up (below). |
 | Clock | Simulated: the **Simulate** panel moves time on | Real time. The Simulate panel is shown only to the demo account, so testing "running late" means reporting a delay at the real time. |
-| Bookings (train, cab) | Simulated | Simulated too while the server has `DEMO_LOGIN=true`; hidden in production |
+| Bookings (train, flight, cab) and the wallet | Simulated, ₹5,000 to start, every partner connected | Simulated too while the server has `DEMO_LOGIN=true` (hidden in production): ₹2,000 to start, partners to connect in Me |
 | Morning planning | Not for the sample dates | Works: each later day of a multi-day trip is planned from 06:00 local time |
 | Everything else | Works | Works: planning, running late, options, Undo, skip, move, Why this plan?, Roo, Raasta, share, summary, offline, alerts |
 
@@ -67,14 +68,18 @@ Until then a city simply isn't offered.
 
 Each row says which account to use (**D** for demo, **R** for real, **Both**).
 
-### Landing page and sign-in
+### Landing page, accounts and meeting Roo
 
 | Step | Account | What should happen |
 |---|---|---|
 | Open https://localhost signed out | | The landing page: "Running late? We'll reroute your day." with a live demo beside it |
 | In the demo, choose **15 min**, then **40 min**, then **Keep it cheap** | | 15 min: the times move by themselves (bank 12:40). 40 min: two fixes appear; a cab keeps everything for +₹350, keeping it cheap moves the office to tomorrow at 10:00 |
 | **Use the demo account** | D | Today opens with the Bengaluru sample trip |
-| **Sign in with Google** | R | Google's pop-up, then an empty start: "Start a trip" |
+| **Create account** with a name, an email and a password of 8 or more | R | Roo pops up to say hello, then **/welcome**: Roo, full screen, introduces itself |
+| Chat with Roo: Bengaluru, From today, Just that day, search your hotel, then a task (what, where, any time, how long), then **That’s all, plan my day** | R | "Your day is planned!" with when you leave and get back; **Show my day** opens Today |
+| Create an account again with the same email | | "An account with this email already exists. Sign in instead." |
+| **Sign in** with a wrong password | | "Email or password is wrong." |
+| **Continue with Google** | R | Google's pop-up (only once Google is set up; otherwise the button says it isn't) |
 | **Me → Sign out** | Both | Back to the landing page; the phone forgets the trip and any queued actions |
 
 ### Start a trip
@@ -131,6 +136,10 @@ Each row says which account to use (**D** for demo, **R** for real, **Both**).
 | "undo that" → **Undo it** | Both | The earlier plan comes back |
 | "make the meeting 2 hours", "move the office to 3", "skip the office" | Both | A card each; **Not now** leaves the day as it is |
 | "plan my day again", "how's my day?", "dark mode", "mute" | Both | Re-plan card; a summary with a link; the theme changes; voice alerts off |
+| "hey i wanna re plan" | Both | "What’s changed?" with answers; A task changed, then which, then what (time, length, move, skip), ending in a card |
+| "create an entire new plan" | Both | "Are you sure?" Adjust this plan, Start a new trip (Roo sets it up), or Never mind |
+| "what's my balance?", "add 1000 to my wallet", "book a flight to Delhi" | Both (demo server) | The balance; a card to add the money; the flight sheet with Delhi chosen |
+| The speaker button in the chat header | Both | Roo stops (or starts) reading its replies aloud |
 | The mic button (Chrome or Edge), say "what's next" | Both | Roo listens, answers on screen and out loud |
 | With the AI helper on: "can the bank wait till Thursday?" | Both | Roo understands free wording and still asks before changing anything |
 
@@ -143,6 +152,16 @@ Each row says which account to use (**D** for demo, **R** for real, **Both**).
 | **It still runs**, **Report a fare** | Both | Confirmation counted once per rider per day; the fare report waits for a moderator |
 | **Add a route** (record a ride or tap points) | Both | Saved as unverified until a moderator or two different riders confirm it |
 | Moderation | | The web app has no moderator sign-in button: use the Postman requests **Moderator sign-in** and **Moderator queue** |
+
+### Wallet, connected services and flights
+
+| Step | Account | What should happen |
+|---|---|---|
+| **Me > Wallet** | Both | The balance and its latest entries; **Add money** with a chip or an amount, then a tick and the new balance |
+| **Me > Connected services > Connect** a partner | R | A consent sheet, "Connecting…", then Connected; **Disconnect** undoes it |
+| **Plan > Book a flight**: Find flights, choose a fare, a passenger, Review and pay | Both | The pay step says what the wallet has after; too little, and it says how much to add with **Add money** right there |
+| Pay | Both | A boarding pass with a PNR and seats; the wallet shows the charge; **Cancel the flight** refunds all but ₹500 |
+| Book a cab or train with its partner disconnected | R | The sheet asks to connect RideNow or RailGo first |
 
 ### Share, summary, settings
 
