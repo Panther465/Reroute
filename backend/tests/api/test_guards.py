@@ -79,6 +79,19 @@ def test_keys_are_scoped_to_the_caller(client):
     assert a.json()["calls"] == 1 and b.json()["calls"] == 2
 
 
+def test_a_duplicate_still_in_flight_is_in_progress_not_a_conflict(client, fake_redis):
+    # The first copy holds the key's lock while it runs (here: it never finished releasing it).
+    fake_redis.set("idem:reroute:ip:testclient:key-00000005:lock", "1", ex=30)
+    res = client.post("/v1/echo", json={"idempotencyKey": "key-00000005", "value": 1})
+    assert res.status_code == 409
+    assert res.json()["error"]["code"] == "IN_PROGRESS"
+    # Once it's done, the same request replays its answer; a different body is still a real conflict.
+    fake_redis.delete("idem:reroute:ip:testclient:key-00000005:lock")
+    assert client.post("/v1/echo", json={"idempotencyKey": "key-00000005", "value": 1}).status_code == 200
+    other = client.post("/v1/echo", json={"idempotencyKey": "key-00000005", "value": 2})
+    assert other.json()["error"]["code"] == "IDEMPOTENCY_CONFLICT"
+
+
 def test_errors_use_one_shape_with_a_trace_id(client):
     res = client.get("/v1/boom", headers={"X-Request-ID": "trace-12345678"})
     assert res.status_code == 404
