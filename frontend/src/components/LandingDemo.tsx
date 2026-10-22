@@ -89,8 +89,8 @@ export function LandingDemo() {
         ]}
       />
 
-      <div className="relative mt-6 aspect-[5/2] w-full" aria-hidden="true">
-        <svg viewBox="0 0 300 120" className="absolute inset-0 size-full overflow-visible" fill="none" strokeLinecap="round">
+      <div className="relative mt-6 aspect-[25/8] w-full" aria-hidden="true">
+        <svg viewBox="0 0 300 96" className="absolute inset-0 size-full overflow-visible" fill="none" strokeLinecap="round">
           {/* Hotel to meeting: metro, then a shared auto */}
           <path d={`M${H} ${Y}H${M - 25}`} stroke="var(--blue)" strokeWidth="6" />
           <path d={`M${M - 25} ${Y}H${M}`} stroke="var(--green)" strokeWidth="6" />
@@ -120,7 +120,7 @@ export function LandingDemo() {
           })}
         </svg>
         {stations.map((s, i) => (
-          <div key={s.x} className="absolute flex w-24 -translate-x-1/2 flex-col items-center text-center" style={{ left: `${(s.x / 300) * 100}%`, top: `${((Y + 14) / 120) * 100}%` }}>
+          <div key={s.x} className="absolute flex w-24 -translate-x-1/2 flex-col items-center text-center" style={{ left: `${(s.x / 300) * 100}%`, top: `${((Y + 14) / 96) * 100}%` }}>
             <span className="t-caption text-ink">
               <FlipTime value={s.time} changed={i > 0 && s.time !== (i === 1 ? '10:00' : i === 2 ? before.bank : before.office)} index={i} reduce={reduce} />
             </span>
