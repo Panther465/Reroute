@@ -1,4 +1,5 @@
-"""Daily freshness check: run with `python -m app.jobs.freshness` (cron, or the worker's scheduler).
+"""The freshness check. The API runs it every 6 hours in the background (see app.main); run it by
+hand with `python -m app.jobs.freshness`.
 
 Verified routes with no confirmation for 90 days become stale and go back to the moderator queue.
 """

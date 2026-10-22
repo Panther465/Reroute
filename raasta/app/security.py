@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hmac
 from dataclasses import dataclass
 from typing import Literal
 
@@ -51,6 +52,19 @@ def bearer_token(authorization: str | None) -> str | None:
 def optional_user(request: Request, settings: Settings = Depends(get_settings)) -> User | None:
     token = bearer_token(request.headers.get("authorization"))
     return decode_access_token(token, settings) if token else None
+
+
+def is_service_caller(request: Request, settings: Settings = Depends(get_settings)) -> bool:
+    """True when the request carries the Reroute API's service token in X-Service-Token."""
+    expected = settings.raasta_service_token
+    given = request.headers.get("x-service-token")
+    return bool(expected) and given is not None and hmac.compare_digest(given.encode(), expected.encode())
+
+
+def no_service_writes(request: Request, user: User | None = Depends(optional_user), service: bool = Depends(is_service_caller)) -> None:
+    """The service token only reads. A write needs a signed-in user, whatever else the request carries."""
+    if service and user is None and request.method not in ("GET", "HEAD", "OPTIONS"):
+        raise ApiError(403, "FORBIDDEN", "The service token can only read.")
 
 
 def require_user(user: User | None = Depends(optional_user)) -> User:

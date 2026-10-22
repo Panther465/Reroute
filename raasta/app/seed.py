@@ -18,6 +18,7 @@ from app.config import get_settings
 from app.db import get_engine
 from app.models import Confirmation, Route, RouteStand, Stand
 from app.services.catalog import point
+from app.services.freshness import STALE_AFTER_DAYS
 from app.services.timefmt import parse_hhmm
 
 log = logging.getLogger("raasta.seed")
@@ -46,6 +47,8 @@ def seed(session: Session, data: dict, now: datetime) -> tuple[int, int]:
             continue
         coords = [(stands[i].lng, stands[i].lat) for i in r["standIds"]]
         confirmed = now - timedelta(days=r.get("confirmedDaysAgo", 0))
+        # A stale route went stale 90 days after its last confirmation, so those confirmations don't count towards reviving it.
+        status_changed_at = min(now, confirmed + timedelta(days=STALE_AFTER_DAYS)) if r["status"] == "stale" else confirmed
         route = Route(
             route_id=r["routeId"],
             city_slug=city,
@@ -57,7 +60,7 @@ def seed(session: Session, data: dict, now: datetime) -> tuple[int, int]:
             first_trip=parse_hhmm(r["firstTrip"]),
             last_trip=parse_hhmm(r["lastTrip"]),
             status=r["status"],
-            status_changed_at=confirmed,
+            status_changed_at=status_changed_at,
             source=r["source"],
             confidence={"verified": 0.9, "unverified": 0.4, "stale": 0.5}[r["status"]],
             last_confirmed_at=confirmed,

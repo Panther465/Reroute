@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
@@ -35,8 +35,13 @@ def shown_fare(session: Session, route: Route, now: datetime) -> int:
     return current_fare(((r.fare_inr, r.at) for r in rows), now, route.fare_inr)
 
 
+def confirmations_count(session: Session, route_id: str) -> int:
+    """How many different riders have confirmed the route."""
+    return int(session.scalar(select(func.count(func.distinct(Confirmation.user_id))).where(Confirmation.route_id == route_id)) or 0)
+
+
 def route_out(session: Session, route: Route, settings: Settings, now: datetime) -> RouteOut:
-    count = session.scalar(select(func.count()).select_from(Confirmation).where(Confirmation.route_id == route.route_id)) or 0
+    count = confirmations_count(session, route.route_id)
     path = route.path_coords or [[rs.stand.lng, rs.stand.lat] for rs in route.stands]
     return RouteOut(
         route_id=route.route_id,
@@ -52,7 +57,7 @@ def route_out(session: Session, route: Route, settings: Settings, now: datetime)
         source=route.source,  # type: ignore[arg-type]
         confidence=route.confidence,
         last_confirmed_at=to_local_iso(route.last_confirmed_at, settings.city_utc_offset),
-        confirmations_count=int(count),
+        confirmations_count=count,
         sample=route.sample,
     )
 
@@ -64,11 +69,30 @@ def get_route(session: Session, route_id: str) -> Route:
     return route
 
 
+def shown_stand():
+    """A stand is listed when it is sample data or on a route that has been verified (verified or stale).
+
+    Stands only on unverified routes, or left over from rejected ones, stay off the map until a
+    moderator or a second contributor vouches for them.
+    """
+    on_vouched_route = (
+        select(RouteStand.stand_id)
+        .join(Route, Route.route_id == RouteStand.route_id)
+        .where(RouteStand.stand_id == Stand.stand_id, Route.status.in_(("verified", "stale")))
+        .exists()
+    )
+    return or_(Stand.sample.is_(True), on_vouched_route)
+
+
 def stands_near(session: Session, lng: float, lat: float, radius_m: int, offset: int, limit: int) -> tuple[list[StandNear], str | None]:
     here = point(lng, lat)
     distance = func.ST_Distance(Stand.location, here).label("distance")
     rows = session.execute(
-        select(Stand, distance).where(func.ST_DWithin(Stand.location, here, radius_m)).order_by(distance, Stand.stand_id).offset(offset).limit(limit + 1)
+        select(Stand, distance)
+        .where(func.ST_DWithin(Stand.location, here, radius_m), shown_stand())
+        .order_by(distance, Stand.stand_id)
+        .offset(offset)
+        .limit(limit + 1)
     ).all()
     items = [StandNear(distance_m=round(float(d), 1), **stand_out(s).model_dump()) for s, d in rows[:limit]]
     next_cursor = encode_cursor({"o": offset + limit}) if len(rows) > limit else None
