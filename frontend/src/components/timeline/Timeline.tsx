@@ -8,7 +8,7 @@ import { T, useTl } from '@/lib/i18n'
 import { setRooAnchor } from '@/lib/rooAnchor'
 import { StopIcon, stopIcon } from '@/lib/stopIcon'
 import type { Change } from '@/lib/store'
-import type { DayView, LegView, StopView, TomorrowItem } from '@/lib/timeline'
+import { samePlace, type DayView, type LegView, type StopView, type TomorrowItem } from '@/lib/timeline'
 import type { Mode, Segment } from '@/lib/types'
 import { EASE_FALL, EASE_IN_OUT, EASE_OUT } from '@/lib/motion'
 import { ModeChain } from './ModeChain'
@@ -404,7 +404,15 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
                     </div>
                   )}
                 </motion.li>
-                {outLeg && (
+                {outLeg && samePlace(outLeg) && (
+                  // The next stop is at the same place: nothing to travel, so no line and nothing to open.
+                  <motion.li layout="position" transition={layoutT} className={`${COLS} relative`}>
+                    <div />
+                    <div className="min-h-8" />
+                    <p className="pb-4 pt-1 t-small text-muted">Same place, no travel</p>
+                  </motion.li>
+                )}
+                {outLeg && !samePlace(outLeg) && (
                   <motion.li layout="position" transition={layoutT} className={`${COLS} relative`}>
                     <div />
                     <div className={`relative ${outLeg.status === 'done' ? 'min-h-14' : 'min-h-28'}`}>

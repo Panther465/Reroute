@@ -143,4 +143,39 @@ A workspace review found the app had drifted from its own UI brief (emoji as ico
 - **When a session ends** (sign-out or a refused refresh), location tracking stops and the trip saved on the phone is cleared; check-ins waiting to sync stay for the traveller's return.
 - **Alerts sound one at a time:** chime then voice, after any alert still sounding, so "leave soon" and "task ending" in the same minute never overlap. The toast announces itself to screen readers, so alerts aren't announced twice. The check-in Undo follows the toast's own timer, which waits while the toast is hovered or focused.
 - **A reroute plays once:** the change clears after its choreography, so returning to Today doesn't replay it.
+- **New server features in the app:** a plan the scheduler makes in the morning (`plan_updated` with trigger `morning`) raises "Your day is planned"; booking actions show only when `GET /v1/me` reports `features.bookings`; a delay check-in's `optionSetId` is used to accept without refetching; an "Already there" leg (no segments) reads "Same place, no travel" with no line, map or cab.
+
+### Reroute API and planner
+
+- **Already there legs.** The planner adds a 0-minute, ₹0 walk from a place to itself (option `__stay__:<placeId>`, no segments) when the travel data has none, so a checkout at the hotel, two tasks at one place and a last task skipped at the hotel all plan. The lower bound counts it only where it can be taken, so the exact search stays exact. **Needs team sign-off** (contract: legs with empty segments).
+- **Unplaced tasks** stay out of re-plans of that day and are carried, with their reason, into every new version; a fresh plan (new, edit, skip, morning) tries them again. Shift-only, the end of the day and `trip_ended` work again with an unplaced task.
+- **A task moved to the next day becomes "planned" there** once that day's plan includes it; the first day's summary still reports it as moved. **Needs team sign-off** (data model: task state).
+- **Morning planning.** From 06:00 local time (`MORNING_PLAN_FROM_MIN`) the scheduler plans a trip day that has open tasks and no plan, from the place of stay, once per trip day (retried after 30 minutes), and only for trips the traveller planned before. Trigger `morning` (migration 0003), an automatic log entry and a notifying `plan_updated`. **Needs team sign-off** (contract and migration).
+- **Option sets stay put:** the 5-minute check keeps a waiting set whose choices are unchanged (a hash of kinds, order, leave-bys, moved and skipped tasks, fares, time saved and reason codes), and check-ins return `optionSetId`. **Needs team sign-off** (contract).
+- **The trip lock** is taken after travel times are fetched, as `FOR NO KEY UPDATE` with a 5-second `lock_timeout`; a timeout answers 409 `BUSY`. **Needs team sign-off** (new error code).
+- **A skip that leaves no feasible day** answers 200 `no_feasible_plan` with the blocked task (it was 409, though the skip was saved). **Needs team sign-off** (contract).
+- **Duplicate requests still in flight** answer 409 `IN_PROGRESS` in both APIs; `CONFLICT` stays for real conflicts. **Needs team sign-off** (new error code).
+- **Raasta from Reroute:** calls carry `X-Service-Token` (`RAASTA_SERVICE_TOKEN`, a real value required in production); on 429, 5xx or no answer Reroute uses the last good answer (24 hours) and honours `Retry-After`; only a 404 makes a route unverified. **Needs team sign-off** (contract between the modules).
+- **Tokens** stay HS256 with the shared secret but must carry `exp`, `iat`, `sub`, `iss` and `aud`. A per-service key pair is a follow-up.
+- **Rate limits:** sign-in keeps 10 a minute per IP; refresh and sign-out get their own per-IP bucket (`SESSION_RATE_LIMIT_PER_MINUTE`, 60).
+- **Simulated bookings answer 404 without `DEMO_LOGIN`,** and the user carries `features {bookings, aiHelper, voices}`. **Needs team sign-off** (contract).
+- **Input checks:** `/summary?day` must be a date within the trip (422); an AI fixed time must be a real HH:MM or it is dropped; list cursors are validated (400).
+- **Logs** drop query strings and mask share tokens (NGINX and the API); uvicorn's access log is off.
+- **NGINX:** media may come from `blob:` (Roo's voices); the Swagger pages get their own content policy; the live stream keeps the security headers.
+- **Compose** listens on 127.0.0.1 unless `BIND_ADDR` is set, and the AI helper is off by default (brief section 11). `docker-compose.prod.yml` runs production with required secrets and without the demo seed.
+- **OSRM** maps are downloaded by a resumable curl service, and each profile is marked ready only once fully prepared.
+- **Demo reset** forgets the trip's Redis state (reported delays, alert throttle, trip ended, check lock, morning plans).
+- **Wording:** a fixed task at risk says how early or late the arrival is against its start; finishing early says the next stop moves N minutes earlier.
+
+### Raasta
+
+- **Ride privacy:** a recorded ride keeps only the points more than 200 m in a straight line from both its first and its last point (it was 200 m along the path, which GPS jitter at a stand used up). **Needs team sign-off** (rule change).
+- **Rides are stored only once valid:** the trimmed ride is written to MongoDB just before the commit; a MongoDB failure answers 503 `UNAVAILABLE` and saves nothing, and rejecting a recorded ride deletes its points. **Needs team sign-off** (new error code).
+- **Linear stop suggestion** on rides thinned to at most 2,000 points, and at most 20 suggested stands; a crafted ride can no longer hold the API for minutes.
+- **Verification within the brief:** a moderator can't approve their own contribution (403); a second contributor verifies a new route only with their own evidence (a recorded ride or a tapped location) and only if they haven't contributed to it before; a stale route needs a moderator or two different riders since it went stale. **Needs team sign-off** (rule changes).
+- **Confirmations:** one per rider per route per local day; `confirmationsCount` counts different riders. **Needs team sign-off** (contract).
+- **Stands** appear in `GET /stands` only when they are sample data or on a verified or stale route. **Needs team sign-off** (contract).
+- **Cities:** contributions must name a served city (`raasta/app/cities.py`, as Reroute's) with every point inside it; GTFS exists only for served cities. **Needs team sign-off** (contract).
+- **Service callers:** `X-Service-Token` uses its own rate-limit bucket (`SERVICE_RATE_LIMIT_PER_MINUTE`, 3,000) and can't write.
+- **Errors and logs:** unhandled exceptions answer with the 500 body, trace ID and `X-Request-ID`; malformed cursors are 400; `idempotency_key` is honoured like `idempotencyKey`; one masked log line per request.
 

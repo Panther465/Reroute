@@ -57,7 +57,16 @@ reroute = [
         tests=["const b = pm.response.json(); pm.collectionVariables.set('accessToken', b.accessToken);", "pm.test('demo user', () => pm.expect(b.user.isDemo).to.eql(true));"],
         example={"accessToken": "eyJhbGciOi…", "tokenType": "Bearer", "expiresIn": 900, "user": {"userId": "usr-demo-traveller", "email": "demo.traveller@reroute.example", "name": "Arjun Mehta (sample)", "role": "traveller", "isDemo": True}},
     ),
-    req("Me", "GET", "/v1/me", tests=["pm.test('role', () => pm.expect(pm.response.json().role).to.eql('traveller'));"], example={"userId": "usr-demo-traveller", "role": "traveller"}),
+    req(
+        "Me",
+        "GET",
+        "/v1/me",
+        tests=[
+            "pm.test('role', () => pm.expect(pm.response.json().role).to.eql('traveller'));",
+            "pm.test('demo bookings are on', () => pm.expect(pm.response.json().features.bookings).to.eql(true));",
+        ],
+        example={"userId": "usr-demo-traveller", "role": "traveller", "features": {"bookings": True, "aiHelper": False, "voices": True}},
+    ),
     req("Reset the demo day", "POST", "/v1/trips/trip-001/demo/reset", data={"idempotencyKey": KEY}, example={"tripId": "trip-001", "activePlan": None}),
     req("List trips", "GET", "/v1/trips?limit=20", tests=["pm.test('demo trip', () => pm.expect(pm.response.json().items.map(t => t.tripId)).to.include('trip-001'));"], example={"items": [{"tripId": "trip-001", "cityName": "Bengaluru", "sample": True}], "nextCursor": None}),
     req("Search places", "GET", "/v1/places?q=Koramangala&city=bengaluru", tests=["pm.test('found', () => pm.expect(pm.response.json().length).to.be.above(0));"], example=[{"placeId": "koramangala-bank", "name": "Bank, 80 Feet Road", "area": "Koramangala", "sample": True}]),

@@ -756,6 +756,8 @@ export interface components {
              * @default []
              */
             options: components["schemas"]["OptionOut"][];
+            /** Optionsetid */
+            optionSetId?: string | null;
             blocked?: components["schemas"]["BlockedOut"] | null;
             /** Jobid */
             jobId?: string | null;
@@ -778,6 +780,18 @@ export interface components {
              * @enum {string}
              */
             as: "traveller" | "moderator";
+        };
+        /**
+         * FeaturesOut
+         * @description What this server has switched on, so the app shows only what works.
+         */
+        FeaturesOut: {
+            /** Bookings */
+            bookings: boolean;
+            /** Aihelper */
+            aiHelper: boolean;
+            /** Voices */
+            voices: boolean;
         };
         /** GoogleSignIn */
         GoogleSignIn: {
@@ -1037,7 +1051,7 @@ export interface components {
              * Trigger
              * @enum {string}
              */
-            trigger: "created" | "late" | "skipped" | "edited";
+            trigger: "created" | "late" | "skipped" | "edited" | "morning";
             /** Checkinid */
             checkinId: string | null;
             /** Inputshash */
@@ -1614,6 +1628,7 @@ export interface components {
              * @default false
              */
             isDemo: boolean;
+            features: components["schemas"]["FeaturesOut"];
         };
         /** ValidationError */
         ValidationError: {

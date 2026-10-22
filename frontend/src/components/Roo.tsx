@@ -4,7 +4,7 @@ import { motion, useReducedMotion } from 'motion/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router'
-import { useBookings, useDay } from '@/api/queries'
+import { useBookings, useBookingsEnabled, useDay } from '@/api/queries'
 import type { Booking, Trip } from '@/api/types'
 import { checkIn } from '@/lib/actions'
 import { hhmm, lowerFirst } from '@/lib/format'
@@ -291,7 +291,8 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
   const openLate = useOpenLate()
   const reduce = !!useReducedMotion()
   const view = useDay(trip, clock)
-  const bookings = useBookings(trip?.tripId)
+  const bookingsOn = useBookingsEnabled()
+  const bookings = useBookings(bookingsOn ? trip?.tripId : null)
   const derived = useMemo(() => deriveMessage(trip, view, clock, pathname, bookings.data), [trip, view, clock, pathname, bookings.data])
 
   const shownPref = useStore((st) => st.roo)

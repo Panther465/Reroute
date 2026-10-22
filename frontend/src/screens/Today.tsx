@@ -1,7 +1,7 @@
 import { BellRing, Car, CarTaxiFront, ChevronDown, CircleCheck, LocateFixed, Map as MapIcon, MapPin, MapPinned, Navigation, Plus, Route, Share2, Ticket, TrainFront, TriangleAlert, X } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation as useRouterLocation, useNavigate } from 'react-router'
-import { useBookings, useCurrentTripId, useDay, useTrip } from '@/api/queries'
+import { useBookings, useBookingsEnabled, useCurrentTripId, useDay, useTrip } from '@/api/queries'
 import type { Booking, Task, Trip } from '@/api/types'
 import { NextCard } from '@/components/NextCard'
 import { LazyMap } from '@/components/LazyMap'
@@ -27,7 +27,7 @@ import { T, useTl } from '@/lib/i18n'
 import { useOpenLate } from '@/lib/late'
 import { useQueued } from '@/lib/offlineQueue'
 import { setState, showToast, useStore } from '@/lib/store'
-import { addDays, dayLabel, localMinutes, weekday, type DayView, type LegView, type StopView } from '@/lib/timeline'
+import { addDays, dayLabel, localMinutes, samePlace, weekday, type DayView, type LegView, type StopView } from '@/lib/timeline'
 
 // Sheets and the embedded leg detail load the first time they open, so Today itself stays small.
 const LegDetailContent = lazy(() => import('./LegDetail').then((m) => ({ default: m.LegDetailContent })))
@@ -208,7 +208,8 @@ export default function Today() {
   const [tripsOpen, setTripsOpen] = useState(false)
   const [mapSeq, setMapSeq] = useState<number | null>(null)
   // Simulated bookings: the train ticket or cab being booked, and the booking being viewed.
-  const bookings = useBookings(current.tripId)
+  const bookingsOn = useBookingsEnabled()
+  const bookings = useBookings(bookingsOn ? current.tripId : null)
   const [trainFor, setTrainFor] = useState<Task | null>(null)
   const [cabFor, setCabFor] = useState<{ toId: string; name: string } | null>(null)
   const [viewing, setViewing] = useState<Booking | null>(null)
@@ -583,6 +584,7 @@ export default function Today() {
     // Only the next leg carries its actions on the timeline, so the day reads as a line, not a list of
     // buttons. Every other leg's map and cab are a tap away in its leg details.
     if (!ride && !open && leg.seq !== activeSeq) return null
+    if (samePlace(leg)) return null
     return (
       <div className="mt-1.5">
         <div className="flex flex-wrap items-center gap-x-4">
@@ -597,7 +599,7 @@ export default function Today() {
               <CarTaxiFront size={18} strokeWidth={1.75} aria-hidden="true" className="shrink-0" />
               {String(ride.details.providerLabel)}, {String(ride.details.plate)}, OTP {String(ride.details.otp)}
             </button>
-          ) : (
+          ) : bookingsOn && (
             <button type="button" onClick={() => setCabFor({ toId: leg.toId, name: to?.title ?? 'the next stop' })} className={linkButton}>
               <Car size={18} strokeWidth={1.75} aria-hidden="true" />
               Book a cab
@@ -617,7 +619,7 @@ export default function Today() {
   // A train task offers its (demo) ticket; once booked, the stop shows the PNR and status.
   const trainExtra = (taskId: string) => {
     const task = trip.tasks.find((t) => t.taskId === taskId)
-    if (!task || !isTrainTask(task) || task.state === 'done') return null
+    if (!bookingsOn || !task || !isTrainTask(task) || task.state === 'done') return null
     const ticket = activeBooking(bookings.data, { taskId: task.taskId })
     return ticket ? (
       <button type="button" onClick={() => setViewing(ticket)} className="mt-1 inline-flex min-h-12 items-center gap-2 rounded-full border border-green bg-green-tint px-3 t-small font-bold text-ink">
