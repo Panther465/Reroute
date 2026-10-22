@@ -167,7 +167,9 @@ class GuardMiddleware(BaseHTTPMiddleware):
             log.warning("Idempotency store unavailable", extra={"traceId": trace})
             return await call_next(request)
         if not locked:
-            return JSONResponse(error_body("CONFLICT", "The same request is already being processed.", trace), status_code=409)
+            # Its own code, not CONFLICT: the first copy is still running, so a client retrying from its
+            # offline queue keeps the request and tries again, rather than dropping it as refused.
+            return JSONResponse(error_body("IN_PROGRESS", "The same request is already being processed.", trace), status_code=409)
         if stored is not None:
             saved = json.loads(stored)
             if saved["hash"] != body_hash:
