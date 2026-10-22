@@ -51,7 +51,7 @@ Two stops at the same place (a checkout at the hotel, two tasks in one building)
 
 With `DEMO_LOGIN=true`: `POST /v1/trips/:id/demo/clock` sets the simulated time, `POST /v1/trips/:id/demo/check` runs the 5-minute check now, `POST /v1/trips/:id/demo/reset` restores the sample day (and forgets the trip's reported delays, alerts and morning plans) and deletes any other trips the demo account started. In production they answer 404.
 
-**Simulated bookings** (also only with `DEMO_LOGIN=true`; otherwise 404, and `features.bookings` is false). Nothing real is booked or charged; every answer says `demo: true`.
+**Simulated bookings** (only with `SIMULATED_SERVICES=true`, the default; otherwise 404, and `features.bookings` is false). Nothing real is booked or charged; every answer says `demo: true`.
 
 ```http
 GET  /v1/trips/:id/train-options?taskId=task-train&to=Chennai     → sample trains around the task's time
@@ -74,7 +74,8 @@ POST /v1/trips/:id/bookings/:bookingId/cancel {"idempotencyKey"}  → cancelled,
 
 ## Accounts, the wallet and flights
 
+- `GET /v1/auth/options` (no sign-in needed) says which ways in the server offers: `{demoLogin, google}`. The home page shows Use the demo account only when `demoLogin` is true.
 - `POST /v1/auth/signup {name, email, password}` creates an account (201, the same `TokenOut` as the other sign-ins, and the refresh cookie). A taken email is 409 `EMAIL_TAKEN`. `POST /v1/auth/login {email, password}` signs in; any failure is 401 "Email or password is wrong."
-- `GET /v1/wallet` gives `{balanceInr, entries}`; `POST /v1/wallet/topups {amountInr}` (100 to 50,000) adds simulated money. Both need `DEMO_LOGIN`, like bookings, and `features.wallet` says so.
+- `GET /v1/wallet` gives `{balanceInr, entries}`; `POST /v1/wallet/topups {amountInr}` (100 to 50,000) adds simulated money. Both need `SIMULATED_SERVICES`, like bookings, and `features.wallet` says so.
 - `GET /v1/airports` lists the airports; `GET /v1/trips/:id/flight-options?from=BLR&to=DEL&date=2026-10-15` the sample flights. Book one with `POST /v1/trips/:id/bookings {kind: "flight", origin, flightTo, flightDate, flightNo, cabin, passengers}`.
 - Every booking is paid from the wallet: too little money is 409 `INSUFFICIENT_FUNDS`, saying how much to add.
