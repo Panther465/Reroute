@@ -1,0 +1,53 @@
+# Production settings on top of docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# No demo login, secure cookies, and no development fallbacks: every secret below must be set (for
+# example in a .env file next to this one that is never committed), or Compose stops and names it.
+# NGINX listens on all addresses (BIND_ADDR, default 0.0.0.0); mount a real certificate at
+# /etc/nginx/certs/localhost.{crt,key} (the self-signed one is for local use).
+
+x-prod-env: &prod-env
+  APP_ENV: production
+  DEMO_LOGIN: "false"
+  COOKIE_SECURE: "true"
+  SEED_ON_START: "false"
+  DATABASE_URL: postgresql+psycopg://reroute_app:${REROUTE_DB_PASSWORD:?Set REROUTE_DB_PASSWORD}@postgres:5432/reroute
+  JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET (32 or more random bytes)}
+  RAASTA_SERVICE_TOKEN: ${RAASTA_SERVICE_TOKEN:?Set RAASTA_SERVICE_TOKEN (32 or more random characters)}
+  PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL (the https address people open)}
+
+services:
+  postgres:
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      REROUTE_DB_PASSWORD: ${REROUTE_DB_PASSWORD:?Set REROUTE_DB_PASSWORD}
+      RAASTA_DB_PASSWORD: ${RAASTA_DB_PASSWORD:?Set RAASTA_DB_PASSWORD}
+
+  raasta:
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgresql+psycopg://raasta_app:${RAASTA_DB_PASSWORD:?Set RAASTA_DB_PASSWORD}@postgres:5432/reroute
+      JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET (32 or more random bytes)}
+      RAASTA_SERVICE_TOKEN: ${RAASTA_SERVICE_TOKEN:?Set RAASTA_SERVICE_TOKEN (32 or more random characters)}
+
+  api-1:
+    environment:
+      <<: *prod-env
+      # The first copy migrates (as in docker-compose.yml) but loads no demo data.
+      RUN_MIGRATIONS: "true"
+
+  api-2:
+    environment:
+      <<: *prod-env
+      RUN_MIGRATIONS: "false"
+
+  worker:
+    environment: *prod-env
+
+  scheduler:
+    environment: *prod-env
+
+  nginx:
+    ports: !override
+      - "${BIND_ADDR:-0.0.0.0}:${HTTPS_PORT:-443}:443"
+      - "${BIND_ADDR:-0.0.0.0}:${HTTP_PORT:-80}:80"
