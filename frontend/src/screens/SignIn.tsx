@@ -2,28 +2,17 @@ import { ArrowUpRight, TriangleAlert } from 'lucide-react'
 import { lazy, Suspense, useState, type ReactNode } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router'
 import { ApiError } from '@/api/client'
+import { AuthCard } from '@/components/AuthCard'
 import { RouteMark } from '@/components/icons'
 import { Button } from '@/components/ui/Button'
 import { loadShell, loadToday } from '@/app/lazy'
-import { googleEnabled, requestGoogleCode } from '@/lib/google'
 import { useDocumentTitle } from '@/lib/hooks'
-import { signInDemo, signInWithGoogle, useSessionStatus } from '@/lib/session'
+import { signInDemo, useSessionStatus } from '@/lib/session'
 
 // The live demo (and the animation library) loads after the page is up; its box holds the space meanwhile.
 const LandingDemo = lazy(() => import('@/components/LandingDemo').then((m) => ({ default: m.LandingDemo })))
 
 const SOURCE = 'https://github.com/Panther465/Reroute'
-
-function GoogleG() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 48 48" aria-hidden="true">
-      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
-      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
-      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
-      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
-    </svg>
-  )
-}
 
 /** A real screen of the app, in the theme the reader is using: its top, where the screen says what it is. */
 function Screen({ name, alt }: { name: string; alt: string }) {
@@ -57,57 +46,37 @@ export default function SignIn() {
   const navigate = useNavigate()
   const location = useLocation()
   const [error, setError] = useState<string>()
-  const [busy, setBusy] = useState<'google' | 'demo' | null>(null)
+  const [busy, setBusy] = useState(false)
   // The demo account exists only where the server allows it (DEMO_LOGIN=true); a 404 hides the button.
   const [demoAvailable, setDemoAvailable] = useState(true)
+  // Right after an account is made, Roo takes over: don't bounce to Today first.
+  const [arriving, setArriving] = useState(false)
   const from = (location.state as { from?: string } | null)?.from ?? '/'
   useDocumentTitle('Running late? We’ll reroute your day')
 
-  if (status === 'signedIn') return <Navigate to={from} replace />
+  if (status === 'signedIn' && !arriving) return <Navigate to={from} replace />
 
-  const run = async (kind: 'google' | 'demo') => {
-    setBusy(kind)
-    setError(undefined)
-    // Fetch the app while signing in, so Today opens straight after.
+  // Fetch the app while signing in, so the next screen opens straight after.
+  const preload = () => {
     void loadShell().catch(() => undefined)
     void loadToday().catch(() => undefined)
+  }
+  const signedIn = (how: 'created' | 'signedIn' | 'demo') => navigate(how === 'created' ? '/' : from, { replace: true })
+
+  const demoDay = async () => {
+    setBusy(true)
+    setError(undefined)
+    preload()
     try {
-      if (kind === 'google') await signInWithGoogle(await requestGoogleCode())
-      else await signInDemo('traveller')
+      await signInDemo('traveller')
       navigate(from, { replace: true })
     } catch (err) {
-      if (kind === 'demo' && err instanceof ApiError && err.status === 404) {
-        setDemoAvailable(false)
-        return
-      }
-      setError(err instanceof ApiError || err instanceof Error ? err.message : "Couldn't sign in. Try again.")
+      if (err instanceof ApiError && err.status === 404) setDemoAvailable(false)
+      else setError(err instanceof ApiError || err instanceof Error ? err.message : "Couldn't sign in. Try again.")
     } finally {
-      setBusy(null)
+      setBusy(false)
     }
   }
-
-  const signIn = (demoLabel: string) => (
-    <div className="flex flex-col gap-3 sm:max-w-[22rem]">
-      {googleEnabled && (
-        <button
-          type="button"
-          onClick={() => void run('google')}
-          disabled={busy !== null}
-          className="flex min-h-12 items-center justify-center gap-[10px] rounded-full border border-[var(--google-border)] bg-[var(--google-bg)] px-3 text-[var(--google-text)] disabled:opacity-60"
-          style={{ fontFamily: "'Roboto', 'Atkinson Hyperlegible', sans-serif", fontWeight: 500, fontSize: 14, lineHeight: '20px' }}
-        >
-          <GoogleG />
-          {busy === 'google' ? 'Signing in…' : 'Continue with Google'}
-        </button>
-      )}
-      {demoAvailable && (
-        <Button variant={googleEnabled ? 'secondary' : 'primary'} full loading={busy === 'demo'} loadingLabel="Signing in…" onClick={() => void run('demo')}>
-          {demoLabel}
-        </Button>
-      )}
-      {!googleEnabled && !demoAvailable && <p className="t-body text-ink-2">Sign-in isn't set up on this server yet.</p>}
-    </div>
-  )
 
   return (
     <div className="min-h-dvh bg-ground text-ink">
@@ -123,22 +92,43 @@ export default function SignIn() {
       </header>
 
       <main className="mx-auto max-w-[1200px] px-5 lg:px-8">
-        <section aria-labelledby="hero-h" className="grid items-center gap-10 pb-16 pt-6 lg:grid-cols-[1fr_1.05fr] lg:gap-16 lg:pb-24 lg:pt-12">
-          <div>
+        <section aria-labelledby="hero-h" className="grid items-start gap-10 pb-16 pt-6 lg:grid-cols-[1fr_26rem] lg:gap-16 lg:pb-20 lg:pt-10">
+          <div className="lg:pt-20">
             <h1 id="hero-h" tabIndex={-1} className="max-w-[12ch] font-display text-[2.75rem] font-extrabold leading-[2.875rem] text-ink [font-stretch:87.5%] [text-wrap:balance] lg:text-[4.5rem] lg:leading-[4.5rem]">
               Running late? We’ll reroute your day.
             </h1>
             <p className="mt-6 max-w-[34rem] t-body text-ink-2 lg:text-[1.1875rem] lg:leading-8">
               Reroute plans a work day in a city you don’t know: the order, when to leave, how to get there and what it costs. When a meeting runs over, it re-plans the rest of the day.
             </p>
-            <div className="mt-8">{signIn('Use the demo account')}</div>
-            {error && (
-              <p role="alert" className="mt-3 flex items-start gap-2 t-small text-red-ink">
-                <TriangleAlert size={20} strokeWidth={1.75} aria-hidden="true" className="shrink-0" />
-                {error}
-              </p>
-            )}
-            <p className="mt-4 t-small text-muted">The demo is a sample day in Bengaluru. Nothing is booked or charged.</p>
+            <ul className="mt-8 hidden max-w-[34rem] flex-col gap-3 t-body text-ink-2 lg:flex">
+              {['Plans the order, the times and the cheapest way there', 'Re-plans the rest of the day when you run late', 'Roo, a companion you can talk to, keeps you on time'].map((line) => (
+                <li key={line} className="flex items-start gap-3">
+                  <span aria-hidden="true" className="mt-2 size-2 shrink-0 rounded-full bg-green" />
+                  {line}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <div id="account" className="scroll-mt-6">
+            <AuthCard
+              onLoading={() => {
+                setArriving(true)
+                preload()
+              }}
+              onSignedIn={signedIn}
+            />
+            <p className="mt-4 max-w-[26rem] t-small text-muted">The demo is a sample day in Bengaluru. Bookings and the wallet are simulated: nothing real is booked or charged.</p>
+          </div>
+        </section>
+
+        <section aria-labelledby="live-h" className="grid items-center gap-10 py-16 lg:grid-cols-[1fr_1.05fr] lg:gap-16 lg:py-24">
+          <div>
+            <h2 id="live-h" className="t-display-1 text-ink lg:text-[2.75rem] lg:leading-[3rem]">
+              Run a meeting late, right here
+            </h2>
+            <p className="mt-4 max-w-[34rem] t-body text-ink-2 lg:text-[1.0625rem] lg:leading-7">
+              This is the sample day as Reroute plans it. Make the meeting 15 minutes late and the later stops simply move. Make it 40 and something has to give: you choose between a cab and keeping it cheap.
+            </p>
           </div>
           <Suspense fallback={<div className="aspect-[4/5] w-full rounded-card border border-line bg-surface" aria-hidden="true" />}>
             <LandingDemo />
@@ -184,7 +174,22 @@ export default function SignIn() {
             Try the demo day
           </h2>
           <p className="mt-4 max-w-[34rem] t-body text-ink-2">A Wednesday in Bengaluru with a meeting, a bank and a university office. Run late on purpose and see what Reroute does.</p>
-          <div className="mt-8 w-full max-w-[22rem]">{signIn('Try the demo day')}</div>
+          <div className="mt-8 flex w-full max-w-[22rem] flex-col gap-3">
+            {demoAvailable && (
+              <Button full loading={busy} loadingLabel="Signing in…" onClick={() => void demoDay()}>
+                Try the demo day
+              </Button>
+            )}
+            <a href="#account" className="inline-flex min-h-12 items-center justify-center rounded-control t-title text-ink underline decoration-2 underline-offset-4">
+              Or create your own account
+            </a>
+            {error && (
+              <p role="alert" className="flex items-start gap-2 text-left t-small text-red-ink">
+                <TriangleAlert size={20} strokeWidth={1.75} aria-hidden="true" className="shrink-0" />
+                {error}
+              </p>
+            )}
+          </div>
         </section>
       </main>
 
