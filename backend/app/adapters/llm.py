@@ -19,6 +19,8 @@ log = logging.getLogger("reroute.llm")
 
 GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
 GEMINI_TIMEOUT_SECONDS = 20.0
+#: A fixed time the model gives must be a real 24-hour "HH:MM"; anything else ("25:99", "10am") is dropped.
+HHMM = re.compile(r"^([01]\d|2[0-3]):[0-5]\d$")
 
 _TASKS_SCHEMA: dict[str, Any] = {
     "type": "ARRAY",
@@ -109,9 +111,7 @@ def _validate_task(t: dict[str, Any]) -> dict[str, Any] | None:
         dur = 60
     dur = max(15, min(720, int(dur)))
     fixed = t.get("fixedStart")
-    if isinstance(fixed, str) and re.match(r"^\d{2}:\d{2}$", fixed):
-        pass
-    else:
+    if not (isinstance(fixed, str) and HHMM.match(fixed)):
         fixed = None
     pri = t.get("priority", 2)
     if pri not in (1, 2, 3):

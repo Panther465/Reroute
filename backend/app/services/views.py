@@ -28,7 +28,7 @@ from app.schemas import (
     WindowOut,
 )
 from app.services import plan_store
-from app.services.day import trip_day
+from app.services.day import gone, trip_day
 from app.services.loop import open_options
 from app.services.planner.util import count_word, rupees
 
@@ -177,7 +177,8 @@ def summary_out(db: Session, trip: Trip, day: date) -> SummaryOut:
             task_id=t.task_id,
             title=t.title,
             area=t.place.area,
-            state=t.state,
+            # A task moved to a later day stays "moved" in this day's summary, whatever it became there.
+            state="moved" if t.day != day else t.state,
             start=times.get(t.task_id, (None, None))[0],
             end=times.get(t.task_id, (None, None))[1],
             moved_to=moved_to.get(t.task_id),
@@ -253,7 +254,7 @@ def shared_out(db: Session, trip: Trip, traveller_name: str, now: datetime, upda
         arrive = datetime.fromisoformat(leg["arriveAt"])
         if state == "done":
             status = "done"
-        elif not now_set and (task is None or state not in ("skipped", "moved")):
+        elif not now_set and (task is None or not gone(task, plan.day)):  # type: ignore[union-attr]
             status, now_set = ("now" if datetime.fromisoformat(leg["leaveBy"]) <= now else "upcoming"), True
         else:
             status = "upcoming"

@@ -1,9 +1,13 @@
 """The transit adapter: the only part of Reroute that asks Raasta about routes, over HTTP.
 
 Reroute never reads Raasta's tables. Answers are cached in Redis for a few minutes, so the worker
-asks about each route or place pair once per window rather than once per trip. If Raasta is
-unreachable, its routes are treated as unverified: they can only be labelled extras, and the plan
-still works with metro, walking and cabs.
+asks about each route or place pair once per window rather than once per trip. Calls carry the
+service token (X-Service-Token), which gives the worker Raasta's service rate limit.
+
+Only a 404 means Raasta doesn't know a route: it is then unverified, a labelled extra at most. A
+busy or failing Raasta (429, 5xx, no answer) says nothing about a route, so the last good answer
+(kept 24 hours) is used instead, and Raasta isn't asked again until its Retry-After has passed.
+With no good answer at all, its routes are unverified and the plan works with metro, walking and cabs.
 """
 
 from __future__ import annotations
@@ -26,8 +30,18 @@ if TYPE_CHECKING:
 log = logging.getLogger("reroute.transit")
 
 CACHE_SECONDS = 5 * 60
+#: The last good answer, used while Raasta is busy or down.
+LAST_GOOD_SECONDS = 24 * 3600
+#: While this key exists, Raasta isn't asked (it said Retry-After, or didn't answer).
+BACKOFF_KEY = "raasta:backoff"
+BACKOFF_DEFAULT_SECONDS = 30
+BACKOFF_MAX_SECONDS = 600
 #: Shared autos, e-rickshaws and tempos in city traffic: about 15 km/h, stops included (sample estimate).
 RIDE_M_PER_MIN = 250
+
+
+class _Unavailable(Exception):
+    """Raasta is busy, failing or unreachable: nothing was learnt about the route."""
 
 
 @dataclass(frozen=True)
@@ -67,9 +81,14 @@ class TransitAdapter(Protocol):
 
 
 class RaastaHttpAdapter:
-    def __init__(self, base_url: str | None = None, client: httpx.Client | None = None, timeout: float = 3.0, redis_client=None):
-        self.base_url = (base_url or get_settings().raasta_base_url).rstrip("/")
+    def __init__(
+        self, base_url: str | None = None, client: httpx.Client | None = None, timeout: float = 3.0, redis_client=None, service_token: str | None = None
+    ):
+        s = get_settings()
+        self.base_url = (base_url or s.raasta_base_url).rstrip("/")
+        token = s.raasta_service_token if service_token is None else service_token
         self.client = client or httpx.Client(timeout=timeout)
+        self.headers = {"X-Service-Token": token} if token else {}
         self.redis = redis_client
 
     def _cached(self, key: str):
@@ -82,10 +101,53 @@ class RaastaHttpAdapter:
         return json.loads(raw) if raw else None
 
     def _store(self, key: str, value) -> None:
+        """A fresh answer: cached for a few minutes, and kept for a day as the last good one."""
         if self.redis is None:
             return
         with contextlib.suppress(Exception):
-            self.redis.set(key, json.dumps(value), ex=CACHE_SECONDS)
+            raw = json.dumps(value)
+            self.redis.set(key, raw, ex=CACHE_SECONDS)
+            self.redis.set(key + ":good", raw, ex=LAST_GOOD_SECONDS)
+
+    def _forget(self, key: str) -> None:
+        if self.redis is not None:
+            with contextlib.suppress(Exception):
+                self.redis.delete(key, key + ":good")
+
+    def _backing_off(self) -> bool:
+        if self.redis is None:
+            return False
+        try:
+            return bool(self.redis.exists(BACKOFF_KEY))
+        except Exception:
+            return False
+
+    def _back_off(self, retry_after: str | None) -> None:
+        seconds = int(retry_after) if retry_after and retry_after.isdigit() else BACKOFF_DEFAULT_SECONDS
+        if self.redis is not None:
+            with contextlib.suppress(Exception):
+                self.redis.set(BACKOFF_KEY, "1", ex=max(1, min(seconds, BACKOFF_MAX_SECONDS)))
+
+    def _get(self, path: str, params: dict | None = None) -> httpx.Response | None:
+        """The response, or None for a 404. Raises _Unavailable when Raasta is busy, failing or unreachable."""
+        if self._backing_off():
+            raise _Unavailable("backing off")
+        try:
+            res = self.client.get(f"{self.base_url}{path}", params=params, headers=self.headers)
+        except httpx.HTTPError as exc:
+            log.warning("Raasta unreachable: %s", exc)
+            self._back_off(None)
+            raise _Unavailable(str(exc)) from exc
+        if res.status_code == 404:
+            return None
+        if res.status_code == 429 or res.status_code >= 500:
+            log.warning("Raasta answered %s; using the last good answers", res.status_code)
+            self._back_off(res.headers.get("retry-after"))
+            raise _Unavailable(str(res.status_code))
+        if res.status_code != 200:
+            log.warning("Raasta answered %s", res.status_code)
+            raise _Unavailable(str(res.status_code))
+        return res
 
     def routes(self, route_ids: list[str]) -> dict[str, RouteInfo]:
         found: dict[str, RouteInfo] = {}
@@ -96,11 +158,15 @@ class RaastaHttpAdapter:
                 found[route_id] = RouteInfo(**cached)
                 continue
             try:
-                res = self.client.get(f"{self.base_url}/v1/raasta/routes/{route_id}")
-            except httpx.HTTPError as exc:
-                log.warning("Raasta unreachable for %s: %s", route_id, exc)
+                res = self._get(f"/v1/raasta/routes/{route_id}")
+            except _Unavailable:
+                good = self._cached(key + ":good")
+                if good is not None:
+                    found[route_id] = RouteInfo(**good)
                 continue
-            if res.status_code != 200:
+            if res is None:
+                # Raasta doesn't know this route (any more): unverified.
+                self._forget(key)
                 continue
             data = res.json()
             info = RouteInfo(
@@ -127,11 +193,12 @@ class RaastaHttpAdapter:
         tz = timezone(sign * timedelta(hours=int(hours), minutes=int(minutes)))
         at = datetime.combine(day, time(0, 5), tz).isoformat()
         try:
-            res = self.client.get(f"{self.base_url}/v1/raasta/routes", params={"from": f"{a.lng},{a.lat}", "to": f"{b.lng},{b.lat}", "at": at})
-        except httpx.HTTPError as exc:
-            log.warning("Raasta unreachable for leg options: %s", exc)
-            return []
-        if res.status_code != 200:
+            res = self._get("/v1/raasta/routes", params={"from": f"{a.lng},{a.lat}", "to": f"{b.lng},{b.lat}", "at": at})
+        except _Unavailable:
+            good = self._cached(key + ":good")
+            return [RaastaLeg(**x) for x in good] if good is not None else []
+        if res is None:
+            self._forget(key)
             return []
         body = res.json()
         legs = [

@@ -67,7 +67,9 @@ def new_plan_row(
     option_id: str | None = None,
     option: dict | None = None,
     reason_codes: list[str] | None = None,
+    carried_moved: list[dict] | None = None,
 ) -> tuple[Plan, list[PlanLeg]]:
+    """`carried_moved`: entries of the previous version to keep, such as tasks still unplaced after a re-plan."""
     tz = tz_for(trip.utc_offset)
     legs = [leg_out(leg, day, tz) for leg in result.legs]
     moved = [
@@ -80,6 +82,8 @@ def new_plan_row(
         )
         for m in result.moved
     ]
+    named = {m.task_id for m in moved}
+    moved += [MovedOut.model_validate(m) for m in carried_moved or [] if m["taskId"] not in named]
     plan = Plan(
         trip_id=trip.trip_id,
         day=day,
@@ -161,7 +165,9 @@ def sync_tasks(db: Session, plan: Plan) -> None:
     """Make task days and states agree with the active plan, so Undo also brings tasks back.
 
     Check-ins marked "done" are facts and never change. A task the plan moves goes to the next day;
-    a task the plan includes comes back to its planned day.
+    a task the plan includes comes back to its planned day. A moved task that its new day's plan
+    includes is planned again there (it keeps `planned_day`, so the first day's summary still says
+    it moved).
     """
     tasks = {t.task_id: t for t in db.scalars(select(Task).where(Task.trip_id == plan.trip_id))}
     in_plan = {leg["taskId"] for leg in plan.legs if leg.get("taskId")} | {leg["taskId"] for leg in plan.done_legs if leg.get("taskId")}
@@ -182,6 +188,9 @@ def sync_tasks(db: Session, plan: Plan) -> None:
             task.state = "planned"
             task.day = task.planned_day
             task.changed_by_plan_id = None
+        elif task.task_id in in_plan and task.state == "moved" and task.day == plan.day:
+            # Its new day's plan includes it: it's an ordinary task of that day now.
+            task.state = "planned"
 
 
 def plan_out(plan: Plan) -> PlanOut:

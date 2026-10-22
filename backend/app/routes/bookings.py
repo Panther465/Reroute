@@ -1,21 +1,24 @@
-"""Simulated bookings: a train ticket for a train task, a cab for a leg. A demo: nothing real is booked or charged."""
+"""Simulated bookings: a train ticket for a train task, a cab for a leg. A demo: nothing real is booked or charged.
+
+Like the demo clock, these routes exist only with DEMO_LOGIN=true; otherwise every one answers 404.
+"""
 
 from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 
 from app.clock import minutes_of_day, tz_for
-from app.deps import CurrentUser, Db, OwnedTrip
+from app.deps import CurrentUser, Db, OwnedTrip, demo_only
 from app.errors import ApiError
 from app.models import Booking, Task, Trip
 from app.schemas import BookingIn, BookingOut, CabOptionOut, PostBody, TrainClassOut, TrainOptionOut
 from app.services import booking_sim as sim
 from app.services import plan_store
 
-router = APIRouter(prefix="/v1", tags=["bookings"])
+router = APIRouter(prefix="/v1", tags=["bookings"], dependencies=[Depends(demo_only)])
 
 
 def _task(db, trip: Trip, task_id: str | None) -> Task:

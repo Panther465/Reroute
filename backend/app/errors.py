@@ -27,12 +27,14 @@ _CODES = {
 
 
 class ApiError(Exception):
-    def __init__(self, status: int, message: str, code: str | None = None, headers: dict[str, str] | None = None):
+    def __init__(self, status: int, message: str, code: str | None = None, headers: dict[str, str] | None = None, extra: dict | None = None):
         super().__init__(message)
         self.status = status
         self.code = code or _CODES.get(status, "ERROR")
         self.message = message
         self.headers = headers
+        #: Detail for a worker's result (such as the blocked task); not part of the HTTP error body.
+        self.extra = extra or {}
 
 
 def trace_id(request: Request) -> str:

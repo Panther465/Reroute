@@ -53,7 +53,10 @@ def issue_access_token(user: User, now: datetime | None = None) -> tuple[str, in
 
 def decode_access_token(token: str) -> dict:
     try:
-        claims = jwt.decode(token, get_settings().jwt_secret, algorithms=["HS256"], audience=AUDIENCE, issuer=ISSUER)
+        # A token missing any of these claims is refused, not just one whose claims are wrong.
+        claims = jwt.decode(
+            token, get_settings().jwt_secret, algorithms=["HS256"], audience=AUDIENCE, issuer=ISSUER, options={"require": ["exp", "iat", "sub", "iss", "aud"]}
+        )
     except jwt.ExpiredSignatureError as exc:
         raise ApiError(401, "Your session expired. Sign in again.", headers={"WWW-Authenticate": "Bearer"}) from exc
     except jwt.InvalidTokenError as exc:

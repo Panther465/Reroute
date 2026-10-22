@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import Depends, Header
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.db import get_session
 from app.errors import ApiError
 from app.models import Trip, User
@@ -46,3 +47,9 @@ def owned_trip(trip_id: str, user: CurrentUser, db: Db) -> Trip:
 
 
 OwnedTrip = Annotated[Trip, Depends(owned_trip)]
+
+
+def demo_only() -> None:
+    """Routes that exist only with DEMO_LOGIN=true (the demo clock, simulated bookings): 404 otherwise."""
+    if not get_settings().demo_login:
+        raise ApiError(404, "Not found.")

@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     google_redirect_uri: str = "postmessage"
 
     raasta_base_url: str = "http://raasta:8001"
+    #: Sent to Raasta as X-Service-Token, so the worker gets Raasta's service rate limit rather than a
+    #: visitor's per-IP one. Raasta must have the same value. Empty sends none (development only).
+    raasta_service_token: str = ""
     osrm_car_url: str = "http://osrm-car:5000"
     osrm_foot_url: str = "http://osrm-foot:5000"
     nominatim_url: str = "https://nominatim.openstreetmap.org"
@@ -44,10 +47,15 @@ class Settings(BaseSettings):
 
     max_body_bytes: int = 64 * 1024
     rate_limit_per_minute: int = 60
+    #: Sign-in (Google and demo), per IP.
     auth_rate_limit_per_minute: int = 10
+    #: Token refresh and sign-out, per IP: a page with several tabs refreshes often, so not the sign-in limit.
+    session_rate_limit_per_minute: int = 60
     idempotency_ttl_seconds: int = 24 * 3600
     checkin_wait_seconds: float = 8.0
     public_base_url: str = "https://localhost"
+    #: Local time (minutes after midnight) from which the scheduler plans a trip day on its own.
+    morning_plan_from_min: int = Field(default=6 * 60, ge=0, lt=24 * 60)
 
     ai_helper_enabled: bool = False
     gemini_api_key: str = ""
@@ -63,6 +71,8 @@ class Settings(BaseSettings):
                 raise ValueError("DEMO_LOGIN=true is refused when APP_ENV=production.")
             if self.jwt_secret.startswith(("dev-only", "change-me")) or len(self.jwt_secret.encode()) < 32:
                 raise ValueError("Set a real JWT_SECRET (32 or more random bytes) in production.")
+            if self.raasta_service_token.startswith(("dev-only", "change-me")) or len(self.raasta_service_token.encode()) < 32:
+                raise ValueError("Set a real RAASTA_SERVICE_TOKEN (32 or more random characters) in production.")
             if self.queue_sync:
                 raise ValueError("QUEUE_SYNC is for tests only.")
         return self

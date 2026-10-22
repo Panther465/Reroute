@@ -15,7 +15,8 @@ from app.deps import Db
 from app.errors import ApiError
 from app.models import Trip, User
 from app.redis_client import get_redis
-from app.schemas import DemoSignIn, GoogleSignIn, TokenOut, UserOut
+from app.routes.me import user_out
+from app.schemas import DemoSignIn, GoogleSignIn, TokenOut
 from app.security import CSRF_COOKIE, REFRESH_COOKIE, check_csrf, clear_cookies, issue_access_token, revoke_refresh, rotate_refresh, start_session
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
@@ -26,7 +27,7 @@ DEMO_CLOCK_START = "2026-10-14T07:30:00+05:30"
 
 def _token(user: User) -> TokenOut:
     token, ttl = issue_access_token(user)
-    return TokenOut(access_token=token, expires_in=ttl, user=UserOut.model_validate(user))
+    return TokenOut(access_token=token, expires_in=ttl, user=user_out(user))
 
 
 @router.post("/google", response_model=TokenOut, response_model_by_alias=True)
