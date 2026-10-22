@@ -24,7 +24,11 @@ class Settings(BaseSettings):
     refresh_token_days: int = 30
     cookie_secure: bool = True
 
+    #: The demo account, its Simulate panel and reset. Off unless switched on (and refused in production).
     demo_login: bool = False
+    #: Simulated bookings, the wallet and connected partners, for every account: nothing real is booked
+    #: or charged. Turn off where only real services should appear.
+    simulated_services: bool = True
 
     google_client_id: str = ""
     google_client_secret: str = ""

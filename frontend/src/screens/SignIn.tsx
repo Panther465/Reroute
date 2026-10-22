@@ -2,6 +2,7 @@ import { ArrowUpRight, TriangleAlert } from 'lucide-react'
 import { lazy, Suspense, useState, type ReactNode } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router'
 import { ApiError } from '@/api/client'
+import { useAuthOptions } from '@/api/queries'
 import { AuthCard } from '@/components/AuthCard'
 import { RouteMark } from '@/components/icons'
 import { Button } from '@/components/ui/Button'
@@ -48,8 +49,9 @@ export default function SignIn() {
   const location = useLocation()
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
-  // The demo account exists only where the server allows it (DEMO_LOGIN=true); a 404 hides the button.
+  // The demo account exists only where the server switches it on (DEMO_LOGIN=true).
   const [demoAvailable, setDemoAvailable] = useState(true)
+  const demoOn = useAuthOptions().data?.demoLogin === true && demoAvailable
   // Right after an account is made, Roo takes over: don't bounce to Today first.
   const [arriving, setArriving] = useState(false)
   const from = (location.state as { from?: string } | null)?.from ?? '/'
@@ -119,7 +121,9 @@ export default function SignIn() {
               }}
               onSignedIn={signedIn}
             />
-            <p className="mt-3 max-w-[26rem] t-small text-muted">The demo is a sample day in Bengaluru. Bookings and the wallet are simulated: nothing real is booked or charged.</p>
+            <p className="mt-3 max-w-[26rem] t-small text-muted">
+              {demoOn ? 'The demo is a sample day in Bengaluru. ' : ''}Bookings and the wallet are simulated: nothing real is booked or charged.
+            </p>
           </div>
         </section>
 
@@ -175,17 +179,28 @@ export default function SignIn() {
 
         <section aria-labelledby="try-h" className="flex flex-col items-center border-t border-line py-12 text-center lg:py-16">
           <h2 id="try-h" className="t-display-1 text-ink lg:text-[2.5rem] lg:leading-[2.75rem]">
-            Try the demo day
+            {demoOn ? 'Try the demo day' : 'Ready when you are'}
           </h2>
-          <p className="mt-3 max-w-[34rem] t-body text-ink-2">A Wednesday in Bengaluru with a meeting, a bank and a university office. Run late on purpose and see what Reroute does.</p>
+          <p className="mt-3 max-w-[34rem] t-body text-ink-2">
+            {demoOn
+              ? 'A Wednesday in Bengaluru with a meeting, a bank and a university office. Run late on purpose and see what Reroute does.'
+              : 'Make an account, and Roo sets up your first trip with you in about a minute.'}
+          </p>
           <div className="mt-6 flex w-full max-w-[22rem] flex-col gap-2">
-            {demoAvailable && (
+            {demoOn && (
               <Button full loading={busy} loadingLabel="Signing in…" onClick={() => void demoDay()}>
                 Try the demo day
               </Button>
             )}
-            <a href="#account" className="inline-flex min-h-12 items-center justify-center rounded-control t-title text-ink underline decoration-2 underline-offset-4">
-              Or create your own account
+            <a
+              href="#account"
+              className={
+                demoOn
+                  ? 'inline-flex min-h-12 items-center justify-center rounded-control t-title text-ink underline decoration-2 underline-offset-4'
+                  : 'inline-flex min-h-[52px] items-center justify-center rounded-control bg-green px-5 t-title text-on-green [@media(hover:hover)]:hover:bg-green-ink'
+              }
+            >
+              {demoOn ? 'Or create your own account' : 'Create my account'}
             </a>
             {error && (
               <p role="alert" className="flex items-start gap-2 text-left t-small text-red-ink">

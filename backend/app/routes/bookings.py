@@ -1,8 +1,8 @@
 """Simulated bookings: a train ticket for a train task, a flight, a cab for a leg. A demo: nothing real is booked.
 
 They're paid from the wallet's simulated money: the booking and its charge commit together, and a
-cancellation refunds. Like the demo clock, these routes exist only with DEMO_LOGIN=true; otherwise
-every one answers 404.
+cancellation refunds. They exist for every account while SIMULATED_SERVICES=true (the default);
+otherwise every one answers 404.
 """
 
 from __future__ import annotations
@@ -14,14 +14,14 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 
 from app.clock import minutes_of_day, tz_for
-from app.deps import CurrentUser, Db, OwnedTrip, demo_only
+from app.deps import CurrentUser, Db, OwnedTrip, simulated_only
 from app.errors import ApiError
 from app.models import Booking, Task, Trip
 from app.schemas import AirportOut, BookingIn, BookingOut, CabOptionOut, FlightFareOut, FlightOptionOut, PostBody, TrainClassOut, TrainOptionOut
 from app.services import booking_sim as sim
 from app.services import plan_store, wallet
 
-router = APIRouter(prefix="/v1", tags=["bookings"], dependencies=[Depends(demo_only)])
+router = APIRouter(prefix="/v1", tags=["bookings"], dependencies=[Depends(simulated_only)])
 
 
 def _task(db, trip: Trip, task_id: str | None) -> Task:

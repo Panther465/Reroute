@@ -18,7 +18,8 @@ x-api-env: &api-env
   REDIS_URL: redis://redis:6379/0
   MONGO_URL: mongodb://mongo:27017/reroute
   JWT_SECRET: ${JWT_SECRET:-dev-only-change-me-dev-only-change-me}
-  DEMO_LOGIN: ${DEMO_LOGIN:-true}
+  DEMO_LOGIN: ${DEMO_LOGIN:-false}
+  SIMULATED_SERVICES: ${SIMULATED_SERVICES:-true}
   GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
   GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:-}
   RAASTA_BASE_URL: http://raasta:8001

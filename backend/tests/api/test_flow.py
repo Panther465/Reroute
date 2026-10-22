@@ -879,11 +879,16 @@ def test_a_described_task_with_an_impossible_time_has_no_fixed_time(client, monk
     assert res.json()[0]["fixedStart"] is None
 
 
-def test_bookings_exist_only_with_the_demo_login(client, monkeypatch):
+def test_bookings_exist_only_with_simulated_services(client, monkeypatch):
     from app.config import get_settings
 
     assert client.get("/v1/trips/trip-001/bookings").status_code == 200
+    # The demo account switch doesn't decide it: a real account books (simulated) without it.
     monkeypatch.setattr(get_settings(), "demo_login", False)
+    assert client.get("/v1/trips/trip-001/bookings").status_code == 200
+    assert client.get("/v1/auth/options").json() == {"demoLogin": False, "google": False}
+    monkeypatch.setattr(get_settings(), "simulated_services", False)
+    assert client.get("/v1/wallet").status_code == 404
     assert client.get("/v1/trips/trip-001/bookings").status_code == 404
     assert client.get("/v1/trips/trip-001/train-options", params={"taskId": "task-train", "to": "Chennai"}).status_code == 404
     body = {"kind": "cab", "toId": "task-bank", "optionId": "x", "idempotencyKey": key()}

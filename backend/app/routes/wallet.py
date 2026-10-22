@@ -1,14 +1,14 @@
-"""The wallet: simulated money for simulated bookings. Like bookings, it exists only with DEMO_LOGIN=true."""
+"""The wallet: simulated money for simulated bookings. Like bookings, it exists only with SIMULATED_SERVICES=true."""
 
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from app.deps import CurrentUser, Db, demo_only
+from app.deps import CurrentUser, Db, simulated_only
 from app.schemas import TopUpIn, WalletEntryOut, WalletOut
 from app.services import wallet
 
-router = APIRouter(prefix="/v1", tags=["wallet"], dependencies=[Depends(demo_only)])
+router = APIRouter(prefix="/v1", tags=["wallet"], dependencies=[Depends(simulated_only)])
 
 
 def _out(db, user_id: str) -> WalletOut:
