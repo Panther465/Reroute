@@ -105,7 +105,7 @@ export function AuthCard({ onSignedIn, onLoading }: { onSignedIn: (how: 'created
       transition={{ layout: { duration: 0.28, ease: EASE_OUT } }}
       initial={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(12px)' }}
       animate={{ opacity: 1, transform: 'translateY(0px)', transition: { duration: 0.4, ease: EASE_OUT, delay: 0.1 } }}
-      className="relative w-full max-w-[26rem] overflow-hidden rounded-card border border-line bg-surface p-5 shadow-[var(--shadow-toast)] sm:p-6"
+      className="relative w-full max-w-[26rem] overflow-hidden rounded-card border border-line bg-surface p-5 shadow-[var(--shadow-toast)]"
     >
       <AnimatePresence>
         {welcome !== null && (
@@ -141,7 +141,7 @@ export function AuthCard({ onSignedIn, onLoading }: { onSignedIn: (how: 'created
         />
       </motion.div>
 
-      <form onSubmit={submit} noValidate className="mt-5 flex flex-col gap-4">
+      <form onSubmit={submit} noValidate className="mt-4 flex flex-col gap-4">
         <AnimatePresence initial={false} mode="popLayout">
           {creating && (
             <motion.div
@@ -198,7 +198,7 @@ export function AuthCard({ onSignedIn, onLoading }: { onSignedIn: (how: 'created
       </form>
 
       <motion.div layout={reduce ? false : 'position'}>
-        <div className="my-5 flex items-center gap-3 t-small text-muted" aria-hidden="true">
+        <div className="my-4 flex items-center gap-3 t-small text-muted" aria-hidden="true">
           <span className="h-px flex-1 bg-line" />
           or
           <span className="h-px flex-1 bg-line" />
