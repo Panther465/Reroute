@@ -157,6 +157,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/cities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Find a city in India by name, or in a sentence that mentions one */
+        get: operations["search_v1_cities_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/places": {
         parameters: {
             query?: never;
@@ -949,6 +966,23 @@ export interface components {
             blocked?: components["schemas"]["BlockedOut"] | null;
             /** Jobid */
             jobId?: string | null;
+        };
+        /**
+         * CityOut
+         * @description A city to plan in. Only Bengaluru has sample data (metro, shared autos); elsewhere times are rough estimates.
+         */
+        CityOut: {
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+            /** State */
+            state?: string | null;
+            /**
+             * Sample
+             * @default false
+             */
+            sample: boolean;
         };
         /** DayAlternativeOut */
         DayAlternativeOut: {
@@ -2388,6 +2422,39 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    search_v1_cities_get: {
+        parameters: {
+            query: {
+                q: string;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CityOut"][];
+                };
             };
             /** @description Validation Error */
             422: {

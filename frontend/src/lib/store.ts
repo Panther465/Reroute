@@ -57,12 +57,12 @@ export interface UiState {
   rooChat: boolean
   /** Simulated partners the traveller has connected in Me (RideNow, RailGo, SkyHop…). */
   connections: Record<string, boolean>
-  /** Roo reads its chat replies aloud. */
+  /** Roo reads its chat replies aloud: off until the traveller turns it on. */
   rooVoice: boolean
 }
 
 const KEY = 'reroute:prefs:v2'
-const PERSISTED: (keyof UiState)[] = ['theme', 'lang', 'leaveAlerts', 'alerts', 'demo', 'roo', 'started', 'tripId', 'connections', 'rooVoice']
+const PERSISTED: (keyof UiState)[] = ['theme', 'lang', 'leaveAlerts', 'alerts', 'demo', 'roo', 'started', 'tripId', 'connections']
 
 function defaults(): UiState {
   return {
@@ -82,7 +82,7 @@ function defaults(): UiState {
     started: null,
     rooChat: false,
     connections: {},
-    rooVoice: true,
+    rooVoice: false,
   }
 }
 
@@ -97,6 +97,8 @@ function load(): UiState {
       base.demo = { enabled: !!saved.demo?.enabled, offline: false }
       // Settings saved by an older version keep their choices; new ones start at their defaults.
       base.alerts = { ...DEFAULT_ALERTS, ...(saved.alerts ?? {}) }
+      // Roo's voice was on by default and saved as "rooVoice"; only a choice made since counts.
+      base.rooVoice = (saved as { rooVoiceOn?: boolean }).rooVoiceOn === true
     }
   } catch {
     /* ignore corrupt storage */
@@ -114,6 +116,7 @@ function persist() {
   const out: Partial<UiState> = {}
   for (const k of PERSISTED) (out as Record<string, unknown>)[k] = state[k]
   out.demo = { enabled: state.demo.enabled, offline: false }
+  Object.assign(out, { rooVoiceOn: state.rooVoice })
   try {
     localStorage.setItem(KEY, JSON.stringify(out))
   } catch {

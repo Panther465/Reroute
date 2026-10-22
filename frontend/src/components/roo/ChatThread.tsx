@@ -107,7 +107,8 @@ export function ChatThread(p: ThreadProps) {
   const input = useRef<HTMLInputElement>(null)
   const [draft, setDraft] = useState('')
   const [placeQ, setPlaceQ] = useState('')
-  const places = usePlaceSearch(p.expect.kind === 'place' ? placeQ : '', 'bengaluru')
+  const city = p.expect.kind === 'place' && p.expect.city ? p.expect.city : { slug: 'bengaluru', name: 'Bengaluru' }
+  const places = usePlaceSearch(p.expect.kind === 'place' ? placeQ : '', city.slug)
   const [date, setDate] = useState('')
   const [time, setTime] = useState('10:00')
 
@@ -119,8 +120,11 @@ export function ChatThread(p: ThreadProps) {
   // between a search and a message (you may type while Roo is still typing its question).
   const lastKind = useRef(p.expect.kind)
   useEffect(() => {
-    setPlaceQ('')
-    if ((p.expect.kind === 'place') !== (lastKind.current === 'place')) setDraft('')
+    // A search Roo starts for you ("Let's find ramson hotel") shows its results at once.
+    const initial = p.expect.kind === 'place' ? (p.expect.initial ?? '') : ''
+    setPlaceQ(initial)
+    if (initial) setDraft(initial)
+    else if ((p.expect.kind === 'place') !== (lastKind.current === 'place')) setDraft('')
     lastKind.current = p.expect.kind
   }, [p.expect])
   useEffect(() => {
@@ -205,7 +209,7 @@ export function ChatThread(p: ThreadProps) {
         {!waiting && ex.kind === 'place' && placeQ.length >= 2 && (
           <div className="flex flex-col gap-1 px-4 pt-3" role="group" aria-label="Places found">
             {places.isPending && <p className="t-small text-ink-2">Searching…</p>}
-            {places.data?.length === 0 && <p className="t-small text-ink-2">Nothing found in Bengaluru. Try an area name, like Koramangala.</p>}
+            {places.data?.length === 0 && <p className="t-small text-ink-2">Nothing found in {city.name}. Try another name, or an area.</p>}
             {places.data?.slice(0, 5).map((pl) => (
               <button key={pl.placeId} type="button" onClick={() => p.onPlace(pl)} className="flex min-h-11 items-center gap-2 rounded-control px-2 text-left [@media(hover:hover)]:hover:bg-sunken">
                 <MapPin size={18} strokeWidth={1.75} aria-hidden="true" className="shrink-0 text-muted" />

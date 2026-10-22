@@ -6,7 +6,8 @@ import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router'
 import { api, ApiError, newKey } from '@/api/client'
 import { keys, queryClient, useAiHelperEnabled, useCurrentTripId, useTrip, waitForJob } from '@/api/queries'
-import type { Body, JobAccepted, Place, Task, TaskDraft, TaskIn, Trip, TripIn } from '@/api/types'
+import type { Body, City, JobAccepted, Place, Task, TaskDraft, TaskIn, Trip, TripIn } from '@/api/types'
+import { CityPicker } from '@/components/CityPicker'
 import { PlacePicker } from '@/components/PlacePicker'
 import { TripSwitcher } from '@/components/TripSwitcher'
 import { TripBookings } from '@/components/TripBookings'
@@ -135,11 +136,14 @@ function todayIso() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
+const BENGALURU: City = { slug: 'bengaluru', name: 'Bengaluru', state: 'Karnataka', sample: true }
+
 /**
  * Start a trip on one screen: where you're staying, which days (today unless you change it) and,
- * if you like, what you need to do. Bengaluru is the city Reroute covers so far.
+ * if you like, what you need to do. Any city or town in India: Bengaluru has the metro and shared autos.
  */
 function StartForm({ onCreated }: { onCreated: (trip: Trip, text: string) => void }) {
+  const [city, setCity] = useState<City | null>(BENGALURU)
   const [start, setStart] = useState(todayIso)
   const [end, setEnd] = useState('')
   const [pickDates, setPickDates] = useState(false)
@@ -155,10 +159,11 @@ function StartForm({ onCreated }: { onCreated: (trip: Trip, text: string) => voi
     const e: Record<string, string> = {}
     if (!start) e.start = 'Choose the first day.'
     if (end && start && end < start) e.end = 'The last day must be on or after the first day.'
+    if (!city) e.city = 'Choose the city.'
     if (!stay) e.stay = 'Choose where you are staying.'
     setErrors(e)
     if (Object.keys(e).length) return
-    const body: Body<TripIn> = { citySlug: 'bengaluru', cityName: 'Bengaluru', startDate: start, endDate: end || start, stayPlaceId: stay!.placeId, stayLabel: stay!.name }
+    const body: Body<TripIn> = { citySlug: city!.slug, cityName: city!.name, startDate: start, endDate: end || start, stayPlaceId: stay!.placeId, stayLabel: stay!.name }
     setBusy(true)
     try {
       const trip = await api.post<Trip>('/v1/trips', body, { idempotencyKey: key })
@@ -177,7 +182,17 @@ function StartForm({ onCreated }: { onCreated: (trip: Trip, text: string) => voi
   const dates = start === (end || start) ? (start === today ? `Today, ${dayLabel(start)}` : dayLabel(start)) : `${dayLabel(start)} to ${dayLabel(end)}`
   return (
     <div className="mt-6 flex flex-col gap-6">
-      <PlacePicker label="Where are you staying?" city="bengaluru" value={stay} onChange={setStay} error={errors.stay} hint="Your hotel or where you sleep in Bengaluru. Search by name or area." />
+      <CityPicker
+        value={city}
+        onChange={(c) => {
+          setCity(c)
+          setStay(null)
+        }}
+      />
+      {errors.city && !city && <p className="-mt-4 t-small text-red-ink">{errors.city}</p>}
+      {city && (
+        <PlacePicker label="Where are you staying?" city={city.slug} value={stay} onChange={setStay} error={errors.stay} hint={`Your hotel or where you sleep in ${city.name}. Search by name or area.`} />
+      )}
       {pickDates ? (
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="First day" type="date" value={start} onChange={(e) => setStart(e.target.value)} error={errors.start} />
@@ -388,7 +403,7 @@ export default function PlanDay() {
         <h1 tabIndex={-1} className="t-display-1 text-ink">
           {creating ? <T k="New trip" /> : 'Plan your day'}
         </h1>
-        <p className="mt-2 t-body text-ink-2">Reroute works out the order, when to leave, how to get there and what it costs, and re-plans when you run late. It covers Bengaluru so far.</p>
+        <p className="mt-2 t-body text-ink-2">Reroute works out the order, when to leave, how to get there and what it costs, and re-plans when you run late. It works in any city or town in India.</p>
         {!online ? (
           <div className="mt-6">
             <Banner tone="offline">You're offline. Connect to start a new trip.</Banner>

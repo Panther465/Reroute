@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { api, ApiError, newKey } from '@/api/client'
 import { keys, queryClient, waitForJob } from '@/api/queries'
-import type { JobAccepted, Place, RooOut, Trip } from '@/api/types'
+import type { City, JobAccepted, Place, RooOut, Trip } from '@/api/types'
 import { addTask, checkIn, editTask, moveTaskToDay, replanDay, skipTask, undo, undoVersionOf } from '@/lib/actions'
 import { speak } from '@/lib/alerts'
 import { hhmm } from '@/lib/format'
@@ -138,7 +138,8 @@ export function useConversation(o: ConversationOptions) {
     const { ctx } = latest.current
     const t = ctx.trip
     const today = t ? t.day : new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' })
-    return { trip: t, view: ctx.view, today, name: ctx.name }
+    const now = ctx.clock != null ? hhmm(ctx.clock) : new Date().toLocaleTimeString('en-GB', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: false })
+    return { trip: t, view: ctx.view, today, now, name: ctx.name }
   }
 
   /** Roo says one or more lines, typing each out in turn (and reading them aloud), then waits for `expect`. */
@@ -238,10 +239,14 @@ export function useConversation(o: ConversationOptions) {
       if (e.kind === 'show') return latest.current.onShow()
       setBusy(true)
       setMood('thinking')
+      if (e.kind === 'findCity') {
+        const cities = await api.get<City[]>('/v1/cities', { query: { q: e.query.slice(0, 300) } })
+        return await feed(state, { kind: 'cities', cities })
+      }
       if (e.kind === 'createTrip') {
         const trip = await api.post<Trip>(
           '/v1/trips',
-          { citySlug: 'bengaluru', cityName: 'Bengaluru', startDate: e.startDate, endDate: e.endDate, stayPlaceId: e.stay.placeId, stayLabel: e.stay.name },
+          { citySlug: e.city.slug, cityName: e.city.name, startDate: e.startDate, endDate: e.endDate, stayPlaceId: e.stay.placeId, stayLabel: e.stay.name },
           { idempotencyKey: newKey('trip') },
         )
         queryClient.setQueryData(keys.trip(trip.tripId), trip)

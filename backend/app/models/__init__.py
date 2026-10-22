@@ -73,6 +73,24 @@ class RefreshToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class CityRow(Base):
+    """A city or town beyond the built-in ones, kept the first time someone picks it (app/cities.py)."""
+
+    __tablename__ = "cities"
+
+    slug: Mapped[str] = mapped_column(String(40), primary_key=True)
+    name: Mapped[str] = mapped_column(String(80))
+    state: Mapped[str | None] = mapped_column(String(80))
+    utc_offset: Mapped[str] = mapped_column(String(6), default="+05:30")
+    #: The area place search and trips stay inside: OpenStreetMap's outline of the city, with a margin.
+    west: Mapped[float] = mapped_column(Float)
+    south: Mapped[float] = mapped_column(Float)
+    east: Mapped[float] = mapped_column(Float)
+    north: Mapped[float] = mapped_column(Float)
+    osm_id: Mapped[str | None] = mapped_column(String(40))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Place(Base):
     __tablename__ = "places"
 

@@ -1,28 +1,28 @@
 import { describe, expect, it } from 'vitest'
-import type { Place } from '@/api/types'
+import type { City, Place } from '@/api/types'
 import { goldenTrip } from '@/test/fixtures'
 import { buildDay } from '@/lib/timeline'
 import { understand } from './brain'
 import { beginNewTrip, beginOnboard, beginReplan, next, planSummary, type Answer, type FlowContext, type Step } from './flows'
+import { understandPlan } from './understand'
 
 const place = (placeId: string, name: string): Place => ({ placeId, name, area: name, lng: 77.6, lat: 12.97, sample: false }) as Place
 const fresh: FlowContext = { trip: undefined, view: null, today: '2026-10-22', name: 'Asha Rao' }
 const go = (step: Step, a: Answer, ctx = fresh) => next(step.state!, a, ctx)
 const pick = (id: string, label = id): Answer => ({ kind: 'choice', id, label })
+const BLR: City = { slug: 'bengaluru', name: 'Bengaluru', state: 'Karnataka', sample: true }
+const RAJPURA: City = { slug: 'rajpura', name: 'Rajpura', state: 'Punjab', sample: false }
 
 describe('setting up a trip by chatting', () => {
   it('asks city, days, stay and tasks in turn, and says what to do at each step', () => {
     let s = beginOnboard()
-    expect(s.say).toEqual(['Which city are you visiting?'])
-    // Another city: a kind no, and Bengaluru on offer.
-    s = go(s, { kind: 'text', text: 'Mumbai' })
-    expect(s.say[0]).toMatch(/only know Bengaluru/)
+    expect(s.say).toEqual(['Which city are you visiting? Any city or town in India.'])
     s = go(s, pick('bengaluru'))
     s = go(s, pick('tomorrow'))
     s = go(s, pick('2'))
     expect(s.expect.kind).toBe('place')
     s = go(s, { kind: 'place', place: place('p-stay', 'Majestic') })
-    expect(s.effect).toEqual({ kind: 'createTrip', startDate: '2026-10-23', endDate: '2026-10-24', stay: place('p-stay', 'Majestic') })
+    expect(s.effect).toEqual({ kind: 'createTrip', city: BLR, startDate: '2026-10-23', endDate: '2026-10-24', stay: place('p-stay', 'Majestic') })
 
     s = go(s, { kind: 'done' })
     expect(s.expect).toEqual({ kind: 'text', placeholder: 'Like “Client meeting” or “Bank”' })
@@ -82,7 +82,7 @@ describe('re-planning by chatting', () => {
     const ask = beginNewTrip(ctx)
     expect(ask.say[0]).toMatch(/^Are you sure\? You already have a plan for Bengaluru on Wednesday/)
     expect(go(ask, pick('adjust'), ctx).say).toEqual(['Sure. What’s changed?'])
-    expect(go(ask, pick('new'), ctx).say).toContain('Which city are you visiting?')
+    expect(go(ask, pick('new'), ctx).say).toContain('Which city are you visiting? Any city or town in India.')
     expect(go(ask, pick('keep'), ctx).state).toBeNull()
   })
 
@@ -101,5 +101,75 @@ describe('the brain starts these conversations, and knows money and flights', ()
     expect(understand('add 1000 to my wallet', c).action).toEqual({ type: 'topup', amount: 1000 })
     expect(understand("what's my balance?", c).reply).toBe('Your wallet has ₹5,000 of simulated money.')
     expect(understand('book a flight to Delhi', c).action).toEqual({ type: 'flight', to: 'DEL' })
+  })
+})
+
+describe('any city in India, and a long first message', () => {
+  const said =
+    'Hey so actully i am new to bengluru and i will be living in the ramson hotel i think i will reach at 9 am and then i will go to my college ' +
+    'becoz i am new here i dont know where is my iit bengluru so i wannna go there also i will have a quicl meethinga as well at 5 pm'
+
+  it('picks out where they stay and the tasks, with a time only where one was given for the task', () => {
+    expect(understandPlan(said)).toEqual({ stay: 'ramson hotel', tasks: [{ title: 'College' }, { title: 'Meeting', fixed: '17:00' }] })
+    expect(understandPlan('Tomorrow I have an interview at 11:30 and lunch, then the bank').tasks).toEqual([{ title: 'Interview', fixed: '11:30' }, { title: 'Lunch' }, { title: 'Bank' }])
+    expect(understandPlan('Tomorrow I have an interview at 11:30').start).toBe('tomorrow')
+    expect(understandPlan('I have a sales call').tasks).toEqual([])
+  })
+
+  it('looks the city up, says what it heard, then asks only what is missing', () => {
+    let s = beginOnboard()
+    s = go(s, { kind: 'text', text: said })
+    expect(s.effect).toEqual({ kind: 'findCity', query: said })
+    s = go(s, { kind: 'cities', cities: [BLR] })
+    expect(s.say).toEqual(['Bengaluru, lovely.', 'I heard that you’re staying at ramson hotel, and you have the college and the meeting at 17:00. I’ll ask about each.', 'When are you there?'])
+    s = go(s, pick('today'))
+    s = go(s, pick('1'))
+    // The hotel search starts with what they said.
+    expect(s.expect).toEqual({ kind: 'place', placeholder: 'Like Majestic or Indiranagar', city: { slug: 'bengaluru', name: 'Bengaluru' }, initial: 'ramson hotel' })
+    s = go(s, { kind: 'place', place: place('p-stay', 'Ramson Hotel') })
+    s = go(s, { kind: 'done' })
+    expect(s.say).toEqual(['Now the things you mentioned.', 'Where is the college?'])
+    s = go(s, { kind: 'place', place: place('p-col', 'IISc') })
+    expect(s.say).toEqual(['Does it happen at a fixed time?'])
+    s = go(s, pick('any'))
+    s = go(s, pick('120'))
+    expect(s.effect).toMatchObject({ kind: 'addTask', title: 'College', durationMin: 120 })
+    s = go(s, { kind: 'done' })
+    expect(s.say).toEqual(['Added.', 'Where is the meeting?'])
+    // The meeting's time came with the message: Roo goes straight to how long.
+    s = go(s, { kind: 'place', place: place('p-meet', 'MG Road') }, { ...fresh, now: '14:00' })
+    expect(s.say).toEqual(['How long will the meeting take?'])
+    s = go(s, pick('60'))
+    expect(s.effect).toMatchObject({ kind: 'addTask', title: 'Meeting', fixed: '17:00' })
+    s = go(s, { kind: 'done' })
+    expect(s.say).toEqual(['Added. That’s 2 tasks. Anything else?'])
+  })
+
+  it('a town beyond Bengaluru plans with rough times, and a name that fits several asks which', () => {
+    let s = go(beginOnboard(), { kind: 'text', text: 'raj' })
+    s = go(s, { kind: 'cities', cities: [RAJPURA, { slug: 'rajkot', name: 'Rajkot', state: 'Gujarat', sample: false }] })
+    expect(s.say).toEqual(['Which one do you mean?'])
+    s = go(s, pick('rajpura'))
+    expect(s.say).toEqual(['Rajpura, Punjab, lovely.', 'I don’t have metro or shared-auto times there yet, so I’ll plan with rough cab and walking times.', 'When are you there?'])
+    s = go(s, pick('today'))
+    s = go(s, pick('1'))
+    expect(s.expect).toMatchObject({ kind: 'place', city: { slug: 'rajpura', name: 'Rajpura' } })
+    s = go(s, { kind: 'place', place: place('p', 'Chitkara University') })
+    expect(s.effect).toMatchObject({ kind: 'createTrip', city: RAJPURA })
+    expect(go(go(beginOnboard(), { kind: 'text', text: 'Atlantis' }), { kind: 'cities', cities: [] }).say).toEqual([
+      'I couldn’t find a city or town by that name in India.',
+      'Type just its name, like Rajpura or Pune.',
+    ])
+  })
+
+  it('a fixed time that has already gone today is caught', () => {
+    const at3 = { ...fresh, now: '15:00' }
+    let s = go(beginOnboard(), pick('bengaluru'), at3)
+    for (const a of [pick('today'), pick('1'), { kind: 'place', place: place('p', 'Majestic') } as Answer, { kind: 'done' } as Answer, { kind: 'text', text: 'College' } as Answer, { kind: 'place', place: place('c', 'IISc') } as Answer, pick('fixed')]) s = go(s, a, at3)
+    s = go(s, { kind: 'time', hhmm: '10:00' }, at3)
+    expect(s.say).toEqual(['It’s already past 10:00 today. Pick a later time, or another way.'])
+    s = go(s, pick('fixed'), at3)
+    s = go(s, { kind: 'time', hhmm: '16:30' }, at3)
+    expect(s.say).toEqual(['How long will the college take?'])
   })
 })

@@ -28,7 +28,7 @@ from app.services import morning, plan_store
 from app.services.day import RULE, DayContext, build_input, fetch_snapshot, needed_places, sense
 from app.services.planner import Objective, ReplanInput, ReplanOption, ReplanResult, TravelSnapshot, explain, plan_day, replan
 from app.services.planner.hashing import canonical_json
-from app.services.planner.util import rupees
+from app.services.planner.util import hhmm, lower_first, rupees
 
 #: How long a run waits for another run on the same trip before answering 409 BUSY.
 LOCK_TIMEOUT = "5s"
@@ -136,8 +136,8 @@ def create_plan(db: Session, trip: Trip, adapter: TravelTimeAdapter, now: dateti
     inp = build_input(ctx, _snapshot(db, ctx, adapter, gathered, include_unplaced=True), Objective(allow_unplace=True), include_unplaced=True)
     result = plan_day(inp)
     if not result.feasible:
-        reason = result.blocked.reason if result.blocked else "No plan keeps every fixed time"
-        blocked = {"taskId": result.blocked.task_id, "title": result.blocked.title, "reason": result.blocked.reason} if result.blocked else None
+        reason = (_passed(ctx, result.blocked.task_id) or result.blocked.reason) if result.blocked else "No plan keeps every fixed time"
+        blocked = {"taskId": result.blocked.task_id, "title": result.blocked.title, "reason": reason} if result.blocked else None
         raise ApiError(409, f"{reason}. Move it to another day or change it.", code="NO_FEASIBLE_PLAN", extra={"blocked": blocked})
     text = explain.created(len(inp.tasks), result.approximate)
     unplaced = [m for m in result.moved if m.kind == "unplaced"]
@@ -156,6 +156,18 @@ def create_plan(db: Session, trip: Trip, adapter: TravelTimeAdapter, now: dateti
     # The morning plan is news: the traveller didn't ask for it, so the phone may say so.
     events.publish(trip.trip_id, "plan_updated", _plan_event(plan, notify=trigger == "morning"))
     return plan
+
+
+def _passed(ctx: DayContext, task_id: str) -> str | None:
+    """When a fixed time has already gone (a trip planned for today in the afternoon), say just that:
+    "the earliest arrival is 15:55" reads like a mistake."""
+    task = ctx.tasks.get(task_id)
+    if task is None or task.fixed_start is None or ctx.now.astimezone(ctx.tz).date() != ctx.day:
+        return None
+    at = minutes_of_day(task.fixed_start, ctx.day, ctx.tz)
+    if at >= ctx.now_min:
+        return None
+    return f"The {lower_first(task.title)} was at {hhmm(at)}, and that time has already passed today"
 
 
 def _day_done(ctx: DayContext) -> bool:

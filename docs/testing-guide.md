@@ -10,7 +10,7 @@ The demo account is a prepared day on a simulated clock. A real account is an or
 |---|---|---|
 | Sign in | **Use the demo account**, shown only with `DEMO_LOGIN=true` in `.env` (off by default) | **Create account** with a name, email and password on the home screen, or **Continue with Google** once Google is set up (below). Trips are kept with the account. |
 | First visit | The sample day | **Roo, full screen**, introduces itself and sets up the first trip by chatting, then plans it |
-| Cities | Bengaluru | **Bengaluru only.** Any other city answers "Reroute doesn't cover that city yet." |
+| Cities | Bengaluru | **Any city or town in India**, typed by name (slips are fine: "bengluru", "Gurgaon"), like Rajpura with Chitkara University. Outside Bengaluru, travel is rough cab and walking times |
 | Travel options | Metro, shared autos, walks and cabs from the sample travel-time file | Places you search for get **a rough cab estimate**, and a walk under 1.5 km, from the straight-line distance, marked "Rough estimate". No metro or shared auto until real routing data is set up (below). |
 | Clock | Simulated: the **Simulate** panel moves time on | Real time. The Simulate panel is shown only to the demo account, so testing "running late" means reporting a delay at the real time. |
 | Bookings (train, flight, cab) and the wallet | Simulated, ₹5,000 to start, every partner connected | Simulated too while `SIMULATED_SERVICES` is on (the default; off in production): ₹2,000 to start, partners to connect in Me |

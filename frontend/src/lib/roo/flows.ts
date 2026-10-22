@@ -3,11 +3,12 @@
 // does the work (create the trip, add a task, plan, show a card) and hands back the result. Nothing here
 // talks to the server, so every path is tested without one.
 
-import type { Place, Trip } from '@/api/types'
+import type { City, Place, Trip } from '@/api/types'
 import { duration, hhmm, lowerFirst } from '@/lib/format'
 import { addDays, weekday, type DayView } from '@/lib/timeline'
 import { clockIn, forSpeech } from './brain'
 import type { RooAction } from './brain'
+import { understandPlan, type PlanHints, type TaskHint } from './understand'
 
 export interface Choice {
   id: string
@@ -19,13 +20,14 @@ export type Expect =
   | { kind: 'free' }
   | { kind: 'choice'; options: Choice[]; allowText?: boolean }
   | { kind: 'text'; placeholder: string }
-  | { kind: 'place'; placeholder: string }
+  | { kind: 'place'; placeholder: string; city?: { slug: string; name: string }; initial?: string }
   | { kind: 'date' }
   | { kind: 'time' }
 
 /** What the app should do before the conversation goes on. Its result comes back as an answer. */
 export type Effect =
-  | { kind: 'createTrip'; startDate: string; endDate: string; stay: Place }
+  | { kind: 'findCity'; query: string }
+  | { kind: 'createTrip'; city: City; startDate: string; endDate: string; stay: Place }
   | { kind: 'addTask'; title: string; place: Place; durationMin: number; fixed?: string; window?: { opensAt: string; closesAt: string } }
   | { kind: 'plan' }
   | { kind: 'action'; action: RooAction }
@@ -39,6 +41,7 @@ export type Answer =
   | { kind: 'time'; hhmm: string }
   | { kind: 'done'; summary?: string }
   | { kind: 'failed'; message: string }
+  | { kind: 'cities'; cities: City[] }
 
 interface TaskDraft {
   title?: string
@@ -56,6 +59,12 @@ export interface FlowState {
   added?: number
   /** The task a re-plan is about. */
   taskId?: string
+  city?: City
+  /** Cities to choose between, when a name fits more than one. */
+  cities?: City[]
+  /** What a long first message said: where they stay, and tasks Roo then asks about one by one. */
+  hints?: PlanHints
+  queue?: TaskHint[]
 }
 
 export interface Step {
@@ -70,6 +79,8 @@ export interface FlowContext {
   view: DayView | null
   /** Today, as the trip clock (or the phone) sees it: YYYY-MM-DD. */
   today: string
+  /** The time now, HH:MM, to catch a fixed time that has already gone today. */
+  now?: string
   name?: string | null
 }
 
@@ -87,6 +98,11 @@ const LENGTHS: [string, string][] = [
   ['120', '2 hours'],
   ['180', '3 hours'],
 ]
+
+const BENGALURU: City = { slug: 'bengaluru', name: 'Bengaluru', state: 'Karnataka', sample: true }
+const WHEN = choice([['today', 'From today'], ['tomorrow', 'From tomorrow'], ['other', 'Another day']])
+const DAYS = choice([['1', 'Just that day'], ['2', '2 days'], ['3', '3 days']])
+const HOW = choice([['fixed', 'At a fixed time'], ['hours', 'Within opening hours'], ['any', 'Any time']])
 
 const the = (s: string) => `the ${lowerFirst(s)}`
 /** A length as Roo says it in a sentence: "2 hours", not "2 h". */
@@ -108,12 +124,59 @@ export function intro(name?: string | null): string[] {
 }
 
 function askCity(state: Omit<FlowState, 'step'>): Step {
-  return { state: { ...state, step: 'city' }, say: ['Which city are you visiting?'], expect: choice([['bengaluru', 'Bengaluru']], true) }
+  return { state: { ...state, step: 'city' }, say: ['Which city are you visiting? Any city or town in India.'], expect: choice([['bengaluru', 'Bengaluru']], true) }
 }
 
-function askStay(state: FlowState): Step {
-  return { state: { ...state, step: 'stay' }, say: ['Where are you staying? Type your hotel or the area, and pick it from the list.'], expect: { kind: 'place', placeholder: 'Like Majestic or Indiranagar' } }
+/** A place search in the trip's city, starting from what they already said, if anything. */
+function placeIn(state: FlowState, ctx: FlowContext, placeholder: string, initial?: string): Expect {
+  const c = state.city ?? (ctx.trip ? { slug: ctx.trip.citySlug, name: ctx.trip.cityName } : BENGALURU)
+  return { kind: 'place', placeholder, city: { slug: c.slug, name: c.name }, initial }
 }
+
+function askStay(state: FlowState, ctx: FlowContext): Step {
+  const stay = state.hints?.stay
+  const sample = !state.city || state.city.sample
+  return {
+    state: { ...state, step: 'stay' },
+    say: [stay ? `Where are you staying? Let’s find ${stay}: pick it from the list, or type another name.` : 'Where are you staying? Type your hotel or the area, and pick it from the list.'],
+    expect: placeIn(state, ctx, sample ? 'Like Majestic or Indiranagar' : 'Your hotel, hostel or area', stay),
+  }
+}
+
+/** Roo repeats back what it picked out of a long message, so the traveller knows it listened. */
+function heard(h: PlanHints): string | null {
+  const parts: string[] = []
+  if (h.stay) parts.push(`you’re staying at ${h.stay}`)
+  const tasks = h.tasks.map((t) => `${the(t.title)}${t.fixed ? ` at ${t.fixed}` : ''}`)
+  if (tasks.length) parts.push(`you have ${tasks.length > 1 ? `${tasks.slice(0, -1).join(', ')} and ${tasks[tasks.length - 1]}` : tasks[0]}`)
+  return parts.length ? `I heard that ${parts.join(', and ')}. I’ll ask about each.` : null
+}
+
+function chosen(state: FlowState, city: City, ctx: FlowContext): Step {
+  const s: FlowState = { ...state, city, cities: undefined }
+  const lines = [`${city.name}${city.state && !city.sample ? `, ${city.state}` : ''}, lovely.`]
+  if (!city.sample) lines.push('I don’t have metro or shared-auto times there yet, so I’ll plan with rough cab and walking times.')
+  const h = state.hints && heard(state.hints)
+  if (h) lines.push(h)
+  if (state.hints?.start) {
+    const start = state.hints.start === 'tomorrow' ? addDays(ctx.today, 1) : ctx.today
+    return { state: { ...s, step: 'days', start }, say: [...lines, 'And for how many days?'], expect: DAYS }
+  }
+  return { state: { ...s, step: 'when' }, say: [...lines, 'When are you there?'], expect: WHEN }
+}
+
+/** The next task the first message mentioned: its title (and time) are known, so Roo asks where. */
+function nextMentioned(state: FlowState, ctx: FlowContext, lead: string[]): Step {
+  const [t, ...rest] = state.queue ?? []
+  return {
+    state: { ...state, step: 'task-place', queue: rest, task: { title: t.title, fixed: t.fixed } },
+    say: [...lead, `Where is ${the(t.title)}?`],
+    expect: placeIn(state, ctx, 'A place or area'),
+  }
+}
+
+/** A fixed time today that has already gone. */
+const gone = (state: FlowState, ctx: FlowContext, at?: string) => !!at && !!ctx.now && (state.start ?? ctx.today) === ctx.today && at <= ctx.now
 
 function askTask(state: FlowState, again: boolean): Step {
   return {
@@ -131,52 +194,75 @@ function onboard(state: FlowState, a: Answer, ctx: FlowContext): Step {
   const today = ctx.today
   switch (state.step) {
     case 'city': {
-      const said = a.kind === 'choice' ? a.id : a.kind === 'text' ? a.text.toLowerCase() : ''
-      if (/bengaluru|bangalore|blr/.test(said)) {
-        return { state: { ...state, step: 'when' }, say: ['Bengaluru, lovely. When are you there?'], expect: choice([['today', 'From today'], ['tomorrow', 'From tomorrow'], ['other', 'Another day']]) }
+      if (a.kind === 'choice' && a.id === 'bengaluru') return chosen(state, BENGALURU, ctx)
+      const text = a.kind === 'text' ? a.text.trim() : ''
+      if (!text) return askCity(state)
+      // A long first message can say much more than the city: keep it, so Roo asks only what's missing.
+      const hints = text.split(/\s+/).length > 3 ? understandPlan(text) : state.hints
+      return { state: { ...state, step: 'city-found', hints }, say: ['Let me find that…'], expect: FREE, effect: { kind: 'findCity', query: text } }
+    }
+    case 'city-found': {
+      const found = a.kind === 'cities' ? a.cities : []
+      if (found.length === 1) return chosen(state, found[0], ctx)
+      if (found.length > 1) {
+        const options = found.map((c): [string, string] => [c.slug, c.state ? `${c.name}, ${c.state}` : c.name])
+        return { state: { ...state, step: 'city-pick', cities: found }, say: ['Which one do you mean?'], expect: choice([...options, ['none', 'None of these']], true) }
       }
-      return { state, say: ['I only know Bengaluru so far: its places, travel times and shared autos. Shall we plan a Bengaluru trip?'], expect: choice([['bengaluru', 'Yes, Bengaluru']]) }
+      const why = a.kind === 'failed' ? `I couldn’t look that up: ${a.message}` : 'I couldn’t find a city or town by that name in India.'
+      return { state: { ...state, step: 'city' }, say: [why, 'Type just its name, like Rajpura or Pune.'], expect: choice([['bengaluru', 'Bengaluru']], true) }
+    }
+    case 'city-pick': {
+      const c = a.kind === 'choice' ? state.cities?.find((x) => x.slug === a.id) : undefined
+      if (c) return chosen(state, c, ctx)
+      if (a.kind === 'text') return onboard({ ...state, step: 'city' }, a, ctx)
+      return askCity(state)
     }
     case 'when': {
       if (a.kind === 'choice' && a.id === 'other') return { state: { ...state, step: 'when-date' }, say: ['Which day does it start?'], expect: { kind: 'date' } }
       const start = a.kind === 'choice' && a.id === 'tomorrow' ? addDays(today, 1) : today
-      return { state: { ...state, step: 'days', start }, say: ['And for how many days?'], expect: choice([['1', 'Just that day'], ['2', '2 days'], ['3', '3 days']]) }
+      return { state: { ...state, step: 'days', start }, say: ['And for how many days?'], expect: DAYS }
     }
     case 'when-date': {
       if (a.kind !== 'date' || a.date < today) return { state, say: ['Pick today or a day after it.'], expect: { kind: 'date' } }
-      return { state: { ...state, step: 'days', start: a.date }, say: ['And for how many days?'], expect: choice([['1', 'Just that day'], ['2', '2 days'], ['3', '3 days']]) }
+      return { state: { ...state, step: 'days', start: a.date }, say: ['And for how many days?'], expect: DAYS }
     }
     case 'days': {
       const days = a.kind === 'choice' ? Number(a.id) : 1
-      return askStay({ ...state, days: Math.min(14, Math.max(1, days || 1)) })
+      return askStay({ ...state, days: Math.min(14, Math.max(1, days || 1)) }, ctx)
     }
     case 'stay': {
-      if (a.kind !== 'place') return askStay(state)
+      if (a.kind !== 'place') return askStay(state, ctx)
       const start = state.start ?? today
       return {
         state: { ...state, step: 'creating' },
         say: [`${a.place.name}, got it. Setting up your trip…`],
         expect: FREE,
-        effect: { kind: 'createTrip', startDate: start, endDate: addDays(start, (state.days ?? 1) - 1), stay: a.place },
+        effect: { kind: 'createTrip', city: state.city ?? BENGALURU, startDate: start, endDate: addDays(start, (state.days ?? 1) - 1), stay: a.place },
       }
     }
     case 'creating': {
-      if (a.kind === 'failed') return { state: { ...state, step: 'stay' }, say: [`That didn’t work: ${a.message} Try another place.`], expect: { kind: 'place', placeholder: 'Your hotel or area' } }
+      if (a.kind === 'failed') return { state: { ...state, step: 'stay' }, say: [`That didn’t work: ${a.message} Try another place.`], expect: placeIn(state, ctx, 'Your hotel or area') }
+      const mentioned = state.hints?.tasks ?? []
+      if (mentioned.length) return nextMentioned({ ...state, added: 0, queue: mentioned }, ctx, ['Now the things you mentioned.'])
       return askTask({ ...state, added: 0 }, false)
     }
     case 'task-title': {
       const title = a.kind === 'text' ? a.text.trim().replace(/^(a|an|the)\s+/i, '') : ''
       if (!title) return askTask(state, (state.added ?? 0) > 0)
       const name = title.charAt(0).toUpperCase() + title.slice(1)
-      return { state: { ...state, step: 'task-place', task: { title: name } }, say: [`Where is ${the(name)}?`], expect: { kind: 'place', placeholder: 'A place or area, like Koramangala' } }
+      return {
+        state: { ...state, step: 'task-place', task: { title: name } },
+        say: [`Where is ${the(name)}?`],
+        expect: placeIn(state, ctx, state.city && !state.city.sample ? 'A place or area' : 'A place or area, like Koramangala'),
+      }
     }
     case 'task-place': {
-      if (a.kind !== 'place') return { state, say: [`Pick where ${the(state.task?.title ?? 'it')} is from the list.`], expect: { kind: 'place', placeholder: 'A place or area' } }
-      return {
-        state: { ...state, step: 'task-when', task: { ...state.task, place: a.place } },
-        say: ['Does it happen at a fixed time?'],
-        expect: choice([['fixed', 'At a fixed time'], ['hours', 'Within opening hours'], ['any', 'Any time']]),
-      }
+      if (a.kind !== 'place') return { state, say: [`Pick where ${the(state.task?.title ?? 'it')} is from the list.`], expect: placeIn(state, ctx, 'A place or area') }
+      const task = { ...state.task, place: a.place }
+      // A time from the first message: no need to ask, unless it has already gone today.
+      if (task.fixed && !gone(state, ctx, task.fixed)) return askLength({ ...state, task })
+      const lead = task.fixed ? [`${task.fixed} has already passed today, so let’s pick another way.`] : []
+      return { state: { ...state, step: 'task-when', task: { ...task, fixed: undefined } }, say: [...lead, 'Does it happen at a fixed time?'], expect: HOW }
     }
     case 'task-when': {
       const id = a.kind === 'choice' ? a.id : 'any'
@@ -187,6 +273,7 @@ function onboard(state: FlowState, a: Answer, ctx: FlowContext): Step {
     case 'task-time': {
       const t = a.kind === 'time' ? a.hhmm : a.kind === 'text' ? clockIn(`at ${a.text}`) : null
       if (!t) return { state, say: ['Give me a time, like 10:00.'], expect: { kind: 'time' } }
+      if (gone(state, ctx, t)) return { state: { ...state, step: 'task-when' }, say: [`It’s already past ${t} today. Pick a later time, or another way.`], expect: HOW }
       return askLength({ ...state, task: { ...state.task, fixed: t } })
     }
     case 'task-hours': {
@@ -207,6 +294,7 @@ function onboard(state: FlowState, a: Answer, ctx: FlowContext): Step {
     case 'adding': {
       if (a.kind === 'failed') return { state: { ...state, step: 'more' }, say: [`I couldn’t add it: ${a.message}`], expect: choice([['another', 'Try another task'], ['plan', 'Plan my day']]) }
       const n = (state.added ?? 0) + 1
+      if (state.queue?.length) return nextMentioned({ ...state, added: n, task: {} }, ctx, ['Added.'])
       return { state: { ...state, step: 'more', added: n, task: {} }, say: [n === 1 ? 'Added. Anything else today?' : `Added. That’s ${n} tasks. Anything else?`], expect: choice([['another', 'Add another task'], ['plan', 'That’s all, plan my day']]) }
     }
     case 'more': {
