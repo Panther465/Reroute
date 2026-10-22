@@ -148,15 +148,8 @@ function Station({ status, icon: Icon, pulse, justDone, reduce, hollow, delay, r
       transition={{ delay, duration: 0.24, ease: EASE_OUT }}
     >
       {pulse && !reduce && (
-        <motion.span
-          aria-hidden="true"
-          // Tests skip looping animations when waiting for a settled screen.
-          data-looping=""
-          className="absolute inset-0 rounded-full bg-yellow"
-          initial={{ opacity: 0.6, scale: 1 }}
-          animate={{ opacity: 0, scale: 1.6 }}
-          transition={{ duration: 1.6, repeat: Infinity, ease: 'easeOut' }}
-        />
+        // Tests skip looping animations when waiting for a settled screen.
+        <span aria-hidden="true" data-looping="" className="rr-now-pulse absolute inset-0 rounded-full bg-yellow" />
       )}
       <motion.span
         key={status}
