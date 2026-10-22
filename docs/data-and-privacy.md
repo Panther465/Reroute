@@ -35,6 +35,7 @@ Reroute uses free public services. Each sees only what it needs, and none gets y
 | Service | What it receives | When |
 |---|---|---|
 | Microsoft Edge's read-aloud service (through the edge-tts library) | The text of an alert Roo reads out, such as "Time to leave for the bank" | Only with natural voices on (`TTS_ENABLED`); otherwise your phone's own voice reads it and nothing is sent |
+| Your browser's speech service (Google's, in Chrome) | The sound of the one sentence you say to Roo; Reroute never receives or keeps the recording, only the words your browser hands back, and those stay on your phone | Only while Roo shows "Listening", after you tap "Talk to Roo". The microphone goes off when you finish the sentence, after 8 seconds of silence, or when you close Roo |
 | OpenStreetMap Nominatim | The text you type in place search, and the city | When you search for a place Reroute doesn't already know |
 | OpenFreeMap (map tiles) | Which map tiles your phone loads, so the area you look at, including around your position while "Follow me" is on | Whenever the map is shown; your phone fetches the tiles directly |
 | Public OSRM server | The coordinates of a leg's two stops (never your live position) | When the map draws a leg along the roads (cached 30 days) |
