@@ -44,12 +44,24 @@ class PostBody(Api):
 # ---------- users and auth ----------
 
 
+class FeaturesOut(Api):
+    """What this server has switched on, so the app shows only what works."""
+
+    #: Simulated train tickets and cab rides (only with the demo login).
+    bookings: bool
+    #: "Describe your day" (AI_HELPER_ENABLED).
+    ai_helper: bool
+    #: Natural voices for Roo's alerts (TTS_ENABLED); otherwise the phone's own voice.
+    voices: bool
+
+
 class UserOut(Api):
     user_id: str
     email: str
     name: str
     role: Literal["traveller", "moderator", "admin"]
     is_demo: bool = False
+    features: FeaturesOut
 
 
 class TokenOut(Api):
@@ -230,7 +242,8 @@ class PlanOut(Api):
     day: date
     version: int | None
     status: Literal["proposed", "active", "superseded"]
-    trigger: Literal["created", "late", "skipped", "edited"]
+    #: "morning": the scheduler planned the day on its own, early in the local morning.
+    trigger: Literal["created", "late", "skipped", "edited", "morning"]
     checkin_id: str | None
     inputs_hash: str
     rule_version: str
@@ -314,6 +327,8 @@ class CheckinOut(Api):
     explanation: str = ""
     plan: PlanOut | None = None
     options: list[OptionOut] = []
+    #: The set `options` belongs to: send it back when accepting one.
+    option_set_id: str | None = None
     blocked: BlockedOut | None = None
     job_id: str | None = None
 

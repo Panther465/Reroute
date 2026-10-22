@@ -20,10 +20,11 @@ from sqlalchemy.exc import IntegrityError
 
 from app import events
 from app.adapters.google import calendar_events
+from app.adapters.llm import HHMM
 from app.cities import city as supported_city
 from app.clock import now_for, set_demo_now, tz_for
 from app.config import get_settings
-from app.deps import CurrentUser, Db, OwnedTrip
+from app.deps import CurrentUser, Db, OwnedTrip, demo_only
 from app.errors import ApiError
 from app.models import Checkin, Place, Plan, Task, Trip
 from app.schemas import (
@@ -121,6 +122,7 @@ def _checkin_out(db, trip: Trip, checkin: Checkin, outcome: dict | None, job_id:
         explanation=outcome.get("explanation", ""),
         plan=plan_store.plan_out(plan) if plan is not None and result in ("shifted", "recorded") else None,
         options=options.options if options else [],
+        option_set_id=options.option_set_id if options else outcome.get("optionSetId"),
         blocked=blocked,
         job_id=job_id,
     )
@@ -153,7 +155,8 @@ def list_trips(user: CurrentUser, db: Db, cursor: str | None = None, limit: Anno
     stmt = select(Trip).where(Trip.user_id == user.user_id)
     if cursor:
         try:
-            start_date, trip_id = base64.urlsafe_b64decode(cursor.encode()).decode().split("|", 1)
+            raw_date, trip_id = base64.urlsafe_b64decode(cursor.encode()).decode().split("|", 1)
+            start_date = date.fromisoformat(raw_date)
         except Exception as exc:
             raise ApiError(400, "That cursor isn't valid.") from exc
         stmt = stmt.where(or_(Trip.start_date < start_date, and_(Trip.start_date == start_date, Trip.trip_id < trip_id)))
@@ -361,6 +364,14 @@ def checkin(body: CheckinIn, trip: OwnedTrip, db: Db, response: Response) -> Che
                     "reasonCodes": ["TASK_SKIPPED"],
                     "explanation": "Skipped. Your later stops moved up.",
                 }
+            elif outcome is not None and outcome.get("code") == "NO_FEASIBLE_PLAN":
+                # The skip is saved either way; what's left of the day just doesn't fit any more.
+                outcome = {
+                    "result": "no_feasible_plan",
+                    "reasonCodes": ["TASK_SKIPPED", "NO_FEASIBLE_PLAN"],
+                    "explanation": f"Skipped. {outcome['error']}",
+                    "blocked": outcome.get("blocked"),
+                }
         else:
             job = get_queue().enqueue(
                 jobs.replan_trip, trip.trip_id, body.delay_min or 0, False, row.checkin_id, now.isoformat() if body.kind == "done" else None
@@ -378,9 +389,10 @@ def checkin(body: CheckinIn, trip: OwnedTrip, db: Db, response: Response) -> Che
 
 
 @router.get("/trips/{trip_id}/summary", response_model=SummaryOut, response_model_by_alias=True)
-def summary(trip: OwnedTrip, db: Db, day: str | None = None) -> SummaryOut:
-    which = date.fromisoformat(day) if day else trip_day(trip, now_for(trip.trip_id))
-    return summary_out(db, trip, which)
+def summary(trip: OwnedTrip, db: Db, day: date | None = None) -> SummaryOut:
+    if day is not None and not trip.start_date <= day <= trip.end_date:
+        raise ApiError(422, "Choose a day within the trip.", code="VALIDATION_ERROR")
+    return summary_out(db, trip, day or trip_day(trip, now_for(trip.trip_id)))
 
 
 # ---------- Google Calendar ----------
@@ -436,10 +448,10 @@ async def ai_task_drafts(body: AiHelperIn, trip: OwnedTrip, db: Db) -> list[Task
     for t, match in zip(raw, matches, strict=True):
         place_text = t.get("placeText", "")
         fixed = None
-        if t.get("fixedStart"):
-            tz = tz_for(trip.utc_offset)
+        # Only a real "HH:MM" becomes a fixed time; anything else is dropped and the traveller sets it.
+        if isinstance(t.get("fixedStart"), str) and HHMM.match(t["fixedStart"]):
             h, m = map(int, t["fixedStart"].split(":"))
-            fixed = datetime.combine(day, dtime(h, m), tz)
+            fixed = datetime.combine(day, dtime(h, m), tz_for(trip.utc_offset))
         drafts.append(
             TaskDraftOut(
                 title=t["title"],
@@ -458,14 +470,9 @@ async def ai_task_drafts(body: AiHelperIn, trip: OwnedTrip, db: Db) -> list[Task
 # ---------- demo clock (DEMO_LOGIN only) ----------
 
 
-def _demo_only() -> None:
-    if not get_settings().demo_login:
-        raise ApiError(404, "Not found.")
-
-
 @router.post("/trips/{trip_id}/demo/clock", response_model=TripOut, response_model_by_alias=True, summary="Demo: set the simulated time (DEMO_LOGIN only)")
 def demo_clock(body: DemoClockIn, trip: OwnedTrip, db: Db) -> TripOut:
-    _demo_only()
+    demo_only()
     set_demo_now(trip.trip_id, body.now)
     return trip_out(db, trip, body.now)
 
@@ -474,7 +481,7 @@ def demo_clock(body: DemoClockIn, trip: OwnedTrip, db: Db) -> TripOut:
     "/trips/{trip_id}/demo/check", response_model=CheckinOut, response_model_by_alias=True, summary="Demo: run the 5-minute check now (DEMO_LOGIN only)"
 )
 def demo_check(body: PostBody, trip: OwnedTrip, db: Db) -> CheckinOut:
-    _demo_only()
+    demo_only()
     job = get_queue().enqueue(jobs.five_minute_check, trip.trip_id)
     outcome = _wait(job, get_settings().checkin_wait_seconds)
     marker = Checkin(checkin_id="auto", trip_id=trip.trip_id, task_id="", kind="check", at=now_for(trip.trip_id), idempotency_key="auto")
@@ -483,7 +490,7 @@ def demo_check(body: PostBody, trip: OwnedTrip, db: Db) -> CheckinOut:
 
 @router.post("/trips/{trip_id}/demo/reset", response_model=TripOut, response_model_by_alias=True, summary="Demo: restore the sample day (DEMO_LOGIN only)")
 def demo_reset(body: PostBody, trip: OwnedTrip, db: Db) -> TripOut:
-    _demo_only()
+    demo_only()
     if not trip.sample:
         raise ApiError(409, "Only the sample trip can be reset.")
     from app.routes.auth import DEMO_CLOCK_START
@@ -494,4 +501,6 @@ def demo_reset(body: PostBody, trip: OwnedTrip, db: Db) -> TripOut:
     db.execute(delete(Trip).where(Trip.user_id == trip.user_id, Trip.trip_id != trip.trip_id, Trip.sample.is_(False)))
     set_demo_now(trip.trip_id, datetime.fromisoformat(DEMO_CLOCK_START))
     db.commit()
+    # Again after the commit: a check that ran meanwhile may have remembered something of the old day.
+    loop.forget_trip_state(trip.trip_id)
     return trip_out(db, trip, now_for(trip.trip_id))

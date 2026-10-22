@@ -153,7 +153,8 @@ def replan(inp: ReplanInput) -> ReplanResult:
         new_times = tuple(leg.leave_by for leg in shifted.legs)
         if new_times == inp.active_leave_times:
             return ReplanResult(result="on_time", reason_codes=(ReasonCode.ON_TIME,), explanation=explain.on_time(), plan=shifted)
-        moved_by = max(0, new_times[0] - inp.active_leave_times[0]) if new_times and inp.active_leave_times else 0
+        # Signed: finishing early moves the next stop earlier, which is said as such, never "0 min later".
+        moved_by = new_times[0] - inp.active_leave_times[0] if new_times and inp.active_leave_times else 0
         return ReplanResult(
             result="shifted",
             reason_codes=tuple([*codes, ReasonCode.SHIFT_ONLY]),

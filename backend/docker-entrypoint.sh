@@ -12,7 +12,8 @@ case "$role" in
     if [ "${SEED_ON_START:-false}" = "true" ]; then
       python -m app.seed
     fi
-    exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*' --workers "${API_WORKERS:-2}"
+    # The API writes its own request log, without query strings or share tokens (app/middleware.py).
+    exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*' --no-access-log --workers "${API_WORKERS:-2}"
     ;;
   worker)
     # A short TTL keeps each blocking wait at about 45 s. With the default (405 s) the worker treated

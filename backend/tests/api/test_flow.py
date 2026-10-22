@@ -5,60 +5,23 @@ Needs PostgreSQL with PostGIS: TEST_DATABASE_URL. Jobs run inline; Raasta answer
 
 from __future__ import annotations
 
-import uuid
 from datetime import date
 
 import pytest
-from alembic import command
-from alembic.config import Config
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
-from app.adapters.transit import RouteInfo, StaticTransitAdapter
-from app.adapters.travel_times import SampleSnapshotAdapter
 from app.db import engine, session_scope
 from app.main import app
-from app.seed import seed
 from app.workers import jobs
+
+from .conftest import key
 
 pytestmark = pytest.mark.db
 
-RAASTA = {
-    rid: RouteInfo(route_id=rid, status="verified", first_trip="07:00", last_trip="21:30", fare_inr=30, frequency_min=10)
-    for rid in ("sample-kor-jay", "sample-jay-kor")
-}
 
-
-@pytest.fixture(scope="module")
-def database():
-    cfg = Config("alembic.ini")
-    with engine().begin() as conn:
-        conn.execute(text("DROP SCHEMA IF EXISTS public CASCADE; CREATE SCHEMA public; CREATE EXTENSION IF NOT EXISTS postgis;"))
-    command.upgrade(cfg, "head")
-    yield
-
-
-@pytest.fixture
-def client(database, monkeypatch):
-    with engine().begin() as conn:
-        conn.execute(
-            text("TRUNCATE users, places, trips, tasks, plans, plan_legs, checkins, share_links, reroute_log, refresh_tokens RESTART IDENTITY CASCADE")
-        )
-    with session_scope() as db:
-        seed(db)
-    monkeypatch.setattr(jobs, "adapter_factory", lambda: SampleSnapshotAdapter(StaticTransitAdapter(RAASTA)))
-    c = TestClient(app, base_url="https://testserver")
-    token = c.post("/v1/auth/demo", json={"as": "traveller"}).json()["accessToken"]
-    c.headers["Authorization"] = f"Bearer {token}"
-    return c
-
-
-def key() -> str:
-    return "test-" + uuid.uuid4().hex
-
-
-def clock(c, hhmm: str):
-    res = c.post("/v1/trips/trip-001/demo/clock", json={"now": f"2026-10-14T{hhmm}:00+05:30", "idempotencyKey": key()})
+def clock(c, hhmm: str, day: str = "2026-10-14"):
+    res = c.post("/v1/trips/trip-001/demo/clock", json={"now": f"{day}T{hhmm}:00+05:30", "idempotencyKey": key()})
     assert res.status_code == 200, res.text
 
 
@@ -587,9 +550,37 @@ def test_a_task_moved_to_tomorrow_is_planned_tomorrow(client):
     with session_scope() as db:
         trip = db.get(TripModel, "trip-001")
         from datetime import datetime as dt
+        from datetime import timedelta
 
         ctx = sense(db, trip, dt.fromisoformat("2026-10-15T07:30:00+05:30"))
         assert "task-office" in {t.task_id for t in ctx.planner_tasks()}
+
+    # Planning the next day takes the office in, and there it's an ordinary planned task.
+    clock(client, "07:30", day="2026-10-15")
+    job = client.post("/v1/trips/trip-001/plans", json={"idempotencyKey": key()}).json()["jobId"]
+    assert client.get(f"/v1/jobs/{job}").json()["status"] == "finished"
+    trip_view = client.get("/v1/trips/trip-001").json()
+    plan = trip_view["activePlan"]
+    assert plan["day"] == "2026-10-15" and "task-office" in [leg["taskId"] for leg in plan["legs"]]
+    office = {t["taskId"]: t for t in trip_view["tasks"]}["task-office"]
+    assert (office["state"], office["day"]) == ("planned", "2026-10-15")
+    # The first day's summary still says it moved.
+    first_day = client.get("/v1/trips/trip-001/summary", params={"day": "2026-10-14"}).json()
+    assert {t["taskId"]: t["state"] for t in first_day["tasks"]}["task-office"] == "moved"
+
+    # On the way there, the office is the current task, not one already passed: also for a row still
+    # marked "moved" from before plans set it back to planned.
+    leg = next(x for x in plan["legs"] if x["taskId"] == "task-office")
+    on_the_way = dt.fromisoformat(leg["leaveBy"]) + timedelta(minutes=5)
+    with engine().begin() as conn:
+        conn.execute(text("UPDATE tasks SET state = 'moved' WHERE task_id = 'task-office'"))
+    with session_scope() as db:
+        ctx = sense(db, db.get(TripModel, "trip-001"), on_the_way)
+        assert ctx.current is not None and ctx.current.task_id == "task-office"
+    link = client.post("/v1/trips/trip-001/share-links", json={"idempotencyKey": key()}).json()
+    clock(client, on_the_way.strftime("%H:%M"), day="2026-10-15")
+    stops = TestClient(app, base_url="https://testserver").get(f"/v1/shared/{link['token']}").json()["stops"]
+    assert next(s for s in stops if s["title"] == "University office")["status"] == "now"
 
 
 def test_the_summary_of_an_earlier_day_keeps_its_legs(client):
@@ -630,3 +621,258 @@ def test_a_signed_out_session_cannot_be_refreshed(client):
     c.cookies.set("rr_refresh", old_refresh, path="/v1/auth")
     c.cookies.set("rr_csrf", csrf, path="/")
     assert c.post("/v1/auth/refresh", headers={"X-CSRF-Token": csrf}).status_code == 401
+
+
+# ---------- review fixes: same-place stops, unplaced and moved tasks, the loop's state and lock ----------
+
+
+def test_skipping_the_last_task_at_the_hotel_is_not_a_conflict(client):
+    plan_v1(client)  # 07:30, still at the hotel
+    for task in ("task-meet", "task-bank", "task-office"):
+        res = client.post("/v1/trips/trip-001/checkins", json={"taskId": task, "kind": "skipped", "idempotencyKey": key()})
+        assert res.status_code == 200 and res.json()["result"] == "recorded", res.text
+    plan = client.get("/v1/trips/trip-001").json()["activePlan"]
+    assert [(leg["taskId"], leg["fromPlaceId"], leg["toPlaceId"], leg["label"]) for leg in plan["legs"]] == [
+        (None, "hotel-majestic", "hotel-majestic", "Already there")
+    ]
+    assert plan["legs"][0]["travelMin"] == 0 and plan["legs"][0]["fareInr"] == 0
+
+
+def test_a_skip_that_leaves_no_feasible_day_is_saved_not_a_conflict(client):
+    plan_v1(client)
+    # A fixed 08:00 visit in Whitefield can't be reached from the hotel any more (added without re-planning).
+    body = {"title": "Site visit", "placeId": "whitefield-office", "durationMin": 30, "fixedStart": "2026-10-14T08:00:00+05:30", "idempotencyKey": key()}
+    visit = client.post("/v1/trips/trip-001/tasks?replan=false", json=body).json()
+    res = client.post("/v1/trips/trip-001/checkins", json={"taskId": "task-office", "kind": "skipped", "idempotencyKey": key()})
+    assert res.status_code == 200, res.text
+    out = res.json()
+    assert out["result"] == "no_feasible_plan"
+    assert out["reasonCodes"] == ["TASK_SKIPPED", "NO_FEASIBLE_PLAN"]
+    assert out["blocked"]["taskId"] == visit["taskId"] and out["explanation"].startswith("Skipped. The site visit starts at 08:00")
+    trip = client.get("/v1/trips/trip-001").json()
+    assert {t["taskId"]: t["state"] for t in trip["tasks"]}["task-office"] == "skipped"
+    assert trip["activePlan"]["version"] == 1
+
+
+def test_deleting_the_last_task_replaces_the_plan(client):
+    plan_v1(client)
+    for task in ("task-meet", "task-bank", "task-office"):
+        assert client.delete(f"/v1/trips/trip-001/tasks/{task}").status_code == 204
+    plan = client.get("/v1/trips/trip-001").json()["activePlan"]
+    assert plan["version"] == 4
+    assert [leg["taskId"] for leg in plan["legs"]] == [None]
+
+
+def test_a_task_at_the_place_of_stay_is_planned(client):
+    body = {"title": "Hotel checkout", "placeId": "hotel-majestic", "durationMin": 15, "fixedStart": "2026-10-14T08:00:00+05:30", "idempotencyKey": key()}
+    checkout = client.post("/v1/trips/trip-001/tasks", json=body).json()
+    plan = plan_v1(client)
+    first = plan["legs"][0]
+    assert first["taskId"] == checkout["taskId"] and first["label"] == "Already there"
+    assert (hm(first["leaveBy"]), hm(first["taskStart"])) == ("07:50", "08:00")
+    assert plan["moved"] == []
+
+
+def _plan_with_the_bank_unplaced(c) -> str:
+    plan_v1(c)
+    # A fixed call at 13:30 leaves the bank (2 h 30 min, open 10:00 to 16:00) no gap: it's unplaced.
+    body = {"title": "Client call", "placeId": "jayanagar-office", "durationMin": 60, "fixedStart": "2026-10-14T13:30:00+05:30", "idempotencyKey": key()}
+    res = c.post("/v1/trips/trip-001/tasks", json=body)
+    assert res.status_code == 201
+    moved = c.get("/v1/trips/trip-001").json()["activePlan"]["moved"]
+    assert [(m["taskId"], m["kind"]) for m in moved] == [("task-bank", "unplaced")]
+    return res.json()["taskId"]
+
+
+def test_an_unplaced_task_does_not_break_the_next_shift(client):
+    call = _plan_with_the_bank_unplaced(client)
+    # The call's leg leaves at its fixed latest time, so a short delay at the meeting changes nothing.
+    # (With the unplaced bank counted as a task to plan, "shift only" always failed here.)
+    clock(client, "10:55")
+    assert delay(client, 15).json()["result"] == "on_time"
+    clock(client, "11:00")
+    checkin(client, "task-meet", "done")
+    clock(client, "14:20")
+    res = client.post("/v1/trips/trip-001/checkins", json={"taskId": call, "kind": "delay", "delayMin": 20, "idempotencyKey": key()})
+    body = res.json()
+    assert body["result"] == "shifted", body
+    # Still named, with the same reason, in the shifted version.
+    moved = body["plan"]["moved"]
+    assert [(m["taskId"], m["kind"]) for m in moved] == [("task-bank", "unplaced")]
+    assert moved[0]["reason"].startswith("The bank needs 2 h 30 min")
+
+
+def test_an_unplaced_task_does_not_keep_the_day_open(client):
+    _plan_with_the_bank_unplaced(client)
+    plan = client.get("/v1/trips/trip-001").json()["activePlan"]
+    for leg in plan["legs"][:-1]:
+        clock(client, hm(leg["taskEnd"]))
+        checkin(client, leg["taskId"], "done")
+    before = versions()
+    clock(client, "20:00")
+    result = check(client)
+    assert (result["result"], result["explanation"]) == ("on_time", "Your tasks for today are done.")
+    assert versions() == before
+
+
+def test_the_trip_ends_even_with_an_unplaced_task(client, fake_redis):
+    clock(client, "07:30", day="2026-10-15")
+    # On the last day, a 2-hour visit to Whitefield that must be over by 08:30 can't fit.
+    body = {"title": "Early visit", "placeId": "whitefield-office", "durationMin": 120, "day": "2026-10-15", "idempotencyKey": key()}
+    body["window"] = {"opensAt": "06:00", "closesAt": "08:30"}
+    assert client.post("/v1/trips/trip-001/tasks", json=body).status_code == 201
+    job = client.post("/v1/trips/trip-001/plans", json={"idempotencyKey": key()}).json()["jobId"]
+    assert client.get(f"/v1/jobs/{job}").json()["status"] == "finished"
+    plan = client.get("/v1/trips/trip-001").json()["activePlan"]
+    assert plan["day"] == "2026-10-15" and [m["kind"] for m in plan["moved"]] == ["unplaced"]
+    clock(client, "21:30", day="2026-10-15")
+    checkin(client, "task-train", "done")
+    clock(client, "23:00", day="2026-10-15")
+    jobs.send_leave_now_alerts("trip-001")
+    assert fake_redis.get("trip_ended:trip-001") == "1"
+
+
+def test_demo_reset_forgets_what_redis_remembers(client, fake_redis):
+    plan_v1(client)
+    remembered = [
+        "reported_ready:trip-001:task-meet",
+        "trip_ended:trip-001",
+        "alert_throttle:trip-001",
+        "check_lock:trip-001",
+        "morning_plan:trip-001:2026-10-15",
+    ]
+    for name in [*remembered, "trip_ended:trip-other"]:
+        fake_redis.set(name, "1")
+    assert client.post("/v1/trips/trip-001/demo/reset", json={"idempotencyKey": key()}).status_code == 200
+    assert [name for name in remembered if fake_redis.exists(name)] == []
+    assert fake_redis.exists("trip_ended:trip-other")
+
+
+def test_the_automatic_check_keeps_an_unchanged_option_set(client):
+    plan_v1(client)
+    clock(client, "10:55")
+    first = delay(client, 40).json()
+    assert first["result"] == "options" and first["optionSetId"].startswith("opts-")
+    with engine().connect() as conn:
+        rows = conn.execute(text("SELECT count(*) FROM plans WHERE trip_id = 'trip-001'")).scalar()
+    clock(client, "11:15")
+    again = check(client)
+    assert again["result"] == "options" and again["optionSetId"] == first["optionSetId"]
+    assert [o["optionId"] for o in again["options"]] == ["opt-1", "opt-2"]
+    with engine().connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM plans WHERE trip_id = 'trip-001'")).scalar() == rows
+    accepted = client.post("/v1/trips/trip-001/options/opt-1/accept", json={"idempotencyKey": key(), "optionSetId": first["optionSetId"]})
+    assert accepted.status_code == 200, accepted.text
+
+
+class _LockProbe:
+    """Wraps the travel-time adapter: while the snapshot is fetched, another connection tries to lock the trip."""
+
+    def __init__(self, inner):
+        self.inner = inner
+        self.locked_meanwhile: list[bool] = []
+
+    def snapshot(self, city_slug, places, day):
+        from sqlalchemy.exc import OperationalError
+
+        with engine().connect() as other:
+            try:
+                other.execute(text("SELECT trip_id FROM trips WHERE trip_id = 'trip-001' FOR UPDATE NOWAIT"))
+                self.locked_meanwhile.append(False)
+            except OperationalError:
+                self.locked_meanwhile.append(True)
+            other.rollback()
+        return self.inner.snapshot(city_slug, places, day)
+
+
+def test_travel_times_are_fetched_without_holding_the_trip_lock(client, monkeypatch):
+    from app.adapters.transit import StaticTransitAdapter
+    from app.adapters.travel_times import SampleSnapshotAdapter
+
+    from .conftest import RAASTA
+
+    probe = _LockProbe(SampleSnapshotAdapter(StaticTransitAdapter(RAASTA)))
+    monkeypatch.setattr(jobs, "adapter_factory", lambda: probe)
+    plan_v1(client)  # create_plan
+    clock(client, "10:55")
+    assert delay(client, 15).json()["result"] == "shifted"  # run
+    assert probe.locked_meanwhile and not any(probe.locked_meanwhile)
+
+
+def test_a_run_that_cannot_get_the_lock_answers_busy(client, monkeypatch):
+    from app.services import loop
+
+    plan_v1(client)
+    clock(client, "10:55")
+    monkeypatch.setattr(loop, "LOCK_TIMEOUT", "200ms")
+    with engine().connect() as other:
+        # Another run holds the trip (FOR NO KEY UPDATE, as the loop does): the check-in itself still saves.
+        other.execute(text("SELECT trip_id FROM trips WHERE trip_id = 'trip-001' FOR NO KEY UPDATE"))
+        res = delay(client, 15)
+        other.rollback()
+    assert res.status_code == 409 and res.json()["error"]["code"] == "BUSY"
+    with engine().connect() as conn:
+        assert conn.execute(text("SELECT count(*) FROM checkins WHERE trip_id = 'trip-001'")).scalar() == 1
+    assert versions() == 1
+
+
+def test_a_delay_that_still_arrives_before_a_fixed_start_says_by_how_much(client):
+    plan_v1(client)
+    clock(client, "09:00")  # on the metro to the 10:00 meeting, arriving 09:50
+    body = delay(client, 5).json()
+    assert "FIXED_TASK_AT_RISK" in body["reasonCodes"], body
+    assert body["explanation"].startswith("You'll reach the meeting at about 09:55, 5 min before its 10:00 start; you need 10.")
+    assert "after its" not in body["explanation"]
+
+
+def test_finishing_a_task_early_moves_the_next_stop_earlier(client):
+    plan_v1(client)
+    clock(client, "10:40")  # the meeting was planned to end at 11:00
+    body = client.post("/v1/trips/trip-001/checkins", json={"taskId": "task-meet", "kind": "done", "idempotencyKey": key()}).json()
+    assert body["result"] == "shifted", body
+    assert body["explanation"] == "Your day still fits. Your next stop moves 20 min earlier. No extra cost."
+    assert client.get("/v1/trips/trip-001").json()["log"][0]["text"] == "Moved 3 stops 20 min earlier"
+
+
+def test_bad_query_values_are_422_or_400_not_500(client):
+    import base64
+
+    assert client.get("/v1/trips/trip-001/summary", params={"day": "not-a-day"}).status_code == 422
+    outside = client.get("/v1/trips/trip-001/summary", params={"day": "2026-10-20"})
+    assert outside.status_code == 422 and outside.json()["error"]["code"] == "VALIDATION_ERROR"
+    cursor = base64.urlsafe_b64encode(b"not-a-date|trip-001").decode()
+    assert client.get("/v1/trips", params={"cursor": cursor}).status_code == 400
+
+
+def test_a_described_task_with_an_impossible_time_has_no_fixed_time(client, monkeypatch):
+    from app.config import get_settings
+
+    async def fake_llm(text, city, day):
+        return [{"title": "Lunch", "placeText": "", "durationMin": 60, "fixedStart": "25:99", "priority": 2}]
+
+    monkeypatch.setattr(get_settings(), "ai_helper_enabled", True)
+    monkeypatch.setattr("app.adapters.llm.extract_tasks_llm", fake_llm)
+    res = client.post("/v1/trips/trip-001/task-drafts", json={"text": "Lunch at 25:99", "idempotencyKey": key()})
+    assert res.status_code == 200, res.text
+    assert res.json()[0]["fixedStart"] is None
+
+
+def test_bookings_exist_only_with_the_demo_login(client, monkeypatch):
+    from app.config import get_settings
+
+    assert client.get("/v1/trips/trip-001/bookings").status_code == 200
+    monkeypatch.setattr(get_settings(), "demo_login", False)
+    assert client.get("/v1/trips/trip-001/bookings").status_code == 404
+    assert client.get("/v1/trips/trip-001/train-options", params={"taskId": "task-train", "to": "Chennai"}).status_code == 404
+    body = {"kind": "cab", "toId": "task-bank", "optionId": "x", "idempotencyKey": key()}
+    assert client.post("/v1/trips/trip-001/bookings", json=body).status_code == 404
+
+
+def test_the_user_says_which_features_are_on(client, monkeypatch):
+    from app.config import get_settings
+
+    assert client.get("/v1/me").json()["features"] == {"bookings": True, "aiHelper": False, "voices": True}
+    monkeypatch.setattr(get_settings(), "ai_helper_enabled", True)
+    monkeypatch.setattr(get_settings(), "tts_enabled", False)
+    signed_in = TestClient(app, base_url="https://testserver").post("/v1/auth/demo", json={"as": "traveller"}).json()
+    assert signed_in["user"]["features"] == {"bookings": True, "aiHelper": True, "voices": False}
