@@ -8,12 +8,12 @@ The demo account is a prepared day on a simulated clock. A real account is an or
 
 | | Demo account | Real account |
 |---|---|---|
-| Sign in | **Use the demo account** | **Create account** with a name, email and password on the home screen, or **Continue with Google** once Google is set up (below). Trips are kept with the account. |
+| Sign in | **Use the demo account**, shown only with `DEMO_LOGIN=true` in `.env` (off by default) | **Create account** with a name, email and password on the home screen, or **Continue with Google** once Google is set up (below). Trips are kept with the account. |
 | First visit | The sample day | **Roo, full screen**, introduces itself and sets up the first trip by chatting, then plans it |
 | Cities | Bengaluru | **Bengaluru only.** Any other city answers "Reroute doesn't cover that city yet." |
 | Travel options | Metro, shared autos, walks and cabs from the sample travel-time file | Places you search for get **a rough cab estimate**, and a walk under 1.5 km, from the straight-line distance, marked "Rough estimate". No metro or shared auto until real routing data is set up (below). |
 | Clock | Simulated: the **Simulate** panel moves time on | Real time. The Simulate panel is shown only to the demo account, so testing "running late" means reporting a delay at the real time. |
-| Bookings (train, flight, cab) and the wallet | Simulated, ₹5,000 to start, every partner connected | Simulated too while the server has `DEMO_LOGIN=true` (hidden in production): ₹2,000 to start, partners to connect in Me |
+| Bookings (train, flight, cab) and the wallet | Simulated, ₹5,000 to start, every partner connected | Simulated too while `SIMULATED_SERVICES` is on (the default; off in production): ₹2,000 to start, partners to connect in Me |
 | Morning planning | Not for the sample dates | Works: each later day of a multi-day trip is planned from 06:00 local time |
 | Everything else | Works | Works: planning, running late, options, Undo, skip, move, Why this plan?, Roo, Raasta, share, summary, offline, alerts |
 
@@ -60,6 +60,7 @@ Until then a city simply isn't offered.
 
 ## Before each session
 
+- The demo account is off unless you switch it on: add `DEMO_LOGIN=true` to the `.env` file at the repository root and run `docker compose up -d`. Without it the home page offers only Create account, Sign in and Google.
 - Run `docker compose up -d` and open https://localhost. Accept the certificate warning once.
 - With the demo account, **Simulate → Reset the demo** puts the sample day back.
 - To try the phone layout on a PC, open the browser's device toolbar (F12, then Ctrl+Shift+M) at 390 × 844.

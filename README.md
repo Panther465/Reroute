@@ -55,7 +55,9 @@ cd Reroute
 docker compose up --build
 ```
 
-Open **https://localhost**, accept the local certificate, and choose **Use the demo account**.
+Open **https://localhost**, accept the local certificate, and choose **Create account**: Roo meets you and sets up your first trip.
+
+To try the prepared demo day (and its **Simulate** panel), add `DEMO_LOGIN=true` to the `.env` file at the repository root and run `docker compose up -d`; **Use the demo account** then appears under the sign-in options.
 
 If ports are taken on your machine, the stack stays out of the way: PostgreSQL, Redis and MongoDB are published on 55432, 56379 and 57017, and plain HTTP on 8080. Change any of them with `POSTGRES_HOST_PORT`, `REDIS_HOST_PORT`, `MONGO_HOST_PORT`, `HTTP_PORT` or `HTTPS_PORT`. Everything listens on 127.0.0.1 only; set `BIND_ADDR=0.0.0.0` to try the app from a phone on the same network. Browsers won't install the offline service worker over an untrusted certificate; to try offline mode locally, trust the certificate (for example with [mkcert](https://github.com/FiloSottile/mkcert), placed at `/etc/nginx/certs/localhost.{crt,key}` in the `certs` volume). The demo trip is Bengaluru, Wednesday 14 October 2026, on a simulated clock.
 
@@ -131,11 +133,11 @@ cd frontend && pnpm install && pnpm dev
 
 | Suite | Size | Command |
 |---|---|---|
-| Reroute API and planner | 187 tests (the API flow tests need `TEST_DATABASE_URL` pointing at PostGIS) | `cd backend && pytest` |
+| Reroute API and planner | 203 tests (the API flow tests need `TEST_DATABASE_URL` pointing at PostGIS) | `cd backend && pytest` |
 | Raasta | 107 tests | `cd raasta && pytest` |
-| Web app | 81 tests | `cd frontend && pnpm test` |
+| Web app | 102 tests | `cd frontend && pnpm test` |
 | The demo day over HTTP | 32 requests, 54 assertions | `npx newman run postman/reroute.postman_collection.json --insecure` |
-| End to end with axe | 30 tests, phone and desktop | `cd frontend && E2E_BASE_URL=https://localhost pnpm e2e` |
+| End to end with axe | 38 tests, phone and desktop | `cd frontend && E2E_BASE_URL=https://localhost pnpm e2e` |
 | Load | 500 virtual users, 95% under 500 ms | `k6 run tests/load/k6.js` |
 
 CI runs all of them except the load test, which runs on demand, and fails if either API's OpenAPI file drifts from `shared/contracts/`.
@@ -144,7 +146,7 @@ To test by hand, feature by feature (and with a real Google account), follow [do
 
 ## Configuration
 
-Every setting is an environment variable documented in `backend/.env.example`, `raasta/.env.example` and `frontend/.env.example`. No secret is committed or sent to the browser. `DEMO_LOGIN=true` is refused when `APP_ENV=production`, and so are development values of `JWT_SECRET` and `RAASTA_SERVICE_TOKEN`.
+Every setting is an environment variable documented in `backend/.env.example`, `raasta/.env.example` and `frontend/.env.example`. No secret is committed or sent to the browser. `DEMO_LOGIN` (off unless set) turns on the demo account; `SIMULATED_SERVICES` (on by default, off in `docker-compose.prod.yml`) turns on the simulated bookings, wallet and connected partners for every account. `DEMO_LOGIN=true` is refused when `APP_ENV=production`, and so are development values of `JWT_SECRET` and `RAASTA_SERVICE_TOKEN`.
 
 For a deployment, `docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build` runs everything in production mode without the demo login; Compose refuses to start until every secret it names is set.
 
