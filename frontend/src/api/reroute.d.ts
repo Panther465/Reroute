@@ -417,6 +417,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/trips/{trip_id}/roo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Talk to Roo: one message understood, with at most one change it offers (AI helper)
+         * @description Roo answers from the day as it is. It only offers a change: the app asks the traveller before making it.
+         */
+        post: operations["talk_to_roo_v1_trips__trip_id__roo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/trips/{trip_id}/demo/clock": {
         parameters: {
             query?: never;
@@ -1241,6 +1261,57 @@ export interface components {
              * @enum {string}
              */
             source: "road" | "line";
+        };
+        /**
+         * RooActionOut
+         * @description A change Roo offers. The app asks the traveller before doing it.
+         */
+        RooActionOut: {
+            /**
+             * Type
+             * @enum {string}
+             */
+            type: "late" | "done" | "left" | "skip" | "move" | "duration" | "time" | "add" | "replan" | "undo" | "why" | "summary" | "theme";
+            /** Taskid */
+            taskId?: string | null;
+            /** Minutes */
+            minutes?: number | null;
+            /** Time */
+            time?: string | null;
+            /** Day */
+            day?: string | null;
+            /** Text */
+            text?: string | null;
+            /** Theme */
+            theme?: ("light" | "dark" | "system") | null;
+        };
+        /** RooIn */
+        RooIn: {
+            /** Idempotencykey */
+            idempotencyKey: string;
+            /** Message */
+            message: string;
+            /**
+             * History
+             * @default []
+             */
+            history: components["schemas"]["RooTurnIn"][];
+        };
+        /** RooOut */
+        RooOut: {
+            /** Reply */
+            reply: string;
+            action?: components["schemas"]["RooActionOut"] | null;
+        };
+        /** RooTurnIn */
+        RooTurnIn: {
+            /**
+             * Role
+             * @enum {string}
+             */
+            role: "user" | "roo";
+            /** Text */
+            text: string;
         };
         /** SegmentOut */
         SegmentOut: {
@@ -2689,6 +2760,43 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TaskDraftOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    talk_to_roo_v1_trips__trip_id__roo_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RooIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RooOut"];
                 };
             };
             /** @description Validation Error */

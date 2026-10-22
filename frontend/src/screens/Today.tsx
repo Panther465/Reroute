@@ -209,6 +209,8 @@ export default function Today() {
   const [selected, setSelected] = useState<number | null>(null)
   const [confirmEarly, setConfirmEarly] = useState(false)
   const [addOpen, setAddOpen] = useState(false)
+  // What Roo heard ("remind me to buy flowers in Jayanagar"), for Describe your day to read at once.
+  const [addText, setAddText] = useState<{ text: string; key: number } | null>(null)
   const addLoaded = useLoadedOnce(addOpen)
   const addBefore = useRef<DayView | null>(null)
   const [tripsOpen, setTripsOpen] = useState(false)
@@ -259,12 +261,13 @@ export default function Today() {
   // Roo on the timeline asks for "Add a task" or "Edit this stop"; do it here, then clear the request.
   const routerLocation = useRouterLocation()
   useEffect(() => {
-    const ask = routerLocation.state as { add?: number; stop?: string; bookTrain?: string } | null
+    const ask = routerLocation.state as { add?: number; addText?: string; stop?: string; bookTrain?: string } | null
     if (!ask || !view) return
     // Without the AI helper, a task is added with the form on Plan (and the request goes with it).
     if (ask.add && !ai) return void navigate('/plan', { state: { addTask: true } })
     if (ask.add) {
       addBefore.current = view
+      setAddText(ask.addText ? { text: ask.addText, key: ask.add } : null)
       setAddOpen(true)
     }
     if (ask.stop) setStop(view.stops.find((s) => s.id === ask.stop) ?? null)
@@ -413,7 +416,9 @@ export default function Today() {
       {shareLoaded && <ShareSheet trip={trip} open={shareOpen} onOpenChange={setShareOpen} />}
       {addLoaded && (
         <AiPlannerSheet
+          key={addText?.key ?? 'add'}
           trip={trip}
+          initialText={addText?.text}
           open={addOpen}
           onOpenChange={setAddOpen}
           onAdded={(n, outcome) => {

@@ -53,6 +53,8 @@ export interface UiState {
    * destination, not leg number, so it survives a re-plan and a reload. Local only.
    */
   started: { tripId: string; toId: string; day?: string; at?: number } | null
+  /** The chat with Roo is open. */
+  rooChat: boolean
 }
 
 const KEY = 'reroute:prefs:v2'
@@ -74,6 +76,7 @@ function defaults(): UiState {
     pendingDelay: null,
     optimisticDone: [],
     started: null,
+    rooChat: false,
   }
 }
 

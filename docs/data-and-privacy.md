@@ -41,7 +41,7 @@ Reroute uses free public services. Each sees only what it needs, and none gets y
 | Public OSRM server | The coordinates of a leg's two stops (never your live position) | When the map draws a leg along the roads (cached 30 days) |
 | Raasta (Reroute's own route service) | The coordinates of a leg's two stops | When the worker plans a day |
 | Google | The sign-in code; the Calendar code if you import appointments | Only when you use Google sign-in or Calendar import |
-| Google Gemini | Only the text you type in "Describe your day" | Only if the AI helper is turned on (off by default) |
+| Google Gemini | The text you type in "Describe your day"; and a message to Roo that the phone couldn't understand by itself, with the last few messages and your trip's task titles, areas, times and today's plan (never your name, email or location) | Only if the AI helper is turned on (off by default). Roo answers most messages on the phone, sending nothing |
 
 ## Live location on the map
 
@@ -67,3 +67,5 @@ Every travel time and fare is an estimate and the app says so. A rerouted plan n
 ## Optional AI helper
 
 Off by default (`AI_HELPER_ENABLED=false`). If turned on, only the text you type goes to the provider: no name, email or location.
+
+Talking to Roo works without it: Roo reads common requests (running late, move, skip, change a time or a length, plan again, undo, what's next) on the phone. With the helper on, a message the phone can't place goes to Gemini with the day it needs to answer, and Gemini's answer is only an offer: the server checks it against your trip, and the app asks you before changing anything. The chat itself is kept in your browser for the session only.

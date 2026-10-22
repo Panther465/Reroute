@@ -4,6 +4,7 @@ import { motion, MotionConfig } from 'motion/react'
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Navigate, NavLink, Outlet, ScrollRestoration, useLocation, useMatches } from 'react-router'
 import { AutoRickshaw, RouteMark } from '@/components/icons'
+import { RooArt } from '@/components/roo/RooArt'
 import { TodaySkeleton } from '@/components/TodaySkeleton'
 import { Toaster } from '@/components/ui/Toaster'
 import { useCurrentTripId, useMe, useTrip } from '@/api/queries'
@@ -23,6 +24,7 @@ import { localMinutes } from '@/lib/timeline'
 const RunningLateSheet = lazy(() => import('@/screens/RunningLateSheet').then((m) => ({ default: m.RunningLateSheet })))
 const DemoPanel = lazy(() => import('@/components/DemoPanel').then((m) => ({ default: m.DemoPanel })))
 const Roo = lazy(() => import('@/components/Roo').then((m) => ({ default: m.Roo })))
+const RooChat = lazy(() => import('@/components/roo/RooChat').then((m) => ({ default: m.RooChat })))
 
 const TABS = [
   { to: '/', label: 'Today', Icon: CalendarClock, end: true },
@@ -137,8 +139,28 @@ function TopBar({ demo }: { demo?: ReactNode }) {
           </ul>
         </nav>
         {demo}
+        <AskRoo className={demo ? '' : 'ml-auto'} />
       </div>
     </header>
+  )
+}
+
+/** On a desktop, Roo is a click away from every screen. */
+function AskRoo({ className }: { className: string }) {
+  const open = useStore((s) => s.rooChat)
+  return (
+    <button
+      type="button"
+      onClick={() => setState({ rooChat: !getState().rooChat })}
+      aria-expanded={open}
+      aria-haspopup="dialog"
+      className={`flex min-h-12 shrink-0 items-center gap-2 rounded-full border pl-1.5 pr-4 t-title transition-colors duration-[var(--dur-quick)] ${open ? 'border-green bg-green-tint text-ink' : 'border-line text-ink [@media(hover:hover)]:hover:bg-sunken'} ${className}`}
+    >
+      <span className="flex size-9 items-end justify-center" aria-hidden="true">
+        <RooArt mood="happy" size={30} reduce />
+      </span>
+      Ask Roo
+    </button>
   )
 }
 
@@ -155,6 +177,12 @@ export default function AppShell() {
   const [late, setLate] = useState<{ open: boolean; delay: number | null; mode: 'late' | 'options' }>({ open: false, delay: null, mode: 'late' })
   // The sheet stays mounted after it first opens, so it can animate closed.
   const [lateLoaded, setLateLoaded] = useState(false)
+  // The chat with Roo loads the first time it opens, and stays mounted to animate closed.
+  const chatOpen = useStore((s) => s.rooChat)
+  const [chatLoaded, setChatLoaded] = useState(false)
+  useEffect(() => {
+    if (chatOpen) setChatLoaded(true)
+  }, [chatOpen])
   const serverNow = trip.data ? localMinutes(trip.data.now, trip.data.day, trip.data.utcOffset) : null
   const clock = useTripClock(serverNow, trip.dataUpdatedAt, trip.data?.clockSimulated ?? false)
   useFocusHeadingOnNavigate(location.pathname)
@@ -243,6 +271,11 @@ export default function AppShell() {
             {location.pathname === '/' && (
               <Suspense fallback={null}>
                 <Roo trip={trip.data ?? undefined} clock={clock ?? null} />
+              </Suspense>
+            )}
+            {chatLoaded && (
+              <Suspense fallback={null}>
+                <RooChat trip={trip.data ?? undefined} clock={clock ?? null} />
               </Suspense>
             )}
             <Toaster tripId={current.tripId} />

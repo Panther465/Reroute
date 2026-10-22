@@ -69,6 +69,20 @@ for (const scheme of ['light', 'dark'] as const) {
       }
     })
 
+    test('the chat with Roo, with a change it offers', async ({ page }) => {
+      await signInAsDemo(page)
+      await planTheDay(page)
+      await page.getByRole('button', { name: 'Roo, your travel companion. Chat with Roo' }).click()
+      const chat = page.getByRole('dialog', { name: 'Roo' })
+      await expect(chat.getByRole('log')).toContainText(/Good (morning|afternoon|evening)/)
+      await chat.getByLabel('Message Roo').fill('move the bank to tomorrow')
+      await chat.getByRole('button', { name: 'Send' }).click()
+      await expect(chat.getByRole('button', { name: 'Move it' })).toBeVisible()
+      await noSeriousIssues(page, 'roo-chat')
+      await page.keyboard.press('Escape')
+      await expect(chat).toBeHidden()
+    })
+
     test('running late sheet is reachable by keyboard', async ({ page }) => {
       await signInAsDemo(page)
       await planTheDay(page)

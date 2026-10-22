@@ -1761,6 +1761,75 @@
         }
       }
     },
+    "/v1/trips/{trip_id}/roo": {
+      "post": {
+        "tags": [
+          "trips"
+        ],
+        "summary": "Talk to Roo: one message understood, with at most one change it offers (AI helper)",
+        "description": "Roo answers from the day as it is. It only offers a change: the app asks the traveller before making it.",
+        "operationId": "talk_to_roo_v1_trips__trip_id__roo_post",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RooIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RooOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/trips/{trip_id}/demo/clock": {
       "post": {
         "tags": [
@@ -4320,6 +4389,185 @@
           "source"
         ],
         "title": "RoadPathOut"
+      },
+      "RooActionOut": {
+        "properties": {
+          "type": {
+            "type": "string",
+            "enum": [
+              "late",
+              "done",
+              "left",
+              "skip",
+              "move",
+              "duration",
+              "time",
+              "add",
+              "replan",
+              "undo",
+              "why",
+              "summary",
+              "theme"
+            ],
+            "title": "Type"
+          },
+          "taskId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taskid"
+          },
+          "minutes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Minutes"
+          },
+          "time": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Time"
+          },
+          "day": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text"
+          },
+          "theme": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "light",
+                  "dark",
+                  "system"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Theme"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type"
+        ],
+        "title": "RooActionOut",
+        "description": "A change Roo offers. The app asks the traveller before doing it."
+      },
+      "RooIn": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 4,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Idempotencykey"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Message"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/RooTurnIn"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "History",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotencyKey",
+          "message"
+        ],
+        "title": "RooIn"
+      },
+      "RooOut": {
+        "properties": {
+          "reply": {
+            "type": "string",
+            "title": "Reply"
+          },
+          "action": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RooActionOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "reply"
+        ],
+        "title": "RooOut"
+      },
+      "RooTurnIn": {
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "roo"
+            ],
+            "title": "Role"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 600,
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "role",
+          "text"
+        ],
+        "title": "RooTurnIn"
       },
       "SegmentOut": {
         "properties": {
