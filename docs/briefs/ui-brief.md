@@ -121,7 +121,7 @@ Dark theme ("night travel"; follows the system setting, with a manual switch):
 
 ### 6.2 Typography
 
-- **Display and numbers:** Archivo (variable), `font-stretch: 75%`, weights 700 to 800. Use it for screen titles, times and big money amounts. Times always use `font-variant-numeric: tabular-nums`.
+- **Display and numbers:** Archivo (variable), weights 700 to 800. Use it for screen titles, times and big money amounts. Times and money use `font-stretch: 75%`; titles are words, so they use `font-stretch: 87.5%` with no letter spacing and balanced wrapping, which keeps words from running together. Times always use `font-variant-numeric: tabular-nums`.
 - **Interface and body:** Atkinson Hyperlegible, weights 400 and 700. It was designed for legibility, which suits outdoor use and low-vision users.
 - **Hindi:** Noto Sans Devanagari (400 and 700) as the fallback in the same font stack.
 - Load all three from one stylesheet, including Archivo's width axis (without `wdth`, `font-stretch: 75%` does nothing):
@@ -179,10 +179,12 @@ On desktop, add 2 px to the display styles. Archivo display text uses -0.01em le
   - `--dur-base` 240 ms
   - `--dur-slow` 400 ms
   - `--dur-hero` 900 ms
-- Easing:
-  - out: `cubic-bezier(0.16, 1, 0.3, 1)`
-  - in-out: `cubic-bezier(0.65, 0, 0.35, 1)`
-  - in, for exits: `cubic-bezier(0.4, 0, 1, 1)`
+- Easing (strong curves; no ease-in on interface motion, because it starts slow at the moment people watch most):
+  - out, for anything entering or answering a tap: `cubic-bezier(0.23, 1, 0.32, 1)`
+  - in-out, for things moving on screen: `cubic-bezier(0.77, 0, 0.175, 1)`
+  - drawer, for a sheet leaving: `cubic-bezier(0.32, 0.72, 0, 1)`
+  - exits use the out curve and are faster than entrances (a sheet enters on its spring and leaves in 200 ms). The one ease-in is the first half of a split-flap flip, where the flap falls away.
+- Nothing appears from `scale(0)`: entrances start at 0.9 or more with opacity.
 - Springs in Motion:
   - sheet: stiffness 420, damping 40
   - selection ring: stiffness 500, damping 38
@@ -467,7 +469,7 @@ Tasks:
 | Jayanagar to Majestic | Metro | ₹30 |
 | **Total** | 2 h 50 min travelling, rerouted once at 10:55 | **₹560** |
 
-**Demo controls.** A developer-only "Simulate" panel, opened with `?demo=1`, can set the current time, trigger a 15- or 40-minute delay, go offline, and expire a share link. In demo mode the header shows a small "Demo" tag.
+**Demo controls.** A developer-only "Simulate" panel, opened with `?demo=1`, can set the current time, trigger a 15- or 40-minute delay, go offline, and expire a share link. In demo mode a slim demo bar shows the demo time and the "Simulate" button: at the top of the page on phones, in the top bar on desktop. Nothing floats over the day.
 
 ## 14. Do not
 
@@ -476,7 +478,7 @@ Tasks:
 - No dashboard grids of identical rounded cards with soft grey shadows. Timeline rows are not cards.
 - No all-caps labels or eyebrow text above headings. No "A · B · C" strings joined with middle dots. No "→" in button labels.
 - No Inter, Roboto, Arial or SF as design fonts. No monospace for numbers; use tabular figures.
-- No emoji, stock illustrations, 3D blobs or mascots.
+- No emoji, stock illustrations or 3D blobs. The one character is Roo (decisions.md), and only on Today's Now line: never floating over a screen.
 - No fake phone status bar or device frame inside the app.
 - No dead buttons or placeholder charts. If a feature isn't ready, don't show it.
 - No meaning carried by colour alone, no text smaller than 13 px, no placeholder used as a label.
