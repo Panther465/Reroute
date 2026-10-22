@@ -3,7 +3,7 @@ import type { City, Place } from '@/api/types'
 import { goldenTrip } from '@/test/fixtures'
 import { buildDay } from '@/lib/timeline'
 import { understand } from './brain'
-import { beginNewTrip, beginOnboard, beginReplan, next, planSummary, type Answer, type FlowContext, type Step } from './flows'
+import { beginDayPlan, beginEditTask, beginNewTrip, beginOnboard, beginReplan, next, planSummary, type Answer, type FlowContext, type Step } from './flows'
 import { understandPlan } from './understand'
 
 const place = (placeId: string, name: string): Place => ({ placeId, name, area: name, lng: 77.6, lat: 12.97, sample: false }) as Place
@@ -171,5 +171,29 @@ describe('any city in India, and a long first message', () => {
     s = go(s, pick('fixed'), at3)
     s = go(s, { kind: 'time', hhmm: '16:30' }, at3)
     expect(s.say).toEqual(['How long will the college take?'])
+  })
+})
+
+describe('Roo in the chat, with a trip', () => {
+  const trip = goldenTrip()
+  const ctx: FlowContext = { trip, view: buildDay(trip), today: trip.day, now: '07:30', name: 'Arjun' }
+
+  it('a described day: Roo says what it understood, offers to plan, then asks where each thing is', () => {
+    const hints = understandPlan('so today I need to go to my college and I also have an interview at 4 pm near MG Road')
+    let s = beginDayPlan(hints, ctx)
+    expect(s.say).toEqual(['Oh, I get it: you have the college and the interview at 16:00.', 'Shall I add them to today and plan your day around them?'])
+    s = go(s, pick('yes'), ctx)
+    expect(s.say).toEqual(['Great, one at a time.', 'Where is the college?'])
+    expect(s.expect).toMatchObject({ kind: 'place', city: { slug: 'bengaluru' } })
+    expect(go(beginDayPlan(hints, ctx), pick('no'), ctx).state).toBeNull()
+  })
+
+  it('"edit the bank" asks what to change, and "edit my plan" asks what changed', () => {
+    const s = beginEditTask('task-bank', ctx)
+    expect(s.say).toEqual(['What about the bank?'])
+    expect(s.expect).toMatchObject({ kind: 'choice' })
+    expect(understand('edit the bank', { trip, view: buildDay(trip), clock: 450, leftFor: null })).toMatchObject({ flow: 'editTask', taskId: 'task-bank' })
+    expect(understand('edit my plan', { trip, view: buildDay(trip), clock: 450, leftFor: null }).flow).toBe('replan')
+    expect(understand('delete the bank', { trip, view: buildDay(trip), clock: 450, leftFor: null }).action).toMatchObject({ type: 'skip', taskId: 'task-bank' })
   })
 })

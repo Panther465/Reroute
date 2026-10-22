@@ -51,7 +51,7 @@ interface TaskDraft {
 }
 
 export interface FlowState {
-  flow: 'onboard' | 'replan' | 'newTrip'
+  flow: 'onboard' | 'replan' | 'newTrip' | 'dayPlan'
   step: string
   start?: string
   days?: number
@@ -148,8 +148,32 @@ function heard(h: PlanHints): string | null {
   const parts: string[] = []
   if (h.stay) parts.push(`you’re staying at ${h.stay}`)
   const tasks = h.tasks.map((t) => `${the(t.title)}${t.fixed ? ` at ${t.fixed}` : ''}`)
-  if (tasks.length) parts.push(`you have ${tasks.length > 1 ? `${tasks.slice(0, -1).join(', ')} and ${tasks[tasks.length - 1]}` : tasks[0]}`)
+  if (tasks.length) parts.push(`you have ${joinAnd(tasks)}`)
   return parts.length ? `I heard that ${parts.join(', and ')}. I’ll ask about each.` : null
+}
+
+const joinAnd = (xs: string[]) => (xs.length > 1 ? `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}` : (xs[0] ?? ''))
+
+/**
+ * A day described in the chat ("tomorrow I have college, then a meeting at 5"): Roo says what it
+ * understood and offers to add it and plan, then asks where each thing is, as when setting up a trip.
+ */
+export function beginDayPlan(hints: PlanHints, ctx: FlowContext): Step {
+  const things = hints.tasks.map((t) => `${the(t.title)}${t.fixed ? ` at ${t.fixed}` : ''}`)
+  const day = !ctx.trip || ctx.trip.day === ctx.today ? 'today' : weekday(ctx.trip.day)
+  return {
+    state: { flow: 'dayPlan', step: 'confirm', hints, queue: hints.tasks },
+    say: [`Oh, I get it: you have ${joinAnd(things)}.`, `Shall I add ${things.length > 1 ? 'them' : 'it'} to ${day} and plan your day around ${things.length > 1 ? 'them' : 'it'}?`],
+    expect: choice([
+      ['yes', 'Yes, plan my day'],
+      ['no', 'Not now'],
+    ]),
+  }
+}
+
+/** "Edit the bank": what about it? The time, how long, another day, or skip it. */
+export function beginEditTask(taskId: string, ctx: FlowContext): Step {
+  return replan({ flow: 'replan', step: 'which' }, { kind: 'choice', id: taskId, label: '' }, ctx)
 }
 
 function chosen(state: FlowState, city: City, ctx: FlowContext): Step {
@@ -419,6 +443,11 @@ export function next(state: FlowState, a: Answer, ctx: FlowContext): Step {
   if (a.kind === 'choice' && a.id === 'cancel') return { state: null, say: ['Okay, let’s leave it there.'], expect: FREE }
   if (state.flow === 'onboard') return onboard(state, a, ctx)
   if (state.flow === 'replan') return replan(state, a, ctx)
+  if (state.flow === 'dayPlan') {
+    if (state.step !== 'confirm') return onboard(state, a, ctx)
+    if (a.kind === 'choice' && a.id === 'yes') return nextMentioned({ ...state, added: 0 }, ctx, ['Great, one at a time.'])
+    return { state: null, say: ['Okay. Tell me whenever you want to plan it.'], expect: FREE }
+  }
   return newTrip(state, a, ctx)
 }
 

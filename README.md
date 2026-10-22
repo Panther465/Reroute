@@ -135,7 +135,7 @@ cd frontend && pnpm install && pnpm dev
 |---|---|---|
 | Reroute API and planner | 211 tests (the API flow tests need `TEST_DATABASE_URL` pointing at PostGIS) | `cd backend && pytest` |
 | Raasta | 107 tests | `cd raasta && pytest` |
-| Web app | 106 tests | `cd frontend && pnpm test` |
+| Web app | 108 tests | `cd frontend && pnpm test` |
 | The demo day over HTTP | 32 requests, 54 assertions | `npx newman run postman/reroute.postman_collection.json --insecure` |
 | End to end with axe | 40 tests, phone and desktop | `cd frontend && E2E_BASE_URL=https://localhost pnpm e2e` |
 | Load | 500 virtual users, 95% under 500 ms | `k6 run tests/load/k6.js` |

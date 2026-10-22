@@ -10,7 +10,8 @@ import { speak } from '@/lib/alerts'
 import { hhmm } from '@/lib/format'
 import { useOpenLate } from '@/lib/late'
 import { confirmFor, forSpeech, understand, type RooAction, type RooAnswer, type RooContext, type RooLink } from '@/lib/roo/brain'
-import { beginNewTrip, beginOnboard, beginReplan, intro, next, planSummary, type Answer, type Effect, type Expect, type FlowContext, type FlowState } from '@/lib/roo/flows'
+import { beginDayPlan, beginEditTask, beginNewTrip, beginOnboard, beginReplan, intro, next, planSummary, type Answer, type Effect, type Expect, type FlowContext, type FlowState } from '@/lib/roo/flows'
+import { understandPlan } from '@/lib/roo/understand'
 import { getState, setState } from '@/lib/store'
 import { buildDay, weekday } from '@/lib/timeline'
 import { listenOnce, VoiceError } from '@/lib/voice'
@@ -214,6 +215,7 @@ export function useConversation(o: ConversationOptions) {
 
   const answer = (a: RooAnswer, spoken: boolean) => {
     if (a.taskId) lastTask.current = a.taskId
+    if (a.flow === 'editTask') return void begin(a.taskId ? beginEditTask(a.taskId, flowCtx()) : beginReplan())
     if (a.flow) return void startFlow(a.flow)
     const card = a.confirm && a.action ? { action: a.action, ...a.confirm, state: 'ask' as const } : undefined
     void say([a.reply], { card, links: a.links, mood: a.mood, spoken, expect: FREE })
@@ -257,13 +259,15 @@ export function useConversation(o: ConversationOptions) {
       }
       const trip = flowTrip.current ?? ctx.trip
       if (!trip) throw new ApiError(409, 'NO_TRIP', 'There’s no trip to add it to yet.')
+      // A trip just set up starts on its first day; otherwise it's the day on screen.
+      const day = flowTrip.current ? trip.startDate : trip.day
       if (e.kind === 'addTask') {
-        const fixedStart = e.fixed ? `${trip.startDate}T${e.fixed}:00${trip.utcOffset}` : null
-        await addTask(trip.tripId, { title: e.title, placeId: e.place.placeId, durationMin: e.durationMin, fixedStart, window: e.window ?? null, priority: 2, hoursUnknown: false, day: trip.startDate }, newKey('task'), { replan: false })
+        const fixedStart = e.fixed ? `${day}T${e.fixed}:00${trip.utcOffset}` : null
+        await addTask(trip.tripId, { title: e.title, placeId: e.place.placeId, durationMin: e.durationMin, fixedStart, window: e.window ?? null, priority: 2, hoursUnknown: false, day }, newKey('task'), { replan: false })
         return await feed(state, { kind: 'done' })
       }
       if (e.kind === 'plan') {
-        const job = await api.post<JobAccepted>(`/v1/trips/${trip.tripId}/plans`, { day: trip.startDate }, { idempotencyKey: newKey('plan') })
+        const job = await api.post<JobAccepted>(`/v1/trips/${trip.tripId}/plans`, { day }, { idempotencyKey: newKey('plan') })
         const done = await waitForJob(job.jobId)
         if (done.status === 'failed' || done.error) throw new ApiError(409, 'NO_FEASIBLE_PLAN', done.error ?? 'Your tasks don’t fit in one day.')
         const fresh = await api.get<Trip>(`/v1/trips/${trip.tripId}`)
@@ -287,6 +291,13 @@ export function useConversation(o: ConversationOptions) {
     if (step.effect) await doEffect(step.effect, step.state ?? state)
   }
 
+  /** Start a conversation at a step worked out elsewhere. */
+  const begin = async (step: ReturnType<typeof beginReplan>) => {
+    flowTrip.current = null
+    setFlow(step.state)
+    await say(step.say, { expect: step.expect, mood: 'happy' })
+  }
+
   const startFlow = async (kind: 'onboard' | 'replan' | 'newTrip', withIntro = false) => {
     const step = kind === 'onboard' ? beginOnboard() : kind === 'replan' ? beginReplan() : beginNewTrip(flowCtx())
     flowTrip.current = null
@@ -308,7 +319,9 @@ export function useConversation(o: ConversationOptions) {
       // In a conversation, typing answers the question (or picks a choice by its words).
       const ex = expect
       if (ex.kind === 'choice') {
-        const hit = ex.options.find((c) => c.label.toLowerCase() === said.toLowerCase() || said.toLowerCase().includes(c.label.toLowerCase()))
+        // "yes" answers "Yes, plan my day"; "no" answers "Not now".
+        const low = said.toLowerCase()
+        const hit = ex.options.find((c) => c.label.toLowerCase() === low || low.includes(c.label.toLowerCase()) || (low.length >= 2 && c.label.toLowerCase().startsWith(low)))
         if (hit) return void feed(f, { kind: 'choice', id: hit.id, label: hit.label })
         if (ex.allowText) return void feed(f, { kind: 'text', text: said })
         // Something else entirely: leave the conversation and answer it.
@@ -321,6 +334,18 @@ export function useConversation(o: ConversationOptions) {
     const o2 = latest.current
     const local = understand(said, { ...o2.ctx, lastTaskId: lastTask.current })
     const t = o2.ctx.trip
+    // A day described in a few sentences: things to do that aren't in the trip yet. Roo offers to plan it,
+    // unless the message is plainly about a task already there ("move the bank to 4 pm").
+    if (t) {
+      const hints = understandPlan(said)
+      const known = t.tasks.map((x) => x.title.toLowerCase())
+      hints.tasks = hints.tasks.filter((x) => !known.some((k) => k.includes(x.title.toLowerCase())))
+      const act = local.action
+      const target = act && 'taskId' in act ? t.tasks.find((x) => x.taskId === act.taskId) : undefined
+      const aboutKnown = !!target && said.toLowerCase().includes(target.title.toLowerCase().split(/\s+/)[0])
+      const open = local.unknown || local.guess || local.action?.type === 'add' || local.action?.type === 'replan' || said.split(/\s+/).length >= 8
+      if (hints.tasks.length >= 2 || (hints.tasks.length === 1 && !aboutKnown && open)) return void begin(beginDayPlan(hints, flowCtx()))
+    }
     if ((!local.unknown && !local.guess) || !o2.ai || !o2.online || !t) return answer(local, spoken)
     try {
       const history = msgs.slice(-8).map((m) => ({ role: m.from === 'me' ? ('user' as const) : ('roo' as const), text: m.text.slice(0, 600) }))

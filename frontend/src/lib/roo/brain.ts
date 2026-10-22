@@ -44,7 +44,7 @@ export interface RooAnswer {
   /** Roo only recognised a task in it and said what it knows: the AI helper, when on, may do better. */
   guess?: boolean
   /** The sentence starts a conversation: Roo asks questions (lib/roo/flows.ts). */
-  flow?: 'replan' | 'newTrip'
+  flow?: 'replan' | 'newTrip' | 'editTask'
 }
 
 export interface RooContext {
@@ -263,7 +263,7 @@ function nextTripDay(trip: Trip, text: string): string | null {
 function taskEdit(t: string, ctx: RooContext): RooAnswer | null {
   const trip = ctx.trip
   if (!trip) return null
-  const skip = has(t, /\b(skip|drop|cancel|don't need|do not need|no need|forget about|forget the|remove|not going|won't go|can't go|cannot go)\b/)
+  const skip = has(t, /\b(skip|drop|cancel|delete|don't need|do not need|no need|forget about|forget the|remove|not going|won't go|can't go|cannot go)\b/)
   const move = has(t, /\b(tomorrow|next day|another day|day after)\b/) || (has(t, /\b(move|push|shift|postpone|reschedule|do|wait|keep)\b/) && has(t, /\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/))
   const time = clockIn(t)
   const timeVerb = has(t, /\b(move|change|make|set|reschedule|shift|start|put|book|fix)\b/) || has(t, /\b(at|to)\s+\d/)
@@ -325,7 +325,8 @@ export function understand(spoken: string, ctx: RooContext): RooAnswer {
 
   // Conversations: a new trip, or re-planning today, both start with questions
   if (/\b(new (plan|trip)|entire(ly)? new|whole new|completely new|brand new|start (over|fresh|from scratch)|from scratch|create (a|another) (new )?(plan|trip))\b/.test(t)) return { reply: '', flow: 'newTrip' }
-  if (/\b(re[- ]?plan|change (my|the) plan|adjust (my|the) (plan|day)|(my )?plans? (have |has )?changed|something (has )?changed)\b/.test(t) && !/\b(plan (my|the) day again|plan (it|everything) again)\b/.test(t)) {
+  const editDay = /\b(edit|modify|update|change|tweak|adjust)\s+(my |the |this |today'?s )?(plan|day|timeline|schedule)\b/.test(t) || /^(edit|change|modify)( (it|this|that))?$/.test(t.trim())
+  if (editDay || (/\b(re[- ]?plan|change (my|the) plan|adjust (my|the) (plan|day)|(my )?plans? (have |has )?changed|something (has )?changed)\b/.test(t) && !/\b(plan (my|the) day again|plan (it|everything) again)\b/.test(t))) {
     return { reply: '', flow: 'replan' }
   }
 
@@ -400,6 +401,8 @@ export function understand(spoken: string, ctx: RooContext): RooAnswer {
     return { reply: end ? `You’ll be back at the hotel around ${hhmm(end.time)}.` : status(ctx) }
   }
   const { task } = findTask(t, ctx)
+  // "Edit the bank", with nothing more: ask what to change, with the choices.
+  if (task && /\b(edit|change|update|modify|tweak|adjust|fix)\b/.test(t)) return { reply: '', flow: 'editTask', taskId: task.taskId }
   if (task && view) {
     const stop = view.stops.find((s) => s.id === task.taskId)
     const when = stop ? `at ${hhmm(stop.time)}, until ${hhmm(stop.end)}` : task.fixedStart ? `at ${hhmm(localMinutes(task.fixedStart, task.day, trip?.utcOffset))} on ${weekday(task.day)}` : task.day !== view.day ? `on ${weekday(task.day)}` : 'not in today’s plan'

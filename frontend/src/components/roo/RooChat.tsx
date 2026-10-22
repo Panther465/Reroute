@@ -1,7 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { Volume2, VolumeX, X } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router'
 import { useAiHelperEnabled, useDay, useMe, useWallet } from '@/api/queries'
 import type { Trip } from '@/api/types'
@@ -54,10 +54,14 @@ export function RooChat({ trip, clock }: { trip: Trip | undefined; clock: number
   const chips = useMemo(() => suggestions(ctx), [trip, view, clock]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Opening the chat: Roo says hello (again, after a long gap). Closing it turns the microphone off.
+  // The effect can run twice as the panel mounts, before the first hello shows: one hello only.
+  const greeted = useRef(0)
   useEffect(() => {
     if (!open) return c.stopListening()
     const last = c.msgs[c.msgs.length - 1]
     if (last && Date.now() - last.at < 2 * 60 * 60 * 1000) return
+    if (Date.now() - greeted.current < 10_000) return
+    greeted.current = Date.now()
     void c.say([greeting(ctx).reply], { mood: 'wave' })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
