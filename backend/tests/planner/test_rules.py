@@ -126,6 +126,24 @@ def test_task_that_cant_fit_is_named_not_dropped_silently(demo_input):
     assert "closes at" in unplaced[0].reason and "earliest" in unplaced[0].reason
 
 
+def test_a_first_plan_keeps_a_task_however_dear_the_cab_and_names_only_what_cant_fit():
+    # Only a long, dear cab reaches each place: the ride costs more than the ordinary left-out penalty.
+    pairs = []
+    for a in ("home", "a", "b"):
+        for b in ("home", "a", "b"):
+            if a != b:
+                pairs.append(PairOptions(from_place=a, to_place=b, options=(opt(f"{a}-{b}-cab", 50, 700, Mode.CAB),)))
+    snap = TravelSnapshot(snapshot_id="dear", pairs=tuple(pairs))
+    tasks = [task("a", "a", window=(t(10), t(20))), task("b", "b", window=(t(10), t(20)))]
+    first = plan_day(make(tasks, snap, start=Start(place_id="home", ready_at=t(12)), objective=Objective(allow_unplace=True)))
+    assert first.feasible and {leg.task_id for leg in first.legs} == {"a", "b", None} and first.moved == ()
+    # Its cost stays on the ordinary scale: three cab rides, nothing left out.
+    assert first.cost == 3 * 50 + 3 * 70
+    # A re-plan that may move tasks still weighs a dear ride against moving one (the "keep it cheap" option).
+    moving = plan_day(make(tasks, snap, start=Start(place_id="home", ready_at=t(12)), has_next_day=True, objective=Objective(allow_move=True)))
+    assert {m.kind for m in moving.moved} == {"moved"}
+
+
 def test_leave_five_minutes_after_a_task_ends():
     snap = grid_snapshot(["home", "a", "b"], minutes=15)
     plan = plan_day(make([task("a", "a", fixed=t(9), duration=60), task("b", "b", window=(t(9), t(18)))], snap))

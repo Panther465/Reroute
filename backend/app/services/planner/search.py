@@ -408,9 +408,21 @@ def _blocked(ctx: _Ctx) -> Blocked:
     return Blocked(task_id=t.task_id, title=t.title, reason=_why_not(ctx, t))
 
 
+#: On a first plan, leaving a task out costs more than any day could: a task is "unplaced" only when it
+#: can't fit, never because going there costs more than the ordinary penalty (a long cab ride does).
+UNPLACED_WEIGHT = 1_000_000
+
+
+def _first_plan(inp: PlannerInput) -> bool:
+    o = inp.objective
+    return o.allow_unplace and not o.allow_move and not o.allow_skip
+
+
 def plan_day(inp: PlannerInput) -> PlanResult:
     """Plan the rest of a day. Pure and deterministic: the same input gives the same plan and hash."""
-    ctx = _build_ctx(inp)
+    first = _first_plan(inp) and inp.rule.weight_moved_task < UNPLACED_WEIGHT
+    run = inp.model_copy(update={"rule": inp.rule.model_copy(update={"weight_moved_task": UNPLACED_WEIGHT})}) if first else inp
+    ctx = _build_ctx(run)
     approximate = len(ctx.tasks) > inp.rule.exact_search_max_tasks
     steps = _insertion(ctx) if approximate else _exact(ctx)
     if steps is None:
@@ -422,7 +434,12 @@ def plan_day(inp: PlannerInput) -> PlanResult:
             cost_divisor=inp.rule.fare_divisor,
             inputs_hash=inputs_hash(inp),
         )
-    return _assemble(ctx, steps, approximate)
+    result = _assemble(ctx, steps, approximate)
+    if not first:
+        return result
+    # The plan reports its cost on the ordinary scale, and the hash of what it was asked.
+    extra = inp.rule.fare_divisor * (UNPLACED_WEIGHT - inp.rule.weight_moved_task) * len(result.moved)
+    return result.model_copy(update={"cost_scaled": result.cost_scaled - extra, "inputs_hash": inputs_hash(inp)})
 
 
 def simulate(inp: PlannerInput, order: list[tuple[str | None, str]] | tuple[tuple[str | None, str], ...]) -> tuple[PlanResult | None, str | None, str | None]:
