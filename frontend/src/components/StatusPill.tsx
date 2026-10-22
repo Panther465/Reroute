@@ -1,5 +1,6 @@
 import { Ban, ChevronRight, Clock, Route, TriangleAlert, WifiOff } from 'lucide-react'
 import { AnimatePresence, motion } from 'motion/react'
+import { EASE_OUT } from '@/lib/motion'
 import { useDelayed, type Status } from '@/lib/hooks'
 import { useT } from '@/lib/i18n'
 import { useStore } from '@/lib/store'
@@ -23,7 +24,7 @@ export function StatusPill({ live, onOpen }: { live: Status; onOpen: () => void 
   const text = t(status.text)
   return (
     <button type="button" onClick={onOpen} className="group -my-2 flex min-h-12 items-center rounded-full" aria-label={`${text}. Open the Reroute log`}>
-      <motion.span layout transition={{ layout: { duration: 0.24, ease: [0.16, 1, 0.3, 1] } }} className={`inline-flex h-8 items-center gap-1.5 overflow-hidden rounded-full px-3 t-caption ${cls}`} style={{ borderRadius: 999 }}>
+      <motion.span layout transition={{ layout: { duration: 0.24, ease: EASE_OUT } }} className={`inline-flex h-8 items-center gap-1.5 overflow-hidden rounded-full px-3 t-caption ${cls}`} style={{ borderRadius: 999 }}>
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.span
             key={status.kind + status.text}

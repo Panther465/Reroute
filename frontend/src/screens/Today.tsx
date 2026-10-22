@@ -1,9 +1,10 @@
-import { BellRing, Car, ChevronDown, CircleCheck, LocateFixed, Map as MapIcon, MapPinned, Navigation, Plus, Route, Share2, TrainFront, X } from 'lucide-react'
+import { BellRing, Car, CarTaxiFront, ChevronDown, CircleCheck, LocateFixed, Map as MapIcon, MapPin, MapPinned, Navigation, Plus, Route, Share2, Ticket, TrainFront, TriangleAlert, X } from 'lucide-react'
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useLocation as useRouterLocation, useNavigate } from 'react-router'
 import { useBookings, useCurrentTripId, useDay, useTrip } from '@/api/queries'
 import type { Booking, Task, Trip } from '@/api/types'
 import { NextCard } from '@/components/NextCard'
+import { LazyMap } from '@/components/LazyMap'
 import { StatusPill } from '@/components/StatusPill'
 import { Timeline } from '@/components/timeline/Timeline'
 import { TodaySkeleton } from '@/components/TodaySkeleton'
@@ -14,7 +15,7 @@ import { Tag } from '@/components/ui/Tag'
 import { ApiError } from '@/api/client'
 import { applyServerChange, checkIn, moveTaskToDay, playLater, playTaskEdit, replanDay, undo, undoVersionOf } from '@/lib/actions'
 import { duration, lowerFirst } from '@/lib/format'
-import { stopEmoji } from '@/lib/stopEmoji'
+import { stopIcon } from '@/lib/stopIcon'
 import { activeBooking, isTrainTask } from '@/lib/bookings'
 import type { MapPoint } from '@/components/MapCard'
 import { legLines, type MapLine } from '@/lib/geo'
@@ -29,7 +30,6 @@ import { setState, showToast, useStore } from '@/lib/store'
 import { addDays, dayLabel, localMinutes, weekday, type DayView, type LegView, type StopView } from '@/lib/timeline'
 
 // Sheets and the embedded leg detail load the first time they open, so Today itself stays small.
-const MapCard = lazy(() => import('@/components/MapCard'))
 const LegDetailContent = lazy(() => import('./LegDetail').then((m) => ({ default: m.LegDetailContent })))
 const ShareSheet = lazy(() => import('./ShareSheet').then((m) => ({ default: m.ShareSheet })))
 const TaskSheet = lazy(() => import('./TaskSheet').then((m) => ({ default: m.TaskSheet })))
@@ -63,7 +63,6 @@ export function TodayHeader({
   onAdd?: () => void
   onTrips?: () => void
 }) {
-  const demo = useStore((s) => s.demo.enabled)
   const day = `${dayLabel(trip.day)}, day ${trip.dayIndex} of ${trip.dayCount}`
   return (
     <header className="flex items-start justify-between gap-3">
@@ -72,11 +71,11 @@ export function TodayHeader({
           <h1 tabIndex={-1} className="t-display-1 text-ink">
             {trip.cityName}
           </h1>
-          {demo && <Tag tone="sunken">Demo</Tag>}
+          {/* The demo bar above says "Demo"; the trip only says what it is. */}
           {trip.sample && <Tag tone="grey-outline">Sample trip</Tag>}
         </div>
         {onTrips ? (
-          <button type="button" onClick={onTrips} className="-mx-1 mt-0.5 block min-h-11 rounded-control px-1 py-1 text-left t-body text-ink-2 [@media(hover:hover)]:hover:bg-sunken">
+          <button type="button" onClick={onTrips} className="-mx-1 mt-0.5 block min-h-12 rounded-control px-1 py-1 text-left t-body text-ink-2 [@media(hover:hover)]:hover:bg-sunken">
             {`${dayLabel(trip.day)}, `}
             {/* "day 1 of 2" and the chevron wrap together, never split across lines. */}
             <span className="whitespace-nowrap">
@@ -140,7 +139,7 @@ function NotInPlan({ trip, view }: { trip: Trip; view: DayView }) {
   return (
     <section aria-labelledby="not-in-plan" className="rounded-card border border-line bg-surface p-4">
       <h2 id="not-in-plan" className="flex items-center gap-2 t-title text-ink">
-        <span aria-hidden="true">⚠️</span>
+        <TriangleAlert size={20} strokeWidth={2} aria-hidden="true" className="shrink-0 text-red-ink" />
         {items.length === 1 ? '1 task isn’t in today’s plan' : `${items.length} tasks aren’t in today’s plan`}
       </h2>
       <ul className="mt-3 flex flex-col divide-y divide-line">
@@ -290,7 +289,7 @@ export default function Today() {
     if (!view) return []
     const pts: MapPoint[] = view.stops
       .filter((s) => s.kind !== 'end' && places.has(s.placeId))
-      .map((s) => ({ id: s.id, lngLat: places.get(s.placeId)!, kind: 'stop' as const, label: `${s.title}, ${s.area}`, emoji: stopEmoji(s.title, s.kind), caption: s.title, state: pinState(s) }))
+      .map((s) => ({ id: s.id, lngLat: places.get(s.placeId)!, kind: 'stop' as const, label: `${s.title}, ${s.area}`, icon: stopIcon(s.title, s.kind), caption: s.title, state: pinState(s) }))
     // With the phone's location on, the live blue dot shows where the traveller is instead.
     const here = places.get(view.stops[view.nowIndex]?.placeId ?? '')
     return here && !fix ? [...pts, { id: 'me', lngLat: here, kind: 'user' as const, label: 'Where you are, by your check-ins' }] : pts
@@ -311,7 +310,7 @@ export default function Today() {
       const p = places.get(id)
       const stop = view?.stops.find((s) => s.id === (i ? guide.leg.toId : guide.leg.fromId))
       return p
-        ? [{ id: `mini-${i}`, lngLat: p, kind: 'stop' as const, label: i ? guide.to.title : 'Start of this leg', emoji: stop ? stopEmoji(stop.title, stop.kind) : '📍', state: (i ? 'next' : 'later') as MapPoint['state'] }]
+        ? [{ id: `mini-${i}`, lngLat: p, kind: 'stop' as const, label: i ? guide.to.title : 'Start of this leg', icon: stop ? stopIcon(stop.title, stop.kind) : MapPin, state: (i ? 'next' : 'later') as MapPoint['state'] }]
         : []
     })
   }, [guide, places])
@@ -462,9 +461,7 @@ export default function Today() {
       {!desktop && (
         // The map is a picture of the leg; the link laid over it (not around it) opens the full map and directions.
         <div className="relative">
-          <Suspense fallback={<Skeleton className="h-36 w-full rounded-card" />}>
-            <MapCard compact lines={miniLines} points={miniPoints} label={`Map to ${guide.to.title}`} className="h-36" me={fix} />
-          </Suspense>
+          <LazyMap compact lines={miniLines} points={miniPoints} label={`Map to ${guide.to.title}`} className="h-36" me={fix} />
           <Link to={`/leg/${guide.leg.seq}`} aria-label={`Map and directions to ${guide.to.title}`} className="absolute inset-x-0 top-0 h-36 rounded-card" />
         </div>
       )}
@@ -573,9 +570,9 @@ export default function Today() {
     [leg.fromId, leg.toId].flatMap((id, i) => {
       const stop = view.stops.find((s) => s.id === id)
       const at = places.get(i ? leg.toPlaceId : leg.fromPlaceId)
-      return stop && at ? [{ id: `leg-${leg.seq}-${i}`, lngLat: at, kind: 'stop' as const, label: stop.title, emoji: stopEmoji(stop.title, stop.kind), state: i ? 'next' : 'later' }] : []
+      return stop && at ? [{ id: `leg-${leg.seq}-${i}`, lngLat: at, kind: 'stop' as const, label: stop.title, icon: stopIcon(stop.title, stop.kind), state: i ? 'next' : 'later' }] : []
     })
-  const linkButton = '-ml-1 inline-flex min-h-11 items-center gap-1.5 rounded-control px-1 t-small font-bold text-ink underline decoration-2 underline-offset-4'
+  const linkButton = '-ml-1 inline-flex min-h-12 items-center gap-1.5 rounded-control px-1 t-small font-bold text-ink underline decoration-2 underline-offset-4'
   const legMap = (leg: LegView) => {
     if (leg.status === 'done') return null
     const open = mapSeq === leg.seq
@@ -583,6 +580,9 @@ export default function Today() {
     const regionId = `leg-map-${leg.seq}`
     // A booked ride shows its driver, plate and OTP; otherwise the leg offers a (demo) cab.
     const ride = activeBooking(bookings.data, { toId: leg.toId })
+    // Only the next leg carries its actions on the timeline, so the day reads as a line, not a list of
+    // buttons. Every other leg's map and cab are a tap away in its leg details.
+    if (!ride && !open && leg.seq !== activeSeq) return null
     return (
       <div className="mt-1.5">
         <div className="flex flex-wrap items-center gap-x-4">
@@ -593,9 +593,9 @@ export default function Today() {
             </button>
           )}
           {ride ? (
-            <button type="button" onClick={() => setViewing(ride)} className="inline-flex min-h-11 items-center gap-2 rounded-full border border-green bg-green-tint px-3 t-small font-bold text-ink">
-              <span aria-hidden="true">🚕</span>
-              {String(ride.details.providerLabel)} · {String(ride.details.plate)} · OTP {String(ride.details.otp)}
+            <button type="button" onClick={() => setViewing(ride)} className="inline-flex min-h-12 items-center gap-2 rounded-full border border-green bg-green-tint px-3 t-small font-bold text-ink">
+              <CarTaxiFront size={18} strokeWidth={1.75} aria-hidden="true" className="shrink-0" />
+              {String(ride.details.providerLabel)}, {String(ride.details.plate)}, OTP {String(ride.details.otp)}
             </button>
           ) : (
             <button type="button" onClick={() => setCabFor({ toId: leg.toId, name: to?.title ?? 'the next stop' })} className={linkButton}>
@@ -606,9 +606,7 @@ export default function Today() {
         </div>
         {open && (
           <div id={regionId} className="relative mt-1">
-            <Suspense fallback={<Skeleton className="h-44 w-full rounded-card" />}>
-              <MapCard compact lines={rideLines(leg)} points={legPins(leg)} label={`Map to ${to?.title ?? 'the next stop'}`} className="h-44" me={fix} />
-            </Suspense>
+            <LazyMap compact lines={rideLines(leg)} points={legPins(leg)} label={`Map to ${to?.title ?? 'the next stop'}`} className="h-44" me={fix} />
             <Link to={`/leg/${leg.seq}`} aria-label={`Full map and directions to ${to?.title ?? 'the next stop'}`} className="absolute inset-x-0 top-0 h-44 rounded-card" />
           </div>
         )}
@@ -622,9 +620,9 @@ export default function Today() {
     if (!task || !isTrainTask(task) || task.state === 'done') return null
     const ticket = activeBooking(bookings.data, { taskId: task.taskId })
     return ticket ? (
-      <button type="button" onClick={() => setViewing(ticket)} className="mt-1 inline-flex min-h-11 items-center gap-2 rounded-full border border-green bg-green-tint px-3 t-small font-bold text-ink">
-        <span aria-hidden="true">🎫</span>
-        PNR {ticket.reference} · {String(ticket.details.bookingStatus)}
+      <button type="button" onClick={() => setViewing(ticket)} className="mt-1 inline-flex min-h-12 items-center gap-2 rounded-full border border-green bg-green-tint px-3 t-small font-bold text-ink">
+        <Ticket size={18} strokeWidth={1.75} aria-hidden="true" className="shrink-0" />
+        PNR {ticket.reference}, {String(ticket.details.bookingStatus)}
       </button>
     ) : (
       <button type="button" onClick={() => setTrainFor(task)} className={`mt-1 ${linkButton}`}>
@@ -696,9 +694,7 @@ export default function Today() {
           </div>
         </section>
         <section aria-label="Map and leg detail" className="sticky top-16 flex h-[calc(100dvh-64px)] flex-col gap-4 overflow-y-auto py-8">
-          <Suspense fallback={<Skeleton className="h-[44vh] min-h-72 w-full shrink-0 rounded-card" />}>
-            <MapCard lines={mapLines} points={mapPoints} focus={focus} label="Map of today's route" className="h-[44vh] min-h-72 shrink-0" draw={revealing} me={fix} eta={eta} />
-          </Suspense>
+          <LazyMap lines={mapLines} points={mapPoints} focus={focus} label="Map of today's route" className="h-[44vh] min-h-72 shrink-0" draw={revealing} me={fix} eta={eta} />
           {selectedLeg && (
             <Suspense fallback={<Skeleton className="h-96 w-full shrink-0 rounded-card" />}>
               <LegDetailContent key={selectedLeg.seq} trip={trip} leg={selectedLeg} embedded />

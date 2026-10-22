@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import * as Tabs from '@radix-ui/react-tabs'
 import { Download } from 'lucide-react'
-import { lazy, Suspense, useMemo, useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Navigate, useOutletContext } from 'react-router'
 import { api, ApiError, apiBase } from '@/api/client'
 import { queryClient, useQueue, useRaastaRoute } from '@/api/queries'
 import type { Contribution, ContributionDecision, FareReport, VehicleType } from '@/api/types'
 import { BackButton, useBack } from '@/components/BackButton'
+import { LazyMap } from '@/components/LazyMap'
 import { MODE_META, ModeIcon, modeTextClass } from '@/components/icons'
 import { Button, buttonClass } from '@/components/ui/Button'
 import { ChipGroup, Segmented } from '@/components/ui/Choice'
@@ -18,7 +19,6 @@ import { routeLine, type LngLat } from '@/lib/geo'
 import { useDocumentTitle, useIsDesktop } from '@/lib/hooks'
 import { showToast } from '@/lib/store'
 
-const MapCard = lazy(() => import('@/components/MapCard'))
 
 type Filter = 'waiting' | 'stale' | 'verified' | 'rejected'
 const FILTERS: { value: Filter; label: string }[] = [
@@ -104,9 +104,7 @@ function Panel({ c, onClose }: { c: Contribution; onClose?: () => void }) {
         </div>
       </header>
       {route && (
-        <Suspense fallback={<Skeleton className="h-56 w-full rounded-card" />}>
-          <MapCard key={c.contributionId} lines={lines} points={points} label={`Map preview of ${routeName(c)}`} className="h-56" />
-        </Suspense>
+        <LazyMap key={c.contributionId} lines={lines} points={points} label={`Map preview of ${routeName(c)}`} className="h-56" />
       )}
       <section aria-label="Stands">
         <h3 className="t-title text-ink">Stands</h3>

@@ -55,6 +55,32 @@ describe('offline check-in queue', () => {
     expect(queued()).toEqual([])
   })
 
+  it('keeps a check-in that was rate limited or is still being processed', async () => {
+    enqueue(item('k1'))
+    await flush(async () => {
+      throw new ApiError(429, 'RATE_LIMITED', 'Too many requests.')
+    })
+    expect(queued()).toHaveLength(1)
+    await flush(async () => {
+      throw new ApiError(409, 'IN_PROGRESS', 'The same request is already being processed.')
+    })
+    expect(queued()).toHaveLength(1)
+  })
+
+  it('sends each check-in once when two flushes overlap', async () => {
+    enqueue(item('k1'))
+    enqueue(item('k2'))
+    const sent: string[] = []
+    const send = async (q: QueuedCheckin) => {
+      await new Promise((r) => setTimeout(r, 5))
+      sent.push(q.idempotencyKey)
+    }
+    const [a, b] = await Promise.all([flush(send), flush(send)])
+    expect(sent).toEqual(['k1', 'k2'])
+    expect(a).toBe(b)
+    expect(queued()).toEqual([])
+  })
+
   it('keeps everything on a server error, to retry later', async () => {
     enqueue(item('k1'))
     await flush(async () => {

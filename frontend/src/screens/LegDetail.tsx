@@ -1,11 +1,14 @@
-import { Clock, History, IndianRupee, Navigation, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { CarTaxiFront, Clock, History, IndianRupee, Navigation, Ruler, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
+import { EASE_OUT } from '@/lib/motion'
+import { useSubmitKey } from '@/lib/submitKey'
 import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { api, ApiError, newKey } from '@/api/client'
-import { keys, queryClient, useCurrentTripId, useDay, useRaastaRoute, useTrip } from '@/api/queries'
-import type { RaastaRoute, Trip } from '@/api/types'
+import { api, ApiError } from '@/api/client'
+import { keys, queryClient, useBookings, useCurrentTripId, useDay, useRaastaRoute, useTrip } from '@/api/queries'
+import type { Booking, RaastaRoute, Trip } from '@/api/types'
 import { BackButton, useBack } from '@/components/BackButton'
+import { LazyMap } from '@/components/LazyMap'
 import { MODE_META, ModeIcon } from '@/components/icons'
 import { ModeChain } from '@/components/timeline/ModeChain'
 import { Button, ButtonLink } from '@/components/ui/Button'
@@ -16,6 +19,7 @@ import { Tag } from '@/components/ui/Tag'
 import { duration, lowerFirst, rupees } from '@/lib/format'
 import { legLines, placeIndex, routeLine, type LngLat, type MapLine } from '@/lib/geo'
 import { useLocation as useLiveLocation } from '@/lib/location'
+import { activeBooking } from '@/lib/bookings'
 import { useRoadPaths } from '@/lib/roads'
 import { useDocumentTitle, useIsDesktop } from '@/lib/hooks'
 import { T } from '@/lib/i18n'
@@ -23,7 +27,8 @@ import { setState, showToast, useStore } from '@/lib/store'
 import { localMinutes, type LegView } from '@/lib/timeline'
 import type { Mode } from '@/lib/types'
 
-const MapCard = lazy(() => import('@/components/MapCard'))
+const CabBookingSheet = lazy(() => import('./BookingSheets').then((m) => ({ default: m.CabBookingSheet })))
+const BookingSheet = lazy(() => import('./BookingSheets').then((m) => ({ default: m.BookingSheet })))
 
 const ORDINAL = ['', '1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th']
 
@@ -193,7 +198,7 @@ export function StatusTag({ status }: { status: RaastaRoute['status'] }) {
   )
 }
 
-export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailModel; embedded?: boolean; onBack?: () => void; nowIso?: string }) {
+export function DetailBody({ model, embedded, onBack, nowIso, trip }: { model: DetailModel; embedded?: boolean; onBack?: () => void; nowIso?: string; trip?: Trip }) {
   const navigate = useNavigate()
   const [confirmed, setConfirmed] = useState<number | null>(null)
   const [report, setReport] = useState(false)
@@ -201,9 +206,9 @@ export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailM
   const [fareError, setFareError] = useState<string>()
   const [busy, setBusy] = useState(false)
   const [sendingFare, setSendingFare] = useState(false)
-  const [confirmKey] = useState(() => newKey('cnf'))
+  const { key: confirmKey, after: afterConfirm } = useSubmitKey('cnf')
   // One key per fare report: a retry of the same report reuses it; the next report gets a new one.
-  const [fareKey, setFareKey] = useState(() => newKey('fare'))
+  const { key: fareKey, renew: renewFareKey, after: afterFare } = useSubmitKey('fare')
   const r = model.route
   const leg = model.leg
   const { fix } = useLiveLocation()
@@ -213,7 +218,8 @@ export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailM
 
   const start = () => {
     if (!leg || !tripId) return
-    setState({ started: { tripId, toId: leg.toId, day: nowIso?.slice(0, 10), at: nowIso ? localMinutes(nowIso, nowIso.slice(0, 10), nowIso.slice(19)) : undefined } })
+    // The trip clock, as Today records it (the server's `now` can carry microseconds, so it isn't sliced apart).
+    setState({ started: { tripId, toId: leg.toId, day: trip?.day, at: trip ? localMinutes(trip.now, trip.day, trip.utcOffset) : undefined } })
     showToast({ title: `On your way. Get off at ${model.alight}.` })
     if (!embedded) navigate('/')
   }
@@ -227,6 +233,7 @@ export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailM
       void queryClient.invalidateQueries({ queryKey: keys.route(r.routeId) })
       showToast({ title: 'Thanks. You confirmed this route still runs.' })
     } catch (err) {
+      afterConfirm(err)
       showToast({ title: err instanceof ApiError ? err.message : "Couldn't send that. Try again." })
     } finally {
       setBusy(false)
@@ -240,12 +247,13 @@ export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailM
     setSendingFare(true)
     try {
       await api.post(`/v1/raasta/routes/${r.routeId}/fare-reports`, { fareInr: n }, { idempotencyKey: fareKey })
-      setFareKey(newKey('fare'))
+      renewFareKey()
       setReport(false)
       setFare('')
       setFareError(undefined)
       showToast({ title: `Thanks. We'll check the ${rupees(n)} fare.` })
     } catch (err) {
+      afterFare(err)
       setFareError(err instanceof ApiError ? err.message : "Couldn't send the fare. Try again.")
     } finally {
       setSendingFare(false)
@@ -340,9 +348,10 @@ export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailM
           )
         )}
       </dl>
-      <p className="mt-2 t-small text-muted">
+      <p className="mt-2 flex gap-2 t-small text-muted">
+        {leg?.rough && <Ruler size={16} strokeWidth={2} aria-hidden="true" className="mt-0.5 shrink-0" />}
         {leg?.rough
-          ? '≈ A rough estimate from the distance: Reroute has no travel data for this place yet. Allow extra time, and check the fare in your cab app.'
+          ? 'A rough estimate from the distance: Reroute has no travel data for this place yet. Allow extra time, and check the fare in your cab app.'
           : 'Times and fares are estimates.'}
       </p>
 
@@ -357,6 +366,7 @@ export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailM
             {isStarted ? 'On your way' : <T k="I've left" />}
           </Button>
         )}
+        {leg && trip && <LegCab trip={trip} leg={leg} />}
       </div>
       {r && (
         <p className="mt-3">
@@ -368,9 +378,7 @@ export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailM
 
       {!embedded && (
         <div className="mt-6">
-          <Suspense fallback={<Skeleton className="h-64 w-full rounded-card" />}>
-            <MapCard lines={model.lines} points={model.points} label={`Map of ${model.title}`} className="h-64" me={fix} />
-          </Suspense>
+          <LazyMap lines={model.lines} points={model.points} label={`Map of ${model.title}`} className="h-64" me={fix} />
         </div>
       )}
 
@@ -391,6 +399,50 @@ export function DetailBody({ model, embedded, onBack, nowIso }: { model: DetailM
   )
 }
 
+/** A (demo) cab for this leg, or the ride already booked for it. Today offers it on the next leg only. */
+function LegCab({ trip, leg }: { trip: Trip; leg: LegView }) {
+  const bookings = useBookings(trip.tripId)
+  const [booking, setBooking] = useState(false)
+  const [viewing, setViewing] = useState<Booking | null>(null)
+  const [loaded, setLoaded] = useState(false)
+  if (leg.status === 'done') return null
+  const ride = activeBooking(bookings.data, { toId: leg.toId })
+  const to = leg.toId === 'end' ? trip.stayPlace.name : (trip.tasks.find((t) => t.taskId === leg.toId)?.title ?? 'the next stop')
+  return (
+    <>
+      <Button
+        variant="secondary"
+        icon={<CarTaxiFront size={20} strokeWidth={1.75} aria-hidden="true" />}
+        onClick={() => {
+          setLoaded(true)
+          if (ride) setViewing(ride)
+          else setBooking(true)
+        }}
+      >
+        {ride ? 'Your ride' : 'Book a cab'}
+      </Button>
+      {loaded && (
+        <Suspense fallback={null}>
+          {booking && (
+            <CabBookingSheet
+              trip={trip}
+              toId={leg.toId}
+              toName={to}
+              open
+              onOpenChange={(o) => !o && setBooking(false)}
+              onBooked={(b) => {
+                setBooking(false)
+                setViewing(b)
+              }}
+            />
+          )}
+          <BookingSheet trip={trip} booking={viewing} onOpenChange={(o) => !o && setViewing(null)} />
+        </Suspense>
+      )}
+    </>
+  )
+}
+
 export function LegDetailContent({ trip, leg, embedded }: { trip: Trip; leg: LegView; embedded?: boolean }) {
   const route = useRaastaRoute(leg.raasta?.routeId)
   const places = useMemo(() => placeIndex(trip), [trip])
@@ -398,7 +450,7 @@ export function LegDetailContent({ trip, leg, embedded }: { trip: Trip; leg: Leg
   const model = useMemo(() => modelForLeg(trip, leg, route.data, road), [trip, leg, route.data, road])
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.24 }}>
-      <DetailBody model={model} embedded={embedded} nowIso={trip.now} />
+      <DetailBody model={model} embedded={embedded} nowIso={trip.now} trip={trip} />
     </motion.div>
   )
 }
@@ -410,7 +462,7 @@ export function PushedScreen({ children }: { children: ReactNode }) {
     <motion.div
       initial={desktop || reduce ? { opacity: 0 } : { x: '100%' }}
       animate={{ x: 0, opacity: 1 }}
-      transition={{ duration: 0.24, ease: [0.16, 1, 0.3, 1] }}
+      transition={{ duration: 0.24, ease: EASE_OUT }}
       className="mx-auto max-w-[560px] px-5 pt-4 lg:max-w-[720px] lg:px-8 lg:pt-8"
     >
       {children}
@@ -451,7 +503,7 @@ export default function LegDetail() {
               <Banner tone="offline">Couldn't load the route's latest details. The directions below still work.</Banner>
             </div>
           )}
-          <DetailBody model={model} onBack={back} nowIso={tripQ.data?.now} />
+          <DetailBody model={model} onBack={back} nowIso={tripQ.data?.now} trip={tripQ.data} />
         </>
       ) : (
         // Every other state keeps a way back: this screen has no tab bar.

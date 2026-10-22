@@ -43,6 +43,7 @@ export default function Me() {
   const theme = useStore((s) => s.theme)
   const lang = useStore((s) => s.lang)
   const alerts = useStore((s) => s.leaveAlerts)
+  const roo = useStore((s) => s.roo)
   const alertPrefs = useStore((s) => s.alerts)
   const setAlerts = (patch: Partial<AlertPrefs>) => setState((s) => ({ alerts: { ...s.alerts, ...patch } }))
   const voiceSelectId = useId()
@@ -242,12 +243,18 @@ export default function Me() {
         </Button>
       </Section>
 
+      <Section title="Roo">
+        <div className="rounded-card border border-line bg-surface px-4">
+          <Switch label="Roo on Today" description="Roo rides the Now line on Today, with a menu for the stop under way. Alerts still come when it's off." checked={roo} onChange={(v) => setState({ roo: v })} />
+        </div>
+      </Section>
+
       {geolocationSupported && (
         <Section title="Location">
           <div className="rounded-card border border-line bg-surface px-4">
             <Switch
               label="Show me on the map"
-              description="Follows you while Reroute is open, to show where you are on the route and say when you're nearly there. Your location stays on this phone."
+              description="Follows you while Reroute is open, to show where you are on the route and say when you're nearly there. Your position is never sent to Reroute; the map pictures around you come from OpenFreeMap."
               checked={location.tracking && !location.simulated}
               onChange={async (v) => {
                 if (!v) return stopTracking()
@@ -308,7 +315,7 @@ export default function Me() {
         open={confirm}
         onOpenChange={setConfirm}
         title="Delete your location history?"
-        description="This removes the places Reroute kept from your trips, from this phone and from Reroute. Your plans and the routes you added stay."
+        description="This removes the location history Reroute kept for your trips. Your plans and the routes you added stay."
         footer={
           <div className="flex flex-col gap-2">
             <Button variant="destructive" full loading={deleting} loadingLabel="Deleting…" onClick={deleteHistory}>

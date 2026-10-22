@@ -15,8 +15,12 @@ import { simulateRide, stopTracking, useLocation } from '@/lib/location'
 import { setState, showToast, useStore } from '@/lib/store'
 import { buildDay, localMinutes } from '@/lib/timeline'
 
-/** Developer-only Simulate panel (?demo=1, or the demo account). Drives the API's demo clock. On desktop its button sits bottom right, clear of the action bar. */
-export function DemoPanel({ trip, onLate }: { trip: Trip | undefined; onLate: (delay: number | null, mode?: 'late' | 'options') => void }) {
+/**
+ * The demo bar (?demo=1, or the demo account): the demo time and a Simulate button that opens the panel
+ * driving the API's demo clock. A slim bar at the top of the page on phones and in the top bar on
+ * desktop, so nothing floats over the day.
+ */
+export function DemoPanel({ trip, onLate, inTopBar = false }: { trip: Trip | undefined; onLate: (delay: number | null, mode?: 'late' | 'options') => void; inTopBar?: boolean }) {
   const demo = useStore((s) => s.demo)
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState(false)
@@ -91,21 +95,22 @@ export function DemoPanel({ trip, onLate }: { trip: Trip | undefined; onLate: (d
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
-      <Popover.Trigger asChild>
-        {/* A round icon on phones, so it doesn't cover the page; its name stays "Simulate". */}
-        <button
-          type="button"
-          aria-label="Simulate"
-          className="fixed bottom-[calc(148px+env(safe-area-inset-bottom))] left-3 z-40 flex size-11 items-center justify-center gap-2 rounded-full border border-line bg-surface/95 t-small text-ink-2 shadow-sm backdrop-blur-sm lg:bottom-6 lg:left-auto lg:right-6 lg:w-auto lg:px-3.5"
-        >
-          <SlidersHorizontal size={20} strokeWidth={1.75} aria-hidden="true" />
-          <span aria-hidden="true" className="hidden lg:inline">
+      <div className={inTopBar ? 'ml-auto flex items-center gap-2' : 'flex min-h-12 items-center justify-between gap-3 border-b border-line bg-sunken px-5'}>
+        <p className="t-small text-ink-2 tnum">
+          <span className="font-bold text-ink">Demo</span> time {hhmm(clock)}
+        </p>
+        <Popover.Trigger asChild>
+          <button
+            type="button"
+            className="-mr-2 inline-flex min-h-12 items-center gap-2 rounded-control px-3 t-small font-bold text-ink transition-colors duration-[var(--dur-quick)] [@media(hover:hover)]:hover:bg-surface active:bg-surface"
+          >
+            <SlidersHorizontal size={18} strokeWidth={1.75} aria-hidden="true" />
             Simulate
-          </span>
-        </button>
-      </Popover.Trigger>
+          </button>
+        </Popover.Trigger>
+      </div>
       <Popover.Portal>
-        <Popover.Content sideOffset={8} collisionPadding={16} className="z-[70] max-h-[80vh] w-[min(360px,calc(100vw-32px))] overflow-y-auto rounded-card border border-line bg-surface p-5 text-ink shadow-[var(--shadow-toast)]">
+        <Popover.Content align="end" sideOffset={8} collisionPadding={16} className="z-[70] max-h-[80vh] w-[min(360px,calc(100vw-32px))] overflow-y-auto rounded-card border border-line bg-surface p-5 text-ink shadow-[var(--shadow-toast)]">
           <div className="flex items-start justify-between">
             <h2 className="t-display-2">Simulate</h2>
             <Popover.Close aria-label="Close" className="-mr-2 -mt-2 flex size-12 items-center justify-center rounded-control">

@@ -164,6 +164,17 @@ export interface RequestOptions {
   raw?: boolean
   /** Skip the refresh-and-retry dance (used by auth calls). */
   noRefresh?: boolean
+  /** Give up after this long (default 20 s; streams and downloads, `raw`, never time out). */
+  timeoutMs?: number
+}
+
+/** No answer in time: nothing is known to be saved, so it behaves like a dropped connection (a check-in queues). */
+export const SLOW_MESSAGE = 'Reroute is taking too long to answer. Check your signal and try again.'
+
+function withTimeout(signal: AbortSignal | undefined, ms: number | undefined) {
+  if (!ms || typeof AbortSignal.timeout !== 'function') return signal
+  const timer = AbortSignal.timeout(ms)
+  return signal && typeof AbortSignal.any === 'function' ? AbortSignal.any([signal, timer]) : (signal ?? timer)
 }
 
 export async function request<T>(method: string, path: string, opts: RequestOptions = {}): Promise<T> {
@@ -182,7 +193,7 @@ export async function request<T>(method: string, path: string, opts: RequestOpti
     const headers: Record<string, string> = { Accept: 'application/json', 'X-Request-ID': crypto.randomUUID() }
     if (body !== undefined) headers['Content-Type'] = 'application/json'
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`
-    return fetch(url, { method, headers, body, credentials: 'include', signal: opts.signal })
+    return fetch(url, { method, headers, body, credentials: 'include', signal: withTimeout(opts.signal, opts.raw ? undefined : (opts.timeoutMs ?? 20_000)) })
   }
 
   const attempt = async () => {
@@ -193,6 +204,7 @@ export async function request<T>(method: string, path: string, opts: RequestOpti
       return res
     } catch (err) {
       if ((err as Error).name === 'AbortError') throw err
+      if ((err as Error).name === 'TimeoutError') throw new ApiError(0, 'OFFLINE', SLOW_MESSAGE)
       if (!forcedOffline) setReachable(false)
       throw new ApiError(0, 'OFFLINE', OFFLINE_MESSAGE)
     }

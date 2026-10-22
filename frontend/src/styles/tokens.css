@@ -32,9 +32,11 @@
   --dur-base: 240ms;
   --dur-slow: 400ms;
   --dur-hero: 900ms;
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  /* Strong curves: ease-out for anything entering or answering a tap, ease-in-out for things moving on
+     screen, the drawer curve for sheets. No ease-in: it starts slow at the moment people watch most. */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 

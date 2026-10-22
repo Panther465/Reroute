@@ -118,3 +118,22 @@ describe('restoring the session', () => {
     expect(getSessionStatus()).toBe('signedIn')
   })
 })
+
+describe('the session ending', () => {
+  it('clears the saved trip and stops following the phone, but keeps check-ins waiting to sync', async () => {
+    stubFetch(async () => json(200, { accessToken: 'tok' }))
+    await restoreSession()
+    expect(getSessionStatus()).toBe('signedIn')
+    queryClient.setQueryData(keys.me, user)
+    localStorage.setItem('reroute:cache', '{}')
+    localStorage.setItem('reroute:tracking', '1')
+    localStorage.setItem('reroute:checkin-queue', '[]')
+    // A refused refresh drops the token.
+    setAccessToken(null)
+    expect(getSessionStatus()).toBe('signedOut')
+    expect(queryClient.getQueryData(keys.me)).toBeUndefined()
+    expect(localStorage.getItem('reroute:cache')).toBeNull()
+    expect(localStorage.getItem('reroute:tracking')).toBeNull()
+    expect(localStorage.getItem('reroute:checkin-queue')).toBe('[]')
+  })
+})

@@ -27,3 +27,25 @@ describe('backoff', () => {
     expect(backoff(10, () => 0)).toBe(15_000)
   })
 })
+
+describe('useLive', () => {
+  it('reconnects when the stream goes silent (a connection that died without closing)', async () => {
+    const { renderHook } = await import('@testing-library/react')
+    const { vi } = await import('vitest')
+    const { IDLE_MS, useLive } = await import('./live')
+    vi.useFakeTimers()
+    // A stream that opens and then never sends another byte, not even a ping.
+    const silent = () => new Response(new ReadableStream({ start: () => {} }), { status: 200, headers: { 'Content-Type': 'text/event-stream' } })
+    const fetchMock = vi.fn(async () => silent())
+    vi.stubGlobal('fetch', fetchMock)
+    const hook = renderHook(() => useLive('trip-001', true))
+    await vi.advanceTimersByTimeAsync(10)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    // Past the idle limit the watchdog cancels the read, and after the backoff the stream opens again.
+    await vi.advanceTimersByTimeAsync(IDLE_MS + IDLE_MS / 3 + 2_500)
+    expect(fetchMock.mock.calls.length).toBeGreaterThanOrEqual(2)
+    hook.unmount()
+    vi.unstubAllGlobals()
+    vi.useRealTimers()
+  })
+})

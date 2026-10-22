@@ -1,6 +1,6 @@
 import * as Popover from '@radix-ui/react-popover'
 import { X } from 'lucide-react'
-import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
+import { motion, useReducedMotion } from 'motion/react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router'
@@ -8,11 +8,10 @@ import { useBookings, useDay } from '@/api/queries'
 import type { Booking, Trip } from '@/api/types'
 import { checkIn } from '@/lib/actions'
 import { hhmm, lowerFirst } from '@/lib/format'
-import { useIsDesktop } from '@/lib/hooks'
 import { useOpenLate } from '@/lib/late'
 import { useRooAnchor } from '@/lib/rooAnchor'
 import { useSheetOpen } from '@/lib/sheets'
-import { stopEmoji } from '@/lib/stopEmoji'
+import { setState, showToast, useStore } from '@/lib/store'
 import { activeBooking, isTrainTask } from '@/lib/bookings'
 import { addDays, localMinutes, type DayView } from '@/lib/timeline'
 
@@ -28,7 +27,6 @@ interface RooAction {
 
 interface RooMessage {
   id: string
-  emoji: string
   text: string
   mood: Mood
   /** Shown at once and kept until answered; otherwise shown after a moment and allowed to fade. */
@@ -38,7 +36,6 @@ interface RooMessage {
   ref?: string
 }
 
-const HIDDEN_KEY = 'reroute.roo.hidden'
 const GREETED_KEY = 'reroute.roo.greeted'
 
 const stored = (key: string) => {
@@ -62,28 +59,18 @@ const store = (key: string, on: boolean) => {
 // ---------------------------------------------------------------------------
 
 function deriveMessage(trip: Trip | undefined, view: DayView | null, clock: number | null, path: string, bookings?: Booking[]): RooMessage | null {
-  if (!trip) {
-    if (path === '/plan') return { id: 'plan-new', emoji: '🧳', text: 'Pick your dates and where you’re staying. Then tell me your day!', mood: 'happy' }
-    return { id: 'no-trip', emoji: '👋', text: 'No trip yet. Shall we set one up?', mood: 'wave', actions: [{ id: 'plan', label: 'Start a trip', primary: true }] }
-  }
+  if (path !== '/') return null
+  if (!trip) return { id: 'no-trip', text: 'No trip yet. Shall we set one up?', mood: 'wave', actions: [{ id: 'plan', label: 'Start a trip', primary: true }] }
   const open = trip.tasks.filter((t) => t.day === trip.day && t.state !== 'done' && t.state !== 'skipped')
 
-  if (path === '/plan') {
-    if (trip.tasks.length === 0) return { id: 'plan-empty', emoji: '✨', text: 'Just tell me your day in your own words. I’ll find the tasks and the route.', mood: 'happy', actions: [{ id: 'describe', label: 'Describe my day', primary: true }] }
-    if (!trip.activePlan && open.length) return { id: 'plan-ready', emoji: '🗺️', text: `${open.length} task${open.length === 1 ? '' : 's'} ready. Tap the green button below and I’ll work out the route.`, mood: 'happy' }
-    return null
-  }
-  if (path === '/summary') return { id: 'summary', emoji: '📊', text: 'Here’s how your day went.', mood: 'happy' }
-  if (path !== '/') return null
-
   if (!view || clock == null) {
-    if (open.length) return { id: 'need-plan', emoji: '🗺️', text: 'You have tasks but no route yet. Want me to work it out?', mood: 'idle', actions: [{ id: 'plan', label: 'Go to Plan', primary: true }] }
-    return { id: 'empty-day', emoji: '✨', text: 'Nothing planned yet. Tell me about your day?', mood: 'idle', actions: [{ id: 'describe', label: 'Describe my day', primary: true }] }
+    if (open.length) return { id: 'need-plan', text: 'You have tasks but no route yet. Want me to work it out?', mood: 'idle', actions: [{ id: 'plan', label: 'Go to Plan', primary: true }] }
+    return { id: 'empty-day', text: 'Nothing planned yet. Tell me about your day?', mood: 'idle', actions: [{ id: 'describe', label: 'Describe my day', primary: true }] }
   }
   if (trip.openOptions) {
-    return { id: 'options', emoji: '🔀', text: 'Your later stops don’t fit any more. Let’s pick a fix together.', mood: 'alert', urgent: true, actions: [{ id: 'options', label: 'Show me the fixes', primary: true }] }
+    return { id: 'options', text: 'Your later stops don’t fit any more. Let’s pick a fix together.', mood: 'alert', urgent: true, actions: [{ id: 'options', label: 'Show me the fixes', primary: true }] }
   }
-  if (view.done) return { id: 'all-done', emoji: '🎉', text: 'All done! What a day.', mood: 'happy', actions: [{ id: 'summary', label: 'See how it went', primary: true }] }
+  if (view.done) return { id: 'all-done', text: 'All done! What a day.', mood: 'happy', actions: [{ id: 'summary', label: 'See how it went', primary: true }] }
 
   const night = clock >= 22 * 60 || clock < 6 * 60
   const target = view.checkInTask
@@ -91,7 +78,6 @@ function deriveMessage(trip: Trip | undefined, view: DayView | null, clock: numb
   if (target && stop && clock > stop.end) {
     return {
       id: `ask-${target.taskId}-${stop.end}`,
-      emoji: '⏰',
       text: `Time’s up for the ${lowerFirst(target.title)}. All done?`,
       mood: 'alert',
       urgent: true,
@@ -109,7 +95,6 @@ function deriveMessage(trip: Trip | undefined, view: DayView | null, clock: numb
     const mins = Math.round(leg.leaveMin - clock)
     return {
       id: `leave-${leg.seq}-${leg.leaveMin}`,
-      emoji: '🚶',
       text: mins > 0 ? `Leave in ${mins} min for ${dest}!` : `Time to head out for ${dest}!`,
       mood: 'alert',
       urgent: true,
@@ -123,7 +108,6 @@ function deriveMessage(trip: Trip | undefined, view: DayView | null, clock: numb
     const when = train.day === trip.day ? 'today' : 'tomorrow'
     return {
       id: `book-train-${train.taskId}`,
-      emoji: '🚆',
       text: `You’re catching a train${at ? ` at ${at}` : ''} ${when}. Shall I book your ticket?`,
       mood: 'happy',
       ref: train.taskId,
@@ -134,13 +118,13 @@ function deriveMessage(trip: Trip | undefined, view: DayView | null, clock: numb
     }
   }
   if (stop && view.stops[view.nowIndex]?.id === stop.id && clock >= stop.time) {
-    return { id: `at-${stop.id}`, emoji: stopEmoji(stop.title), text: `Enjoy the ${lowerFirst(stop.title)}. I’ll check on you at ${hhmm(stop.end)}.`, mood: 'happy' }
+    return { id: `at-${stop.id}`, text: `Enjoy the ${lowerFirst(stop.title)}. I’ll check on you at ${hhmm(stop.end)}.`, mood: 'happy' }
   }
-  if (night) return { id: 'night', emoji: '🌙', text: 'It’s late. Rest up, I’ll keep watch.', mood: 'sleeping' }
+  if (night) return { id: 'night', text: 'It’s late. Rest up, I’ll keep watch.', mood: 'sleeping' }
   if (leg && to && leg.leaveMin - clock <= 90) {
-    return { id: `next-${leg.seq}-${leg.leaveMin}`, emoji: stopEmoji(to.title, to.kind), text: `Next: leave at ${leg.leaveBy} for ${dest}. Plenty of time.`, mood: 'idle' }
+    return { id: `next-${leg.seq}-${leg.leaveMin}`, text: `Next: leave at ${leg.leaveBy} for ${dest}. Plenty of time.`, mood: 'idle' }
   }
-  return { id: 'on-track', emoji: '💚', text: 'Your day is on track. Tap me if you need anything.', mood: 'idle' }
+  return { id: 'on-track', text: 'Your day is on track. Tap me if you need anything.', mood: 'idle' }
 }
 
 function menuFor(trip: Trip | undefined, view: DayView | null, path: string, clock: number | null): RooMessage {
@@ -157,14 +141,14 @@ function menuFor(trip: Trip | undefined, view: DayView | null, path: string, clo
     }
     actions.push({ id: 'summary', label: 'How’s my day?' })
     actions.push({ id: 'hide', label: 'Hide Roo' })
-    return { id: 'menu', emoji: '🌱', text: 'Hi! What shall we do?', mood: 'happy', actions }
+    return { id: 'menu', text: 'Hi! What shall we do?', mood: 'happy', actions }
   }
   if (trip) actions.push({ id: 'describe', label: 'Describe my day', primary: true })
   if (view && !view.done && view.checkInTask) actions.push({ id: 'more-time', label: 'Need more time' })
   if (path !== '/' && view) actions.push({ id: 'today', label: 'Show today' })
   if (view) actions.push({ id: 'summary', label: 'How’s my day?' })
   actions.push({ id: 'hide', label: 'Hide Roo' })
-  return { id: 'menu', emoji: '🌱', text: 'Hi! What can I do for you?', mood: 'happy', actions }
+  return { id: 'menu', text: 'Hi! What can I do for you?', mood: 'happy', actions }
 }
 
 // ---------------------------------------------------------------------------
@@ -243,8 +227,8 @@ function RooArt({ mood, look, size, reduce }: { mood: Mood; look: { x: number; y
       </motion.g>
       <motion.g
         style={{ originX: 0.5, originY: 1 }}
-        animate={reduce || mood === 'sleeping' ? { rotate: 0 } : { rotate: [-7, 7, -7] }}
-        transition={{ duration: 3.4, repeat: Infinity, ease: 'easeInOut' }}
+        animate={reduce || mood === 'sleeping' || mood === 'idle' ? { rotate: 0 } : { rotate: [0, -7, 7, 0] }}
+        transition={{ duration: 1.4, ease: 'easeInOut' }}
       >
         <path d="M40 28 C39 21 40 16 41 12" stroke="var(--roo-deep)" strokeWidth="2.6" fill="none" strokeLinecap="round" />
         <path d="M41 14 C46 6 55 6 57 10 C53 15 46 16 41 14 Z" fill="var(--roo-leaf)" />
@@ -261,79 +245,14 @@ function RooArt({ mood, look, size, reduce }: { mood: Mood; look: { x: number; y
   )
 }
 
-function Zzz() {
-  return (
-    <span className="pointer-events-none absolute -top-2 right-1 select-none font-bold text-muted" aria-hidden="true">
-      {[0, 1].map((i) => (
-        <motion.span
-          key={i}
-          data-looping=""
-          className={`absolute ${i ? '-top-2 right-4 text-sm' : '-top-4 right-0 text-xs'}`}
-          initial={{ opacity: 0 }}
-          animate={{ y: [0, -14], opacity: [0, 0.8, 0], rotate: [0, i ? 12 : -12] }}
-          transition={{ duration: 2.2, repeat: Infinity, repeatDelay: 0.6, delay: i * 0.7, ease: 'easeOut' }}
-        >
-          z
-        </motion.span>
-      ))}
-    </span>
-  )
-}
-
-const CONFETTI = ['🎉', '✨', '⭐', '💚', '🎊', '✨', '⭐', '💚']
-
-function Confetti() {
-  return (
-    <span className="pointer-events-none absolute left-1/2 top-1/3" aria-hidden="true">
-      {CONFETTI.map((bit, i) => {
-        const angle = (i / CONFETTI.length) * Math.PI * 2
-        return (
-          <motion.span
-            key={i}
-            className="absolute -translate-x-1/2 -translate-y-1/2 text-base"
-            initial={{ x: 0, y: 0, opacity: 1, scale: 0.4 }}
-            animate={{ x: Math.cos(angle) * 58, y: Math.sin(angle) * 50 - 18, opacity: 0, scale: 1.15 }}
-            transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-          >
-            {bit}
-          </motion.span>
-        )
-      })}
-    </span>
-  )
-}
-
 // ---------------------------------------------------------------------------
 // Speech bubble with answers
 // ---------------------------------------------------------------------------
 
-function Bubble({ msg, onAction, onClose }: { msg: RooMessage; onAction: (id: ActionId) => void; onClose: () => void }) {
-  const reduce = useReducedMotion()
-  return (
-    <motion.div
-      role="status"
-      className="absolute bottom-full right-0 mb-3 w-[min(290px,calc(100vw-32px))] rounded-card border border-line bg-surface p-4 pr-11 text-left shadow-[var(--shadow-toast)]"
-      initial={reduce ? { opacity: 0 } : { opacity: 0, y: 10, scale: 0.94 }}
-      animate={{ opacity: 1, y: 0, scale: 1 }}
-      exit={reduce ? { opacity: 0 } : { opacity: 0, y: 6, scale: 0.97 }}
-      transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
-      style={{ transformOrigin: 'bottom right' }}
-    >
-      <BubbleBody msg={msg} onAction={onAction} onClose={onClose} />
-      <span aria-hidden="true" className="absolute -bottom-[8px] right-8 size-3.5 rotate-45 border-b border-r border-line bg-surface" />
-    </motion.div>
-  )
-}
-
 function BubbleBody({ msg, onAction, onClose }: { msg: RooMessage; onAction: (id: ActionId) => void; onClose: () => void }) {
   return (
     <>
-      <p className="t-body leading-snug text-ink">
-        <span aria-hidden="true" className="mr-1.5">
-          {msg.emoji}
-        </span>
-        {msg.text}
-      </p>
+      <p className="t-body leading-snug text-ink">{msg.text}</p>
       {!!msg.actions?.length && (
         <div className="mt-3 flex flex-wrap gap-2">
           {msg.actions.map((a) => (
@@ -341,7 +260,7 @@ function BubbleBody({ msg, onAction, onClose }: { msg: RooMessage; onAction: (id
               key={a.id}
               type="button"
               onClick={() => onAction(a.id)}
-              className={`min-h-11 rounded-full px-4 t-small font-bold transition-colors duration-[var(--dur-quick)] ${
+              className={`min-h-12 rounded-full px-4 t-small font-bold transition-colors duration-[var(--dur-quick)] ${
                 a.primary ? 'bg-green text-on-green [@media(hover:hover)]:hover:bg-green-ink' : 'border border-line-strong text-ink [@media(hover:hover)]:hover:bg-sunken'
               }`}
             >
@@ -354,7 +273,7 @@ function BubbleBody({ msg, onAction, onClose }: { msg: RooMessage; onAction: (id
         type="button"
         onClick={onClose}
         aria-label="Close Roo’s message"
-        className="absolute right-1.5 top-1.5 flex size-10 items-center justify-center rounded-full text-muted [@media(hover:hover)]:hover:bg-sunken"
+        className="absolute right-1 top-1 flex size-12 items-center justify-center rounded-full text-muted [@media(hover:hover)]:hover:bg-sunken"
       >
         <X size={18} strokeWidth={1.75} aria-hidden="true" />
       </button>
@@ -366,27 +285,26 @@ function BubbleBody({ msg, onAction, onClose }: { msg: RooMessage; onAction: (id
 // Roo
 // ---------------------------------------------------------------------------
 
-export function Roo({ trip, clock, demoActive }: { trip: Trip | undefined; clock: number | null; demoActive?: boolean }) {
+export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | null }) {
   const { pathname } = useLocation()
   const navigate = useNavigate()
   const openLate = useOpenLate()
-  const desktop = useIsDesktop()
   const reduce = !!useReducedMotion()
   const view = useDay(trip, clock)
   const bookings = useBookings(trip?.tripId)
   const derived = useMemo(() => deriveMessage(trip, view, clock, pathname, bookings.data), [trip, view, clock, pathname, bookings.data])
 
-  const [hidden, setHidden] = useState(() => stored(HIDDEN_KEY))
+  const shownPref = useStore((st) => st.roo)
+  const hidden = !shownPref
   const [greeted, setGreeted] = useState(() => stored(GREETED_KEY))
   const [override, setOverride] = useState<RooMessage | null>(null)
   const [open, setOpen] = useState(false)
-  const [burst, setBurst] = useState(0)
   const dismissed = useRef(new Set<string>())
   const fadeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
 
   // Hello waits for Today: on the start form it would sit over "Plan my day", the one button that matters.
   const greeting: RooMessage | null =
-    greeted || pathname !== '/' ? null : { id: 'greet', emoji: '🌱', text: 'Hi, I’m Roo! I’ll keep an eye on your day and nudge you when it’s time. Tap me anytime.', mood: 'wave' }
+    greeted || pathname !== '/' ? null : { id: 'greet', text: 'Hi, I’m Roo! I’ll keep an eye on your day and nudge you when it’s time. Tap me anytime.', mood: 'wave' }
   const msg = override ?? greeting ?? (derived && !dismissed.current.has(derived.id) ? derived : null)
 
   const schedule = useCallback((m: RooMessage) => {
@@ -431,8 +349,7 @@ export function Roo({ trip, clock, demoActive }: { trip: Trip | undefined; clock
     const before = new Set(prev.split('|'))
     const fresh = view.stops.find((s) => s.task?.state === 'done' && !before.has(s.id))
     if (!fresh) return
-    setBurst((b) => b + 1)
-    setOverride({ id: `yay-${fresh.id}`, emoji: '🎉', text: `Nice one! The ${lowerFirst(fresh.title)} is done.`, mood: 'celebrate' })
+    setOverride({ id: `yay-${fresh.id}`, text: `Nice one! The ${lowerFirst(fresh.title)} is done.`, mood: 'celebrate' })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doneKey])
 
@@ -487,8 +404,8 @@ export function Roo({ trip, clock, demoActive }: { trip: Trip | undefined; clock
     else if (id === 'book-train' && msg?.ref) navigate('/', { state: { bookTrain: msg.ref } })
     else if (id === 'edit' && view?.checkInTask) navigate('/', { state: { stop: view.checkInTask.taskId } })
     else if (id === 'hide') {
-      setHidden(true)
-      store(HIDDEN_KEY, true)
+      setState({ roo: false })
+      showToast({ title: 'Roo is hidden. Bring it back in Me.' })
     }
   }
 
@@ -509,36 +426,11 @@ export function Roo({ trip, clock, demoActive }: { trip: Trip | undefined; clock
   // A message waits while a sheet is open: the sheet's buttons and Escape belong to it.
   const sheetOpen = useSheetOpen()
 
-  // Clear of the Today action bar and the tab bar on phones, and of the Simulate button on desktop.
-  const actionBar = pathname === '/' && !!view && !view.done
-  const place = desktop
-    ? demoActive
-      ? 'bottom-[88px] right-6'
-      : 'bottom-6 right-6'
-    : actionBar
-      ? 'bottom-[calc(152px+env(safe-area-inset-bottom))] right-3'
-      : 'bottom-[calc(76px+env(safe-area-inset-bottom))] right-3'
-
-  if (hidden) {
-    return (
-      <button
-        type="button"
-        onClick={() => {
-          setHidden(false)
-          store(HIDDEN_KEY, false)
-        }}
-        aria-label="Show Roo"
-        className={`fixed z-30 flex h-12 w-9 items-center justify-start overflow-hidden rounded-l-full border border-r-0 border-line bg-surface pl-1 shadow-[var(--shadow-toast)] ${desktop ? 'bottom-6' : 'bottom-[calc(152px+env(safe-area-inset-bottom))]'} right-0`}
-      >
-        <RooArt mood="idle" look={{ x: -1.5, y: 0 }} size={30} reduce />
-      </button>
-    )
-  }
+  if (hidden) return null
 
   const shown = open && msg && !sheetOpen ? msg : null
   const mood: Mood = shown?.mood ?? (derived?.mood === 'sleeping' ? 'sleeping' : derived?.urgent ? 'alert' : 'idle')
   const eyes = shown ? { x: -1.5, y: -2 } : look
-  const size = desktop ? 72 : 60
 
   // On Today, Roo rides the timeline at the Now line; its words open in a popover above the page.
   if (anchor && pathname === '/') {
@@ -551,8 +443,7 @@ export function Roo({ trip, clock, demoActive }: { trip: Trip | undefined; clock
       >
         <Popover.Anchor asChild>
           <div className="relative">
-            {!reduce && burst > 0 && <Confetti key={burst} />}
-            {/* The button stays still (a steady target); only Roo inside it bobs. */}
+            {/* The button stays still (a steady target); only Roo inside it moves, and only when it has news. */}
             <button
               ref={artRef}
               type="button"
@@ -563,8 +454,7 @@ export function Roo({ trip, clock, demoActive }: { trip: Trip | undefined; clock
             >
               <motion.span
                 className="block drop-shadow-md"
-                animate={reduce || mood === 'sleeping' ? {} : mood === 'celebrate' ? { y: [0, -14, 0], transition: { duration: 0.8 } } : { y: [0, -3, 0], transition: { duration: 2.6, repeat: Infinity, ease: 'easeInOut' as const } }}
-                data-looping=""
+                animate={reduce ? {} : mood === 'celebrate' ? { y: [0, -14, 0], transition: { duration: 0.8 } } : mood === 'alert' ? { y: [0, -6, 0], transition: { duration: 0.5 } } : { y: 0 }}
               >
                 <RooArt mood={mood} look={eyes} size={46} reduce={reduce} />
               </motion.span>
@@ -588,7 +478,7 @@ export function Roo({ trip, clock, demoActive }: { trip: Trip | undefined; clock
               // A message Roo raises is announced as a status; only the menu a tap opens is a dialog.
               role={shown.id === 'menu' ? 'dialog' : 'status'}
               aria-label={shown.id === 'menu' ? 'Roo' : undefined}
-              className="relative z-[60] w-[min(300px,calc(100vw-32px))] rounded-card border border-line bg-surface p-4 pr-11 text-left shadow-[var(--shadow-toast)]"
+              className="relative z-[60] w-[min(300px,calc(100vw-32px))] rounded-card border border-line bg-surface p-4 pr-14 text-left shadow-[var(--shadow-toast)]"
             >
               <BubbleBody msg={shown} onAction={act} onClose={close} />
               <Popover.Arrow className="fill-[var(--surface)]" width={14} height={7} />
@@ -600,35 +490,6 @@ export function Roo({ trip, clock, demoActive }: { trip: Trip | undefined; clock
     )
   }
 
-  const body =
-    reduce || mood === 'sleeping'
-      ? {}
-      : mood === 'celebrate'
-        ? { y: [0, -22, 0, -10, 0], rotate: [0, -8, 8, -4, 0], transition: { duration: 1, ease: 'easeOut' as const } }
-        : mood === 'alert'
-          ? { x: [0, -3, 3, -3, 3, 0], y: 0, transition: { duration: 0.5, ease: 'easeInOut' as const } }
-          : { y: [0, -5, 0], transition: { duration: 2.6, repeat: Infinity, ease: 'easeInOut' as const } }
+  return null
 
-  return (
-    <div className={`fixed z-30 transition-[bottom] duration-300 ease-[var(--ease-out)] ${place}`}>
-      <div className="relative">
-        <AnimatePresence>{shown && <Bubble key={shown.id} msg={shown} onAction={act} onClose={close} />}</AnimatePresence>
-        {mood === 'sleeping' && !reduce && <Zzz />}
-        {!reduce && burst > 0 && <Confetti key={burst} />}
-        {/* The button stays still (a steady target); only Roo inside it moves. */}
-        <button
-          ref={artRef}
-          type="button"
-          onClick={tap}
-          aria-label={open && msg?.id === 'menu' ? 'Roo, your travel companion. Close the menu' : 'Roo, your travel companion. Open the menu'}
-          aria-expanded={open && msg?.id === 'menu'}
-          className="block cursor-pointer rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--focus)]"
-        >
-          <motion.span className="block drop-shadow-lg" animate={body} whileHover={reduce ? undefined : { scale: 1.07 }} whileTap={reduce ? undefined : { scale: 0.9 }} data-looping="">
-            <RooArt mood={mood} look={eyes} size={size} reduce={reduce} />
-          </motion.span>
-        </button>
-      </div>
-    </div>
-  )
 }

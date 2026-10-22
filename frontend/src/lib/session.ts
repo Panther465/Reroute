@@ -4,6 +4,7 @@ import { api, apiBase, cookie, isSignedOutError, onAuthChange, refreshSession, s
 import { keys, queryClient } from '@/api/queries'
 import type { Token, User } from '@/api/types'
 import { cancelPendingCheckins } from './actions'
+import { stopTracking } from './location'
 import { clearQueue } from './offlineQueue'
 import { clearShareTokens } from './shareTokens'
 import { setState } from './store'
@@ -37,8 +38,16 @@ export function useSessionStatus() {
 // sends the traveller to Sign in, with the screen they were on, and the live stream restarts once
 // they are back.
 onAuthChange((signedIn) => {
-  if (signedIn) set('signedIn')
-  else if (status !== 'loading') set('signedOut')
+  if (signedIn) return set('signedIn')
+  if (status === 'loading') return
+  // The session ended (a refused refresh): stop following the phone, and keep none of the trip on it
+  // for whoever picks the phone up next. Check-ins waiting to sync stay, for when the traveller is back.
+  if (status === 'signedIn') {
+    stopTracking()
+    queryClient.clear()
+    localStorage.removeItem('reroute:cache')
+  }
+  set('signedOut')
 })
 
 /**
@@ -87,7 +96,9 @@ export async function signOut() {
   } catch {
     /* offline: the local session still ends */
   }
-  // Nothing of this traveller's stays on the phone: saved plan, waiting check-ins, share links, demo switches.
+  // Nothing of this traveller's stays on the phone: location tracking, saved plan, waiting check-ins,
+  // share links, demo switches.
+  stopTracking()
   cancelPendingCheckins()
   clearQueue()
   clearShareTokens()

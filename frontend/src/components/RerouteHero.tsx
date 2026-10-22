@@ -1,7 +1,6 @@
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useState } from 'react'
-
-const EASE_OUT = [0.16, 1, 0.3, 1] as const
+import { EASE_FALL, EASE_OUT } from '@/lib/motion'
 
 // Station positions in a 300 x 120 diagram. Times sit under each station, names under the times.
 const H = 20
@@ -36,7 +35,7 @@ function FlipTime({ value, changed, index, reduce }: { value: string; changed: b
           style={{ backfaceVisibility: 'hidden' }}
           initial={reduce ? false : { rotateX: -90 }}
           animate={{ rotateX: 0, transition: { duration: 0.09, ease: EASE_OUT } }}
-          exit={reduce ? undefined : { rotateX: 90, transition: { delay: index * 0.06, duration: 0.09, ease: [0.4, 0, 1, 1] } }}
+          exit={reduce ? undefined : { rotateX: 90, transition: { delay: index * 0.06, duration: 0.09, ease: EASE_FALL } }}
         >
           {value}
         </motion.span>

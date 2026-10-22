@@ -63,7 +63,9 @@ export function checkIn(tripId: string, view: DayView, clock: number, taskId?: s
   setState({ autoBanner: null })
   if ('vibrate' in navigator) navigator.vibrate?.(10)
   const key = item.idempotencyKey
-  const entry: PendingCheckin = { item, title: task.title, before: view, timer: setTimeout(() => void commitCheckin(key), CHECKIN_UNDO_MS), toastId: '' }
+  // The toast's own timer decides (it waits while the toast is hovered or focused, so Undo is never taken
+  // away from someone reaching for it); this one only makes sure the check-in goes out if it never closes.
+  const entry: PendingCheckin = { item, title: task.title, before: view, timer: setTimeout(() => void commitCheckin(key), CHECKIN_UNDO_MS * 6), toastId: '' }
   pending.set(key, entry)
   entry.toastId = showToast({ title: `${task.title} done at ${hhmm(clock)}.`, onUndo: () => cancelCheckin(key), onClose: () => void commitCheckin(key), duration: CHECKIN_UNDO_MS })
   announce(`${task.title} marked done. Undo available for 5 seconds.`)

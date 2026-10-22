@@ -1,6 +1,7 @@
 import * as Dialog from '@radix-ui/react-dialog'
 import { X } from 'lucide-react'
 import { AnimatePresence, motion, useDragControls, useReducedMotion, type PanInfo } from 'motion/react'
+import { EASE_DRAWER, EASE_OUT } from '@/lib/motion'
 import { useLayoutEffect, useRef, type ReactNode } from 'react'
 import { useIsDesktop } from '@/lib/hooks'
 import { sheetOpened } from '@/lib/sheets'
@@ -46,7 +47,8 @@ export function Sheet({ open, onOpenChange, title, description, children, footer
   }
 
   const onDragEnd = (_: unknown, info: PanInfo) => {
-    if (info.offset.y > 140 || info.velocity.y > 600) onOpenChange(false)
+    // A quick flick is enough; a slow drag has to go 140 px.
+    if (info.offset.y > 140 || info.velocity.y > 400) onOpenChange(false)
   }
 
   return (
@@ -68,8 +70,8 @@ export function Sheet({ open, onOpenChange, title, description, children, footer
                   className="fixed left-1/2 top-1/2 z-50 flex max-h-[88vh] w-[min(560px,calc(100vw-64px))] flex-col rounded-sheet bg-surface text-ink shadow-[var(--shadow-toast)] outline-none"
                   style={{ x: '-50%', y: '-50%' }}
                   initial={{ opacity: 0, scale: reduce ? 1 : 0.98 }}
-                  animate={{ opacity: 1, scale: 1, transition: { duration: 0.24, ease: [0.16, 1, 0.3, 1] } }}
-                  exit={{ opacity: 0, scale: reduce ? 1 : 0.98, transition: { duration: 0.16, ease: [0.4, 0, 1, 1] } }}
+                  animate={{ opacity: 1, scale: 1, transition: { duration: 0.24, ease: EASE_OUT } }}
+                  exit={{ opacity: 0, scale: reduce ? 1 : 0.98, transition: { duration: 0.14, ease: EASE_OUT } }}
                 >
                   <SheetBody title={title} description={description} footer={footer} onClose={() => onOpenChange(false)} titleLang={titleLang}>
                     {children}
@@ -80,7 +82,7 @@ export function Sheet({ open, onOpenChange, title, description, children, footer
                   className="fixed inset-x-0 bottom-0 z-50 mx-auto flex max-h-[88vh] w-full max-w-[560px] flex-col rounded-t-sheet bg-surface text-ink shadow-[var(--shadow-sheet)] outline-none"
                   initial={{ y: reduce ? 0 : '100%', opacity: reduce ? 0 : 1 }}
                   animate={{ y: 0, opacity: 1, transition: reduce ? { duration: 0.16 } : sheetSpring }}
-                  exit={{ y: reduce ? 0 : '100%', opacity: reduce ? 0 : 1, transition: { duration: 0.24, ease: [0.4, 0, 1, 1] } }}
+                  exit={{ y: reduce ? 0 : '100%', opacity: reduce ? 0 : 1, transition: { duration: 0.2, ease: EASE_DRAWER } }}
                   drag={reduce ? false : 'y'}
                   dragListener={false}
                   dragControls={drag}
