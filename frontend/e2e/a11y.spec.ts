@@ -60,6 +60,7 @@ for (const scheme of ['light', 'dark'] as const) {
         ['/me', 'Me'],
         ['/summary', /in Bengaluru|Day summary/],
         ['/leg/2', /to/],
+        ['/why', 'Why this plan'],
       ] as const) {
         await page.goto(path)
         await expect(page.getByRole('heading', { level: 1, name: heading }).first()).toBeVisible({ timeout: 15_000 })

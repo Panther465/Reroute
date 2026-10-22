@@ -9,7 +9,7 @@ import { keys, queryClient, useAiHelperEnabled, useCurrentTripId, useTrip, waitF
 import type { Body, JobAccepted, Place, Task, TaskDraft, TaskIn, Trip, TripIn } from '@/api/types'
 import { PlacePicker } from '@/components/PlacePicker'
 import { TripSwitcher } from '@/components/TripSwitcher'
-import { Button } from '@/components/ui/Button'
+import { Button, ButtonLink } from '@/components/ui/Button'
 import { Field, FieldError } from '@/components/ui/Field'
 import { Sheet } from '@/components/ui/Sheet'
 import { Banner, ErrorState, LoadingRegion, Skeleton } from '@/components/ui/States'
@@ -644,6 +644,13 @@ export default function PlanDay() {
           <p role="alert" className="mt-2 flex items-start gap-2 t-small text-red-ink">
             <TriangleAlert size={20} strokeWidth={1.75} aria-hidden="true" className="shrink-0" />
             {error}
+          </p>
+        )}
+        {trip.activePlan && (
+          <p className="mt-3">
+            <ButtonLink to="/why" variant="tertiary" size="md" className="-ml-2">
+              Why this plan?
+            </ButtonLink>
           </p>
         )}
         <p className="mt-2 t-small text-muted">
