@@ -16,7 +16,7 @@ from app.errors import ApiError
 from app.models import Trip, User
 from app.redis_client import get_redis
 from app.routes.me import user_out
-from app.schemas import DemoSignIn, GoogleSignIn, LoginIn, SignUpIn, TokenOut
+from app.schemas import AuthOptionsOut, DemoSignIn, GoogleSignIn, LoginIn, SignUpIn, TokenOut
 from app.security import (
     CSRF_COOKIE,
     REFRESH_COOKIE,
@@ -40,6 +40,12 @@ DEMO_CLOCK_START = "2026-10-14T07:30:00+05:30"
 def _token(user: User) -> TokenOut:
     token, ttl = issue_access_token(user)
     return TokenOut(access_token=token, expires_in=ttl, user=user_out(user))
+
+
+@router.get("/options", response_model=AuthOptionsOut, response_model_by_alias=True, summary="Which ways to sign in this server offers")
+def options() -> AuthOptionsOut:
+    s = get_settings()
+    return AuthOptionsOut(demo_login=s.demo_login, google=bool(s.google_client_id))
 
 
 #: A dummy hash to compare against when no account has the email, so a wrong email takes as long as a wrong password.

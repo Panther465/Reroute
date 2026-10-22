@@ -9,6 +9,7 @@
 x-prod-env: &prod-env
   APP_ENV: production
   DEMO_LOGIN: "false"
+  SIMULATED_SERVICES: "false"
   COOKIE_SECURE: "true"
   SEED_ON_START: "false"
   DATABASE_URL: postgresql+psycopg://reroute_app:${REROUTE_DB_PASSWORD:?Set REROUTE_DB_PASSWORD}@postgres:5432/reroute

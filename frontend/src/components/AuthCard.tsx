@@ -2,6 +2,7 @@ import { Eye, EyeOff, TriangleAlert } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useState, type FormEvent } from 'react'
 import { ApiError } from '@/api/client'
+import { useAuthOptions } from '@/api/queries'
 import { RooArt } from '@/components/roo/RooArt'
 import { Button } from '@/components/ui/Button'
 import { Segmented } from '@/components/ui/Choice'
@@ -40,8 +41,9 @@ export function AuthCard({ onSignedIn, onLoading }: { onSignedIn: (how: 'created
   const [errors, setErrors] = useState<{ name?: string; email?: string; password?: string }>({})
   const [problem, setProblem] = useState<{ text: string; switchTo?: Mode } | null>(null)
   const [busy, setBusy] = useState<Busy>(null)
-  // The demo account exists only where the server allows it (DEMO_LOGIN=true); a 404 hides the button.
+  // The demo account exists only where the server switches it on (DEMO_LOGIN=true).
   const [demoAvailable, setDemoAvailable] = useState(true)
+  const demoOn = useAuthOptions().data?.demoLogin === true && demoAvailable
   const [welcome, setWelcome] = useState<string | null>(null)
 
   const creating = mode === 'create'
@@ -209,7 +211,7 @@ export function AuthCard({ onSignedIn, onLoading }: { onSignedIn: (how: 'created
             onClick={() => void other('google')}
             disabled={!googleEnabled || busy !== null}
             aria-describedby={googleEnabled ? undefined : 'google-off'}
-            className="flex min-h-12 items-center justify-center gap-[10px] rounded-full border border-[var(--google-border)] bg-[var(--google-bg)] px-3 text-[var(--google-text)] transition-[scale] duration-[var(--dur-quick)] motion-safe:active:enabled:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
+            className="flex min-h-[52px] items-center justify-center gap-[10px] rounded-control border-2 border-[var(--google-border)] bg-[var(--google-bg)] px-3 text-[var(--google-text)] transition-[scale] duration-[var(--dur-quick)] motion-safe:active:enabled:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
             style={{ fontFamily: "'Roboto', 'Atkinson Hyperlegible', sans-serif", fontWeight: 500, fontSize: 14, lineHeight: '20px' }}
           >
             <GoogleG />
@@ -220,8 +222,8 @@ export function AuthCard({ onSignedIn, onLoading }: { onSignedIn: (how: 'created
               Google sign-in isn’t set up on this server yet.
             </p>
           )}
-          {demoAvailable && (
-            <Button variant="secondary" full loading={busy === 'demo'} loadingLabel="Signing in…" disabled={busy !== null && busy !== 'demo'} onClick={() => void other('demo')}>
+          {demoOn && (
+            <Button variant="tertiary" size="md" className="self-center" loading={busy === 'demo'} loadingLabel="Signing in…" disabled={busy !== null && busy !== 'demo'} onClick={() => void other('demo')}>
               Use the demo account
             </Button>
           )}

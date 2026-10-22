@@ -65,6 +65,8 @@ for (const scheme of ['light', 'dark'] as const) {
       ] as const) {
         await page.goto(path)
         await expect(page.getByRole('heading', { level: 1, name: heading }).first()).toBeVisible({ timeout: 15_000 })
+        // Roo introduces itself over a few seconds, each line fading in: check once it has asked its question.
+        if (path === '/welcome') await expect(page.getByRole('group', { name: 'Answers' })).toBeVisible({ timeout: 30_000 })
         await noSeriousIssues(page, path)
         await page.screenshot({ path: `test-results/screens/${info.project.name}-${scheme}${path.replace(/\//g, '_') || '_today'}.png`, fullPage: true })
       }

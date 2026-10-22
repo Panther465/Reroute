@@ -6,6 +6,27 @@
     "version": "1.0.0"
   },
   "paths": {
+    "/v1/auth/options": {
+      "get": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Which ways to sign in this server offers",
+        "operationId": "options_v1_auth_options_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthOptionsOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/auth/signup": {
       "post": {
         "tags": [
@@ -3063,6 +3084,25 @@
           "name"
         ],
         "title": "AirportOut"
+      },
+      "AuthOptionsOut": {
+        "properties": {
+          "demoLogin": {
+            "type": "boolean",
+            "title": "Demologin"
+          },
+          "google": {
+            "type": "boolean",
+            "title": "Google"
+          }
+        },
+        "type": "object",
+        "required": [
+          "demoLogin",
+          "google"
+        ],
+        "title": "AuthOptionsOut",
+        "description": "How this server lets people in, for the home page to show only what works."
       },
       "BlockedOut": {
         "properties": {

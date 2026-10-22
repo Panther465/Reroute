@@ -50,6 +50,12 @@ OwnedTrip = Annotated[Trip, Depends(owned_trip)]
 
 
 def demo_only() -> None:
-    """Routes that exist only with DEMO_LOGIN=true (the demo clock, simulated bookings): 404 otherwise."""
+    """Routes that exist only with DEMO_LOGIN=true (the demo clock and reset): 404 otherwise."""
     if not get_settings().demo_login:
+        raise ApiError(404, "Not found.")
+
+
+def simulated_only() -> None:
+    """Simulated bookings and the wallet exist only with SIMULATED_SERVICES=true (the default): 404 otherwise."""
+    if not get_settings().simulated_services:
         raise ApiError(404, "Not found.")

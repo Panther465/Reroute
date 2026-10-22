@@ -123,6 +123,8 @@ jobs:
           AUTH_RATE_LIMIT_PER_MINUTE: "1000"
           RATE_LIMIT_PER_MINUTE: "1000"
           AI_HELPER_ENABLED: "true"
+          # The demo account is off by default; Postman and the browser tests drive the demo day.
+          DEMO_LOGIN: "true"
         run: docker compose up -d --build --wait --wait-timeout 600
       - name: Postman collection (Newman)
         run: npx --yes newman@6 run postman/reroute.postman_collection.json --insecure --reporters cli

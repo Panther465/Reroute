@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/v1/auth/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Which ways to sign in this server offers */
+        get: operations["options_v1_auth_options_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/auth/signup": {
         parameters: {
             query?: never;
@@ -759,6 +776,16 @@ export interface components {
             city: string;
             /** Name */
             name: string;
+        };
+        /**
+         * AuthOptionsOut
+         * @description How this server lets people in, for the home page to show only what works.
+         */
+        AuthOptionsOut: {
+            /** Demologin */
+            demoLogin: boolean;
+            /** Google */
+            google: boolean;
         };
         /** BlockedOut */
         BlockedOut: {
@@ -2095,6 +2122,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    options_v1_auth_options_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthOptionsOut"];
+                };
+            };
+        };
+    };
     signup_v1_auth_signup_post: {
         parameters: {
             query?: never;

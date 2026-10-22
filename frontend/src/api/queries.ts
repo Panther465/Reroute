@@ -5,7 +5,7 @@ import { useQueued } from '@/lib/offlineQueue'
 import { useStore } from '@/lib/store'
 import { buildDay } from '@/lib/timeline'
 import { api, ApiError } from './client'
-import type { Airport, Booking, Contribution, ContributionsPage, Job, Place, PlanInsight, RaastaLegOptions, RaastaRoute, SharedTrip, StandsPage, Summary, Trip, TripsPage, User, Wallet } from './types'
+import type { Airport, AuthOptions, Booking, Contribution, ContributionsPage, Job, Place, PlanInsight, RaastaLegOptions, RaastaRoute, SharedTrip, StandsPage, Summary, Trip, TripsPage, User, Wallet } from './types'
 import { useSessionStatus } from '@/lib/session'
 
 export const queryClient = new QueryClient({
@@ -68,6 +68,11 @@ export function useWallet(enabled = true) {
 
 export function useAirports(enabled = true) {
   return useQuery({ queryKey: keys.airports, queryFn: () => api.get<Airport[]>('/v1/airports'), enabled, staleTime: Infinity })
+}
+
+/** Which ways in this server offers (the demo account only where DEMO_LOGIN is on). Asked before signing in. */
+export function useAuthOptions() {
+  return useQuery({ queryKey: ['auth-options'], queryFn: () => api.get<AuthOptions>('/v1/auth/options', { noRefresh: true }), staleTime: 5 * 60_000, retry: 1 })
 }
 
 /** "Describe your day" is the optional AI helper (off by default, UI brief 7.18): offered only when the server has it on. */

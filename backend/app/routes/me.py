@@ -18,7 +18,7 @@ log = logging.getLogger("reroute.me")
 
 def user_out(user: User) -> UserOut:
     s = get_settings()
-    features = FeaturesOut(bookings=s.demo_login, ai_helper=s.ai_helper_enabled, voices=s.tts_enabled, wallet=s.demo_login)
+    features = FeaturesOut(bookings=s.simulated_services, ai_helper=s.ai_helper_enabled, voices=s.tts_enabled, wallet=s.simulated_services)
     return UserOut(user_id=user.user_id, email=user.email, name=user.name, role=user.role, is_demo=user.is_demo, features=features)  # type: ignore[arg-type]
 
 

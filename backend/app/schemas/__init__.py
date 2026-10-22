@@ -47,13 +47,13 @@ class PostBody(Api):
 class FeaturesOut(Api):
     """What this server has switched on, so the app shows only what works."""
 
-    #: Simulated train tickets and cab rides (only with the demo login).
+    #: Simulated train tickets, flights and cab rides (SIMULATED_SERVICES).
     bookings: bool
     #: "Describe your day" (AI_HELPER_ENABLED).
     ai_helper: bool
     #: Natural voices for Roo's alerts (TTS_ENABLED); otherwise the phone's own voice.
     voices: bool
-    #: The simulated wallet that pays for simulated bookings (only with the demo login, like bookings).
+    #: The simulated wallet that pays for simulated bookings (SIMULATED_SERVICES, like bookings).
     wallet: bool = False
 
 
@@ -83,6 +83,15 @@ class DemoSignIn(Api):
 
 Email = Annotated[str, StringConstraints(strip_whitespace=True, to_lower=True, min_length=3, max_length=320, pattern=r"^[^@\s]+@[^@\s]+\.[^@\s]+$")]
 Password = Annotated[str, StringConstraints(min_length=8, max_length=128)]
+
+
+class AuthOptionsOut(Api):
+    """How this server lets people in, for the home page to show only what works."""
+
+    #: The demo account (DEMO_LOGIN).
+    demo_login: bool
+    #: Google sign-in is configured (GOOGLE_CLIENT_ID).
+    google: bool
 
 
 class SignUpIn(Api):
