@@ -7,19 +7,19 @@ from datetime import date
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.cities import city
 from app.errors import not_found
 from app.models import Route
 from app.services.geo import LatLng
 from app.services.gtfs import GtfsRoute, GtfsStand, build_gtfs
 from app.services.timefmt import hhmm
 
-CITY_NAMES = {"bengaluru": "Bengaluru"}
-
 
 def city_gtfs(session: Session, city_slug: str, today: date, agency_url: str) -> bytes:
-    routes = session.scalars(select(Route).where(Route.city_slug == city_slug, Route.status == "verified").order_by(Route.route_id)).all()
-    if not routes and city_slug not in CITY_NAMES:
+    place = city(city_slug)
+    if place is None:
         raise not_found("City")
+    routes = session.scalars(select(Route).where(Route.city_slug == city_slug, Route.status == "verified").order_by(Route.route_id)).all()
     feed = [
         GtfsRoute(
             route_id=r.route_id,
@@ -33,4 +33,4 @@ def city_gtfs(session: Session, city_slug: str, today: date, agency_url: str) ->
         )
         for r in routes
     ]
-    return build_gtfs(city_slug, CITY_NAMES.get(city_slug, city_slug.title()), feed, today, agency_url)
+    return build_gtfs(city_slug, place.name, feed, today, agency_url)

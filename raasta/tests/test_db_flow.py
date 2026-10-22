@@ -18,8 +18,10 @@ from app.adapters.osrm import get_router
 from app.adapters.rides import RideStoreUnavailable, get_ride_store
 from app.db import Base, get_session
 from app.main import create_app
+from app.models import Stand
 from app.routes.deps import utc_now
 from app.seed import seed
+from app.services.catalog import point
 from app.services.community import mark_stale
 
 from .conftest import make_token
@@ -221,6 +223,43 @@ def test_one_confirmation_per_rider_per_day(client, engine):
     assert _count(engine, "confirmations") == rows + 1
     assert next_day["confirmationsCount"] == 5  # still five different riders
     assert next_day["lastConfirmedAt"] > first.json()["lastConfirmedAt"]
+
+
+def test_stands_from_another_city_are_refused(client, engine):
+    with Session(engine) as s:
+        s.add(Stand(stand_id="std-mys", city_slug="mysuru", name="Mysuru palace", location=point(76.6552, 12.3052), lng=76.6552, lat=12.3052, sample=False))
+        s.commit()
+    r = client.post("/v1/raasta/contributions", json=_tapped("con-city0001", [{"standId": "std-mys"}, {"standId": "std-kor5"}]), headers=auth("rider-1"))
+    assert r.status_code == 422 and "another city" in r.json()["error"]["message"]
+
+
+def test_stands_of_unverified_routes_stay_off_the_map(client):
+    tapped = [{"name": "HSR 27th Main", "location": {"lat": 12.9116, "lng": 77.6474}}, {"name": "Silk Board", "location": {"lat": 12.9177, "lng": 77.6233}}]
+    created = client.post("/v1/raasta/contributions", json=_tapped("con-hide0001", tapped), headers=auth("rider-1")).json()
+    new_ids = {s["standId"] for s in created["route"]["stands"]}
+
+    def near(lnglat: str) -> set[str]:
+        return {s["standId"] for s in client.get("/v1/raasta/stands", params={"near": lnglat, "radius": 3000}).json()["items"]}
+
+    assert not new_ids & near("77.6474,12.9116")
+    assert "std-btm" in near("77.6101,12.9166")  # a sample stand on an unverified sample route is still listed
+    client.patch(f"/v1/raasta/contributions/{created['contributionId']}", json={"action": "approve"}, headers=auth("mod", "moderator"))
+    assert new_ids <= near("77.6474,12.9116")
+
+
+def test_a_ride_suggests_at_most_20_stands(client):
+    t, lat, points = datetime(2026, 10, 14, 4, 0, tzinfo=UTC), 12.90, []
+    for _ in range(34):
+        for _ in range(5):  # 40 s standing at a stand
+            points.append({"lat": lat, "lng": 77.60, "t": t.isoformat()})
+            t += timedelta(seconds=10)
+        for _ in range(3):  # then 150 m on to the next one
+            lat += 0.00045
+            points.append({"lat": lat, "lng": 77.60, "t": t.isoformat()})
+            t += timedelta(seconds=10)
+    r = client.post("/v1/raasta/contributions", json={**_ride("con-many0001"), "points": points, "stands": None}, headers=auth("rider-3"))
+    assert r.status_code == 201, r.text
+    assert len(r.json()["suggestedStands"]) == 20 and len(r.json()["route"]["stands"]) == 20
 
 
 def test_repeated_contribution_creates_one_route(client):

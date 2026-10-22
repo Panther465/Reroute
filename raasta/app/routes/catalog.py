@@ -9,8 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.config import Settings, get_settings
 from app.db import get_session
-from app.errors import ApiError
-from app.pagination import Page
+from app.pagination import Page, cursor_value
 from app.ratelimit import per_minute_limit
 from app.routes.deps import parse_lnglat, utc_now
 from app.schemas import LegOptionsOut, RouteOut, StandNear
@@ -53,9 +52,7 @@ def stands_near(
     session: Session = Depends(get_session),
 ) -> PageOut[StandNear]:
     centre = parse_lnglat(near, "near")
-    offset = int(page.position.get("o", 0)) if page.position else 0
-    if offset < 0:
-        raise ApiError(400, "BAD_REQUEST", "The cursor is not valid.")
+    offset = cursor_value(page.position, "o", int) if page.position else 0
     items, cursor = catalog.stands_near(session, centre.lng, centre.lat, radius, offset, page.limit)
     return PageOut[StandNear](items=items, next_cursor=cursor)
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
@@ -69,11 +69,30 @@ def get_route(session: Session, route_id: str) -> Route:
     return route
 
 
+def shown_stand():
+    """A stand is listed when it is sample data or on a route that has been verified (verified or stale).
+
+    Stands only on unverified routes, or left over from rejected ones, stay off the map until a
+    moderator or a second contributor vouches for them.
+    """
+    on_vouched_route = (
+        select(RouteStand.stand_id)
+        .join(Route, Route.route_id == RouteStand.route_id)
+        .where(RouteStand.stand_id == Stand.stand_id, Route.status.in_(("verified", "stale")))
+        .exists()
+    )
+    return or_(Stand.sample.is_(True), on_vouched_route)
+
+
 def stands_near(session: Session, lng: float, lat: float, radius_m: int, offset: int, limit: int) -> tuple[list[StandNear], str | None]:
     here = point(lng, lat)
     distance = func.ST_Distance(Stand.location, here).label("distance")
     rows = session.execute(
-        select(Stand, distance).where(func.ST_DWithin(Stand.location, here, radius_m)).order_by(distance, Stand.stand_id).offset(offset).limit(limit + 1)
+        select(Stand, distance)
+        .where(func.ST_DWithin(Stand.location, here, radius_m), shown_stand())
+        .order_by(distance, Stand.stand_id)
+        .offset(offset)
+        .limit(limit + 1)
     ).all()
     items = [StandNear(distance_m=round(float(d), 1), **stand_out(s).model_dump()) for s, d in rows[:limit]]
     next_cursor = encode_cursor({"o": offset + limit}) if len(rows) > limit else None
