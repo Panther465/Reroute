@@ -9,9 +9,12 @@ import contextlib
 import hashlib
 import json
 import logging
+import re
+import time
 import uuid
 from collections.abc import Awaitable, Callable
 from typing import Any
+from urllib.parse import quote
 
 from redis import Redis
 from redis.exceptions import RedisError
@@ -21,6 +24,10 @@ from app.errors import error_body, trace_id_var
 from app.security import bearer_token, decode_access_token
 
 log = logging.getLogger("raasta")
+access_log = logging.getLogger("raasta.access")
+
+#: Caller-chosen trace IDs are kept to characters that can't forge a log field.
+_TRACE_ID = re.compile(r"[A-Za-z0-9._:-]{8,128}")
 
 Scope = dict[str, Any]
 Message = dict[str, Any]
@@ -47,7 +54,13 @@ def _header(scope: Scope, name: bytes) -> str | None:
 
 
 class RequestIdMiddleware:
-    """Use the caller's X-Request-ID as the trace ID, or make one, and echo it back."""
+    """Use the caller's X-Request-ID as the trace ID, or make one, and echo it back.
+
+    It also answers unhandled exceptions, so the 500 body and the X-Request-ID header carry the
+    trace ID that the error log shows, and it writes the access log (uvicorn's is off): one line
+    per request with the method, the path without its query string (queries carry coordinates),
+    the status, the time taken and the trace ID.
+    """
 
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
@@ -57,19 +70,34 @@ class RequestIdMiddleware:
             await self.app(scope, receive, send)
             return
         incoming = _header(scope, b"x-request-id")
-        trace_id = incoming if incoming and 8 <= len(incoming) <= 128 and incoming.isascii() else uuid.uuid4().hex
+        trace_id = incoming if incoming and _TRACE_ID.fullmatch(incoming) else uuid.uuid4().hex
         token = trace_id_var.set(trace_id)
+        started = time.perf_counter()
+        response: dict[str, Any] = {"status": 500, "started": False}
 
         async def send_with_id(message: Message) -> None:
             if message["type"] == "http.response.start":
+                response.update(status=message["status"], started=True)
                 headers = [h for h in message.get("headers", []) if h[0].lower() != b"x-request-id"]
                 message = {**message, "headers": [*headers, (b"x-request-id", trace_id.encode())]}
             await send(message)
 
         try:
             await self.app(scope, receive, send_with_id)
+        except Exception:
+            log.exception("unhandled error trace=%s", trace_id)
+            if response["started"]:
+                raise
+            await _send_json(send_with_id, 500, error_body("INTERNAL", "Something went wrong on our side. Try again.", trace_id))
         finally:
+            elapsed_ms = (time.perf_counter() - started) * 1000
+            access_log.info("%s %s %d %.0fms trace=%s", scope.get("method", ""), _masked_path(scope), response["status"], elapsed_ms, trace_id)
             trace_id_var.reset(token)
+
+
+def _masked_path(scope: Scope) -> str:
+    """The path without its query string, percent-encoded so it can't break the log line."""
+    return quote(scope.get("path", ""), safe="/-._~:@")
 
 
 async def _read_body(receive: Receive, limit: int) -> bytes | None:

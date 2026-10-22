@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import logging
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 
 from app.adapters.osrm import get_router
 from app.adapters.rides import get_ride_store
-from app.config import get_settings
+from app.config import Settings, get_settings
 from app.db import get_session
 from app.errors import install_error_handlers
 from app.main import create_app
@@ -180,6 +182,30 @@ def test_trace_id_follows_x_request_id(api):
     assert r.json()["error"]["traceId"] == "trace-12345678"
 
 
+def test_a_trace_id_that_could_forge_a_log_field_is_replaced(api):
+    r = api.get("/v1/raasta/nope", headers={"X-Request-ID": "trace 1234 status=200"})
+    assert r.headers["x-request-id"] != "trace 1234 status=200"
+    assert r.json()["error"]["traceId"] == r.headers["x-request-id"]
+
+
+def test_unhandled_errors_keep_their_trace_id(redis, caplog):
+    client = TestClient(_echo_app([]))  # the middleware answers, so nothing is re-raised into the test
+    with caplog.at_level(logging.ERROR, logger="raasta"):
+        r = client.post("/boom", json={"idempotencyKey": "chk-00000011", "n": 1}, headers={"X-Request-ID": "trace-boom-0001"})
+    assert r.status_code == 500
+    assert r.headers["x-request-id"] == "trace-boom-0001"
+    assert r.json()["error"] == {"code": "INTERNAL", "message": "Something went wrong on our side. Try again.", "traceId": "trace-boom-0001"}
+    assert any("trace-boom-0001" in rec.getMessage() and rec.exc_info for rec in caplog.records)
+
+
+def test_the_access_log_has_no_query_string(api, caplog):
+    with caplog.at_level(logging.INFO, logger="raasta.access"):
+        api.get("/v1/raasta/stands", params={"near": "12.97;77.59"}, headers={"X-Request-ID": "trace-log-00001"})
+    [line] = [rec.getMessage() for rec in caplog.records if rec.name == "raasta.access"]
+    assert line.startswith("GET /v1/raasta/stands 400 ") and line.endswith("ms trace=trace-log-00001")
+    assert "12.97" not in line and "?" not in line
+
+
 def test_bad_coordinates_are_400(api):
     r = api.get("/v1/raasta/stands", params={"near": "not-a-point"})
     assert r.status_code == 400
@@ -298,6 +324,64 @@ def test_contributions_outside_a_served_city_are_422(offline_api, changes):
 def test_gtfs_only_for_served_cities(offline_api):
     r = offline_api.get("/v1/raasta/cities/mumbai/gtfs.zip")
     assert r.status_code == 404 and r.json()["error"]["code"] == "NOT_FOUND"
+
+
+# ---------- the Reroute API's service token ----------
+
+SERVICE_TOKEN = "test-service-token-0123456789abcdef"
+
+
+@pytest.fixture
+def service_api(redis):
+    app = create_app()
+    settings = Settings(raasta_service_token=SERVICE_TOKEN, service_rate_limit_per_minute=65)
+    app.dependency_overrides[get_settings] = lambda: settings
+    for dependency in (get_session, get_router, get_ride_store):
+        app.dependency_overrides[dependency] = Offline
+    return TestClient(app)
+
+
+def test_the_service_token_gets_the_service_limit(service_api, redis):
+    headers = {"X-Service-Token": SERVICE_TOKEN}
+    statuses = [service_api.get("/v1/raasta/stands", params={"near": "bad"}, headers=headers).status_code for _ in range(66)]
+    assert statuses[:65] == [400] * 65 and statuses[65] == 429
+    assert redis.keys("rl:raasta:svc:reroute:*")
+    # Everyone else keeps their own bucket.
+    assert service_api.get("/v1/raasta/stands", params={"near": "bad"}).status_code == 400
+
+
+def test_the_service_token_cannot_write(service_api):
+    headers = {"X-Service-Token": SERVICE_TOKEN}
+    r = service_api.post("/v1/raasta/routes/sample-kor-jay/confirmations", json={"idempotencyKey": "conf-svc00001"}, headers=headers)
+    assert r.status_code == 403 and r.json()["error"]["code"] == "FORBIDDEN"
+    assert service_api.patch("/v1/raasta/contributions/con-1", json={"action": "approve"}, headers=headers).status_code == 403
+    # With a signed-in user the request is that user's write (refused here only for its city).
+    r = service_api.post("/v1/raasta/contributions", json=_contribution(citySlug="mumbai"), headers={**headers, **USER})
+    assert r.status_code == 422
+
+
+def test_a_wrong_service_token_is_anonymous(service_api, redis):
+    headers = {"X-Service-Token": SERVICE_TOKEN[:-1] + "x"}
+    r = service_api.post("/v1/raasta/routes/sample-kor-jay/confirmations", json={"idempotencyKey": "conf-svc00002"}, headers=headers)
+    assert r.status_code == 401
+    statuses = [service_api.get("/v1/raasta/stands", params={"near": "bad"}, headers=headers).status_code for _ in range(60)]
+    assert statuses[:59] == [400] * 59 and statuses[59] == 429  # the IP's 60 a minute, counting the POST
+    assert not redis.keys("rl:raasta:svc:*")
+
+
+def test_an_empty_service_token_setting_turns_it_off(api, redis):
+    api.get("/v1/raasta/stands", params={"near": "bad"}, headers={"X-Service-Token": ""})
+    assert not redis.keys("rl:raasta:svc:*")
+
+
+def test_production_refuses_a_weak_service_token():
+    secret = "a-real-jwt-secret-with-at-least-32-bytes"
+    for weak in ("dev-only-service-token-0123456789abcdef", "too-short"):
+        with pytest.raises(ValidationError, match="RAASTA_SERVICE_TOKEN"):
+            Settings(app_env="production", jwt_secret=secret, raasta_service_token=weak)
+    assert Settings(app_env="production", jwt_secret=secret, raasta_service_token="").raasta_service_token == ""
+    assert Settings(app_env="production", jwt_secret=secret, raasta_service_token="s" * 32)
+    assert Settings(app_env="development", raasta_service_token="dev-only")
 
 
 # ---------- tokens ----------

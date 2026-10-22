@@ -81,7 +81,8 @@ def install_error_handlers(app: FastAPI) -> None:
             message = "Nothing exists at this path."
         return error_response(exc.status_code, code, message, getattr(exc, "headers", None))
 
+    # RequestIdMiddleware answers unhandled errors itself; this covers an app mounted without it.
     @app.exception_handler(Exception)
     async def _unexpected(_: Request, exc: Exception) -> JSONResponse:
-        log.exception("unhandled error", extra={"traceId": current_trace_id()})
+        log.exception("unhandled error trace=%s", current_trace_id())
         return error_response(500, "INTERNAL", "Something went wrong on our side. Try again.")
