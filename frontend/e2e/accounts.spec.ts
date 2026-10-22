@@ -102,3 +102,19 @@ test('the wallet pays for a flight, and adding money fills a gap', async ({ page
   await ticket.getByRole('button', { name: 'Cancel the flight' }).click()
   await expect(page.getByRole('region', { name: /Notifications/ }).getByRole('listitem').filter({ hasText: /back in your wallet/ })).toBeVisible({ timeout: 15_000 })
 })
+
+test.describe('the theme toggle', () => {
+  test.use({ colorScheme: 'dark' })
+
+  test('switches away from the system theme and keeps it after a reload', async ({ page }) => {
+    await page.goto('/signin')
+    const toggle = page.getByRole('button', { name: 'Dark mode' })
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    await toggle.click()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    await page.reload()
+    await expect(page.locator('html')).toHaveAttribute('data-theme', 'light')
+    await expect(page.getByRole('button', { name: 'Dark mode' })).toHaveAttribute('aria-pressed', 'false')
+  })
+})
