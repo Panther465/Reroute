@@ -94,9 +94,10 @@ export function RooPet({ mood, hop, size = 150 }: { mood: Mood; hop: number; siz
           className="block rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--focus)]"
         >
           <span className={solid ? 'block' : 'rr-roo-breathe block'}>
-            {/* A hop each time Roo speaks, and a bigger one when poked: up, stretch; down, squash; settle. */}
+            {/* A hop each time Roo speaks, and a bigger one when poked: up, stretch; down, squash; settle. The 3D
+                Roo hops itself, and stays mounted so it carries on moving where it was. */}
             <motion.span
-              key={`${hop}-${poked}`}
+              key={solid ? 'solid' : `${hop}-${poked}`}
               className={solid ? 'block origin-bottom' : 'block origin-bottom drop-shadow-lg'}
               initial={false}
               animate={

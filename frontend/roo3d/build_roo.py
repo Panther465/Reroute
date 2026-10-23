@@ -34,6 +34,7 @@ MOUTH_UNIT = 1.02 / 29  # the app's mouth shapes are in flat-drawing units, 29 t
 CHEEK = (0.64, -0.125, 0.14, 0.104)  # centre x and z, radii
 FACE_LIFT = 0.024
 HAPPY = {"open": 0.55, "wide": 0.45, "round": 0.0, "smile": 1.0}
+SWEAT = (0.66, 0.52, 0.085, 0.125)  # centre x and z, width and height
 
 # The fur's colours (root to tip) and the light, calibrated so renders measure like the photo.
 FUR_ROOT, FUR_TIP = "#357540", "#5E9E65"
@@ -669,9 +670,11 @@ def threads(coll, name: str, strands, radius: float, material) -> bpy.types.Obje
     return place(coll, name, hc)
 
 
-def satin(centre, width, spacing: float = 0.0055, slant: float = 0.2, puff: float = 0.007, base: float = 0.0, seed: int = 0):
+def satin(centre, width, spacing: float = 0.0055, slant: float = 0.2, puff: float = 0.007, base: float = 0.0, seed: int = 0, to=None):
     """Satin stitch along a stroke: threads laid side by side across it, slanted a little and puffed up in the
-    middle. `centre(s)` gives the stroke's middle (front x, z) for s in -1..1, `width(s)` its width there."""
+    middle. `centre(s)` gives the stroke's middle (front x, z) for s in -1..1, `width(s)` its width there.
+    `to(x, z, lift)` puts a point in place (on the body's front, by default)."""
+    to = to or wrap
     rng = random.Random(seed)
     fine = [centre(-1 + 2 * i / 400) for i in range(401)]
     run = [0.0]
@@ -695,7 +698,7 @@ def satin(centre, width, spacing: float = 0.0055, slant: float = 0.2, puff: floa
         for j in range(9):
             u = j / 8
             lift = base + puff * math.sin(math.pi * u) ** 0.6 - (0.004 if j in (0, 8) else 0.0)
-            pts.append(wrap(cx + dx * (u - 0.5) * w, cz + dz * (u - 0.5) * w, lift))
+            pts.append(to(cx + dx * (u - 0.5) * w, cz + dz * (u - 0.5) * w, lift))
         strands.append(pts)
     return strands
 
@@ -731,6 +734,94 @@ def arc(cx: float, cz: float, half: float, rise: float, round_: bool = False):
 
 def round_ends(w: float):
     return lambda s: w * max(0.35, (1 - abs(s) ** 6)) ** 0.4
+
+
+def circle(cx: float, cz: float, r: float, n: int = 32):
+    return [(cx + r * math.cos(a), cz + r * math.sin(a)) for a in (2 * math.pi * k / n for k in range(n))]
+
+
+def puffy_star(cx: float, cz: float, outer: float, inner: float, points: int = 5, n: int = 100, sharp: float = 1.4):
+    """A star's outline (front x, z) with soft, rounded tips (sharper as `sharp` grows), one pointing up."""
+    pts = []
+    for k in range(n):
+        a = 2 * math.pi * k / n
+        f = (0.5 + 0.5 * math.cos(points * (a - math.pi / 2))) ** sharp
+        r = inner + (outer - inner) * f
+        pts.append((cx + r * math.cos(a), cz + r * math.sin(a)))
+    return pts
+
+
+def heart(cx: float, cz: float, width: float, n: int = 100):
+    """A heart's outline (front x, z), `width` across, centred on (cx, cz)."""
+    k = width / 32
+    pts = []
+    for i in range(n):
+        t = 2 * math.pi * i / n
+        x = 16 * math.sin(t) ** 3
+        z = 13 * math.cos(t) - 5 * math.cos(2 * t) - 2 * math.cos(3 * t) - math.cos(4 * t)
+        pts.append((cx + x * k, cz + (z + 2.5) * k))
+    return pts
+
+
+def drop(cx: float, cz: float, width: float, height: float, n: int = 72):
+    """A drop's outline, round below and pointed above."""
+    return [(cx + width / 2 * math.sin(t) * ((1 - math.cos(t)) / 2) ** 0.7, cz + height / 2 * math.cos(t)) for t in (2 * math.pi * i / n for i in range(n))]
+
+
+def along(outline):
+    """A closed outline as a stroke's middle, once round it as s goes from -1 to 1 (for a stitched edge)."""
+    n = len(outline)
+
+    def centre(s):
+        u = (s + 1) / 2 * n
+        i = int(math.floor(u)) % n
+        f = u - math.floor(u)
+        (x0, z0), (x1, z1) = outline[i], outline[(i + 1) % n]
+        return (x0 + (x1 - x0) * f, z0 + (z1 - z0) * f)
+
+    return centre
+
+
+def chevron(cx: float, cz: float, side: int):
+    """A stroke's middle like > (or <, for side 1), its point in towards the nose and softly rounded."""
+    d = -side
+    p0, p1, p2 = (cx - d * 0.07, cz + 0.068), (cx + d * 0.06, cz), (cx - d * 0.07, cz - 0.068)
+    mx, mz = (p0[0] + p2[0]) / 2, (p0[1] + p2[1]) / 2
+    c = (p1[0] + 0.6 * (p1[0] - mx), p1[1] + 0.6 * (p1[1] - mz))
+
+    def centre(s):
+        t = (s + 1) / 2
+        return tuple((1 - t) ** 2 * a + 2 * t * (1 - t) * b + t * t * e for a, b, e in zip(p0, c, p2))
+
+    return centre
+
+
+def slash(cx: float, cz: float, half: float = 0.024, rise: float = 0.034):
+    """A short stroke like /."""
+    return lambda s: (cx + s * half, cz + s * rise)
+
+
+def band(centre, width: float, n: int = 40, caps: int = 8):
+    """The outline of a strip `width` wide along a centre line (centre(t) for t in 0..1), with round ends."""
+    mids = [centre(i / n) for i in range(n + 1)]
+    left, right = [], []
+    for i, (x, z) in enumerate(mids):
+        ax, az = mids[max(0, i - 1)]
+        bx, bz = mids[min(n, i + 1)]
+        l = math.hypot(bx - ax, bz - az) or 1.0
+        nx, nz = -(bz - az) / l, (bx - ax) / l
+        left.append((x + nx * width / 2, z + nz * width / 2))
+        right.append((x - nx * width / 2, z - nz * width / 2))
+
+    def cap(at, start, end):
+        cx, cz = at
+        a0 = math.atan2(start[1] - cz, start[0] - cx)
+        a1 = math.atan2(end[1] - cz, end[0] - cx)
+        if a1 > a0:
+            a1 -= 2 * math.pi
+        return [(cx + width / 2 * math.cos(a0 + (a1 - a0) * k / caps), cz + width / 2 * math.sin(a0 + (a1 - a0) * k / caps)) for k in range(1, caps)]
+
+    return left + cap(mids[-1], left[-1], right[-1]) + right[::-1] + cap(mids[0], right[0], left[0])
 
 
 def ribbon(coll, name: str, centre, width, material, lift: float = -0.003) -> bpy.types.Object:
@@ -841,6 +932,7 @@ def build_face(sc: bpy.types.Scene) -> dict:
     groom = bpy.data.node_groups["Roo Fur"]
     for side, tag in ((-1, "L"), (1, "R")):
         made[f"Cheek.{tag}"] += fuzz(made[f"Cheek.{tag}"], "#FFC2CC", groom, 0.01)
+    made.update(build_expressions(face, groom, ink, black_felt, pink_felt))
     # The mouth: the app's happy shape in black felt, with a pink felt tongue low in it.
     mouth = mouth_front(mouth_outline(HAPPY)[0])
     made["Mouth"] = [felt_patch(face, "Roo Mouth", mouth, 0.01, black_felt)]
@@ -865,7 +957,119 @@ def build_face(sc: bpy.types.Scene) -> dict:
         FACE_ANCHORS[f"Brow.{tag}"] = (side * EYE[0], EYE[1] + 0.19)
         FACE_ANCHORS[f"Cheek.{tag}"] = (side * CHEEK[0], CHEEK[1])
     FACE_ANCHORS["Mouth"] = FACE_ANCHORS["Tongue"] = FACE_ANCHORS["Felt Black"] = FACE_ANCHORS["Felt Tongue"] = (0.0, MOUTH_Z)
+    for side, tag in ((-1, "L"), (1, "R")):
+        for kind in ("Eye Star", "Eye Heart", "Eye Squint"):
+            FACE_ANCHORS[f"{kind}.{tag}"] = (side * EYE[0], EYE[1])
+        FACE_ANCHORS[f"Blush.{tag}"] = (side * CHEEK[0], CHEEK[1])
+    FACE_ANCHORS["Sweat"] = SWEAT[:2]
     return made
+
+
+def build_expressions(face, groom, ink, black_felt, pink_felt) -> dict:
+    """Roo's livelier faces, made like the rest of its face: golden felt stars for eyes when it celebrates, red
+    felt hearts when it's smitten, > < stitched when it giggles, /// stitched on its cheeks when it blushes,
+    and a felt drop of sweat when it's worried. Each felt piece has a stitched edge, a felt glint and fuzz."""
+    gold = felt_material("Roo Felt Gold", "#FFC93C")
+    red = felt_material("Roo Felt Heart", "#FF4D73")
+    blue = felt_material("Roo Felt Sweat", "#9AD8FF")
+    white = felt_material("Roo Felt White", "#FAFAF7")
+    brown = thread_material("Roo Thread Brown", "#5A3A14")
+    wine = thread_material("Roo Thread Wine", "#A8243F")
+    rose = thread_material("Roo Thread Rose", "#D9466E")
+    made = {}
+    for side, tag in ((-1, "L"), (1, "R")):
+        ex, ez = side * EYE[0], EYE[1]
+        star = puffy_star(ex, ez, 0.118, 0.06)
+        made[f"Eye Star.{tag}"] = [
+            felt_patch(face, f"Roo Eye Star.{tag}", star, 0.005, gold, 0.004),
+            threads(face, f"Roo Eye Star Edge.{tag}", satin(along(star), lambda s: 0.011, spacing=0.0035, slant=0.1, puff=0.003, base=0.008, seed=21 + side), 0.0018, brown),
+            felt_patch(face, f"Roo Eye Star Glint.{tag}", circle(ex - 0.026, ez + 0.03, 0.016), 0.002, white, 0.01),
+        ]
+        FACE_SHAPES[f"Eye Star.{tag}"] = {"fills": [star], "feather": 0.03}
+        love = heart(ex, ez - 0.005, 0.21)
+        made[f"Eye Heart.{tag}"] = [
+            felt_patch(face, f"Roo Eye Heart.{tag}", love, 0.005, red, 0.004),
+            threads(face, f"Roo Eye Heart Edge.{tag}", satin(along(love), lambda s: 0.011, spacing=0.0035, slant=0.1, puff=0.003, base=0.008, seed=27 + side), 0.0018, wine),
+            felt_patch(face, f"Roo Eye Heart Glint.{tag}", circle(ex - 0.045, ez + 0.03, 0.018), 0.002, white, 0.01),
+        ]
+        FACE_SHAPES[f"Eye Heart.{tag}"] = {"fills": [love], "feather": 0.03}
+        centre, width = chevron(ex, ez, side), round_ends(0.04)
+        made[f"Eye Squint.{tag}"] = [
+            threads(face, f"Roo Eye Squint.{tag}", satin(centre, width, spacing=0.0042, puff=0.008, base=0.012, seed=23 + side), 0.0026, ink),
+            ribbon(face, f"Roo Eye Squint Under.{tag}", centre, width, black_felt, 0.009),
+        ]
+        FACE_SHAPES[f"Eye Squint.{tag}"] = {"strokes": [(centre, width)], "feather": 0.03}
+        # A blushing cheek: the felt cheek again, with three stitched strokes across it.
+        cx, cz = side * CHEEK[0], CHEEK[1]
+        cheek = [(cx + CHEEK[2] * math.cos(a), cz + CHEEK[3] * math.sin(a)) for a in (2 * math.pi * k / 48 for k in range(48))]
+        made[f"Blush.{tag}"] = [felt_patch(face, f"Roo Blush Cheek.{tag}", cheek, 0.004, pink_felt, 0.008)]
+        made[f"Blush.{tag}"] += [
+            threads(face, f"Roo Blush.{tag}.{i}", satin(slash(cx + i * 0.046, cz), round_ends(0.012), spacing=0.0035, slant=0.0, puff=0.003, base=0.0125, seed=25 + i), 0.0016, rose)
+            for i in (-1, 0, 1)
+        ]
+        FACE_SHAPES[f"Blush.{tag}"] = {"fills": [cheek], "feather": 0.002, "block_inset": 0.005}
+    sweat = drop(*SWEAT)
+    made["Sweat"] = [
+        felt_patch(face, "Roo Sweat", sweat, 0.005, blue, 0.004),
+        felt_patch(face, "Roo Sweat Glint", circle(SWEAT[0] - 0.014, SWEAT[1] - 0.012, 0.012), 0.002, white, 0.01),
+    ]
+    FACE_SHAPES["Sweat"] = {"fills": [sweat], "feather": 0.03}
+    for side, tag in ((-1, "L"), (1, "R")):
+        made[f"Eye Star.{tag}"] += fuzz(made[f"Eye Star.{tag}"][:1], "#FFC93C", groom, 0.008)
+        made[f"Eye Heart.{tag}"] += fuzz(made[f"Eye Heart.{tag}"][:1], "#FF4D73", groom, 0.008)
+        made[f"Blush.{tag}"] += fuzz(made[f"Blush.{tag}"][:1], "#FFC2CC", groom, 0.01)
+    made["Sweat"] += fuzz(made["Sweat"][:1], "#9AD8FF", groom, 0.008)
+    return made
+
+
+# The floating emotes: felt cutouts the app floats about Roo (a heart, a sparkle, Zzz, ? and !). They're made
+# in front of Roo, each rendered on its own.
+EMOTES: dict = {}
+EMOTE_AT = Vector((0.0, -1.6, 0.25))
+
+
+def felt_cutout(coll, name: str, outline, thickness: float, material, lift: float = 0.0) -> bpy.types.Object:
+    """A felt cutout of any outline (across, up), standing at EMOTE_AT facing you, `lift` towards you."""
+    at = EMOTE_AT
+    bm = bmesh.new()
+    face = bm.faces.new([bm.verts.new((at.x + u, at.y - lift, at.z + v)) for u, v in outline])
+    grown = bmesh.ops.extrude_face_region(bm, geom=[face])
+    bmesh.ops.translate(bm, vec=(0.0, -thickness, 0.0), verts=[g for g in grown["geom"] if isinstance(g, bmesh.types.BMVert)])
+    me = mesh_from(name, bm)
+    for poly in me.polygons:
+        poly.use_smooth = False
+    me.materials.append(material)
+    return place(coll, name, me)
+
+
+def build_emotes(sc: bpy.types.Scene, groom) -> dict:
+    coll = collection(sc, "Roo Emotes")
+    white = felt_material("Roo Felt White", "#FAFAF7")
+    thick = 0.022
+
+    def emote(name: str, colour: str, outlines, glint=None):
+        felt = felt_material(f"Roo Felt {name}", colour)
+        # A hair apart where they overlap, so their faces don't fight.
+        obs = [felt_cutout(coll, f"Roo {name}.{i}", outline, thick, felt, 0.001 * i) for i, outline in enumerate(outlines)]
+        if glint:
+            obs.append(felt_cutout(coll, f"Roo {name} Glint", glint, 0.003, white, thick))
+        return obs + fuzz([ob for ob in obs if not ob.name.endswith("Glint")], colour, groom, 0.007)
+
+    def hook(t):
+        a = math.radians(160 - 230 * t)
+        return (0.06 * math.cos(a), 0.05 + 0.06 * math.sin(a))
+
+    end = hook(1.0)
+    question = [band(hook, 0.05), band(lambda t: (end[0], end[1] - 0.055 * t), 0.05), circle(end[0], end[1] - 0.125, 0.032)]
+    z = [(-0.1, 0.11), (0.1, 0.11), (0.1, 0.055), (-0.03, -0.055), (0.1, -0.055), (0.1, -0.11), (-0.1, -0.11), (-0.1, -0.055), (0.03, 0.055), (-0.1, 0.055)]
+    bar = [(0.035 * math.cos(math.radians(a)), 0.1 + 0.035 * math.sin(math.radians(a))) for a in range(0, 181, 12)] + [(-0.024, -0.035), (0.024, -0.035)]
+    EMOTES.clear()
+    EMOTES["Emote Heart"] = emote("Emote Heart", "#FF6B8E", [heart(0.0, 0.0, 0.26)], circle(-0.055, 0.035, 0.022))
+    EMOTES["Emote Sparkle"] = emote("Emote Sparkle", "#FFD54F", [puffy_star(0.0, 0.0, 0.13, 0.05, points=4, sharp=2.2)])
+    EMOTES["Emote Z"] = emote("Emote Z", "#A3B8FF", [z])
+    EMOTES["Emote Question"] = emote("Emote Question", "#FFB547", question)
+    EMOTES["Emote Exclaim"] = emote("Emote Exclaim", "#FF6E5A", [bar, circle(0.0, -0.1, 0.034)])
+    return EMOTES
 
 
 def face_mask(names, size: int = 1024) -> bpy.types.Image:
@@ -889,15 +1093,16 @@ def face_mask(names, size: int = 1024) -> bpy.types.Image:
                 d = np.hypot(x - cx, z - cz) - width(s) / 2
                 m = np.maximum(m, np.clip(1 - d / feather, 0, 1))
         for poly in shape.get("fills", []):
-            inside = np.ones_like(m, dtype=bool)
+            # Inside: a line out from the point crosses the outline an odd number of times (so stars and
+            # hearts are filled too, not only convex shapes).
+            inside = np.zeros_like(m, dtype=bool)
             dist = np.full_like(m, 1e9)
             px, pz = np.array([p[0] for p in poly]), np.array([p[1] for p in poly])
-            orient = np.sign(np.sum(px * np.roll(pz, -1) - np.roll(px, -1) * pz))
             for i in range(len(poly)):
                 ax, az, bx, bz = px[i], pz[i], px[(i + 1) % len(poly)], pz[(i + 1) % len(poly)]
                 ex, ez = bx - ax, bz - az
-                cross = (ex * (z - az) - ez * (x - ax)) * orient
-                inside &= cross >= 0
+                if az != bz:
+                    inside ^= ((az > z) != (bz > z)) & (x < ax + ex * (z - az) / ez)
                 t = np.clip(((x - ax) * ex + (z - az) * ez) / (ex * ex + ez * ez), 0, 1)
                 dist = np.minimum(dist, np.hypot(x - (ax + t * ex), z - (az + t * ez)))
             m = np.maximum(m, np.where(inside, 1.0, np.clip(1 - dist / feather, 0, 1)))
@@ -996,6 +1201,7 @@ def build_studio(sc: bpy.types.Scene):
     lit = bpy.data.collections.new("Roo Lit")
     lit.children.link(bpy.data.collections["Roo"])
     lit.children.link(bpy.data.collections["Roo Face"])
+    lit.children.link(bpy.data.collections["Roo Emotes"])
     # As the reference was shot: from the front, a touch above, with a long lens.
     cam_data = bpy.data.cameras.new("Roo Hero Camera")
     cam_data.lens = 85
@@ -1053,6 +1259,8 @@ def build():
     clear(sc)
     shapes = build_shapes(sc)
     face = build_face(sc)
+    face.update(build_emotes(sc, bpy.data.node_groups["Roo Fur"]))
+    FACE_PIECES.update(EMOTES)
     build_studio(sc)
     show_face(face, HERO_FACE, bpy.data.objects["Roo Fur.Body"])
     return {"objects": [ob.name for ob in sc.objects], "parts": list(shapes), "face": list(face)}

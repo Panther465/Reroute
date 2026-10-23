@@ -3,7 +3,9 @@
 // waves, and turns its whole body to look at your pointer, like a real toy turned in your hands: each frame its
 // face is put together on its fur (stitched eyes, felt cheeks, and the felt mouth cut to the shape
 // lib/speech/channel.ts says Roo is making), then the round body is turned as one, the face with it, and its
-// arms, feet and sprout go round with it. It draws only while it's on screen.
+// arms, feet and sprout go round with it. What it feels and does (each mood's face, giggling when poked,
+// purring when stroked, fidgets of its own, the felt emotes floating off it) is in life.ts. It draws only
+// while it's on screen.
 
 import type { Mood } from '@/components/roo/RooArt'
 import { mix, mouthOutline, mouthSize, REST, type MouthParams } from '@/lib/roo/lipsync/mouth'
@@ -11,6 +13,7 @@ import { mouthNow } from '@/lib/speech/channel'
 import lg from './assets/roo-lg.webp'
 import md from './assets/roo-md.webp'
 import sm from './assets/roo-sm.webp'
+import { ACTS, emoteNow, FACES, fidget, GRIN, perform, still, type Act, type Emote, type Face } from './life'
 import { PIECES, RIG, SHEETS, type Rect } from './rig'
 
 export type Framing = 'full' | 'portrait'
@@ -56,38 +59,12 @@ class Spring {
 
 // ---------- look ----------
 
-/** Each mood's face, as targets the springs move towards. */
-interface Face {
-  eyesOpen: number
-  happy: number
-  sleep: number
-  wide: number
-  brows: number
-  browTilt: number
-  look: [number, number] | null
-  tilt: number
-  leaf: number
-  mouth: MouthParams
-  cheeks: number
-}
-
-const FACES: Record<Mood, Face> = {
-  idle: { eyesOpen: 1, happy: 0, sleep: 0, wide: 1, brows: 0, browTilt: 0, look: null, tilt: 0, leaf: 0, mouth: REST, cheeks: 0.75 },
-  happy: { eyesOpen: 0, happy: 1, sleep: 0, wide: 1, brows: 0, browTilt: 0, look: null, tilt: 0, leaf: 0.06, mouth: { open: 0.55, wide: 0.45, round: 0, smile: 1 }, cheeks: 1 },
-  wave: { eyesOpen: 0, happy: 1, sleep: 0, wide: 1, brows: 0, browTilt: 0, look: null, tilt: 0.05, leaf: 0.08, mouth: { open: 0.55, wide: 0.45, round: 0, smile: 1 }, cheeks: 1 },
-  celebrate: { eyesOpen: 0, happy: 1, sleep: 0, wide: 1, brows: 0, browTilt: 0, look: null, tilt: 0, leaf: 0.12, mouth: { open: 0.75, wide: 0.5, round: 0, smile: 1 }, cheeks: 1 },
-  thinking: { eyesOpen: 1, happy: 0, sleep: 0, wide: 1, brows: 1, browTilt: -0.25, look: [-0.7, 0.75], tilt: -0.08, leaf: -0.22, mouth: { open: 0, wide: -0.15, round: 0, smile: 0 }, cheeks: 0.65 },
-  listening: { eyesOpen: 1, happy: 0, sleep: 0, wide: 1.12, brows: 0, browTilt: 0, look: [0, 0], tilt: 0.1, leaf: 0.14, mouth: { open: 0.05, wide: 0, round: 0, smile: 0.5 }, cheeks: 0.8 },
-  talking: { eyesOpen: 1, happy: 0, sleep: 0, wide: 1, brows: 0, browTilt: 0, look: null, tilt: 0, leaf: 0.04, mouth: REST, cheeks: 0.8 },
-  alert: { eyesOpen: 1, happy: 0, sleep: 0, wide: 1.14, brows: 1, browTilt: 0.3, look: [0, 0], tilt: 0, leaf: 0.18, mouth: { open: 0.35, wide: -0.4, round: 1, smile: 0 }, cheeks: 0.7 },
-  sleeping: { eyesOpen: 0, happy: 0, sleep: 1, wide: 1, brows: 0, browTilt: 0, look: null, tilt: 0.06, leaf: -0.1, mouth: { open: 0, wide: -0.3, round: 0, smile: 0.2 }, cheeks: 0.65 },
-}
-
 /** How far Roo turns to look at your pointer (radians, at full reach): round to the side, and up or down. */
 const TURN = 0.34
 const NOD = 0.16
 /** And how far it leans into the turn. */
 const LEAN = 0.04
+const TAU = 2 * Math.PI
 
 // ---------- the rig ----------
 
@@ -375,6 +352,28 @@ export class RooEngine {
   private pointer: { x: number; y: number; at: number } = { x: 0, y: 0, at: 0 }
   private glance: { x: number; y: number; until: number } = { x: 0, y: 0, until: 0 }
   private nextGlance = 5000
+  /** A darting of the eyes now and then, while they're not on anything. */
+  private saccade: { x: number; y: number; next: number } = { x: 0, y: 0, next: 0 }
+  /** What Roo's doing beyond its mood (a giggle, a fidget), and since when. */
+  private act: { kind: Act; at: number } | null = null
+  private nextFidget = performance.now() + 6000
+  /** When something last happened (the pointer moved, the mood changed, Roo spoke): it fidgets, and in time
+   *  yawns, when nothing has for a while. */
+  private quietSince = performance.now()
+  /** Since when the pointer has rested on Roo (0: it hasn't), and when it last poked it. */
+  private hoverSince = 0
+  private boopAt = -1e9
+  /** A poke makes the app celebrate for a moment: Roo giggles instead, until then. */
+  private giggleUntil = 0
+  /** The extra hops of a celebration still to come. */
+  private hops: number[] = []
+  private emotes: Emote[] = []
+  private nextZ = 0
+  private zs = 0
+  private nextSparkle = 0
+  private nextHeart = 0
+  /** The time of the latest update, for drawing. */
+  private now = performance.now()
   private observers: (IntersectionObserver | ResizeObserver)[] = []
   private s = {
     hopY: new Spring(0, 5, 0.6),
@@ -391,6 +390,14 @@ export class RooEngine {
     brows: new Spring(0, 3.5, 0.85),
     browTilt: new Spring(0, 3.5, 0.85),
     cheeks: new Spring(0.75, 3.5, 0.85),
+    star: new Spring(0, 3.5, 0.85),
+    heart: new Spring(0, 3.5, 0.85),
+    squint: new Spring(0, 6, 0.9),
+    wink: new Spring(0, 9, 0.9),
+    blush: new Spring(0, 3, 0.9),
+    sweat: new Spring(0, 3, 0.9),
+    mouthShift: new Spring(0, 3, 0.9),
+    zoom: new Spring(1, 3, 0.7),
     leaf: new Spring(0, 2.6, 0.22),
     armL: new Spring(0, 4, 0.55),
     armR: new Spring(0, 4, 0.55),
@@ -416,10 +423,21 @@ export class RooEngine {
     brows: 0,
     browTilt: 0,
     cheeks: 0.75,
+    star: 0,
+    heart: 0,
+    squint: 0,
+    wink: 0,
+    blush: 0,
+    sweat: 0,
+    mouthShift: 0,
     leaf: 0,
     armL: 0,
     armR: 0,
     mouth: REST as MouthParams,
+    /** The body's roll (clockwise), bob up and how near it's come, on top of the rest. */
+    roll: 0,
+    bob: 0,
+    zoom: 1,
   }
 
   constructor(
@@ -487,13 +505,58 @@ export class RooEngine {
   set(next: Partial<RooState>) {
     const prev = this.state
     this.state = { ...prev, ...next }
+    const now = performance.now()
     if (next.hop !== undefined && next.hop !== prev.hop && prev.hop !== undefined) this.hop(false)
     if (next.mood && next.mood !== prev.mood) {
-      if (next.mood === 'celebrate') this.hop(true)
-      if (next.mood === 'wave' || next.mood === 'celebrate') this.waveAt = performance.now()
-      // A blink hides the change of expression.
-      this.blinkAt = performance.now()
+      // A blink hides the change of expression; what the last mood floated off (Zzz, a !) goes.
+      this.blinkAt = now
+      this.quietSince = now
+      for (const e of this.emotes) if (e.key === 'Emote Z' || e.key === 'Emote Exclaim') e.until = Math.min(e.until, now + 300)
+      if (next.mood === 'celebrate') {
+        // Just poked, the app celebrates for a moment: Roo giggles instead.
+        if (now - this.boopAt < 700) this.giggleUntil = now + 1200
+        else {
+          this.hop(true)
+          this.hops = [now + 750, now + 1450]
+          this.waveAt = now
+          for (const side of [-1, 1]) this.emit('Emote Heart', now, { ms: 1700, x: 0.3 * side, z: 1.0, dx: 0.12 * side, dz: 0.6, size: 0.8, spin: side })
+        }
+      }
+      if (next.mood === 'wave') {
+        this.waveAt = now
+        this.emit('Emote Heart', now, { ms: 1700, x: 0.45, z: 1.0, dx: 0.12, dz: 0.6, size: 0.75, spin: 1 })
+      }
+      if (next.mood === 'alert') {
+        this.begin('startle', now)
+        this.emit('Emote Exclaim', now, { ms: 2600, x: 0.6, z: 1.2, size: 0.95, how: 'pop', spin: 1 })
+      }
     }
+  }
+
+  /** Starts an act (life.ts). */
+  private begin(kind: Act, now: number) {
+    this.act = { kind, at: now }
+    if (ACTS[kind].hop) this.hop(false)
+    if (kind === 'wink') this.emit('Emote Sparkle', now + 120, { ms: 650, x: 0.6, z: 0.45, size: 0.5, how: 'twinkle', spin: 1 })
+  }
+
+  /** Floats a felt emote off Roo (where and how: see life.ts). */
+  private emit(key: string, now: number, o: Partial<Emote> & { ms: number }) {
+    if (!PIECES[key]) return
+    const { ms, ...rest } = o
+    this.emotes.push({ key, born: now, until: now + ms, x: 0, z: 1, dx: 0, dz: 0, size: 1, how: 'float', spin: 0, ...rest })
+  }
+
+  /** Poked: a giggle, or a start awake when asleep. */
+  private boop(now: number) {
+    this.boopAt = now
+    if (this.state.mood === 'sleeping') {
+      this.begin('startle', now)
+      this.emit('Emote Exclaim', now, { ms: 900, x: 0.6, z: 1.2, size: 0.8, how: 'pop', spin: 1 })
+      return
+    }
+    this.begin('boop', now)
+    for (const side of [-1, 1]) this.emit('Emote Sparkle', now + 60, { ms: 700, x: 0.75 * side, z: 0.75, dz: 0.1, size: 0.6, how: 'twinkle', spin: side })
   }
 
   private hop(big: boolean) {
@@ -690,11 +753,17 @@ export class RooEngine {
   private onPointer = (e: PointerEvent) => {
     const r = this.host.getBoundingClientRect()
     if (!r.width) return
+    const now = performance.now()
     const dx = e.clientX - (r.left + r.width / 2)
     const dy = e.clientY - (r.top + r.height * 0.42)
     const d = Math.hypot(dx, dy) || 1
     const reach = Math.min(1, d / 300)
-    this.pointer = { x: (dx / d) * reach, y: (-dy / d) * reach, at: performance.now() }
+    this.pointer = { x: (dx / d) * reach, y: (-dy / d) * reach, at: now }
+    this.quietSince = now
+    // On Roo: being stroked, or poked.
+    const on = e.clientX >= r.left && e.clientX <= r.right && e.clientY >= r.top && e.clientY <= r.bottom
+    this.hoverSince = on ? this.hoverSince || now : 0
+    if (on && e.type === 'pointerdown') this.boop(now)
   }
 
   private onVisibility = () => {
@@ -735,13 +804,80 @@ export class RooEngine {
   private update(dt: number, now: number): boolean {
     const s = this.s
     const p = this.pose
-    const face = FACES[this.state.mood]
+    const mood = this.state.mood
     const t = now / 1000
+    this.now = now
+    const said = mouthNow()
+    if (said) this.quietSince = now
 
-    // Breathing, slow and small.
-    p.breath = 1 + 0.017 * Math.sin(2 * Math.PI * 0.25 * t)
+    // The face to aim for: the mood's, changed by whatever Roo's doing (giggling when the app celebrates a poke).
+    const giggling = mood === 'celebrate' && now < this.giggleUntil
+    const face: Face = { ...FACES[giggling ? 'happy' : mood] }
+    const m = still()
 
-    // A hop: crouch, spring up stretched, fall, land squashed, wobble. The big one is a celebration.
+    // An act under way, else, when nothing's happening, now and then a fidget of its own.
+    if (this.act && now - this.act.at > ACTS[this.act.kind].ms) {
+      const done = this.act.kind
+      this.act = null
+      // A giggle sometimes ends in a wink.
+      if (done === 'boop' && Math.random() < 0.4) this.begin('wink', now)
+    }
+    if (!this.act && !said && now > this.nextFidget && now - this.pointer.at > 2500) {
+      const kind = fidget(mood, now - this.quietSince, Math.random())
+      if (kind) this.begin(kind, now)
+      this.nextFidget = now + 5500 + Math.random() * 5000
+    }
+    if (giggling && !this.act) this.begin('boop', now)
+    if (this.act) {
+      const ms = now - this.act.at
+      perform(this.act.kind, ms / ACTS[this.act.kind].ms, ms / 1000, face, m)
+    }
+
+    // Stroked (the pointer resting on it): eyes closed happily, a blush, a little wriggle, now and then a heart.
+    const stroked = this.hoverSince > 0 && now - this.hoverSince > 350 && now - this.pointer.at < 1500 && !said && !this.act && (mood === 'idle' || mood === 'happy' || mood === 'listening')
+    if (stroked) {
+      Object.assign(face, { eyesOpen: 0, happy: 1, blush: 0.8, cheeks: 1, mouth: GRIN })
+      m.bob += 0.012 * (0.5 + 0.5 * Math.sin(TAU * 1.4 * t))
+      m.roll += 0.02 * Math.sin(TAU * 1.1 * t)
+      if (now > this.nextHeart) {
+        const side = Math.random() < 0.5 ? -1 : 1
+        this.emit('Emote Heart', now, { ms: 1700, x: 0.25 * side, z: 1.0 + p.hopY, dx: 0.1 * side, dz: 0.55, size: 0.7, spin: side })
+        this.nextHeart = now + 2600
+      }
+    }
+
+    // Each mood's own life.
+    const cheering = mood === 'celebrate' && !giggling
+    if (mood === 'happy') {
+      m.roll += 0.03 * Math.sin(TAU * 0.45 * t)
+      m.bob += 0.012 * (0.5 + 0.5 * Math.sin(TAU * 0.9 * t))
+    } else if (mood === 'listening') {
+      // Slow nods, its head tipped one way, then the other.
+      m.nod += 0.055 * Math.max(0, Math.sin(TAU * 0.55 * t)) ** 2
+      face.tilt = 0.1 * (Math.sin((TAU * t) / 7) > 0 ? 1 : -1)
+    } else if (mood === 'thinking') {
+      // Its eyes searching about up there, swaying as it ponders.
+      face.look = Math.floor(t / 1.3) % 2 ? [-0.35, 0.6] : [-0.75, 0.78]
+      m.roll += 0.025 * Math.sin(TAU * 0.35 * t)
+    } else if (mood === 'alert') m.roll += 0.01 * Math.sin(TAU * 9 * t)
+    else if (cheering) m.leaf += 0.25 * Math.sin(TAU * 3.2 * t)
+    if (said) {
+      // Talking: a bounce on loud sounds, and a sway.
+      m.bob += said.open * 0.022
+      m.roll += 0.022 * Math.sin(TAU * 0.7 * t)
+    }
+
+    // Breathing: slow and small, deeper asleep, the mouth falling open a little with each breath.
+    const asleep = mood === 'sleeping'
+    p.breath = 1 + (asleep ? 0.034 : 0.017) * Math.sin(TAU * (asleep ? 0.17 : 0.25) * t)
+    if (asleep && !said) face.mouth = { ...face.mouth, open: 0.05 * (1 + Math.sin(TAU * 0.17 * t)) }
+
+    // A hop: crouch, spring up stretched, fall, land squashed, wobble. The big one is a celebration, which
+    // bounces twice more.
+    if (this.hops.length && now >= this.hops[0]) {
+      this.hops.shift()
+      if (cheering) this.hop(false)
+    }
     let hopTarget = 0
     let squashTarget = 1
     const since = now - this.hopAt
@@ -759,11 +895,16 @@ export class RooEngine {
       } else squashTarget = 0.88
     }
     p.hopY = s.hopY.to(hopTarget, dt)
-    p.squash = s.squash.to(squashTarget, dt)
+    p.squash = s.squash.to(squashTarget * m.stretch, dt)
+    p.zoom = s.zoom.to(m.zoom, dt)
+    p.roll = m.roll
+    p.bob = m.bob
 
-    // Where Roo looks: the mood's own look, else the pointer, else a glance about now and then.
-    let look: [number, number]
-    if (face.look) look = face.look
+    // Where Roo looks: where an act looks, else the mood's own look, else the pointer, else a glance about now
+    // and then; its eyes darting a little when they're not on anything.
+    let look: readonly [number, number]
+    if (m.look) look = m.look
+    else if (face.look) look = face.look
     else if (now - this.pointer.at < 3500) look = [this.pointer.x, this.pointer.y]
     else {
       if (now > this.nextGlance) {
@@ -772,8 +913,10 @@ export class RooEngine {
         this.blinkAt = now
       }
       look = now < this.glance.until ? [this.glance.x, this.glance.y] : [0, 0]
+      if (now > this.saccade.next) this.saccade = { x: (Math.random() - 0.5) * 0.3, y: (Math.random() - 0.5) * 0.2, next: now + 1200 + Math.random() * 1200 }
     }
-    p.gaze = [s.gazeX.to(look[0], dt), s.gazeY.to(look[1], dt)]
+    const dart = now - this.pointer.at < 3500 || face.look ? [0, 0] : [this.saccade.x, this.saccade.y]
+    p.gaze = [s.gazeX.to(look[0] + dart[0], dt), s.gazeY.to(look[1] + dart[1], dt)]
     const hx = s.headX.to(look[0], dt)
     const hy = s.headY.to(look[1], dt)
     p.tilt = s.tilt.to(face.tilt - look[0] * LEAN, dt)
@@ -789,34 +932,63 @@ export class RooEngine {
     p.eyesOpen = s.eyesOpen.to(face.eyesOpen, dt)
     p.happy = s.happy.to(face.happy, dt)
     p.sleep = s.sleep.to(face.sleep, dt)
+    p.star = s.star.to(face.star, dt)
+    p.heart = s.heart.to(face.heart, dt)
+    p.squint = s.squint.to(face.squint, dt)
+    p.wink = s.wink.to(face.wink, dt)
     p.wide = s.wide.to(face.wide, dt)
     p.brows = s.brows.to(face.brows, dt)
     p.browTilt = s.browTilt.to(face.browTilt, dt)
     p.cheeks = s.cheeks.to(face.cheeks, dt)
+    p.blush = s.blush.to(face.blush, dt)
+    p.sweat = s.sweat.to(face.sweat, dt)
+    p.mouthShift = s.mouthShift.to(face.mouthShift, dt)
 
-    // Arms: a wave with the right hand (1.2 s), both up to celebrate, otherwise hanging and swaying.
+    // Arms: a wave with the right hand (1.2 s), both up and waving to celebrate, a hand to the chin tapping
+    // as it thinks, up a little in alarm, otherwise hanging and swaying; unless an act moves them.
     const waving = this.waveAt >= 0 && now - this.waveAt < 1200
-    const wavePhase = waving ? Math.sin(((now - this.waveAt) / 1000) * 2 * Math.PI * 1.6) : 0
-    const celebrating = this.state.mood === 'celebrate'
+    const wavePhase = waving ? Math.sin(((now - this.waveAt) / 1000) * TAU * 1.6) : 0
     const sway = 0.04 * Math.sin(t * 1.3)
-    p.armR = s.armR.to(celebrating ? 1.75 : waving ? 1.15 + 0.4 * wavePhase : sway, dt)
-    p.armL = s.armL.to(celebrating ? 1.75 : this.state.mood === 'thinking' ? 0.3 : -sway, dt)
+    const cheer = 0.25 * Math.sin(TAU * 2.2 * t)
+    const lifted = mood === 'alert' ? 0.35 : mood === 'listening' ? 0.12 : 0
+    let armR = cheering ? 1.6 - cheer : waving ? 1.15 + 0.4 * wavePhase : lifted + sway
+    let armL = cheering ? 1.6 + cheer : mood === 'thinking' ? 0.3 + 0.05 * Math.sin(TAU * 2.6 * t) : lifted - sway
+    if (m.armL !== null) armL = m.armL
+    if (m.armR !== null) armR = m.armR
+    p.armR = s.armR.to(armR, dt)
+    p.armL = s.armL.to(armL, dt)
 
-    // The sprout lags behind the body: follow-through when Roo hops, a droop when it thinks.
-    p.leaf = s.leaf.to(face.leaf - s.hopY.v * 0.35 + 0.03 * Math.sin(t * 1.7), dt)
+    // The sprout lags behind the body: follow-through when Roo hops, a droop when it thinks; and whatever an
+    // act does to it.
+    p.leaf = s.leaf.to(face.leaf - s.hopY.v * 0.35 + 0.03 * Math.sin(t * 1.7), dt) + m.leaf
 
     // The mouth: the voice's shape while Roo talks, else the mood's.
-    const said = mouthNow()
     const target = said ?? face.mouth
     const open = s.open.to(target.open, dt)
     const mouth = { open: Math.max(0, open), wide: s.wideM.to(target.wide, dt), round: s.round.to(target.round, dt), smile: s.smile.to(target.smile, dt) }
     p.mouth = said ? mix(mouth, target, 0.35) : mouth
 
     // The whole body turns after the gaze, and nods a little on loud words.
-    p.yaw = hx * TURN
-    p.pitch = -hy * NOD + (said ? said.open * 0.035 : 0)
+    p.yaw = hx * TURN + m.turn
+    p.pitch = -hy * NOD + (said ? said.open * 0.035 : 0) + m.nod
 
-    return !!said || hopping || waving || this.state.mood === 'listening'
+    // Felt emotes: Zzz rising while it sleeps, a ? hanging over it while it thinks, sparkles to celebrate.
+    if (asleep && now > this.nextZ) {
+      this.emit('Emote Z', now, { ms: 2800, x: 0.4, z: 0.95 + p.hopY, dx: 0.32, dz: 0.62, size: [0.7, 0.85, 1][this.zs++ % 3], spin: 1 })
+      this.nextZ = now + 1300
+    }
+    const asking = this.emotes.find((e) => e.key === 'Emote Question' && e.until > now + 300)
+    if (mood === 'thinking' && !asking) this.emit('Emote Question', now, { ms: 1e9, x: 0.62, z: 1.18, size: 0.9, how: 'pop', spin: 1 })
+    if (mood !== 'thinking' && asking) asking.until = now + 300
+    if (cheering && now > this.nextSparkle) {
+      const a = -0.3 + Math.random() * (Math.PI + 0.6)
+      const r = 1.12 + Math.random() * 0.24
+      this.emit('Emote Sparkle', now, { ms: 750, x: r * Math.cos(a), z: 0.1 + 0.95 * r * Math.sin(a) + p.hopY, dz: 0.08, size: 0.45 + 0.35 * Math.random(), how: 'twinkle', spin: Math.random() < 0.5 ? -1 : 1 })
+      this.nextSparkle = now + 160
+    }
+    if (this.emotes.length) this.emotes = this.emotes.filter((e) => e.until > now)
+
+    return !!said || hopping || waving || mood === 'listening' || !!this.act || stroked || cheering
   }
 
   // ---------- drawing ----------
@@ -932,7 +1104,8 @@ export class RooEngine {
     const { mouth } = this.pose
     // A pixel of the face, in master-render pixels: how wide the soft edges are.
     const px = 1 / target.m[0]
-    const pts = mouthPoints(mouth, 0, 0)
+    const shift = this.pose.mouthShift * RIG.ppu
+    const pts = mouthPoints(mouth, 0, 0).map(([x, y]): Pt => [x + shift, y])
     // Its shadow on the fur: the outline, faint and a little lower, twice.
     this.fill(target, pts, MOUTH_PAIRS, 0.014 * RIG.ppu, 0.1, 1.5 * px, null)
     this.fill(target, pts, MOUTH_PAIRS, 0.007 * RIG.ppu, 0.2, 1.5 * px, null)
@@ -942,7 +1115,8 @@ export class RooEngine {
     this.fill(target, pts, MOUTH_PAIRS, 0, 1, px, this.swatch('Felt Black'))
     const tongue = Math.max(0, Math.min(1, (mouth.open - 0.22) / 0.15))
     if (tongue > 0) {
-      const { pts: oval, cut } = tonguePoints(mouth, 0, 0)
+      const { pts: tongueAt, cut } = tonguePoints(mouth, 0, 0)
+      const oval = tongueAt.map(([x, y]): Pt => [x + shift, y])
       cut.forEach((c, i) => (this.edge[i] = c ? 0 : tongue))
       this.fill(target, oval, TONGUE_PAIRS, 0, tongue, px, this.swatch('Felt Tongue'), this.edge)
     }
@@ -970,25 +1144,46 @@ export class RooEngine {
    *  or asleep) and brows, then the mouth. */
   private compose() {
     const p = this.pose
-    const key = [p.eyesOpen * Math.max(0.06, p.blink), p.happy, p.sleep, p.wide, p.brows, p.browTilt, p.cheeks, ...p.gaze, ...Object.values(p.mouth)].map((v) => v.toFixed(3)).join(' ')
+    const t = this.now / 1000
+    // Starry eyes twinkle, heart eyes beat, a drop of sweat trembles.
+    const twinkle = 1 + 0.07 * Math.sin(TAU * 3 * t)
+    const beat = 1 + 0.1 * Math.max(0, Math.sin(TAU * 1.3 * t)) ** 6
+    const tremble = 0.006 * RIG.ppu * Math.sin(TAU * 2 * t)
+    const moving = p.star > 0.01 || p.heart > 0.01 || p.sweat > 0.01 ? Math.round(this.now / 16) : 0
+    const key = [p.eyesOpen * Math.max(0.06, p.blink), p.happy, p.sleep, p.star, p.heart, p.squint, p.wink, p.wide, p.brows, p.browTilt, p.cheeks, p.blush, p.sweat, p.mouthShift, moving, ...p.gaze, ...Object.values(p.mouth)]
+      .map((v) => v.toFixed(3))
+      .join(' ')
     if (key === this.faceKey) return
     this.faceKey = key
     const face = this.facePicture!
     this.bind(face)
     const target = this.into(face)
     this.piece(target, 'body')
+    // Felt cheeks, a touch fuller when Roo's pleased, with /// stitched over them when it blushes.
     const puff = 0.92 + 0.08 * p.cheeks
-    for (const side of ['L', 'R'] as const) this.facePiece(target, `Cheek.${side}`, 1, (m) => scaled(m, puff, puff))
-    const openY = Math.max(0.04, p.eyesOpen * Math.max(0.06, p.blink)) * p.wide
-    const [lx, ly] = [p.gaze[0] * 0.016 * RIG.ppu, -p.gaze[1] * 0.012 * RIG.ppu]
+    const blush = Math.min(1, p.blush * 1.3)
     for (const side of ['L', 'R'] as const) {
+      this.facePiece(target, `Cheek.${side}`, 1 - blush, (m) => scaled(m, puff, puff))
+      this.facePiece(target, `Blush.${side}`, blush, (m) => scaled(m, puff, puff))
+    }
+    const [lx, ly] = [p.gaze[0] * 0.016 * RIG.ppu, -p.gaze[1] * 0.012 * RIG.ppu]
+    // Each eye is one stitched shape at a time, the last fading as the next comes (and a blink hides it).
+    const shape = (key: string, amount: number, pulse = 1) => {
+      const k = (0.7 + 0.3 * amount) * pulse
+      this.facePiece(target, key, Math.min(1, amount * 1.4), (m) => scaled(m, k, k))
+    }
+    for (const side of ['L', 'R'] as const) {
+      const wink = side === 'R' ? p.wink : 0
+      const openY = Math.max(0.04, p.eyesOpen * (1 - wink) * Math.max(0.06, p.blink)) * p.wide
       if (openY > 0.05) this.facePiece(target, `Eye Open.${side}`, 1, (m) => scaled(moved(m, lx, ly), p.wide, openY))
-      const happy = 0.7 + 0.3 * p.happy
-      this.facePiece(target, `Eye Happy.${side}`, Math.min(1, p.happy * 1.4), (m) => scaled(m, happy, happy))
-      const sleep = 0.7 + 0.3 * p.sleep
-      this.facePiece(target, `Eye Sleep.${side}`, Math.min(1, p.sleep * 1.4), (m) => scaled(m, sleep, sleep))
+      shape(`Eye Happy.${side}`, Math.max(p.happy, wink))
+      shape(`Eye Sleep.${side}`, p.sleep)
+      shape(`Eye Star.${side}`, p.star, twinkle)
+      shape(`Eye Heart.${side}`, p.heart, beat)
+      shape(`Eye Squint.${side}`, p.squint)
       this.facePiece(target, `Brow.${side}`, Math.min(1, p.brows * 1.4), (m) => turned(m, (side === 'R' ? -1 : 1) * p.browTilt))
     }
+    this.facePiece(target, 'Sweat', Math.min(1, p.sweat * 1.3), (m) => moved(m, 0, tremble))
     this.flush(this.atlas!)
     this.drawMouth(target)
   }
@@ -1031,7 +1226,7 @@ export class RooEngine {
     const [cx, cy] = project([0, 0, 0])
 
     // The contact shadow stays on the ground, smaller and fainter while Roo is in the air.
-    const lift = Math.min(0.35, p.hopY * 0.8)
+    const lift = Math.min(0.35, (p.hopY + p.bob) * 0.8)
     const shadow = PIECES.shadow.rect
     this.piece(
       screen,
@@ -1040,10 +1235,11 @@ export class RooEngine {
       1 - Math.min(0.5, p.hopY),
     )
 
-    // Roo: up in the hop, squashed or stretched from its feet, breathing, and tilted with its mood.
-    let body = moved(IDENTITY, 0, -p.hopY * RIG.ppu)
-    body = about(body, gx, gy, (m) => scaled(m, 1 / Math.sqrt(p.squash), p.squash * p.breath))
-    body = about(body, cx, cy, (m) => turned(m, -p.tilt))
+    // Roo: up in the hop, squashed or stretched from its feet, breathing, nearer when it leans in, and tilted
+    // and swaying with its mood.
+    let body = moved(IDENTITY, 0, -(p.hopY + p.bob) * RIG.ppu)
+    body = about(body, gx, gy, (m) => scaled(m, p.zoom / Math.sqrt(p.squash), p.zoom * p.squash * p.breath))
+    body = about(body, cx, cy, (m) => turned(m, p.roll - p.tilt))
 
     // Behind the body, whose fuzzy edge covers where they join: the sprout, swaying about the top of the head,
     // and the arms; all carried round as the body turns.
@@ -1067,8 +1263,18 @@ export class RooEngine {
       const [fx, fy] = feet.pivot!
       const [dx] = this.carried(feet.anchor!, p.yaw, 0)
       this.piece(screen, 'feet', about(moved(body, dx, 0), fx, fy, (m) => scaled(m, Math.cos(p.yaw), 1)))
-      this.flush(this.atlas!)
     }
+
+    // The felt emotes float in front, where they were let go.
+    for (const e of this.emotes) {
+      const at = emoteNow(e, this.now)
+      const piece = PIECES[e.key]
+      if (!at || !piece) continue
+      const [x, y, w, h] = piece.rect
+      const [ex, ey] = project([at.x, 0, at.z])
+      this.piece(screen, e.key, moved(turned(scaled(moved(IDENTITY, ex, ey), at.size, at.size), at.angle), -(x + w / 2), -(y + h / 2)), at.alpha)
+    }
+    this.flush(this.atlas!)
   }
 
   dispose() {

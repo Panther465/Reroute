@@ -33,6 +33,10 @@ PPU = 320
 # this an arm goes behind the head.
 ARM_POSES = (0.0, 0.6, 1.2, 1.75)
 SPRITES = ("Eye Happy.L", "Eye Happy.R", "Eye Open.L", "Eye Open.R", "Eye Sleep.L", "Eye Sleep.R", "Brow.L", "Brow.R", "Cheek.L", "Cheek.R")
+# The livelier faces: starry, heart and > < eyes, stitched blushes and a drop of sweat.
+SPRITES += ("Eye Star.L", "Eye Star.R", "Eye Heart.L", "Eye Heart.R", "Eye Squint.L", "Eye Squint.R", "Blush.L", "Blush.R", "Sweat")
+# Felt cutouts the app floats about Roo.
+EMOTES = ("Emote Heart", "Emote Sparkle", "Emote Z", "Emote Question", "Emote Exclaim")
 SWATCHES = ("Felt Black", "Felt Tongue")
 # Sizes the app picks from: pixels to the body's radius.
 SETS = {"lg": 192, "md": 128, "sm": 80}
@@ -193,6 +197,11 @@ def layers(out: str, samples: int = 256, build: dict | None = None):
         with open(partial, encoding="utf-8") as f:
             done = json.load(f)
     size = round(bpy.data.objects["Roo Layer Camera"].data.ortho_scale * PPU)
+    # Where things land in the square frame, worked out without rendering (pieces kept from an earlier run
+    # render nothing): the frame square and every object where it is.
+    sc.render.resolution_x = sc.render.resolution_y = size
+    sc.render.resolution_percentage = 100
+    sc.view_layers[0].update()
     pieces = build["FACE_PIECES"]
     face_obs = {ob.name for obs in pieces.values() for ob in obs}
     body_fur = bpy.data.objects["Roo Fur.Body"]
@@ -245,6 +254,7 @@ def layers(out: str, samples: int = 256, build: dict | None = None):
         for k, raise_ in enumerate(ARM_POSES):
             ob.rotation_euler.y = rest - side * raise_
             info = shoot(f"arm.{tag}.{k}", arm(tag), shown=arm(tag), hidden=face_obs | set(BODY) | set(FEET))
+            sc.view_layers[0].update()
             info["pivot"] = project(sc, ob.matrix_world.translation, size)
             info["anchor"] = [round(v, 5) for v in ob.matrix_world.translation]
             info["raise"] = raise_
@@ -291,6 +301,13 @@ def layers(out: str, samples: int = 256, build: dict | None = None):
         point, normal = build["body_point"](x, z, build["FACE_LIFT"])
         info["anchor"] = [round(v, 5) for v in point]
         info["normal"] = [round(v, 5) for v in normal]
+
+    # The floating emotes, each alone, lit as Roo is.
+    for name in EMOTES:
+        build["show_face"](pieces, (name,), body_fur)
+        names = [ob.name for ob in pieces[name]]
+        alone = (face_obs - set(names)) | set(BODY) | set(FEET) | set(arm("L")) | set(arm("R")) | set(SPROUT)
+        shoot(name, names, shown=names, hidden=alone)
 
     # The whole of Roo at rest with the reference's face, to check the layers stack back up to it.
     build["show_face"](pieces, build["HERO_FACE"], body_fur)
@@ -361,7 +378,7 @@ def shade(key: str, px: np.ndarray) -> np.ndarray:
     px = px.copy()
     if key.startswith("arm."):
         px[..., :3] *= 0.85
-    if key.startswith("Cheek."):
+    if key.startswith(("Cheek.", "Blush.")):
         lum = px[..., :3] @ np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
         px[..., 3] *= np.where(lum < 0.25, 0.4, 1.0)
     return px
