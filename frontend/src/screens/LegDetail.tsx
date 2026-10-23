@@ -1,4 +1,4 @@
-import { CarTaxiFront, Clock, History, IndianRupee, Navigation, Ruler, ShieldCheck, TriangleAlert } from 'lucide-react'
+import { CarTaxiFront, Clock, ExternalLink, History, IndianRupee, Navigation, Route as RouteIcon, Ruler, ShieldCheck, TriangleAlert } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import { EASE_OUT } from '@/lib/motion'
 import { useSubmitKey } from '@/lib/submitKey'
@@ -6,21 +6,23 @@ import { lazy, Suspense, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { api, ApiError } from '@/api/client'
 import { keys, queryClient, useBookings, useBookingsEnabled, useCurrentTripId, useDay, useRaastaRoute, useTrip } from '@/api/queries'
-import type { Booking, RaastaRoute, Trip } from '@/api/types'
+import type { Booking, LegPath, RaastaRoute, Trip } from '@/api/types'
 import { BackButton, useBack } from '@/components/BackButton'
 import { LazyMap } from '@/components/LazyMap'
 import { MODE_META, ModeIcon } from '@/components/icons'
 import { ModeChain } from '@/components/timeline/ModeChain'
-import { Button, ButtonLink } from '@/components/ui/Button'
+import { Button, ButtonLink, buttonClass } from '@/components/ui/Button'
 import { Field } from '@/components/ui/Field'
 import { Sheet } from '@/components/ui/Sheet'
 import { Banner, EmptyState, ErrorState, LoadingRegion, Skeleton } from '@/components/ui/States'
 import { Tag } from '@/components/ui/Tag'
 import { duration, lowerFirst, rupees } from '@/lib/format'
-import { legLines, placeIndex, routeLine, type LngLat, type MapLine } from '@/lib/geo'
+import { placeIndex, recordedPath, routeLine, type LngLat, type MapLine } from '@/lib/geo'
+import { googleMapsUrl, travelMode } from '@/lib/gmaps'
 import { useLocation as useLiveLocation } from '@/lib/location'
 import { activeBooking } from '@/lib/bookings'
-import { useRoadPaths } from '@/lib/roads'
+import { pathLines, stationDots, usePlanPaths, type StationDot } from '@/lib/paths'
+import { legSummary } from '@/lib/turns'
 import { useDocumentTitle, useIsDesktop } from '@/lib/hooks'
 import { T } from '@/lib/i18n'
 import { setState, showToast, useStore } from '@/lib/store'
@@ -91,6 +93,9 @@ interface DetailModel {
   leg?: LegView
   lines: MapLine[]
   points: { id: string; lngLat: LngLat; kind: 'stand' | 'stop' | 'user'; label: string }[]
+  stations?: StationDot[]
+  /** The same leg in Google Maps, with its own directions. */
+  gmaps?: string
 }
 
 function stopName(trip: Trip, placeId: string) {
@@ -125,12 +130,15 @@ export function directionsFor(leg: LegView, from: { name: string; area: string }
   return steps
 }
 
-function modelForLeg(trip: Trip, leg: LegView, route?: RaastaRoute, road?: LngLat[]): DetailModel {
+function modelForLeg(trip: Trip, leg: LegView, route?: RaastaRoute, drawn?: LegPath): DetailModel {
   const from = stopName(trip, leg.fromPlaceId)
   const to = stopName(trip, leg.toPlaceId)
   const places = placeIndex(trip)
-  const path: LngLat[] | undefined = route?.stands.map((s) => [s.location.lng, s.location.lat])
+  const a = places.get(leg.fromPlaceId)
+  const b = places.get(leg.toPlaceId)
   const n = route ? route.stands.length - 1 : 0
+  // A Raasta route's own directions say what to pay; any other drawn leg says where each stretch goes.
+  const steps = route || !drawn?.segments.length ? directionsFor(leg, from, to, route) : legSummary(drawn, to.name)
   return {
     title: `${from.short} to ${to.short}`,
     subtitle: `${leg.label}, about ${duration(leg.travelMin)}`,
@@ -138,12 +146,14 @@ function modelForLeg(trip: Trip, leg: LegView, route?: RaastaRoute, road?: LngLa
     board: route ? route.stands[0].name : from.name,
     alight: route ? route.stands[route.stands.length - 1].name : to.name,
     alightNote: route ? `Get off here, ${ORDINAL[n] ?? `${n}th`} stop` : 'Get off here',
-    steps: directionsFor(leg, from, to, route),
+    steps,
     route,
     fare: route ? `About ${rupees(route.fareInr)} a person` : leg.fareInr ? `About ${rupees(leg.fareInr)} in total` : 'Free',
     leg,
-    // A Raasta route follows its stands; any other leg follows the roads once its path has loaded.
-    lines: legLines(leg, places, false, path ?? road),
+    // Along the roads, metro lines and recorded paths the server drew; straight and dashed until then.
+    lines: pathLines(leg, drawn, places),
+    stations: stationDots([drawn]),
+    gmaps: a && b && !samePlace(leg) ? googleMapsUrl(a, b, travelMode(leg.segments.map((x) => x.mode))) : undefined,
     points: [
       ...(places.get(leg.fromPlaceId) ? [{ id: 'a', lngLat: places.get(leg.fromPlaceId)!, kind: 'stop' as const, label: from.name }] : []),
       ...(route ? route.stands.map((s) => ({ id: s.standId, lngLat: [s.location.lng, s.location.lat] as LngLat, kind: 'stand' as const, label: s.name })) : []),
@@ -169,11 +179,8 @@ export function modelForRoute(route: RaastaRoute): DetailModel {
     steps: directionsFor(fakeLeg, { name: first, area: '' }, { name: last, area: '' }, route).slice(0, -1),
     route,
     fare: `About ${rupees(route.fareInr)} a person`,
-    lines: routeLine(
-      route.routeId,
-      (route.path.length > 1 ? route.path : route.stands.map((s) => s.location)).map((p) => [p.lng, p.lat] as LngLat),
-      mode,
-    ),
+    // Its recorded GPS path when it has one; otherwise straight between its stands, marked approximate.
+    lines: routeLine(route.routeId, recordedPath(route) ?? route.stands.map((s) => [s.location.lng, s.location.lat] as LngLat), mode, !recordedPath(route)),
     points: route.stands.map((s) => ({ id: s.standId, lngLat: [s.location.lng, s.location.lat] as LngLat, kind: 'stand' as const, label: s.name })),
   }
 }
@@ -372,6 +379,17 @@ export function DetailBody({ model, embedded, onBack, nowIso, trip }: { model: D
             {isStarted ? 'On your way' : <T k="I've left" />}
           </Button>
         )}
+        {leg && leg.status !== 'done' && !samePlace(leg) && !embedded && (
+          <ButtonLink to={`/leg/${leg.seq}/navigate`} variant="secondary" icon={<RouteIcon size={20} strokeWidth={1.75} aria-hidden="true" />}>
+            Turn by turn
+          </ButtonLink>
+        )}
+        {model.gmaps && leg?.status !== 'done' && (
+          <a href={model.gmaps} target="_blank" rel="noopener noreferrer" className={buttonClass('tertiary')}>
+            <ExternalLink size={20} strokeWidth={1.75} aria-hidden="true" />
+            Google Maps<span className="sr-only"> (opens in a new tab)</span>
+          </a>
+        )}
         {leg && trip && <LegCab trip={trip} leg={leg} />}
       </div>
       {r && (
@@ -386,7 +404,7 @@ export function DetailBody({ model, embedded, onBack, nowIso, trip }: { model: D
 
       {!embedded && (
         <div className="mt-6 lg:sticky lg:top-24 lg:mt-0">
-          <LazyMap lines={model.lines} points={model.points} label={`Map of ${model.title}`} className="h-64 lg:h-[min(640px,calc(100dvh-8rem))]" me={fix} />
+          <LazyMap lines={model.lines} points={model.points} stations={model.stations} label={`Map of ${model.title}`} className="h-64 lg:h-[min(640px,calc(100dvh-8rem))]" me={fix} />
         </div>
       )}
 
@@ -454,9 +472,8 @@ function LegCab({ trip, leg }: { trip: Trip; leg: LegView }) {
 
 export function LegDetailContent({ trip, leg, embedded }: { trip: Trip; leg: LegView; embedded?: boolean }) {
   const route = useRaastaRoute(leg.raasta?.routeId)
-  const places = useMemo(() => placeIndex(trip), [trip])
-  const road = useRoadPaths([leg], places).get(leg.seq)
-  const model = useMemo(() => modelForLeg(trip, leg, route.data, road), [trip, leg, route.data, road])
+  const drawn = usePlanPaths(trip).get(leg.seq)
+  const model = useMemo(() => modelForLeg(trip, leg, route.data, drawn), [trip, leg, route.data, drawn])
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.24 }}>
       <DetailBody model={model} embedded={embedded} nowIso={trip.now} trip={trip} />
@@ -499,9 +516,8 @@ export default function LegDetail() {
   const leg = view?.legs.find((l) => String(l.seq) === seq)
   const route = useRaastaRoute(leg?.raasta?.routeId)
   const back = useBack('/')
-  const legPlaces = useMemo(() => (tripQ.data ? placeIndex(tripQ.data) : new Map()), [tripQ.data])
-  const road = useRoadPaths(leg ? [leg] : [], legPlaces).get(leg?.seq ?? -1)
-  const model = useMemo(() => (leg && tripQ.data ? modelForLeg(tripQ.data, leg, route.data, road) : null), [leg, tripQ.data, route.data, road])
+  const drawn = usePlanPaths(tripQ.data).get(leg?.seq ?? -1)
+  const model = useMemo(() => (leg && tripQ.data ? modelForLeg(tripQ.data, leg, route.data, drawn) : null), [leg, tripQ.data, route.data, drawn])
   useDocumentTitle(model?.title ?? 'Leg')
   const loading = tripQ.isPending || (leg?.raasta && route.isPending)
   return (

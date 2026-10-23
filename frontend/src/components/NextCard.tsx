@@ -1,4 +1,4 @@
-import { CircleCheck, Navigation, Ruler } from 'lucide-react'
+import { CircleCheck, Navigation, Route, Ruler } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { ModeChain } from '@/components/timeline/ModeChain'
 import { ButtonLink } from '@/components/ui/Button'
@@ -70,6 +70,11 @@ export function NextCard({ view, clock, guide, miniMap }: { view: DayView; clock
         </p>
       )}
       {miniMap && <div className="mt-4">{miniMap}</div>}
+      {!samePlace(leg) && (
+        <ButtonLink to={`/leg/${leg.seq}/navigate`} variant={riding ? 'primary' : 'secondary'} size="md" className="mt-4" icon={<Route size={18} strokeWidth={1.75} aria-hidden="true" />}>
+          Turn by turn
+        </ButtonLink>
+      )}
     </section>
   )
 }

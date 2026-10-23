@@ -28,6 +28,9 @@ x-api-env: &api-env
   TRAVEL_TIMES_SOURCE: ${TRAVEL_TIMES_SOURCE:-sample}
   OSRM_CAR_URL: http://osrm-car:5000
   OSRM_FOOT_URL: http://osrm-foot:5000
+  # Real roads for the map and the directions: FOSSGIS's public servers. Set both empty to turn routing off.
+  ROUTING_CAR_URL: ${ROUTING_CAR_URL-https://routing.openstreetmap.de/routed-car}
+  ROUTING_FOOT_URL: ${ROUTING_FOOT_URL-https://routing.openstreetmap.de/routed-foot}
   PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-https://localhost}
   AI_HELPER_ENABLED: ${AI_HELPER_ENABLED:-false}
   GEMINI_API_KEY: ${GEMINI_API_KEY:-}

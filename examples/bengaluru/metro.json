@@ -1,0 +1,537 @@
+{
+  "note": "Namma Metro lines and their stations in order, for drawing metro rides. Map data © OpenStreetMap contributors, ODbL (https://www.openstreetmap.org/copyright).",
+  "source": "OpenStreetMap via Overpass (infra/metro/from_osm.py)",
+  "lines": [
+    {
+      "lineId": "green-line",
+      "name": "Green Line",
+      "colour": "#13a84a",
+      "stations": [
+        {
+          "stationId": "osm-n7235263991",
+          "name": "Silk Institute",
+          "lng": 77.529908,
+          "lat": 12.861692
+        },
+        {
+          "stationId": "osm-n5760198459",
+          "name": "Thalaghattapura",
+          "lng": 77.538363,
+          "lat": 12.871424
+        },
+        {
+          "stationId": "osm-n5760198460",
+          "name": "Vajarahalli",
+          "lng": 77.544745,
+          "lat": 12.877539
+        },
+        {
+          "stationId": "osm-n7235254982",
+          "name": "Doddakallasandra",
+          "lng": 77.552751,
+          "lat": 12.884686
+        },
+        {
+          "stationId": "osm-n7235254980",
+          "name": "Konanakunte Cross",
+          "lng": 77.562657,
+          "lat": 12.888987
+        },
+        {
+          "stationId": "osm-n5760198464",
+          "name": "Yelachenahalli",
+          "lng": 77.570098,
+          "lat": 12.896066
+        },
+        {
+          "stationId": "osm-n5760198465",
+          "name": "Jaya Prakash Nagar",
+          "lng": 77.573108,
+          "lat": 12.907476
+        },
+        {
+          "stationId": "osm-n5760198466",
+          "name": "Banashankari",
+          "lng": 77.573579,
+          "lat": 12.915224
+        },
+        {
+          "stationId": "osm-n5760198467",
+          "name": "Rashtreeya Vidyalaya Road",
+          "lng": 77.580239,
+          "lat": 12.921994
+        },
+        {
+          "stationId": "osm-n5760198470",
+          "name": "Jayanagar",
+          "lng": 77.580123,
+          "lat": 12.929507
+        },
+        {
+          "stationId": "osm-n5760198471",
+          "name": "South End Circle",
+          "lng": 77.580035,
+          "lat": 12.938262
+        },
+        {
+          "stationId": "osm-n5760198472",
+          "name": "Lalbagh",
+          "lng": 77.579995,
+          "lat": 12.946534
+        },
+        {
+          "stationId": "osm-n5760198474",
+          "name": "National College",
+          "lng": 77.57367,
+          "lat": 12.950526
+        },
+        {
+          "stationId": "osm-n5760198473",
+          "name": "Krishna Rajendra Market",
+          "lng": 77.57464,
+          "lat": 12.960896
+        },
+        {
+          "stationId": "osm-n5760198469",
+          "name": "Chickpete",
+          "lng": 77.574531,
+          "lat": 12.966925
+        },
+        {
+          "stationId": "osm-n5760198468",
+          "name": "Nadaprabhu Kempegowda Station, Majestic (Green Line)",
+          "lng": 77.572868,
+          "lat": 12.975956
+        },
+        {
+          "stationId": "osm-n5760198623",
+          "name": "Mantri Square Sampige Road",
+          "lng": 77.570693,
+          "lat": 12.990428
+        },
+        {
+          "stationId": "osm-n1565099078",
+          "name": "Srirampura",
+          "lng": 77.563299,
+          "lat": 12.996495
+        },
+        {
+          "stationId": "osm-n5760198631",
+          "name": "Mahakavi Kuvempu Road",
+          "lng": 77.556875,
+          "lat": 12.99847
+        },
+        {
+          "stationId": "osm-n5760198632",
+          "name": "Rajajinagar",
+          "lng": 77.549617,
+          "lat": 13.000523
+        },
+        {
+          "stationId": "osm-n5760198630",
+          "name": "Mahalakshmi",
+          "lng": 77.548783,
+          "lat": 13.008077
+        },
+        {
+          "stationId": "osm-n5760198629",
+          "name": "Sandal Soap Factory",
+          "lng": 77.553991,
+          "lat": 13.014718
+        },
+        {
+          "stationId": "osm-n5760198627",
+          "name": "Yeshwantpur",
+          "lng": 77.549705,
+          "lat": 13.023298
+        },
+        {
+          "stationId": "osm-n5760198626",
+          "name": "Goraguntepalya",
+          "lng": 77.540437,
+          "lat": 13.028613
+        },
+        {
+          "stationId": "osm-n5760198625",
+          "name": "Peenya",
+          "lng": 77.53318,
+          "lat": 13.032981
+        },
+        {
+          "stationId": "osm-n5760198620",
+          "name": "Peenya Industry",
+          "lng": 77.525487,
+          "lat": 13.036272
+        },
+        {
+          "stationId": "osm-n5954688578",
+          "name": "Jalahalli",
+          "lng": 77.519722,
+          "lat": 13.039373
+        },
+        {
+          "stationId": "osm-n5954688572",
+          "name": "Dasarahalli",
+          "lng": 77.512535,
+          "lat": 13.04322
+        },
+        {
+          "stationId": "osm-n5954688564",
+          "name": "Nagasandra",
+          "lng": 77.500134,
+          "lat": 13.047938
+        },
+        {
+          "stationId": "osm-n12316543765",
+          "name": "Manjunathanagara",
+          "lng": 77.494441,
+          "lat": 13.050069
+        },
+        {
+          "stationId": "osm-n12316543762",
+          "name": "Chikkabidarakallu",
+          "lng": 77.48791,
+          "lat": 13.052341
+        },
+        {
+          "stationId": "osm-n12316543760",
+          "name": "Madavara",
+          "lng": 77.472802,
+          "lat": 13.0574
+        }
+      ]
+    },
+    {
+      "lineId": "purple-line",
+      "name": "Purple Line",
+      "colour": "#8e2a8f",
+      "stations": [
+        {
+          "stationId": "osm-n10761647017",
+          "name": "Whitefield (Kadugodi)",
+          "lng": 77.757822,
+          "lat": 12.99519
+        },
+        {
+          "stationId": "osm-n10761647019",
+          "name": "Hopefarm Channasandra",
+          "lng": 77.753864,
+          "lat": 12.987207
+        },
+        {
+          "stationId": "osm-n10761647021",
+          "name": "Kadugodi Tree Park",
+          "lng": 77.746572,
+          "lat": 12.985794
+        },
+        {
+          "stationId": "osm-n10761647023",
+          "name": "Pattandur Agrahara",
+          "lng": 77.737245,
+          "lat": 12.987593
+        },
+        {
+          "stationId": "osm-n10761647025",
+          "name": "Sri Sathya Sai Hospital",
+          "lng": 77.727496,
+          "lat": 12.980735
+        },
+        {
+          "stationId": "osm-n10761647027",
+          "name": "Nallurahalli",
+          "lng": 77.72435,
+          "lat": 12.976613
+        },
+        {
+          "stationId": "osm-n10761647029",
+          "name": "Kundalahalli",
+          "lng": 77.715061,
+          "lat": 12.977629
+        },
+        {
+          "stationId": "osm-n1576856364",
+          "name": "Seetharampalya",
+          "lng": 77.708613,
+          "lat": 12.98137
+        },
+        {
+          "stationId": "osm-n2643922981",
+          "name": "Hoodi",
+          "lng": 77.711845,
+          "lat": 12.989133
+        },
+        {
+          "stationId": "osm-n10761647033",
+          "name": "Garudacharpalya",
+          "lng": 77.703297,
+          "lat": 12.993517
+        },
+        {
+          "stationId": "osm-n10761647035",
+          "name": "Singayyanapalya",
+          "lng": 77.692146,
+          "lat": 12.996697
+        },
+        {
+          "stationId": "osm-n4548694631",
+          "name": "Krishnarajapura",
+          "lng": 77.677842,
+          "lat": 12.999884
+        },
+        {
+          "stationId": "osm-n4548694596",
+          "name": "Benniganahalli",
+          "lng": 77.668479,
+          "lat": 12.996496
+        },
+        {
+          "stationId": "osm-n568363732",
+          "name": "Baiyappanahalli",
+          "lng": 77.652392,
+          "lat": 12.990675
+        },
+        {
+          "stationId": "osm-n850782866",
+          "name": "Swami Vivekananda Road",
+          "lng": 77.644907,
+          "lat": 12.985913
+        },
+        {
+          "stationId": "osm-n850782880",
+          "name": "Indiranagar",
+          "lng": 77.638659,
+          "lat": 12.978308
+        },
+        {
+          "stationId": "osm-n431524247",
+          "name": "Halasuru",
+          "lng": 77.626705,
+          "lat": 12.976491
+        },
+        {
+          "stationId": "osm-n428847118",
+          "name": "Trinity",
+          "lng": 77.617013,
+          "lat": 12.972995
+        },
+        {
+          "stationId": "osm-n850782876",
+          "name": "Mahatma Gandhi Road",
+          "lng": 77.606298,
+          "lat": 12.975628
+        },
+        {
+          "stationId": "osm-n3343297219",
+          "name": "Cubbon Park",
+          "lng": 77.597562,
+          "lat": 12.980895
+        },
+        {
+          "stationId": "osm-n568344479",
+          "name": "Dr. B. R. Ambedkar Station, Vidhana Soudha",
+          "lng": 77.591109,
+          "lat": 12.977973
+        },
+        {
+          "stationId": "osm-n1087823607",
+          "name": "Sir M. Visvesvaraya Stn., Central College",
+          "lng": 77.584233,
+          "lat": 12.974501
+        },
+        {
+          "stationId": "osm-n5305932617",
+          "name": "Nadaprabhu Kempegowda Station, Majestic (Purple Line)",
+          "lng": 77.572806,
+          "lat": 12.97567
+        },
+        {
+          "stationId": "osm-n1560067666",
+          "name": "Krantivira Sangolli Rayanna Railway Station",
+          "lng": 77.565379,
+          "lat": 12.975858
+        },
+        {
+          "stationId": "osm-n1820408689",
+          "name": "Magadi Road",
+          "lng": 77.555356,
+          "lat": 12.975608
+        },
+        {
+          "stationId": "osm-n1565099143",
+          "name": "Sri Balagangadharanatha Swamiji Stn., Hosahalli",
+          "lng": 77.545619,
+          "lat": 12.974174
+        },
+        {
+          "stationId": "osm-n1565099088",
+          "name": "Vijayanagara",
+          "lng": 77.537429,
+          "lat": 12.970939
+        },
+        {
+          "stationId": "osm-n1565099087",
+          "name": "Attiguppe",
+          "lng": 77.533593,
+          "lat": 12.961858
+        },
+        {
+          "stationId": "osm-n568345184",
+          "name": "Deepanjali Nagar",
+          "lng": 77.53704,
+          "lat": 12.952047
+        },
+        {
+          "stationId": "osm-n568345526",
+          "name": "Mysore Road",
+          "lng": 77.53009,
+          "lat": 12.946662
+        },
+        {
+          "stationId": "osm-n1576912437",
+          "name": "Pantharapalya - Nayandahalli",
+          "lng": 77.525127,
+          "lat": 12.941661
+        },
+        {
+          "stationId": "osm-n1576912366",
+          "name": "Rajarajeshwari Nagar",
+          "lng": 77.519667,
+          "lat": 12.936636
+        },
+        {
+          "stationId": "osm-n9048813176",
+          "name": "Jnanabharathi",
+          "lng": 77.512182,
+          "lat": 12.935401
+        },
+        {
+          "stationId": "osm-n9048813174",
+          "name": "Pattanagere",
+          "lng": 77.4983,
+          "lat": 12.924291
+        },
+        {
+          "stationId": "osm-n9048813173",
+          "name": "Kengeri Bus Terminal",
+          "lng": 77.487775,
+          "lat": 12.914764
+        },
+        {
+          "stationId": "osm-n9048813172",
+          "name": "Kengeri",
+          "lng": 77.476536,
+          "lat": 12.907961
+        },
+        {
+          "stationId": "osm-n11248381605",
+          "name": "Challaghatta",
+          "lng": 77.461248,
+          "lat": 12.897289
+        }
+      ]
+    },
+    {
+      "lineId": "yellow-line",
+      "name": "Yellow Line",
+      "colour": "#e3b505",
+      "stations": [
+        {
+          "stationId": "osm-n13046011007",
+          "name": "Rashtreeya Vidyalaya Road",
+          "lng": 77.580095,
+          "lat": 12.92096
+        },
+        {
+          "stationId": "osm-n13046011006",
+          "name": "Ragigudda",
+          "lng": 77.588698,
+          "lat": 12.917089
+        },
+        {
+          "stationId": "osm-n13046007578",
+          "name": "Jayadeva Hospital",
+          "lng": 77.600442,
+          "lat": 12.916764
+        },
+        {
+          "stationId": "osm-n13046007575",
+          "name": "BTM Layout",
+          "lng": 77.608622,
+          "lat": 12.916598
+        },
+        {
+          "stationId": "osm-n13046007574",
+          "name": "Central Silk Board",
+          "lng": 77.621026,
+          "lat": 12.916734
+        },
+        {
+          "stationId": "osm-n13046007573",
+          "name": "Bommanahalli",
+          "lng": 77.626704,
+          "lat": 12.910304
+        },
+        {
+          "stationId": "osm-n13046007571",
+          "name": "Hongasandra",
+          "lng": 77.632242,
+          "lat": 12.901332
+        },
+        {
+          "stationId": "osm-n5018250572",
+          "name": "Kudlu Gate",
+          "lng": 77.63947,
+          "lat": 12.889561
+        },
+        {
+          "stationId": "osm-n13046007568",
+          "name": "Singasandra",
+          "lng": 77.645107,
+          "lat": 12.880432
+        },
+        {
+          "stationId": "osm-n13046007566",
+          "name": "Hosa Road",
+          "lng": 77.652746,
+          "lat": 12.8704
+        },
+        {
+          "stationId": "osm-n13046007563",
+          "name": "Beratena Agrahara",
+          "lng": 77.658196,
+          "lat": 12.863566
+        },
+        {
+          "stationId": "osm-n13046007557",
+          "name": "Electronic City",
+          "lng": 77.663735,
+          "lat": 12.856279
+        },
+        {
+          "stationId": "osm-n13046007549",
+          "name": "Infosys Foundation Konappana Agrahara",
+          "lng": 77.671452,
+          "lat": 12.846089
+        },
+        {
+          "stationId": "osm-n13046007543",
+          "name": "Huskur Road",
+          "lng": 77.677734,
+          "lat": 12.838717
+        },
+        {
+          "stationId": "osm-n13046007541",
+          "name": "Biocon Hebbagodi",
+          "lng": 77.68155,
+          "lat": 12.828587
+        },
+        {
+          "stationId": "osm-n13046007539",
+          "name": "Delta Electronics Bommasandra",
+          "lng": 77.688657,
+          "lat": 12.819088
+        }
+      ]
+    }
+  ]
+}

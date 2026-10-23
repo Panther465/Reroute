@@ -1,6 +1,6 @@
 import 'maplibre-gl/dist/maplibre-gl.css'
 import * as maplibregl from 'maplibre-gl'
-import type { GeoJSONSource, Map as MLMap } from 'maplibre-gl'
+import type { ExpressionSpecification, GeoJSONSource, Map as MLMap } from 'maplibre-gl'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
 import { LocateFixed, Navigation, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
@@ -10,6 +10,7 @@ import { MapUnavailable } from '@/components/LazyMap'
 import { useOnline } from '@/lib/hooks'
 import type { LngLat, MapLine } from '@/lib/geo'
 import type { Fix } from '@/lib/location'
+import type { StationDot } from '@/lib/paths'
 import { useResolvedTheme } from '@/lib/theme'
 
 export interface MapPoint {
@@ -40,9 +41,17 @@ interface MapCardProps {
   compact?: boolean
   /** Floats over the map while riding: distance and time left, and when they'll arrive. */
   eta?: { primary: string; secondary: string } | null
+  /** Metro stations along the rides: small dots on the line. */
+  stations?: StationDot[]
+  /** Follow the traveller's dot from the start (navigation), rather than after "Follow me". */
+  followByDefault?: boolean
 }
 
 maplibregl.setWorkerUrl(workerUrl)
+
+// Routes come from FOSSGIS's servers over OpenStreetMap's roads: credited, with a way to fix what's wrong.
+const ROUTE_CREDIT =
+  'Routes <a href="https://routing.openstreetmap.de/about.html" target="_blank" rel="noopener">FOSSGIS</a> · <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener">Fix the map</a>'
 
 // A colourful street map by day (parks, water, 3D buildings); a calm dark map by night.
 const STYLES = {
@@ -127,11 +136,18 @@ function toFC(lines: MapLine[], progress = 1): RouteData {
       return [
         {
           type: 'Feature' as const,
-          properties: { color: modeColor(l.mode), walk: l.mode === 'walk' ? 1 : 0, dim: l.dim ? 1 : 0, active: l.active ? 1 : 0 },
+          properties: { color: l.color || modeColor(l.mode), walk: l.mode === 'walk' ? 1 : 0, dim: l.dim ? 1 : 0, active: l.active ? 1 : 0, approx: l.approximate ? 1 : 0 },
           geometry: { type: 'LineString' as const, coordinates: l.coords.slice(0, take) },
         },
       ]
     }),
+  } as RouteData
+}
+
+function stationsFC(stations: StationDot[]): RouteData {
+  return {
+    type: 'FeatureCollection' as const,
+    features: stations.map((s) => ({ type: 'Feature' as const, properties: { color: s.color || token('--ink') }, geometry: { type: 'Point' as const, coordinates: s.lngLat } })),
   } as RouteData
 }
 
@@ -179,7 +195,7 @@ export default function MapCard(props: MapCardProps) {
   return <MapInner key={theme} {...props} theme={theme} />
 }
 
-function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMapClick, me, compact, eta, theme }: MapCardProps & { theme: 'light' | 'dark' }) {
+function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMapClick, me, compact, eta, stations = [], followByDefault, theme }: MapCardProps & { theme: 'light' | 'dark' }) {
   const el = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MLMap | null>(null)
   const markers = useRef<maplibregl.Marker[]>([])
@@ -187,7 +203,7 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
   const meArrow = useRef<HTMLElement | null>(null)
   const [ready, setReady] = useState(false)
   const [failed, setFailed] = useState(false)
-  const [following, setFollowing] = useState(false)
+  const [following, setFollowing] = useState(!!followByDefault)
   const [pins, setPins] = useState<{ key: string; host: HTMLElement; Icon: LucideIcon }[]>([])
   const clickRef = useRef(onMapClick)
   clickRef.current = onMapClick
@@ -205,6 +221,8 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
   // draw the lines of the first render over newer ones (road shapes that arrive during the reveal).
   const linesRef = useRef(lines)
   linesRef.current = lines
+  const stationsRef = useRef(stations)
+  stationsRef.current = stations
   // Restarts the flow along the active leg when it can run again (see the map's load handler).
   const kickFlow = useRef<() => void>(() => {})
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -221,7 +239,7 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
       center: pts.length ? undefined : [77.5946, 12.9716],
       zoom: pts.length ? undefined : 11,
       // The mini map is a picture with nothing to focus inside it; it credits the map below instead.
-      attributionControl: compact ? false : { compact: true },
+      attributionControl: compact ? false : { compact: true, customAttribution: ROUTE_CREDIT },
       interactive: !compact,
       cooperativeGestures: false,
       dragRotate: false,
@@ -271,21 +289,23 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
       map.addSource('me-accuracy', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({ id: 'me-accuracy', type: 'fill', source: 'me-accuracy', paint: { 'fill-color': token('--blue'), 'fill-opacity': 0.14 } })
       map.addSource('route', { type: 'geojson', data: toFC(linesRef.current, draw && !reduce ? 0 : 1) })
-      // A soft glow under the route, a crisp casing, the coloured line, then the flow on the active leg.
+      // A soft glow under the route, a crisp casing, the coloured line, then the flow on the active leg. A
+      // stretch with no known road gets none of that: a lighter dashed line, so it never passes for a road.
+      const real: ExpressionSpecification = ['==', ['get', 'approx'], 0]
       map.addLayer({
         id: 'route-glow',
         type: 'line',
         source: 'route',
-        filter: ['==', ['get', 'dim'], 0],
+        filter: ['all', ['==', ['get', 'dim'], 0], real],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': ['get', 'color'], 'line-width': compact ? 10 : 18, 'line-opacity': 0.18, 'line-blur': compact ? 4 : 8 },
       })
-      map.addLayer({ id: 'route-casing', type: 'line', source: 'route', layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': surface, 'line-width': compact ? 8 : 11 } })
+      map.addLayer({ id: 'route-casing', type: 'line', source: 'route', filter: real, layout: { 'line-cap': 'round', 'line-join': 'round' }, paint: { 'line-color': surface, 'line-width': compact ? 8 : 11 } })
       map.addLayer({
         id: 'route-line',
         type: 'line',
         source: 'route',
-        filter: ['==', ['get', 'walk'], 0],
+        filter: ['all', ['==', ['get', 'walk'], 0], real],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': ['get', 'color'], 'line-width': compact ? 5 : 7, 'line-opacity': ['case', ['==', ['get', 'dim'], 1], 0.35, 1] },
       })
@@ -293,15 +313,30 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
         id: 'route-walk',
         type: 'line',
         source: 'route',
-        filter: ['==', ['get', 'walk'], 1],
+        filter: ['all', ['==', ['get', 'walk'], 1], real],
         layout: { 'line-cap': 'round', 'line-join': 'round' },
         paint: { 'line-color': ['get', 'color'], 'line-width': compact ? 4 : 5, 'line-dasharray': [0.2, 1.6], 'line-opacity': ['case', ['==', ['get', 'dim'], 1], 0.35, 1] },
+      })
+      map.addLayer({
+        id: 'route-approx',
+        type: 'line',
+        source: 'route',
+        filter: ['==', ['get', 'approx'], 1],
+        layout: { 'line-cap': 'butt', 'line-join': 'round' },
+        paint: { 'line-color': ['get', 'color'], 'line-width': compact ? 3 : 4, 'line-dasharray': [2, 2], 'line-opacity': ['case', ['==', ['get', 'dim'], 1], 0.3, 0.7] },
+      })
+      map.addSource('stations', { type: 'geojson', data: stationsFC(stationsRef.current) })
+      map.addLayer({
+        id: 'stations',
+        type: 'circle',
+        source: 'stations',
+        paint: { 'circle-radius': compact ? 2.5 : 4, 'circle-color': surface, 'circle-stroke-color': ['get', 'color'], 'circle-stroke-width': compact ? 1.5 : 2 },
       })
       map.addLayer({
         id: 'route-flow',
         type: 'line',
         source: 'route',
-        filter: ['all', ['==', ['get', 'active'], 1], ['==', ['get', 'walk'], 0]],
+        filter: ['all', ['==', ['get', 'active'], 1], ['==', ['get', 'walk'], 0], real],
         layout: { 'line-cap': 'butt', 'line-join': 'round' },
         paint: { 'line-color': surface, 'line-width': compact ? 2 : 3, 'line-opacity': 0.9, 'line-dasharray': FLOW[0] },
       })
@@ -365,6 +400,15 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
     if (ready && src) src.setData(toFC(lines))
     kickFlow.current()
   }, [lines, ready])
+
+  // Station dots
+  const stationsKey = stations.map((s) => s.lngLat.join(',')).join('|')
+  useEffect(() => {
+    const src = mapRef.current?.getSource('stations') as GeoJSONSource | undefined
+    if (ready && src) src.setData(stationsFC(stations))
+    // stationsKey stands for the stations by value.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stationsKey, ready])
 
   // Markers: stops as icon pins, stands as rings, the traveller (by check-ins) as a yellow "now" dot.
   // A new array with the same points (every render of the parent) keeps the markers; only a change rebuilds them.
@@ -501,8 +545,14 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
       )}
       {compact && (
         <span aria-hidden="true" className="absolute bottom-1 right-1.5 rounded bg-surface/90 px-1.5 text-[11px] leading-5 text-ink-2">
-          © OpenStreetMap, OpenFreeMap
+          © OpenStreetMap, OpenFreeMap, FOSSGIS
         </span>
+      )}
+      {!compact && ready && lines.some((l) => l.approximate) && (
+        <p className={`pointer-events-none absolute left-3 z-10 flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1 t-caption text-ink-2 shadow-sm ${eta ? 'top-[5.5rem]' : 'top-3'}`}>
+          <span aria-hidden="true" className="inline-block w-5 border-t-2 border-dashed border-ink-2" />
+          Dashed: approximate route
+        </p>
       )}
       {me && !compact && ready && (
         <button
@@ -512,7 +562,7 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
             setFollowing((f) => !f)
           }}
           aria-pressed={following}
-          className={`absolute bottom-3 left-3 z-10 inline-flex min-h-12 items-center gap-2 rounded-full border px-4 t-small font-bold shadow-sm ${
+          className={`absolute bottom-11 left-3 z-10 inline-flex min-h-12 items-center gap-2 rounded-full border px-4 t-small font-bold shadow-sm ${
             following ? 'border-blue bg-blue-tint text-ink' : 'border-line bg-surface text-ink [@media(hover:hover)]:hover:bg-sunken'
           }`}
         >

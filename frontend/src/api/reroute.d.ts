@@ -400,6 +400,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/trips/{trip_id}/plans/{version}/paths": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The plan's legs along real roads, metro lines and recorded paths, with turn-by-turn steps
+         * @description Drawn by the worker after planning; until it's done, `complete` is false and the legs drawn so far come back.
+         */
+        get: operations["get_plan_paths_v1_trips__trip_id__plans__version__paths_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/trips/{trip_id}/plans/{version}/activate": {
         parameters: {
             query?: never;
@@ -1356,6 +1376,18 @@ export interface components {
              */
             rough: boolean;
         };
+        /** LegPathOut */
+        LegPathOut: {
+            /** Seq */
+            seq: number;
+            /** Segments */
+            segments: components["schemas"]["PathSegmentOut"][];
+            /**
+             * Complete
+             * @default true
+             */
+            complete: boolean;
+        };
         /** LogEntryOut */
         LogEntryOut: {
             /** Logid */
@@ -1462,6 +1494,94 @@ export interface components {
             /** Age */
             age: number;
         };
+        /** PathLineOut */
+        PathLineOut: {
+            /** Name */
+            name: string;
+            /** Colour */
+            colour: string;
+        };
+        /** PathSegmentOut */
+        PathSegmentOut: {
+            /**
+             * Mode
+             * @enum {string}
+             */
+            mode: "walk" | "metro" | "shared_auto" | "e_rickshaw" | "tempo" | "cab";
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "road" | "rail" | "recorded" | "approximate";
+            /** Coords */
+            coords: number[][];
+            /**
+             * Stops
+             * @default []
+             */
+            stops: components["schemas"]["PathStopOut"][];
+            line?: components["schemas"]["PathLineOut"] | null;
+            /** Distancem */
+            distanceM: number;
+            /** Durations */
+            durationS: number;
+            /**
+             * Steps
+             * @default []
+             */
+            steps: components["schemas"]["PathStepOut"][];
+        };
+        /**
+         * PathStepOut
+         * @description One instruction. Along roads, OSRM's manoeuvre (`kind`: depart, turn, continue, roundabout, arrive…, with
+         *     its `modifier` and the road's `name`); on a metro or shared ride, `board` and `alight`.
+         */
+        PathStepOut: {
+            /** Kind */
+            kind: string;
+            /**
+             * Modifier
+             * @default
+             */
+            modifier: string;
+            /**
+             * Name
+             * @default
+             */
+            name: string;
+            /** Exit */
+            exit?: number | null;
+            /**
+             * Distancem
+             * @default 0
+             */
+            distanceM: number;
+            /**
+             * Durations
+             * @default 0
+             */
+            durationS: number;
+            /**
+             * At
+             * @default 0
+             */
+            at: number;
+            /** Line */
+            line?: string | null;
+            /** Towards */
+            towards?: string | null;
+            /** Stops */
+            stops?: number | null;
+        };
+        /** PathStopOut */
+        PathStopOut: {
+            /** Name */
+            name: string;
+            /** Lng */
+            lng: number;
+            /** Lat */
+            lat: number;
+        };
         /** PlaceOut */
         PlaceOut: {
             /** Placeid */
@@ -1562,6 +1682,17 @@ export interface components {
              * Format: date-time
              */
             createdAt: string;
+        };
+        /** PlanPathsOut */
+        PlanPathsOut: {
+            /** Planid */
+            planId: string;
+            /** Version */
+            version: number | null;
+            /** Complete */
+            complete: boolean;
+            /** Legs */
+            legs: components["schemas"]["LegPathOut"][];
         };
         /** PlanRequest */
         PlanRequest: {
@@ -3234,6 +3365,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlanInsightOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_plan_paths_v1_trips__trip_id__plans__version__paths_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                version: number;
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanPathsOut"];
                 };
             };
             /** @description Validation Error */

@@ -43,6 +43,7 @@ Every travel time and fare is an estimate. All demo data is sample data.
 - **Talk to Rico.** Say "I'm 20 minutes late" and Running late opens with 20 filled in; "done", "I've left" and "what's next" work too. Plain patterns, no AI, and nothing changes without your last tap.
 - **Rico in 3D, lips in time with its voice.** On devices that draw 3D well, Rico is a soft plush 3D sprout (three.js, built from shapes in code: fuzzy fur, felt cheeks, a stitched face) that breathes, blinks, follows your pointer and hops as it speaks. Its mouth takes the shape of each sound it says, timed from the voice service's word timings and the clip's loudness; elsewhere the flat Rico's mouth does the same. Lines play one after another, never cutting each other off.
 - **Rico does it for you** (with the AI helper and a Gemini key). Ask for several things at once ("skip the university office, book a cab to the bank and go dark") and Rico reads your day, the rides and your wallet, then puts every change on one card: *Rico will do 3 things*. Nothing changes until you tap **Do all**; each step then shows how it went, and **Undo** takes the card back. Rico works through the app's own API, signed in as you, so it can do exactly what you can and no more.
+- **Real roads, turn by turn.** Every leg is drawn along OpenStreetMap's roads (from FOSSGIS's routing servers), a metro ride station to station along its line, a shared auto along its recorded path or the roads through its stands. A stretch nothing can place is a dashed line marked approximate, never a made-up road. **Turn by turn** gives the next instruction large, every step in order and the map following you, speaks the turns in the phone's own voice, and says when you've left the route. **Open in Google Maps** hands the same leg to Google.
 - **A second service with its own rules.** Raasta trims the ends of every recorded ride for privacy, verifies a route only with a moderator or two different riders, lets routes go stale, and serves Reroute over HTTP with a service token: the database roles make reading its tables from Reroute impossible.
 - **Accessible in both themes.** Playwright runs axe on every screen at phone and desktop sizes, in light and in dark; targets are at least 48 px, and motion follows the reduced-motion setting.
 
@@ -136,11 +137,11 @@ cd frontend && pnpm install && pnpm dev
 
 | Suite | Size | Command |
 |---|---|---|
-| Reroute API and planner | 232 tests (the API flow tests need `TEST_DATABASE_URL` pointing at PostGIS) | `cd backend && pytest` |
+| Reroute API and planner | 243 tests (the API flow tests need `TEST_DATABASE_URL` pointing at PostGIS) | `cd backend && pytest` |
 | Raasta | 107 tests | `cd raasta && pytest` |
-| Web app | 132 tests | `cd frontend && pnpm test` |
+| Web app | 150 tests | `cd frontend && pnpm test` |
 | The demo day over HTTP | 32 requests, 54 assertions | `npx newman run postman/reroute.postman_collection.json --insecure` |
-| End to end with axe | 52 tests, phone and desktop | `cd frontend && E2E_BASE_URL=https://localhost pnpm e2e` |
+| End to end with axe | 56 tests, phone and desktop | `cd frontend && E2E_BASE_URL=https://localhost pnpm e2e` |
 | Load | 500 virtual users, 95% under 500 ms | `k6 run tests/load/k6.js` |
 
 CI runs all of them except the load test, which runs on demand, and fails if either API's OpenAPI file drifts from `shared/contracts/`.

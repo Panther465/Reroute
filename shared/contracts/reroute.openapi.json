@@ -1573,6 +1573,74 @@
         }
       }
     },
+    "/v1/trips/{trip_id}/plans/{version}/paths": {
+      "get": {
+        "tags": [
+          "trips"
+        ],
+        "summary": "The plan's legs along real roads, metro lines and recorded paths, with turn-by-turn steps",
+        "description": "Drawn by the worker after planning; until it's done, `complete` is false and the legs drawn so far come back.",
+        "operationId": "get_plan_paths_v1_trips__trip_id__plans__version__paths_get",
+        "parameters": [
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Version"
+            }
+          },
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PlanPathsOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/trips/{trip_id}/plans/{version}/activate": {
       "post": {
         "tags": [
@@ -4720,6 +4788,32 @@
         ],
         "title": "LegOut"
       },
+      "LegPathOut": {
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/PathSegmentOut"
+            },
+            "type": "array",
+            "title": "Segments"
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "seq",
+          "segments"
+        ],
+        "title": "LegPathOut"
+      },
       "LogEntryOut": {
         "properties": {
           "logId": {
@@ -5065,6 +5159,209 @@
         ],
         "title": "PassengerIn"
       },
+      "PathLineOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "colour": {
+            "type": "string",
+            "title": "Colour"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "colour"
+        ],
+        "title": "PathLineOut"
+      },
+      "PathSegmentOut": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "walk",
+              "metro",
+              "shared_auto",
+              "e_rickshaw",
+              "tempo",
+              "cab"
+            ],
+            "title": "Mode"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "road",
+              "rail",
+              "recorded",
+              "approximate"
+            ],
+            "title": "Source"
+          },
+          "coords": {
+            "items": {
+              "items": {
+                "type": "number"
+              },
+              "type": "array"
+            },
+            "type": "array",
+            "title": "Coords"
+          },
+          "stops": {
+            "items": {
+              "$ref": "#/components/schemas/PathStopOut"
+            },
+            "type": "array",
+            "title": "Stops",
+            "default": []
+          },
+          "line": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PathLineOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "distanceM": {
+            "type": "integer",
+            "title": "Distancem"
+          },
+          "durationS": {
+            "type": "integer",
+            "title": "Durations"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/PathStepOut"
+            },
+            "type": "array",
+            "title": "Steps",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "mode",
+          "source",
+          "coords",
+          "distanceM",
+          "durationS"
+        ],
+        "title": "PathSegmentOut"
+      },
+      "PathStepOut": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "modifier": {
+            "type": "string",
+            "title": "Modifier",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "title": "Name",
+            "default": ""
+          },
+          "exit": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit"
+          },
+          "distanceM": {
+            "type": "integer",
+            "title": "Distancem",
+            "default": 0
+          },
+          "durationS": {
+            "type": "integer",
+            "title": "Durations",
+            "default": 0
+          },
+          "at": {
+            "type": "integer",
+            "title": "At",
+            "default": 0
+          },
+          "line": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Line"
+          },
+          "towards": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Towards"
+          },
+          "stops": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stops"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "PathStepOut",
+        "description": "One instruction. Along roads, OSRM's manoeuvre (`kind`: depart, turn, continue, roundabout, arrive…, with\nits `modifier` and the road's `name`); on a metro or shared ride, `board` and `alight`."
+      },
+      "PathStopOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "lng": {
+            "type": "number",
+            "title": "Lng"
+          },
+          "lat": {
+            "type": "number",
+            "title": "Lat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "lng",
+          "lat"
+        ],
+        "title": "PathStopOut"
+      },
       "PlaceOut": {
         "properties": {
           "placeId": {
@@ -5321,6 +5618,44 @@
           "createdAt"
         ],
         "title": "PlanOut"
+      },
+      "PlanPathsOut": {
+        "properties": {
+          "planId": {
+            "type": "string",
+            "title": "Planid"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "complete": {
+            "type": "boolean",
+            "title": "Complete"
+          },
+          "legs": {
+            "items": {
+              "$ref": "#/components/schemas/LegPathOut"
+            },
+            "type": "array",
+            "title": "Legs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "planId",
+          "version",
+          "complete",
+          "legs"
+        ],
+        "title": "PlanPathsOut"
       },
       "PlanRequest": {
         "properties": {
