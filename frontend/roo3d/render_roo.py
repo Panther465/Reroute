@@ -271,40 +271,22 @@ def layers(out: str, samples: int = 256, build: dict | None = None):
 
     shoot("shadow", (), hidden=face_obs, ground="catcher", border=(0.0, 0.0, 1.0, 0.5), post=soften)
 
-    # The face pieces, each on the fur it presses down: the body only catches their shadow. Nothing else is
-    # there to cast one (the body's layer has no arms, sprout or feet either). Beyond the contact shadow right
-    # at a piece's edge, the fur catches a faint haze of shading around it, which would darken the fur around
-    # the piece (the photo's pieces sit clean on the pile): it's dropped, and what's left fades out before the
-    # edge of the piece's box.
+    # The face pieces, each on the fur it presses down: the body only catches their shadow. That catches a
+    # faint haze far around a piece too, which would show as the edge of its box: it's dropped, and what's left
+    # fades out before the edge.
     def feather(px, x0, y0):
         h, w = px.shape[:2]
         ramp = 0.05 * PPU
         wx = np.clip(np.minimum(np.arange(w), w - 1 - np.arange(w)) / ramp, 0, 1)
         wy = np.clip(np.minimum(np.arange(h), h - 1 - np.arange(h)) / ramp, 0, 1)
         px = px.copy()
-        a = np.clip((px[..., 3] - 0.015) / 0.985, 0, 1)
-        # How far each pixel is from the piece itself (its solid part), in pixels, out to `far`.
-        piece = a > 0.8
-        far = round(0.035 * PPU)
-        dist = np.where(piece, 0.0, float(far))
-        grown = piece
-        for step in range(1, far + 1):
-            more = grown.copy()
-            more[1:] |= grown[:-1]
-            more[:-1] |= grown[1:]
-            more[:, 1:] |= grown[:, :-1]
-            more[:, :-1] |= grown[:, 1:]
-            dist = np.where(more & ~grown, float(step), dist)
-            grown = more
-        keep = np.clip((far - dist) / (far - round(0.012 * PPU)), 0, 1)
-        px[..., 3] = a * keep * wy[:, None] * wx[None, :]
+        px[..., 3] = np.clip((px[..., 3] - 0.015) / 0.985, 0, 1) * wy[:, None] * wx[None, :]
         return px
 
     for name in SPRITES + SWATCHES:
         build["show_face"](pieces, (name,), body_fur)
         names = [ob.name for ob in pieces[name]]
-        others = (face_obs - set(names)) | set(arm("L")) | set(arm("R")) | set(SPROUT) | set(FEET)
-        info = shoot(name, names, shown=names, catchers=BODY, hidden=others, post=feather if name in SPRITES else None)
+        info = shoot(name, names, shown=names, catchers=BODY, hidden=face_obs - set(names), post=feather if name in SPRITES else None)
         x, z = build["FACE_ANCHORS"][name]
         point, normal = build["body_point"](x, z, build["FACE_LIFT"])
         info["anchor"] = [round(v, 5) for v in point]
@@ -374,10 +356,14 @@ def pack(sizes: dict, pad: int = 2):
 
 def shade(key: str, px: np.ndarray) -> np.ndarray:
     """The arms are rendered without the body (see layers()), so they miss the shade it casts on them, which
-    leaves them lighter than the photo's: darken them to match."""
+    leaves them lighter than the photo's: darken them to match. The felt cheeks' shadow on the fur, rendered
+    on pressed-down pile, is darker than it looks on the full pile they're drawn over: soften it."""
     px = px.copy()
     if key.startswith("arm."):
         px[..., :3] *= 0.85
+    if key.startswith("Cheek."):
+        lum = px[..., :3] @ np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
+        px[..., 3] *= np.where(lum < 0.25, 0.4, 1.0)
     return px
 
 
