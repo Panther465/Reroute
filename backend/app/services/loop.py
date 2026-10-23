@@ -24,7 +24,7 @@ from app.clock import minutes_of_day
 from app.errors import ApiError
 from app.models import Plan, RerouteLog, Trip, new_id
 from app.redis_client import get_redis
-from app.services import morning, plan_store
+from app.services import leg_paths, morning, plan_store
 from app.services.day import RULE, DayContext, build_input, fetch_snapshot, needed_places, sense
 from app.services.planner import Objective, ReplanInput, ReplanOption, ReplanResult, TravelSnapshot, explain, plan_day, replan
 from app.services.planner.hashing import canonical_json
@@ -167,6 +167,7 @@ def create_plan(db: Session, trip: Trip, adapter: TravelTimeAdapter, now: dateti
     db.commit()
     # The morning plan is news: the traveller didn't ask for it, so the phone may say so.
     events.publish(trip.trip_id, "plan_updated", _plan_event(plan, notify=trigger == "morning"))
+    leg_paths.start(plan.plan_id)
     return plan
 
 
@@ -311,6 +312,7 @@ def run(
         _log(db, trip, now, "shift", _shift_text(stops, new_leave - old_leave if old_leave is not None else ctx.behind_min), automatic, plan, previous, codes)
         db.commit()
         events.publish(trip.trip_id, "plan_updated", _plan_event(plan, notify=(not automatic) or events.may_alert(trip.trip_id)))
+        leg_paths.start(plan.plan_id)
         return LoopOutcome(result="shifted", reason_codes=codes, explanation=explanation, plan=plan)
 
     if decision.result == "options":
@@ -425,6 +427,7 @@ def accept(db: Session, trip: Trip, option_id: str, now: datetime, option_set_id
     _log(db, trip, now, "option", text, False, chosen, previous, list(chosen.reason_codes))
     db.commit()
     events.publish(trip.trip_id, "plan_updated", _plan_event(chosen, notify=False))
+    leg_paths.start(chosen.plan_id)
     return chosen
 
 
@@ -453,6 +456,7 @@ def undo_to(db: Session, trip: Trip, version: int, now: datetime) -> Plan:
     # Undo means "not that change": forget the delay it was based on, or the next check re-applies it.
     forget_reported_delays(trip.trip_id)
     events.publish(trip.trip_id, "plan_updated", _plan_event(target, notify=False))
+    leg_paths.start(target.plan_id)
     return target
 
 

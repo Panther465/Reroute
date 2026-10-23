@@ -32,6 +32,7 @@ export const router = createBrowserRouter([
               { path: 'raasta/add', lazy: screen(() => import('@/screens/AddRoute')), handle: { pushed: true } },
               { path: 'raasta/route/:routeId', lazy: () => import('@/screens/Raasta').then((m) => ({ Component: m.RaastaRoute })), handle: { pushed: true } },
               { path: 'leg/:seq', lazy: screen(() => import('@/screens/LegDetail')), handle: { pushed: true } },
+              { path: 'leg/:seq/navigate', lazy: screen(() => import('@/screens/Navigate')), handle: { pushed: true } },
               { path: 'summary', lazy: screen(() => import('@/screens/Summary')), handle: { pushed: true } },
               { path: 'why', lazy: screen(() => import('@/screens/WhyPlan')), handle: { pushed: true } },
               { path: 'moderator', lazy: screen(() => import('@/screens/Moderator')), handle: { pushed: true } },

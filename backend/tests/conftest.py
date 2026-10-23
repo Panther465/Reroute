@@ -14,6 +14,9 @@ os.environ.setdefault("COOKIE_SECURE", "false")
 os.environ.setdefault("CHECKIN_WAIT_SECONDS", "2")
 os.environ.setdefault("RATE_LIMIT_PER_MINUTE", "100000")
 os.environ.setdefault("AUTH_RATE_LIMIT_PER_MINUTE", "100000")
+# Never the real routing servers: legs are drawn approximate unless a test gives the router an answer.
+os.environ.setdefault("ROUTING_CAR_URL", "")
+os.environ.setdefault("ROUTING_FOOT_URL", "")
 if os.environ.get("TEST_DATABASE_URL"):
     os.environ["DATABASE_URL"] = os.environ["TEST_DATABASE_URL"]
 

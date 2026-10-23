@@ -64,7 +64,12 @@ POST /v1/trips/:id/bookings/:bookingId/cancel {"idempotencyKey"}  → cancelled,
 
 ## Map and voice helpers
 
-- `GET /v1/road-path?from=lng,lat&to=lng,lat&profile=driving|foot` returns a leg's path along the roads for the map (`source: "road"`), or just its two ends (`source: "line"`) when the routing server is unavailable. Only cities Reroute covers; cached 30 days.
+- `GET /v1/trips/:id/plans/:version/paths` returns the plan's legs as drawn, for the map and the directions: `{complete, legs: [{seq, complete, segments: [{mode, source, coords, stops, line, distanceM, durationS, steps}]}]}`.
+  - `source` says how each stretch was drawn: `road` (along OpenStreetMap's roads), `rail` (a metro line, station to station), `recorded` (a Raasta route's GPS path) or `approximate` (straight, where nothing better is known).
+  - `steps` are turn-by-turn instructions: OSRM's manoeuvres (`kind`, `modifier`, `name`, `exit`), or `board` and `alight` with the `line`, where it's `towards` and how many `stops`. `at` indexes the segment's `coords`.
+  - The worker draws the legs after each plan (the `maps` queue). Until it's done, `complete` is false: ask again, or wait for the `paths_ready` live event.
+  - The times are for the map only: the plan's own times are the planner's.
+- `GET /v1/road-path?from=lng,lat&to=lng,lat&profile=driving|foot` returns one path along the roads (`source: "road"`), or just its two ends (`source: "line"`) when routing is unavailable. Only cities Reroute covers; cached 30 days.
 - `GET /v1/speech?text=…&voice=…&rate=slow|normal|fast` reads a short alert aloud as MP3 (Microsoft's neural voices: from Azure AI Speech when `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION` are set, otherwise, or when Azure fails, from Edge's read-aloud service; cached 7 days). `GET /v1/speech/voices` lists the voices. `GET /v1/speech/timed` (same parameters) returns the clip with when each word is said, `{audio (base64 MP3), mime, durationMs, words:[{text, offsetMs, durationMs}]}`, for Rico's lip-sync. 404 when natural voices are off (`features.voices` is false), 502 when the voice service doesn't answer: the app then uses the phone's own voice.
 - `GET /v1/places?q=…&city=bengaluru` searches places in a covered city: known places first, then OpenStreetMap.
 

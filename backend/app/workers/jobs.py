@@ -9,14 +9,17 @@ from datetime import date, datetime
 from sqlalchemy import select
 
 from app import events
+from app.adapters.metro import metro_lines
+from app.adapters.road_path import Router
 from app.adapters.transit import RaastaHttpAdapter
 from app.adapters.travel_times import make_adapter
 from app.clock import at_minutes, minutes_of_day, now_for, tz_for
+from app.config import get_settings
 from app.db import session_scope
 from app.errors import ApiError
-from app.models import Plan, Task, Trip
+from app.models import Place, Plan, Task, Trip
 from app.redis_client import get_redis
-from app.services import loop, morning
+from app.services import leg_paths, loop, morning
 from app.services.day import trip_day
 
 log = logging.getLogger("reroute.jobs")
@@ -44,6 +47,26 @@ def plan_trip(trip_id: str, trigger: str = "created", checkin_id: str | None = N
         except ApiError as exc:
             return {"error": exc.message, "code": exc.code, **exc.extra}
         return {"planId": plan.plan_id, "planVersion": plan.version}
+
+
+def warm_plan_paths(plan_id: str) -> dict:
+    """Draw a plan's legs along real roads, rails and recorded paths, for the map and the directions."""
+    with session_scope() as db:
+        plan = db.get(Plan, plan_id)
+        trip = db.get(Trip, plan.trip_id) if plan else None
+        if plan is None or trip is None:
+            return {"error": "Plan not found."}
+        # Upcoming legs first: they're the ones the traveller looks at.
+        legs = [*plan.legs, *(plan.done_legs or [])]
+        ids = {x for leg in legs for x in (leg["fromPlaceId"], leg["toPlaceId"])}
+        places = {p.place_id: (p.lng, p.lat) for p in db.scalars(select(Place).where(Place.place_id.in_(ids)))}
+        version, trip_id, city = plan.version, trip.trip_id, trip.city_slug
+    drawing = leg_paths.Drawing(
+        router=Router(get_redis()),
+        lines=metro_lines(get_settings().examples_dir / city / "metro.json"),
+        shape=_adapter().transit.route_shape,
+    )
+    return leg_paths.warm(plan_id, version, trip_id, legs, places, drawing)
 
 
 def morning_plan(trip_id: str, day: str) -> dict:

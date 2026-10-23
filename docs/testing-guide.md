@@ -115,6 +115,8 @@ Each row says which account to use (**D** for demo, **R** for real, **Both**).
 | **Mark done** more than 10 minutes before a stop starts | Both | It asks first |
 | **Simulate → Next departure / +15 min** | D | The clock moves on; the Now line and countdown follow |
 | **Simulate → Simulate the ride to the meeting** | D | A dot moves along the road on the map, then "You've arrived" |
+| Today's map after planning | Both | Each leg runs along real roads, and the metro along its line with a dot at each station. While the worker is still drawing, a leg is a straight dashed line with the note "Dashed: approximate route" |
+| **Turn by turn** on the leave card, then **Follow my location** (or Simulate the ride) | Both | The next instruction, large, with the distance to it. Every step is listed, and the current one is highlighted. The map follows you. **Speak turns** reads them out in the phone's voice. **Open in Google Maps** opens the same leg in Google Maps |
 | **Book a cab** (next leg), Rico's **Book my ticket** for the train | Both (demo server) | Simulated booking sheets; a ride with a driver and OTP, a ticket with a PNR. Nothing is charged |
 
 ### Running late (the core)

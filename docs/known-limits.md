@@ -6,9 +6,14 @@ Honest gaps in this build. Each is a deliberate scope choice or waits on the tea
 
 - **Live tracking runs only while Reroute is open** (on screen or in the background): browsers don't allow it once the phone locks. Arrival and "nearly there" come from the phone's GPS, so indoors or in a metro they may be late or missing; the timeline and alerts still follow the clock.
 - **Without an Azure key, natural voices use Microsoft Edge's online read-aloud service** through the edge-tts library, which isn't an official, documented API: it could change or stop. With `AZURE_SPEECH_KEY` set, Azure AI Speech, Microsoft's official service, reads the lines; its free tier allows 20 requests a minute and 0.5 million characters a month, and past those Edge's service reads them. Azure's word timings come over the WebSocket its Speech SDK uses (its REST API sends none), which Microsoft doesn't document for direct use. The phone's own voice takes over when neither answers.
-- **Map roads come from the public OSRM demo server** (light use, cached 30 days). If it's down, legs are drawn as curves between their stops. Metro legs are drawn along roads too, as an approximation.
+- **Roads come from FOSSGIS's public routing servers**, which allow light use: one request a second, cached 30 days, at most 5,000 a day (`ROUTING_DAILY_LIMIT`).
+  - While they're busy or down, a leg is drawn straight and dashed, marked approximate, and redrawn when they answer.
+  - A metro ride is drawn station to station, not along the track's curves.
+  - A shared auto with no recorded path follows the roads through its stands.
+  - A walk to or from a station longer than 1.5 km is approximate unless the leg says how.
+  - The turn-by-turn steps are OpenStreetMap's: an unnamed lane reads just "Turn left".
 - **Bengaluru travel times are sample values** (`examples/bengaluru/travel-times.json`), from the project brief. For a place the file doesn't know (any place found by search, and KSR Bengaluru), Reroute plans a cab, and a walk when it's under 1.5 km, from the straight-line distance: roads at 1.3 times the line, cabs at 18 km/h plus 5 minutes' pickup, walking at 4.5 km/h, fares from the cab fare table. These legs are marked "Rough estimate" everywhere. Real road times need OSRM (`TRAVEL_TIMES_SOURCE=osrm`, `docker compose --profile routing up`). Gaps between places the file does know stay gaps, so the demo day plans exactly as the golden test says.
-- **The metro timetable file** (`examples/<city>/metro.json`) isn't supplied yet; with OSRM on, metro legs appear only once it exists.
+- **The metro timetable** isn't supplied yet. `examples/bengaluru/metro.json` holds the lines and their stations, from OpenStreetMap (ODbL), for drawing rides. With OSRM on, metro legs appear only once timetables (`stations` and `rides`) are added.
 - **The campus trip and its 20 to 30 real Raasta routes** wait on the team's mapping.
 - **Sample Raasta routes** other than Koramangala–Jayanagar exist only to show the unverified, stale and e-rickshaw states.
 

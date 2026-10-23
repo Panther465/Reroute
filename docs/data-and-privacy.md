@@ -40,7 +40,8 @@ Reroute uses free public services. Each sees only what it needs, and none gets y
 | Your browser's speech service (Google's, in Chrome) | The sound of the one sentence you say to Rico; Reroute never receives or keeps the recording, only the words your browser hands back, and those stay on your phone | Only while Rico shows "Listening", after you tap "Talk to Rico". The microphone goes off when you finish the sentence, after 8 seconds of silence, or when you close Rico |
 | OpenStreetMap Nominatim | The text you type in place search, and the city | When you search for a place Reroute doesn't already know |
 | OpenFreeMap (map tiles) | Which map tiles your phone loads, so the area you look at, including around your position while "Follow me" is on | Whenever the map is shown; your phone fetches the tiles directly |
-| Public OSRM server | The coordinates of a leg's two stops (never your live position) | When the map draws a leg along the roads (cached 30 days) |
+| FOSSGIS routing servers (routing.openstreetmap.de) | The coordinates of a leg's stops, and of the metro stations and shared-auto stands it passes (never your live position) | When the worker draws a plan's legs along the roads (cached 30 days), and once per plan in a city without sample data, for road distances |
+| Google Maps | Your starting point and the leg's destination | Only when you tap **Open in Google Maps**; Google's own privacy policy applies there |
 | Raasta (Reroute's own route service) | The coordinates of a leg's two stops | When the worker plans a day |
 | Google | The sign-in code; the Calendar code if you import appointments | Only when you use Google sign-in or Calendar import |
 | Google Gemini | The text you type in "Describe your day"; and a message to Rico that the phone couldn't understand by itself, with the last few messages and your trip's task titles, areas, times and today's plan. With Rico's agent, also what it looks up to answer: place names and areas, ride options and fares, your bookings and wallet balance. Never your name, email or location | Only if the AI helper is turned on (off by default). Rico answers most messages on the phone, sending nothing |
@@ -49,7 +50,7 @@ Reroute uses free public services. Each sees only what it needs, and none gets y
 
 "Show me on the map" (Me, or tapping "I've left") follows the phone's location while Reroute is open, to draw the blue dot, measure the distance left and say when you're nearly there. **The position stays on the phone:** it is never sent to Reroute's servers or stored. Browsers stop following when the phone locks or the app is closed. Turn it off in Me at any time. The map tiles around you are still loaded from OpenFreeMap, which can tell the area you're looking at (see above).
 
-Road shapes for the map come from the public OSRM server through Reroute's API: only the coordinates of the two stops of a leg are sent (never your live position), and answers are cached for 30 days.
+Roads for the map and the directions come from FOSSGIS's routing servers through Reroute's worker. Only the coordinates of a leg's stops, and of the stations and stands it passes, are sent (never your live position), and answers are cached for 30 days. **Turn by turn** follows your position on the phone only: the instructions are worked out on the phone, and spoken turns use the phone's own voice, so no street name ever goes to a server with where you are.
 
 ## Family view
 

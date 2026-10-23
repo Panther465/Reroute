@@ -18,7 +18,8 @@ case "$role" in
   worker)
     # A short TTL keeps each blocking wait at about 45 s. With the default (405 s) the worker treated
     # the end of a long idle wait as a lost Redis connection and quit every 6 3/4 minutes.
-    exec rq worker --url "$REDIS_URL" --worker-ttl 60 planning
+    # Planning first; drawing legs along the roads (maps) when there's no planning to do.
+    exec rq worker --url "$REDIS_URL" --worker-ttl 60 planning maps
     ;;
   scheduler)
     exec python -m app.workers.scheduler

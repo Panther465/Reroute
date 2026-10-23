@@ -4,12 +4,14 @@ from __future__ import annotations
 
 import json
 from datetime import date
+from pathlib import Path
 
 import httpx
 import pytest
 
 from app.adapters.transit import RaastaHttpAdapter, RaastaLeg, RouteInfo, StaticTransitAdapter
 from app.adapters.travel_times import OsrmSnapshotAdapter, PlacePoint, SampleSnapshotAdapter
+from app.config import get_settings
 from app.services.planner import Mode
 
 DAY = date(2026, 10, 14)
@@ -20,34 +22,117 @@ WF = PlacePoint("whitefield-office", 77.7318, 12.9855)
 CAFE = PlacePoint("osm-test-cafe", 77.6150, 12.9340)
 
 
-def test_road_paths_follow_osrm_and_are_cached(fake_redis):
-    from app.adapters.road_path import RoadPaths
+FOSSGIS = json.loads((Path(__file__).parents[1] / "fixtures" / "fossgis_route_car.json").read_text(encoding="utf-8"))
+HOTEL, BANK = (77.5713, 12.9767), (77.6185, 12.934)
 
-    calls: list[str] = []
+
+def _router(fake_redis, monkeypatch, answer, seen: list[httpx.Request] | None = None, **settings):
+    from app.adapters.road_path import Router
+
+    s = get_settings()
+    monkeypatch.setattr(s, "routing_car_url", "https://routing.openstreetmap.de/routed-car")
+    monkeypatch.setattr(s, "routing_foot_url", "https://routing.openstreetmap.de/routed-foot")
+    monkeypatch.setattr(s, "routing_min_interval_ms", 1)
+    for name, value in settings.items():
+        monkeypatch.setattr(s, name, value)
 
     def handler(request: httpx.Request) -> httpx.Response:
-        calls.append(request.url.path)
-        geometry = {"coordinates": [[77.61951, 12.93521], [77.6, 12.93], [77.58381, 12.92551]]}
-        return httpx.Response(200, json={"routes": [{"geometry": geometry, "distance": 5321.4, "duration": 900.2}]})
+        if seen is not None:
+            seen.append(request)
+        return answer(request)
 
-    paths = RoadPaths(fake_redis, client=httpx.Client(transport=httpx.MockTransport(handler)))
-    first = paths.get((KOR.lng, KOR.lat), (JAY.lng, JAY.lat), "driving")
-    second = paths.get((KOR.lng, KOR.lat), (JAY.lng, JAY.lat), "driving")
-    assert first == second
-    assert first.source == "road" and len(first.coords) == 3 and first.distance_m == 5321
-    assert calls == ["/route/v1/driving/77.619500,12.935200;77.583800,12.925500"]
+    return Router(fake_redis, client=httpx.Client(transport=httpx.MockTransport(handler)))
 
 
-def test_road_paths_fall_back_to_a_straight_line(fake_redis):
+def test_routes_come_along_the_roads_with_their_turns_and_are_kept(fake_redis, monkeypatch):
+    seen: list[httpx.Request] = []
+    router = _router(fake_redis, monkeypatch, lambda r: httpx.Response(200, json=FOSSGIS), seen)
+    route = router.route([HOTEL, BANK], "car")
+    again = router.route([HOTEL, BANK], "car")
+
+    assert route == again and len(seen) == 1 and router.calls == 1
+    (request,) = seen
+    assert request.url.path == "/routed-car/route/v1/driving/77.571300,12.976700;77.618500,12.934000"
+    assert request.url.params["steps"] == "true"
+    assert "Reroute" in request.headers["user-agent"]
+    raw = FOSSGIS["routes"][0]["legs"][0]["steps"]
+    assert route.distance_m == 9072 and len(route.steps) == len(raw)
+    first, second, last = route.steps[0], route.steps[1], route.steps[-1]
+    assert (first.kind, first.modifier, first.name, first.at) == ("depart", "left", "Gubbi Thotadappa Road", 0)
+    assert (second.kind, second.modifier, second.name) == ("turn", "left", "Tank Bund Road")
+    assert last.kind == "arrive" and last.at == len(route.coords) - 1
+    # Each step starts where the road it describes does, and the line keeps only the bends that show.
+    assert [s.at for s in route.steps] == sorted(s.at for s in route.steps)
+    assert route.coords[second.at] == tuple(round(x, 5) for x in raw[1]["geometry"]["coordinates"][0])
+    assert len(route.coords) < sum(len(x["geometry"]["coordinates"]) for x in raw)
+
+
+def test_no_road_is_remembered_for_a_day_and_an_outage_not_at_all(fake_redis, monkeypatch):
+    from app.adapters.road_path import Unavailable
+
+    nowhere = _router(fake_redis, monkeypatch, lambda r: httpx.Response(400, json={"code": "NoRoute", "message": "Impossible route"}))
+    assert nowhere.route([HOTEL, BANK], "foot") is None
+    (key,) = fake_redis.scan_iter("routing:route:foot:*")
+    assert 0 < fake_redis.ttl(key) <= 24 * 3600
+
+    def down(request: httpx.Request) -> httpx.Response:
+        raise httpx.ConnectError("refused")
+
+    router = _router(fake_redis, monkeypatch, down)
+    with pytest.raises(Unavailable):
+        router.route([HOTEL, BANK], "car")
+    assert not list(fake_redis.scan_iter("routing:route:car:*"))
+    # Left alone for 30 s, then twice as long after the next failure.
+    assert 0 < fake_redis.ttl("routing:backoff:routing.openstreetmap.de") <= 30
+    fake_redis.delete("routing:backoff:routing.openstreetmap.de")
+    with pytest.raises(Unavailable):
+        router.route([HOTEL, BANK], "car")
+    assert 30 < fake_redis.ttl("routing:backoff:routing.openstreetmap.de") <= 60
+
+
+def test_a_busy_server_is_left_alone_as_long_as_it_asks_and_a_day_has_a_cap(fake_redis, monkeypatch):
+    from app.adapters.road_path import Unavailable
+
+    seen: list[httpx.Request] = []
+    busy = _router(fake_redis, monkeypatch, lambda r: httpx.Response(429, headers={"retry-after": "120"}), seen)
+    with pytest.raises(Unavailable):
+        busy.route([HOTEL, BANK], "car")
+    with pytest.raises(Unavailable):
+        busy.route([HOTEL, BANK], "car")
+    assert len(seen) == 1 and 60 < fake_redis.ttl("routing:backoff:routing.openstreetmap.de") <= 120
+
+    fake_redis.flushall()
+    capped = _router(fake_redis, monkeypatch, lambda r: httpx.Response(200, json=FOSSGIS), routing_daily_limit=1)
+    capped.route([HOTEL, BANK], "car")
+    with pytest.raises(Unavailable, match="today"):
+        capped.route([BANK, HOTEL], "car")
+
+
+def test_road_paths_fall_back_to_a_straight_line(fake_redis, monkeypatch):
     from app.adapters.road_path import RoadPaths
 
     def down(request: httpx.Request) -> httpx.Response:
         raise httpx.ConnectError("refused")
 
+    monkeypatch.setattr(get_settings(), "routing_foot_url", "https://routing.openstreetmap.de/routed-foot")
     path = RoadPaths(fake_redis, client=httpx.Client(transport=httpx.MockTransport(down))).get((KOR.lng, KOR.lat), (JAY.lng, JAY.lat), "foot")
     assert path.source == "line" and path.coords == [(KOR.lng, KOR.lat), (JAY.lng, JAY.lat)]
     assert 3800 < path.distance_m < 4100  # about 3.9 km as the crow flies
-    assert not list(fake_redis.scan_iter("roadpath:foot:*"))  # an outage isn't cached
+
+
+def test_a_city_without_sample_data_is_estimated_from_road_distances(fake_redis, monkeypatch):
+    rajpura = [PlacePoint("osm-hotel", 76.5946, 30.4840), PlacePoint("osm-campus", 76.6577, 30.5165)]
+    table = {"code": "Ok", "distances": [[0, 9000], [9400, 0]]}
+    router = _router(fake_redis, monkeypatch, lambda r: httpx.Response(200, json=table))
+    pairs = SampleSnapshotAdapter(StaticTransitAdapter({}), router=router).snapshot("rajpura", rajpura, DAY).lookup()
+    (there,) = pairs[("osm-hotel", "osm-campus")]
+    (back,) = pairs[("osm-campus", "osm-hotel")]
+    # 9 km of road at 18 km/h is 30 minutes, plus 5 for the pickup; the fare is 100 + 20 a km.
+    assert there.rough and there.travel_min == 35 and there.fare_inr == 280
+    assert back.travel_min == 37  # 9.4 km back: the roads aren't the same both ways
+    # Routing off: the straight line times 1.3, as before.
+    plain = SampleSnapshotAdapter(StaticTransitAdapter({})).snapshot("rajpura", rajpura, DAY).lookup()
+    assert plain[("osm-hotel", "osm-campus")][0].travel_min != 35
 
 
 def test_sample_snapshot_estimates_places_it_does_not_know():
@@ -314,6 +399,24 @@ def test_a_timed_clip_is_cached_with_its_words_and_old_audio_is_made_again(fake_
     assert clip.duration_ms == 100 and not clip.cached and _TimedVoice.calls == ["WordBoundary"]
     again = asyncio.run(tts.synthesize("Time, Roo", "en-IN-NeerjaNeural", "normal", raw, need_words=True))
     assert again.cached and again.words == clip.words and _TimedVoice.calls == ["WordBoundary"]
+
+
+def test_a_route_nobody_recorded_has_no_path_to_draw(fake_redis):
+    stands = [
+        {"name": "Koramangala 5th Block stand", "seq": 1, "location": {"lng": 77.6185, "lat": 12.934}},
+        {"name": "Forum Mall", "seq": 2, "location": {"lng": 77.6112, "lat": 12.9346}},
+    ]
+    traced = [{"lng": 77.6185, "lat": 12.934}, {"lng": 77.615, "lat": 12.9338}, {"lng": 77.6112, "lat": 12.9346}]
+    answers = {
+        "/v1/raasta/routes/plain": {"vehicleType": "shared_auto", "stands": stands, "path": [s["location"] for s in stands]},
+        "/v1/raasta/routes/traced": {"vehicleType": "shared_auto", "stands": stands, "path": traced},
+    }
+    client = httpx.Client(transport=httpx.MockTransport(lambda r: httpx.Response(200, json=answers[r.url.path])))
+    raasta = RaastaHttpAdapter(base_url="http://raasta.test", client=client, redis_client=fake_redis)
+    # Raasta sends the stands as the path of a route nobody has recorded: drawn along the roads instead.
+    plain = raasta.route_shape("plain")
+    assert plain is not None and plain.path == [] and [s[0] for s in plain.stands] == ["Koramangala 5th Block stand", "Forum Mall"]
+    assert raasta.route_shape("traced").path == [(p["lng"], p["lat"]) for p in traced]
 
 
 # ---------- Roo's voice from Azure AI Speech ----------
