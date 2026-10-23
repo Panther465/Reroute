@@ -1,13 +1,17 @@
 # Renders the Roo scene that build_roo.py makes:
-#   still   a studio still on the reference's mint backdrop, for checking the look by eye;
+#   still   a studio still on the reference photo's mint backdrop, framed like the photo, for checking the look;
 #   layers  the pieces the web app stacks and moves, each cropped tight, plus layers.json saying where each
 #           one sits, how it pivots and where the camera looks from;
-#   atlas   those pieces packed into one WebP per size, and the TypeScript the app reads them with.
+#   check   those pieces stacked back up beside the whole render (they should match);
+#   atlas   the pieces packed into one WebP per size, and the TypeScript the app reads them with;
+#   save    the Roo scene alone as a .blend, to open and tweak in Blender.
 #
 # Renders take minutes, so run it in a background Blender:
-#   blender -b --factory-startup --python frontend/roo3d/render_roo.py -- still <out.png> [size] [samples]
+#   blender -b --factory-startup --python frontend/roo3d/render_roo.py -- still <out.png> [width height samples]
 #   blender -b --factory-startup --python frontend/roo3d/render_roo.py -- layers <dir> [samples]
+#   blender -b --factory-startup --python frontend/roo3d/render_roo.py -- check <dir> <out.png>
 #   blender -b --factory-startup --python frontend/roo3d/render_roo.py -- atlas <dir> <app dir>
+#   blender -b --factory-startup --python frontend/roo3d/render_roo.py -- save <out.blend>
 
 import json
 import math
@@ -20,7 +24,9 @@ import numpy as np
 from bpy_extras.object_utils import world_to_camera_view
 from mathutils import Vector
 
-MINT = (0xE4, 0xF3, 0xE8)
+MINT = (0xEB, 0xF8, 0xEF)  # the reference photo's backdrop
+# How dark the contact shadow is drawn (the photo's is very soft).
+SHADOW = 0.6
 # The layers are rendered at this many pixels to the body's radius, then scaled down for each size.
 PPU = 320
 # Arm poses, in radians raised from hanging: the app turns the nearest one the rest of the way. Higher than
@@ -158,12 +164,20 @@ def project(sc: bpy.types.Scene, p: Vector, size: int):
 # ---------- outputs ----------
 
 
-def still(path: str, size: int = 1000, samples: int = 256, camera: str = "Roo Hero Camera"):
-    """The look check: Roo on the mint backdrop, the soft contact shadow under it."""
+def still(path: str, width: int = 1355, height: int = 1160, samples: int = 256, camera: str = "Roo Hero Camera"):
+    """The look check: Roo on the mint backdrop, the soft contact shadow under it, framed like the reference
+    photo (1355 by 1160) so the two can be laid side by side."""
     sc = bpy.data.scenes["Roo"]
-    tmp = os.path.join(tempfile.gettempdir(), "roo-still-rgba.png")
-    render_rgba(sc, tmp, size, size, samples, camera)
-    save(over(pixels(tmp)), path)
+    hidden = {ob.name for ob in sc.objects if ob.hide_render}
+    roo = os.path.join(tempfile.gettempdir(), "roo-still-rgba.png")
+    visibility(sc, shown=[ob.name for ob in sc.objects], hidden=hidden, ground="holdout")
+    render_rgba(sc, roo, width, height, samples, camera)
+    shadow = os.path.join(tempfile.gettempdir(), "roo-still-shadow.png")
+    visibility(sc, hidden=hidden, ground="catcher")
+    render_rgba(sc, shadow, width, height, max(32, samples // 4), camera)
+    under = pixels(shadow)
+    under[..., 3] *= SHADOW
+    save(over(stack(under, pixels(roo))), path)
     return path
 
 
@@ -231,7 +245,7 @@ def layers(out: str, samples: int = 256, build: dict | None = None):
         r = np.sqrt(xs[None, :] ** 2 + ys[:, None] ** 2)
         fade = np.clip((1.0 - r) / 0.45, 0, 1)
         px = px.copy()
-        px[..., 3] = np.clip((px[..., 3] - 0.02) / 0.98, 0, 1) * fade * fade * (3 - 2 * fade)
+        px[..., 3] = np.clip((px[..., 3] - 0.02) / 0.98, 0, 1) * fade * fade * (3 - 2 * fade) * SHADOW
         return px
 
     shoot("shadow", (), hidden=face_obs, ground="catcher", border=(0.0, 0.0, 1.0, 0.5), post=soften)
@@ -270,7 +284,7 @@ def layers(out: str, samples: int = 256, build: dict | None = None):
         "ppu": PPU,
         "size": size,
         "camera": {"right": [round(v, 6) for v in m.col[0]], "up": [round(v, 6) for v in m.col[1]], "toward": [round(-v, 6) for v in m.col[2]], "centre": project(sc, Vector((0, 0, 0)), size)},
-        "body": {"radii": list(build["BODY"]), "flatFrom": build["BODY_FLAT_FROM"], "faceLift": build["FACE_LIFT"], "mouthZ": build["MOUTH_Z"], "mouthUnit": build["MOUTH_UNIT"]},
+        "body": {"radii": list(build["BODY"]), "faceLift": build["FACE_LIFT"], "mouthZ": build["MOUTH_Z"], "mouthUnit": build["MOUTH_UNIT"]},
         "layers": meta,
     }
     with open(os.path.join(out, "layers.json"), "w", encoding="utf-8") as f:
@@ -317,6 +331,15 @@ def pack(sizes: dict, pad: int = 2):
     return (width, (y + shelf + 3) // 4 * 4), at
 
 
+def shade(key: str, px: np.ndarray) -> np.ndarray:
+    """The arms are rendered without the body (see layers()), so they miss the shade it casts on them, which
+    leaves them lighter than the photo's: darken them to match."""
+    if key.startswith("arm."):
+        px = px.copy()
+        px[..., :3] *= 0.85
+    return px
+
+
 def atlas(master: str, app: str, quality: int = 82):
     """Packs the rendered layers into one WebP per size (src/components/roo3d/assets/roo-<size>.webp) and writes
     rig.ts, which says where every piece is."""
@@ -327,7 +350,7 @@ def atlas(master: str, app: str, quality: int = 82):
     sets = {}
     for name, ppu in SETS.items():
         scale = ppu / meta["ppu"]
-        scaled = {key: resample(pixels(os.path.join(master, f"{key}.png")), scale) for key in meta["layers"]}
+        scaled = {key: resample(shade(key, pixels(os.path.join(master, f"{key}.png"))), scale) for key in meta["layers"]}
         (w, h), at = pack({k: (v.shape[1], v.shape[0]) for k, v in scaled.items()})
         sheet = np.zeros((h, w, 4), dtype=np.float32)
         rects = {}
@@ -416,7 +439,7 @@ def main(argv):
         bpy.ops.outliner.orphans_purge(do_recursive=True)
         bpy.ops.wm.save_as_mainfile(filepath=rest[0], compress=True)
     elif cmd == "still":
-        still(rest[0], int(rest[1]) if len(rest) > 1 else 1000, int(rest[2]) if len(rest) > 2 else 256)
+        still(rest[0], *[int(v) for v in rest[1:4]])
     elif cmd == "layers":
         layers(rest[0], int(rest[1]) if len(rest) > 1 else 256, build)
     else:

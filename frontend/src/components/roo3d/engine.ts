@@ -131,8 +131,8 @@ export function tonguePoints(p: MouthParams, yaw: number, pitch: number): Pt[] {
   const pts: Pt[] = []
   for (let i = 0; i < 24; i++) {
     const a = (i / 24) * 2 * Math.PI
-    const x = 0.62 * halfWidth * Math.cos(a)
-    const y = dip + 0.62 * height + 0.36 * height * Math.sin(a)
+    const x = 0.55 * halfWidth * Math.cos(a)
+    const y = dip + 0.66 * height + 0.36 * height * Math.sin(a)
     pts.push(project(turn(onBody(x * mouthUnit, mouthZ - y * mouthUnit, faceLift + FELT + 0.004), yaw, pitch)))
   }
   return pts
