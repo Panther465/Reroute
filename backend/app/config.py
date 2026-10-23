@@ -69,6 +69,16 @@ class Settings(BaseSettings):
     gemini_api_key: str = ""
     #: Flash-Lite answers in a few seconds; full Flash spends ~30 s thinking first, too slow for a waiting traveller.
     gemini_model: str = "gemini-3.5-flash-lite"
+    #: Roo as an agent (with AI_HELPER_ENABLED and a key): it reads the trip through tools and puts every change
+    #: it would make on one card. Flash-Lite answers a step in three or four seconds and its free tier lasts a
+    #: day of use; Flash reasons better but its free tier allows 20 requests a day. When this model's quota runs
+    #: out, Roo uses GEMINI_MODEL until it's back.
+    roo_agent_model: str = "gemini-3.5-flash-lite"
+    #: Per traveller: messages to the agent a minute and a day (each may call the model several times).
+    roo_agent_per_minute: int = 8
+    roo_agent_per_day: int = 200
+    #: Tests and browser tests only: a JSON file of scripted model answers in place of Gemini.
+    roo_fake_llm: str = ""
     #: Tests run jobs inline. Never set in a deployment: planning must stay in the worker.
     queue_sync: bool = False
 
@@ -83,6 +93,8 @@ class Settings(BaseSettings):
                 raise ValueError("Set a real RAASTA_SERVICE_TOKEN (32 or more random characters) in production.")
             if self.queue_sync:
                 raise ValueError("QUEUE_SYNC is for tests only.")
+            if self.roo_fake_llm:
+                raise ValueError("ROO_FAKE_LLM is for tests only.")
         return self
 
 

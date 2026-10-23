@@ -1,4 +1,4 @@
-import { ArrowUp, Check, MapPin, Mic, X } from 'lucide-react'
+import { ArrowUp, Check, ListChecks, MapPin, Mic, X } from 'lucide-react'
 import { motion, useReducedMotion } from 'motion/react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { usePlaceSearch } from '@/api/queries'
@@ -8,6 +8,7 @@ import { EASE_OUT } from '@/lib/motion'
 import type { Expect } from '@/lib/roo/flows'
 import { progressOf } from '@/lib/speech/channel'
 import { voiceSupported } from '@/lib/voice'
+import { PlanCard, type PlanCardData } from './PlanCard'
 import { RooArt } from './RooArt'
 import { typingMs, type Card, type ChatMsg } from './useConversation'
 
@@ -105,6 +106,8 @@ export interface ThreadProps {
   suggestions: string[]
   inFlow: boolean
   busy: boolean
+  /** Roo's agent is working on the message: reading the day, places, fares. */
+  working?: boolean
   /** The page lays the thread out: a panel (scrolls inside) or the welcome screen. */
   className?: string
   autoFocus?: boolean
@@ -116,6 +119,9 @@ export interface ThreadProps {
   onLeave: () => void
   onRun: (msgId: string, card: Card) => void
   onDecline: (msgId: string) => void
+  onPlanRun?: (msgId: string, plan: PlanCardData) => void
+  onPlanDecline?: (msgId: string) => void
+  onPlanUndo?: (msgId: string, plan: PlanCardData) => void
   onListen: () => void
   onLink: (to: string) => void
 }
@@ -182,11 +188,20 @@ export function ChatThread(p: ThreadProps) {
                 </span>
               )}
               <div className={`flex max-w-[85%] flex-col ${m.from === 'me' ? 'items-end' : 'items-start'}`}>
+                {m.reads && m.reads.length > 0 && (
+                  <p className="mb-1 flex items-start gap-1.5 t-small text-ink-2">
+                    <ListChecks size={14} strokeWidth={2} aria-hidden="true" className="mt-[3px] shrink-0" />
+                    <span>{m.reads.join(' · ')}</span>
+                  </p>
+                )}
                 <p className={`rounded-[18px] px-4 py-2.5 t-body ${m.from === 'me' ? 'rounded-br-md bg-green text-on-green' : 'rounded-bl-md bg-sunken text-ink'}`}>
                   <span className="sr-only">{m.from === 'me' ? 'You: ' : 'Rico: '}</span>
                   {m.from === 'roo' ? <Typewriter text={m.text} play={!!m.fresh} speechId={m.speechId} /> : m.text}
                 </p>
                 {m.card && <ActionCard card={m.card} onYes={() => p.onRun(m.id, m.card!)} onNo={() => p.onDecline(m.id)} />}
+                {m.plan && (
+                  <PlanCard plan={m.plan} onRun={() => p.onPlanRun?.(m.id, m.plan!)} onDecline={() => p.onPlanDecline?.(m.id)} onUndo={() => p.onPlanUndo?.(m.id, m.plan!)} />
+                )}
                 {m.links && (
                   <div className="mt-1 flex flex-wrap gap-x-4">
                     {m.links.map((l) => (
@@ -204,12 +219,18 @@ export function ChatThread(p: ThreadProps) {
               <span className="mb-0.5 flex size-7 shrink-0 items-end justify-center" aria-hidden="true">
                 <RooArt mood="thinking" size={26} reduce />
               </span>
-              <p className="rr-typing flex items-center gap-1 rounded-[18px] rounded-bl-md bg-sunken px-4 py-3.5">
-                <span className="sr-only">Rico is typing</span>
-                <span aria-hidden="true" />
-                <span aria-hidden="true" />
-                <span aria-hidden="true" />
-              </p>
+              {p.working ? (
+                <p className="flex items-center gap-2 rounded-[18px] rounded-bl-md bg-sunken px-4 py-2.5 t-small text-ink-2">
+                  <Spinner size={16} /> Looking into it…
+                </p>
+              ) : (
+                <p className="rr-typing flex items-center gap-1 rounded-[18px] rounded-bl-md bg-sunken px-4 py-3.5">
+                  <span className="sr-only">Rico is typing</span>
+                  <span aria-hidden="true" />
+                  <span aria-hidden="true" />
+                  <span aria-hidden="true" />
+                </p>
+              )}
             </li>
           )}
         </ol>

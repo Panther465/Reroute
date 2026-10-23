@@ -18,7 +18,8 @@ log = logging.getLogger("reroute.me")
 
 def user_out(user: User) -> UserOut:
     s = get_settings()
-    features = FeaturesOut(bookings=s.simulated_services, ai_helper=s.ai_helper_enabled, voices=s.tts_enabled, wallet=s.simulated_services)
+    agent = s.ai_helper_enabled and bool(s.gemini_api_key or s.roo_fake_llm)
+    features = FeaturesOut(bookings=s.simulated_services, ai_helper=s.ai_helper_enabled, voices=s.tts_enabled, wallet=s.simulated_services, agent=agent)
     return UserOut(user_id=user.user_id, email=user.email, name=user.name, role=user.role, is_demo=user.is_demo, features=features)  # type: ignore[arg-type]
 
 

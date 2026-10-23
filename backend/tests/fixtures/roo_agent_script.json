@@ -1,0 +1,58 @@
+{
+  "_about": "Scripted model answers for Roo's agent in tests and browser tests (ROO_FAKE_LLM). A turn runs when every word of its `when` is in the traveller's message; its steps are the model's messages in order. `@taskId:Bank` becomes the taskId of the latest tool result mentioning Bank; `@date:+20` is 20 days from today.",
+  "fallback": "I can look after your day: tell me what to change, and I'll put it all on one card for you to check.",
+  "turns": [
+    {
+      "when": ["university office", "cab"],
+      "steps": [
+        { "calls": [{ "name": "get_day", "args": {} }] },
+        { "calls": [{ "name": "cab_options", "args": { "toId": "task-bank" } }] },
+        {
+          "calls": [
+            { "name": "skip_task", "args": { "taskId": "@taskId:University office" } },
+            { "name": "book_cab", "args": { "toId": "task-bank", "optionId": "@optionId:Mini" } },
+            { "name": "set_theme", "args": { "theme": "dark" } }
+          ]
+        },
+        { "text": "I'll skip the University office, book a mini cab to the bank and switch to dark mode. Tap Do all when you're ready." }
+      ]
+    },
+    {
+      "when": ["dinner"],
+      "steps": [
+        { "calls": [{ "name": "search_places", "args": { "query": "80 Feet Road" } }] },
+        { "calls": [{ "name": "add_task", "args": { "title": "Dinner", "placeId": "@placeId:80 Feet Road", "durationMin": 60, "fixedTime": "19:00" } }] },
+        { "text": "I'll add dinner at 7 pm on 80 Feet Road and fit it into your day." }
+      ]
+    },
+    {
+      "when": ["which"],
+      "steps": [{ "calls": [{ "name": "ask_choice", "args": { "question": "Which bank do you mean?", "options": ["SBI", "HDFC"] } }] }]
+    },
+    {
+      "when": ["meeting", "6 am"],
+      "steps": [
+        { "calls": [{ "name": "change_task", "args": { "taskId": "task-meet", "fixedTime": "06:00" } }] },
+        { "text": "6 in the morning has already passed, so I can't move the meeting there. It stays at 10." }
+      ]
+    },
+    {
+      "when": ["new trip"],
+      "steps": [
+        { "calls": [{ "name": "find_city", "args": { "query": "Bengaluru" } }] },
+        { "calls": [{ "name": "search_places", "args": { "query": "Majestic", "citySlug": "bengaluru" } }] },
+        {
+          "calls": [
+            {
+              "name": "create_trip",
+              "args": { "citySlug": "bengaluru", "startDate": "@date:+20", "endDate": "@date:+21", "stayPlaceId": "@placeId:Majestic", "stayLabel": "Hotel near Majestic" }
+            }
+          ]
+        },
+        { "calls": [{ "name": "search_places", "args": { "query": "80 Feet Road", "citySlug": "bengaluru" } }] },
+        { "calls": [{ "name": "add_task", "args": { "title": "Bank", "placeId": "@placeId:80 Feet Road", "durationMin": 60, "opensAt": "10:00", "closesAt": "16:00", "tripId": "new" } }] },
+        { "text": "I'll start your Bengaluru trip, add the bank and plan the first day." }
+      ]
+    }
+  ]
+}
