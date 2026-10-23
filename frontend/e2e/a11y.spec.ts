@@ -61,24 +61,24 @@ for (const scheme of ['light', 'dark'] as const) {
         ['/summary', /in Bengaluru|Day summary/],
         ['/leg/2', /to/],
         ['/why', 'Why this plan'],
-        ['/welcome', 'Meet Roo, your travel companion'],
+        ['/welcome', 'Meet Rico, your travel companion'],
       ] as const) {
         await page.goto(path)
         await expect(page.getByRole('heading', { level: 1, name: heading }).first()).toBeVisible({ timeout: 15_000 })
-        // Roo introduces itself over a few seconds, each line fading in: check once it has asked its question.
+        // Rico introduces itself over a few seconds, each line fading in: check once it has asked its question.
         if (path === '/welcome') await expect(page.getByRole('group', { name: 'Answers' })).toBeVisible({ timeout: 30_000 })
         await noSeriousIssues(page, path)
         await page.screenshot({ path: `test-results/screens/${info.project.name}-${scheme}${path.replace(/\//g, '_') || '_today'}.png`, fullPage: true })
       }
     })
 
-    test('the chat with Roo, with a change it offers', async ({ page }) => {
+    test('the chat with Rico, with a change it offers', async ({ page }) => {
       await signInAsDemo(page)
       await planTheDay(page)
-      await page.getByRole('button', { name: 'Roo, your travel companion. Chat with Roo' }).click()
-      const chat = page.getByRole('dialog', { name: 'Roo' })
+      await page.getByRole('button', { name: 'Rico, your travel companion. Chat with Rico' }).click()
+      const chat = page.getByRole('dialog', { name: 'Rico' })
       await expect(chat.getByRole('log')).toContainText(/Good (morning|afternoon|evening)/)
-      await chat.getByLabel('Message Roo').fill('move the bank to tomorrow')
+      await chat.getByLabel('Message Rico').fill('move the bank to tomorrow')
       await chat.getByRole('button', { name: 'Send' }).click()
       await expect(chat.getByRole('button', { name: 'Move it' })).toBeVisible()
       await noSeriousIssues(page, 'roo-chat')

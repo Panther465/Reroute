@@ -478,7 +478,7 @@ Tasks:
 - No dashboard grids of identical rounded cards with soft grey shadows. Timeline rows are not cards.
 - No all-caps labels or eyebrow text above headings. No "A · B · C" strings joined with middle dots. No "→" in button labels.
 - No Inter, Roboto, Arial or SF as design fonts. No monospace for numbers; use tabular figures.
-- No emoji, stock illustrations or 3D blobs. The one character is Roo (decisions.md), and only on Today's Now line: never floating over a screen.
+- No emoji, stock illustrations or 3D blobs. The one character is Rico (decisions.md), and only on Today's Now line: never floating over a screen.
 - No fake phone status bar or device frame inside the app.
 - No dead buttons or placeholder charts. If a feature isn't ready, don't show it.
 - No meaning carried by colour alone, no text smaller than 13 px, no placeholder used as a label.

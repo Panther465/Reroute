@@ -607,7 +607,7 @@ class RooIn(PostBody):
 
 
 class RooActionOut(Api):
-    """A change Roo offers. The app asks the traveller before doing it."""
+    """A change Rico offers. The app asks the traveller before doing it."""
 
     type: Literal["late", "done", "left", "skip", "move", "duration", "time", "add", "replan", "undo", "why", "summary", "theme"]
     task_id: str | None = None
@@ -742,7 +742,7 @@ class SpeechWordOut(Api):
 
 
 class SpeechTimedOut(Api):
-    """A clip and its word timings together, so Roo's mouth can follow the words."""
+    """A clip and its word timings together, so Rico's mouth can follow the words."""
 
     #: The MP3, base64-encoded.
     audio: str
