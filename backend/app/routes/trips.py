@@ -42,6 +42,7 @@ from app.schemas import (
     Page,
     PlanInsightOut,
     PlanOut,
+    PlanPathsOut,
     PlanRequest,
     PostBody,
     RooIn,
@@ -55,7 +56,7 @@ from app.schemas import (
     TripOut,
     TripSummaryOut,
 )
-from app.services import loop, plan_store
+from app.services import leg_paths, loop, plan_store
 from app.services.day import trip_day
 from app.services.places import best_place
 from app.services.views import options_out, place_out, summary_out, task_out, trip_out, trip_summary_out
@@ -327,6 +328,22 @@ def get_plan_insight(version: int, trip: OwnedTrip, db: Db) -> PlanInsightOut:
     tz = tz_for(trip.utc_offset)
     days = [{**d, "ends_at": at_minutes(plan.day, d["ends_at"], tz) if d.get("ends_at") is not None else None} for d in plan.insight["days"]]
     return PlanInsightOut.model_validate({**plan.insight, "days": days, "plan_id": plan.plan_id, "version": plan.version})
+
+
+@router.get(
+    "/trips/{trip_id}/plans/{version}/paths",
+    response_model=PlanPathsOut,
+    response_model_by_alias=True,
+    summary="The plan's legs along real roads, metro lines and recorded paths, with turn-by-turn steps",
+)
+def get_plan_paths(version: int, trip: OwnedTrip, db: Db) -> PlanPathsOut:
+    """Drawn by the worker after planning; until it's done, `complete` is false and the legs drawn so far come back."""
+    plan = plan_store.get_version(db, trip.trip_id, version)
+    drawn = leg_paths.load(plan.plan_id)
+    if drawn is None or not drawn["complete"]:
+        leg_paths.start(plan.plan_id)
+        drawn = leg_paths.load(plan.plan_id) or drawn
+    return PlanPathsOut.model_validate(drawn or {"planId": plan.plan_id, "version": plan.version, "complete": False, "legs": []})
 
 
 @router.post(

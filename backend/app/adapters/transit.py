@@ -74,10 +74,21 @@ class RaastaLeg:
         return self.walk_from_min + self.wait_min + self.ride_min + self.walk_to_min
 
 
+@dataclass(frozen=True)
+class RouteShape:
+    """Where a route runs, for drawing a ride: its stands in order (name, lng, lat) and its recorded GPS path."""
+
+    vehicle_type: str
+    stands: list[tuple[str, float, float]]
+    path: list[tuple[float, float]]
+
+
 class TransitAdapter(Protocol):
     def routes(self, route_ids: list[str]) -> dict[str, RouteInfo]: ...
 
     def leg_options(self, a: PlacePoint, b: PlacePoint, day: date, utc_offset: str) -> list[RaastaLeg]: ...
+
+    def route_shape(self, route_id: str) -> RouteShape | None: ...
 
 
 class RaastaHttpAdapter:
@@ -219,16 +230,48 @@ class RaastaHttpAdapter:
         self._store(key, [asdict(x) for x in legs])
         return legs
 
+    def route_shape(self, route_id: str) -> RouteShape | None:
+        """A route's stands and recorded path; None when Raasta doesn't know it or can't answer (it's then drawn
+        along the roads, or marked approximate)."""
+        key = f"raasta:shape:{route_id}"
+        cached = self._cached(key)
+        if cached is None:
+            try:
+                res = self._get(f"/v1/raasta/routes/{route_id}")
+            except _Unavailable:
+                cached = self._cached(key + ":good")
+                return RouteShape(**cached) if cached else None
+            if res is None:
+                return None
+            data = res.json()
+            stands = sorted(data.get("stands", []), key=lambda x: x.get("seq", 0))
+            path = [(x["lng"], x["lat"]) for x in data.get("path", [])]
+            # A route nobody has recorded comes with its stands as its path: that's not a path to draw.
+            if path == [(x["location"]["lng"], x["location"]["lat"]) for x in stands]:
+                path = []
+            shape = RouteShape(
+                vehicle_type=data.get("vehicleType", "shared_auto"),
+                stands=[(x["name"], x["location"]["lng"], x["location"]["lat"]) for x in stands],
+                path=path,
+            )
+            self._store(key, asdict(shape))
+            return shape
+        return RouteShape(cached["vehicle_type"], [tuple(x) for x in cached["stands"]], [tuple(x) for x in cached["path"]])  # type: ignore[misc]
+
 
 class StaticTransitAdapter:
     """For tests and offline runs: a fixed answer."""
 
-    def __init__(self, routes: dict[str, RouteInfo], legs: dict[tuple[str, str], list[RaastaLeg]] | None = None):
+    def __init__(self, routes: dict[str, RouteInfo], legs: dict[tuple[str, str], list[RaastaLeg]] | None = None, shapes: dict[str, RouteShape] | None = None):
         self._routes = routes
         self._legs = legs or {}
+        self._shapes = shapes or {}
 
     def routes(self, route_ids: list[str]) -> dict[str, RouteInfo]:
         return {r: self._routes[r] for r in route_ids if r in self._routes}
 
     def leg_options(self, a: PlacePoint, b: PlacePoint, day: date, utc_offset: str) -> list[RaastaLeg]:
         return list(self._legs.get((a.place_id, b.place_id), []))
+
+    def route_shape(self, route_id: str) -> RouteShape | None:
+        return self._shapes.get(route_id)

@@ -20,7 +20,8 @@ import { duration, lowerFirst } from '@/lib/format'
 import { stopIcon } from '@/lib/stopIcon'
 import { activeBooking, isFlightTask, isTrainTask } from '@/lib/bookings'
 import type { MapPoint } from '@/components/MapCard'
-import { legLines, type MapLine } from '@/lib/geo'
+import type { LngLat, MapLine } from '@/lib/geo'
+import { legCoords, pathLines, stationDots } from '@/lib/paths'
 import { useDayGuide } from '@/lib/dayAlerts'
 import { geolocationSupported, getLocation, startTracking, useLocation } from '@/lib/location'
 import { distanceLabel, splitPath } from '@/lib/progress'
@@ -288,13 +289,13 @@ export default function Today() {
     navigate(routerLocation.pathname, { replace: true, state: null })
   }, [routerLocation.state, view]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const { guide, roads, places, fix } = useDayGuide(trip, tripClock)
+  const { guide, places, fix, paths } = useDayGuide(trip, tripClock)
   const { tracking } = useLocation()
   const activeSeq = guide?.leg.seq ?? view?.nextLeg?.seq ?? view?.legs[view.legs.length - 1]?.seq ?? null
   const selectedSeq = desktop ? (selected && view?.legs.some((l) => l.seq === selected) ? selected : activeSeq) : null
   const selectedLeg = view?.legs.find((l) => l.seq === selectedSeq) ?? null
 
-  // Legs along the roads; on the leg being ridden, what's behind the traveller is greyed.
+  // Legs along the roads (straight and dashed until drawn); on the leg being ridden, what's behind is greyed.
   const rideLines = (l: LegView): MapLine[] => {
     // The leg that matters now carries the moving flow.
     const active = guide?.leg.seq === l.seq
@@ -306,9 +307,10 @@ export default function Today() {
         { id: `${l.seq}-ahead`, coords: ahead, mode, active: true },
       ]
     }
-    return legLines(l, places, l.status === 'done', roads.get(l.seq)).map((line) => ({ ...line, active }))
+    return pathLines(l, paths.get(l.seq), places, l.status === 'done').map((line) => ({ ...line, active }))
   }
-  const mapLines = useMemo(() => (view ? view.legs.flatMap(rideLines) : []), [view, places, roads, guide]) // eslint-disable-line react-hooks/exhaustive-deps
+  const mapLines = useMemo(() => (view ? view.legs.flatMap(rideLines) : []), [view, places, paths, guide]) // eslint-disable-line react-hooks/exhaustive-deps
+  const mapStations = useMemo(() => stationDots(view ? view.legs.map((l) => paths.get(l.seq)) : []), [view, paths])
   // Stops as pins: what's done fades, where you are is yellow, the next stop is green and pulses.
   const pinState = (s: StopView) => (s.status === 'done' ? 'done' : guide?.to.id === s.id ? 'next' : s.status === 'now' ? 'current' : 'later') as MapPoint['state']
   const mapPoints = useMemo(() => {
@@ -327,9 +329,13 @@ export default function Today() {
         secondary: `To ${guide.to.kind === 'end' ? 'your stay' : `the ${lowerFirst(guide.to.title)}`}${guide.remainingM != null ? `, arrive around ${guide.leg.arriveAt}` : ''}`,
       }
     : null
-  const focus = useMemo(() => (selectedLeg ? (roads.get(selectedLeg.seq) ?? legLines(selectedLeg, places).flatMap((l) => l.coords)) : undefined), [selectedLeg, places, roads])
+  const focus = useMemo(() => {
+    if (!selectedLeg) return undefined
+    const drawn = legCoords(paths.get(selectedLeg.seq))
+    return drawn.length > 1 ? drawn : [places.get(selectedLeg.fromPlaceId), places.get(selectedLeg.toPlaceId)].filter((p): p is LngLat => !!p)
+  }, [selectedLeg, places, paths])
   // The phone's mini map: just the leg that matters now.
-  const miniLines = useMemo(() => (guide ? rideLines(guide.leg) : []), [guide, places, roads]) // eslint-disable-line react-hooks/exhaustive-deps
+  const miniLines = useMemo(() => (guide ? rideLines(guide.leg) : []), [guide, places, paths]) // eslint-disable-line react-hooks/exhaustive-deps
   const miniPoints = useMemo(() => {
     if (!guide) return []
     return [guide.leg.fromPlaceId, guide.leg.toPlaceId].flatMap((id, i) => {
@@ -504,7 +510,7 @@ export default function Today() {
       {!desktop && (
         // The map is a picture of the leg; the link laid over it (not around it) opens the full map and directions.
         <div className="relative">
-          <LazyMap compact lines={miniLines} points={miniPoints} label={`Map to ${guide.to.title}`} className="h-36" me={fix} />
+          <LazyMap compact lines={miniLines} points={miniPoints} stations={stationDots([paths.get(guide.leg.seq)])} label={`Map to ${guide.to.title}`} className="h-36" me={fix} />
           <Link to={`/leg/${guide.leg.seq}`} aria-label={`Map and directions to ${guide.to.title}`} className="absolute inset-x-0 top-0 h-36 rounded-card" />
         </div>
       )}
@@ -662,7 +668,7 @@ export default function Today() {
         </div>
         {open && (
           <div id={regionId} className="relative mt-1">
-            <LazyMap compact lines={rideLines(leg)} points={legPins(leg)} label={`Map to ${to?.title ?? 'the next stop'}`} className="h-44" me={fix} />
+            <LazyMap compact lines={rideLines(leg)} points={legPins(leg)} stations={stationDots([paths.get(leg.seq)])} label={`Map to ${to?.title ?? 'the next stop'}`} className="h-44" me={fix} />
             <Link to={`/leg/${leg.seq}`} aria-label={`Full map and directions to ${to?.title ?? 'the next stop'}`} className="absolute inset-x-0 top-0 h-44 rounded-card" />
           </div>
         )}
@@ -766,7 +772,7 @@ export default function Today() {
           </div>
         </section>
         <section aria-label="Map and leg detail" className="sticky top-16 flex h-[calc(100dvh-64px)] flex-col gap-4 overflow-y-auto py-8">
-          <LazyMap lines={mapLines} points={mapPoints} focus={focus} label="Map of today's route" className="h-[44vh] min-h-72 shrink-0" draw={revealing} me={fix} eta={eta} />
+          <LazyMap lines={mapLines} points={mapPoints} stations={mapStations} focus={focus} label="Map of today's route" className="h-[44vh] min-h-72 shrink-0" draw={revealing} me={fix} eta={eta} />
           {selectedLeg && (
             <Suspense fallback={<Skeleton className="h-96 w-full shrink-0 rounded-card" />}>
               <LegDetailContent key={selectedLeg.seq} trip={trip} leg={selectedLeg} embedded />

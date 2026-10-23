@@ -3,7 +3,8 @@
 Two implementations share one interface:
 - SampleSnapshotAdapter reads examples/<city>/travel-times.json (the Bengaluru demo). For a place the
   file doesn't know (any place found by search), it adds rough cab and walk estimates from the
-  straight-line distance, flagged `rough` so every screen can say so.
+  straight-line distance, flagged `rough` so every screen can say so. In a city with no sample file,
+  the estimates use real road distances (one table from the routing server per plan) when it answers.
 - OsrmSnapshotAdapter asks OSRM for road times (car and foot), prices cabs from the city fare table,
   adds metro options from the timetable file, and caches every pair in Redis for 24 hours.
 Both enrich Raasta legs through the transit adapter, so a route's live status and first and last
@@ -25,6 +26,7 @@ from typing import Protocol
 import httpx
 
 from app.adapters.metro import MetroTimetable
+from app.adapters.road_path import Router, Unavailable
 from app.adapters.snapshot_file import parse_snapshot
 from app.adapters.transit import TransitAdapter
 from app.cities import city as supported_city
@@ -56,10 +58,10 @@ def cab_fares(examples_dir: Path, city_slug: str) -> dict:
     return json.loads(path.read_text(encoding="utf-8")) if path.exists() else DEFAULT_FARES
 
 
-def rough_options(a: PlacePoint, b: PlacePoint, fares: dict) -> tuple[LegOption, ...]:
-    """A cab, and a walk when it's close, estimated from the straight-line distance."""
+def rough_options(a: PlacePoint, b: PlacePoint, fares: dict, road_km: float | None = None) -> tuple[LegOption, ...]:
+    """A cab, and a walk when it's close, estimated from the road distance, else from the straight line."""
     km = _km(a, b)
-    road_km = km * ROAD_FACTOR
+    road_km = road_km if road_km is not None else km * ROAD_FACTOR
     cab_min = math.ceil(road_km / CAB_KMH * 60) + int(fares.get("pickupMin", 5))
     fare = max(int(fares["minimumInr"]), round(fares["baseInr"] + fares["perKmInr"] * road_km))
     options = [
@@ -107,17 +109,31 @@ def _enrich(data: dict, transit: TransitAdapter) -> tuple[dict[str, str], dict[s
 
 
 class SampleSnapshotAdapter:
-    def __init__(self, transit: TransitAdapter, examples_dir: Path | None = None):
+    def __init__(self, transit: TransitAdapter, examples_dir: Path | None = None, router: Router | None = None):
         self.transit = transit
         self.examples_dir = examples_dir or get_settings().examples_dir
+        self.router = router
+
+    def _road_km(self, places: list[PlacePoint]) -> dict[tuple[str, str], float]:
+        """Road kilometres between every two places, in one request; nothing when routing is off or busy (the
+        estimates then use the straight line). Only the distance: speeds stay the city averages, since an
+        empty-road time would promise too much."""
+        if self.router is None or not self.router.on("car") or len(places) < 2:
+            return {}
+        try:
+            table = self.router.distances([(p.lng, p.lat) for p in places])
+        except Unavailable:
+            return {}
+        return {(a.place_id, b.place_id): table[i][j] / 1000 for i, a in enumerate(places) for j, b in enumerate(places) if i != j and table[i][j] is not None}
 
     def snapshot(self, city_slug: str, places: list[PlacePoint], day: date) -> TravelSnapshot:
         path = self.examples_dir / city_slug / "travel-times.json"
         if not path.exists():
             # A city without sample data: rough cab and walk estimates between every two places.
             fares = cab_fares(self.examples_dir, city_slug)
+            road_km = self._road_km(places)
             pairs = tuple(
-                PairOptions(from_place=a.place_id, to_place=b.place_id, options=rough_options(a, b, fares))
+                PairOptions(from_place=a.place_id, to_place=b.place_id, options=rough_options(a, b, fares, road_km.get((a.place_id, b.place_id))))
                 for a in places
                 for b in places
                 if a.place_id != b.place_id
@@ -274,4 +290,4 @@ class OsrmSnapshotAdapter:
 def make_adapter(transit: TransitAdapter, redis_client=None) -> TravelTimeAdapter:
     if get_settings().travel_times_source == "osrm":
         return OsrmSnapshotAdapter(transit, redis_client)
-    return SampleSnapshotAdapter(transit)
+    return SampleSnapshotAdapter(transit, router=Router(redis_client) if redis_client is not None else None)

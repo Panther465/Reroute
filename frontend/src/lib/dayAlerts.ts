@@ -9,7 +9,7 @@ import { placeIndex } from './geo'
 import { destName, legGuide } from './guide'
 import { useLocation } from './location'
 import { distanceLabel } from './progress'
-import { useRoadPaths } from './roads'
+import { roadsOf, usePlanPaths } from './paths'
 import { useStore } from './store'
 
 export function useDayGuide(trip: Trip | undefined, clock: number | null) {
@@ -17,9 +17,11 @@ export function useDayGuide(trip: Trip | undefined, clock: number | null) {
   const { fix } = useLocation()
   const started = useStore((s) => (trip && s.started?.tripId === trip.tripId ? s.started.toId : null))
   const places = useMemo(() => (trip ? placeIndex(trip) : new Map()), [trip])
-  const roads = useRoadPaths(view?.legs ?? [], places)
+  // Each leg along the roads, as the server drew it after planning.
+  const paths = usePlanPaths(trip)
+  const roads = useMemo(() => roadsOf(paths), [paths])
   const guide = useMemo(() => legGuide(view, clock, started, places, roads, fix), [view, clock, started, places, roads, fix])
-  return { view, guide, started, roads, places, fix }
+  return { view, guide, started, roads, places, fix, paths }
 }
 
 export function useDayAlerts(trip: Trip | undefined, clock: number | null) {

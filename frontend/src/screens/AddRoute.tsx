@@ -125,7 +125,8 @@ function TapStands({ near, onSubmit, busy, error }: { near: string | null; onSub
       }),
     [known, picked],
   )
-  const lines = useMemo(() => routeLine('draft', picked.map((p) => [p.location.lng, p.location.lat] as LngLat), 'shared_auto'), [picked])
+  // A route being drawn is straight between the stands chosen: marked approximate.
+  const lines = useMemo(() => routeLine('draft', picked.map((p) => [p.location.lng, p.location.lat] as LngLat), 'shared_auto', true), [picked])
   const rest = known.filter((s) => !picked.some((p) => p.standId === s.standId))
 
   return (

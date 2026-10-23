@@ -20,6 +20,7 @@
   --blue-tint: #e3eafb;
   --focus: #2d5bd0;
   --on-green: #ffffff;
+  --on-blue: #ffffff;
   --on-ink: #ffffff;
   --on-yellow: #1a2230;
 
@@ -61,6 +62,7 @@
   --blue-tint: #18264a;
   --focus: #7096ff;
   --on-green: #10161f;
+  --on-blue: #10161f;
   --on-ink: #10161f;
   --on-yellow: #1a2230;
 }
@@ -87,6 +89,7 @@
     --blue-tint: #18264a;
     --focus: #7096ff;
     --on-green: #10161f;
+    --on-blue: #10161f;
     --on-ink: #10161f;
     --on-yellow: #1a2230;
   }

@@ -62,6 +62,8 @@ function handle(tripId: string, e: LiveEvent) {
     void queryClient.invalidateQueries({ queryKey: keys.trip(tripId) })
     void queryClient.invalidateQueries({ queryKey: keys.summary(tripId) })
   }
+  // The server has drawn (more of) a plan's legs along the roads.
+  if (e.event === 'paths_ready' && typeof e.data.version === 'number') void queryClient.invalidateQueries({ queryKey: keys.paths(tripId, e.data.version) })
   if (e.event === 'plan_updated' && e.data.trigger === 'late' && e.data.notify && !getState().pendingDelay) {
     // An automatic shift from the 5-minute check: show the banner. Its Undo comes from the trip's log.
     const version = typeof e.data.version === 'number' ? e.data.version : null

@@ -1,4 +1,5 @@
-"""The metro adapter: a static timetable file per city (examples/<city>/metro.json).
+"""The metro adapter: a static file per city (examples/<city>/metro.json) with the lines' stations in order (for
+drawing rides), and optionally a timetable (for planning).
 
 The file lists stations and, for station pairs, the riding minutes and fare. A metro leg is offered
 when both ends are within walking distance of a station; its time includes the walk at each end and
@@ -9,7 +10,9 @@ from __future__ import annotations
 
 import json
 import math
+import re
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -27,6 +30,37 @@ def _metres(lng1: float, lat1: float, lng2: float, lat2: float) -> float:
     dx = (lng2 - lng1) * 111_320 * math.cos(math.radians((lat1 + lat2) / 2))
     dy = (lat2 - lat1) * 110_540
     return math.hypot(dx, dy)
+
+
+@dataclass(frozen=True)
+class Station:
+    station_id: str
+    name: str
+    lng: float
+    lat: float
+
+
+@dataclass(frozen=True)
+class MetroLine:
+    """A line's stations in order, for drawing a ride station to station (the file's `lines`, from OpenStreetMap)."""
+
+    line_id: str
+    name: str
+    colour: str
+    stations: tuple[Station, ...]
+
+
+@lru_cache(maxsize=16)
+def metro_lines(path: Path) -> dict[str, MetroLine]:
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    lines = {}
+    for line in data.get("lines", []):
+        # OpenStreetMap names an interchange per line ("Majestic (Green Line)"): the rider needs only the station.
+        stations = tuple(Station(s["stationId"], re.sub(r"\s*\([^)]*Line\)$", "", s["name"]), s["lng"], s["lat"]) for s in line["stations"])
+        lines[line["lineId"]] = MetroLine(line["lineId"], line["name"], line["colour"], stations)
+    return lines
 
 
 @dataclass
