@@ -1328,7 +1328,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "faster_mode" | "move_task" | "skip_task";
+            kind: "faster_mode" | "move_task" | "skip_task" | "late";
             /** Label */
             label: string;
             /** Consequence */

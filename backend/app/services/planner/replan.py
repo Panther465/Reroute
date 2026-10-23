@@ -20,8 +20,8 @@ from .models import Blocked, Frozen, Mode, Objective, PlannerInput, PlanResult, 
 from .search import plan_day, simulate
 
 ResultKind = Literal["on_time", "shifted", "options", "no_feasible_plan"]
-OptionKind = Literal["faster_mode", "move_task", "skip_task"]
-_KIND_ORDER = {"faster_mode": 0, "move_task": 1, "skip_task": 2}
+OptionKind = Literal["faster_mode", "move_task", "skip_task", "late"]
+_KIND_ORDER = {"faster_mode": 0, "move_task": 1, "skip_task": 2, "late": 3}
 _NO_CAB = frozenset(m for m in Mode if m is not Mode.CAB)
 
 
@@ -101,6 +101,23 @@ def _title(inp: ReplanInput, task_id: str | None) -> str | None:
     return None
 
 
+def going_anyway(p: PlannerInput) -> PlannerInput:
+    """The same day, going to every fixed task anyway: late if it can't be helped, never moved."""
+    return p.model_copy(update={"tasks": tuple(t.model_copy(update={"late_ok": True}) if t.fixed_start is not None else t for t in p.tasks)})
+
+
+def late_legs(p: PlannerInput, plan: PlanResult) -> list[tuple[str, int, int]]:
+    """Fixed tasks the plan reaches later than the rule wants (inside the 10 minutes before, or after
+    the start): (title, arrival, start)."""
+    fixed = {t.task_id: t for t in p.tasks if t.fixed_start is not None}
+    margin = p.rule.fixed_buffer_min
+    return [
+        (fixed[leg.task_id].title, leg.arrive_at, fixed[leg.task_id].fixed_start)  # type: ignore[misc]
+        for leg in plan.legs
+        if leg.task_id in fixed and leg.arrive_at > fixed[leg.task_id].fixed_start - margin  # type: ignore[operator]
+    ]
+
+
 def _build_option(inp: ReplanInput, kind: OptionKind, plan: PlanResult, base_fare: int, base_end: int | None) -> ReplanOption:
     extra = max(0, plan.fare_inr - base_fare)
     saved = max(0, base_end - plan.end_time) if base_end is not None and plan.end_time is not None else 0
@@ -117,6 +134,16 @@ def _build_option(inp: ReplanInput, kind: OptionKind, plan: PlanResult, base_far
         text = explain.faster_explanation(inp.today_task_count, extra, uses_cab)
         if extra > 0:
             codes.add(ReasonCode.FASTER_MODE)
+    elif kind == "late":
+        title, arrival, start = late_legs(inp.planner, plan)[0]
+        uses_cab = any(leg.option.mode is Mode.CAB for leg in plan.legs)
+        label = explain.late_label(arrival - start)
+        also = explain.moved_consequence([(m.title, m.to_day_start) for m in moved]) + "." if moved else None
+        consequence = explain.late_consequence(title, arrival, start, also)
+        text = explain.late_explanation(title, arrival, start, uses_cab, extra)
+        codes.add(ReasonCode.FIXED_TASK_AT_RISK)
+        if moved:
+            codes.add(ReasonCode.TASK_MOVED_TOMORROW)
     elif kind == "move_task":
         pairs = [(m.title, m.to_day_start) for m in moved]
         label = "Keep it cheap"
@@ -142,6 +169,15 @@ def _build_option(inp: ReplanInput, kind: OptionKind, plan: PlanResult, base_far
         reason_codes=tuple(sorted(codes)),
         plan=plan,
     )
+
+
+def _blocked_text(p: PlannerInput, blocked: Blocked | None) -> str:
+    if blocked is None:
+        return "Nothing keeps every fixed time."
+    if any(t.task_id == blocked.task_id and t.fixed_start is not None for t in p.tasks):
+        # Someone else's meeting: not yours to move. Say so, and what you can do.
+        return f"{blocked.reason}. Let them know, or change its time if it has moved."
+    return f"{blocked.reason}. Move it to another day or change it."
 
 
 def replan(inp: ReplanInput) -> ReplanResult:
@@ -204,8 +240,24 @@ def replan(inp: ReplanInput) -> ReplanResult:
         seen.add(signature)
         options.append(_build_option(inp, kind, plan, base_fare, base_end))
 
+    # A fixed time that can't be kept: you can't move someone else's meeting, so "go anyway" is always
+    # on offer, last, planned from when you'd really get there (a task moves to tomorrow if it must).
+    late: ReplanOption | None = None
+    if failure == "fixed" or (not options and blocked is not None and any(t.task_id == blocked.task_id and t.fixed_start is not None for t in p.tasks)):
+        anyway = going_anyway(p)
+        tries = [Objective(), Objective(allow_move=True, min_left_out=1)] if p.has_next_day else [Objective()]
+        for objective in tries:
+            plan = plan_day(anyway.model_copy(update={"objective": objective}))
+            if not plan.feasible:
+                continue
+            signature = plan.order() + tuple((m.task_id, m.kind) for m in plan.moved)
+            if late_legs(p, plan) and signature not in seen:
+                late = _build_option(inp, "late", plan, base_fare, base_end)
+            break
+
     options.sort(key=lambda o: (o.plan.cost_scaled, _KIND_ORDER[o.kind]))
-    options = [o.model_copy(update={"option_id": f"opt-{i}"}) for i, o in enumerate(options[:3], start=1)]
+    options = options[: 2 if late else 3] + ([late] if late else [])
+    options = [o.model_copy(update={"option_id": f"opt-{i}"}) for i, o in enumerate(options, start=1)]
 
     if not options:
         if blocked is None:
@@ -213,7 +265,7 @@ def replan(inp: ReplanInput) -> ReplanResult:
         return ReplanResult(
             result="no_feasible_plan",
             reason_codes=tuple([*codes, ReasonCode.NO_FEASIBLE_PLAN]),
-            explanation=(blocked.reason + ". Move it to another day or change it.") if blocked else "Nothing keeps every fixed time.",
+            explanation=_blocked_text(p, blocked),
             blocked=blocked,
         )
     return ReplanResult(

@@ -220,3 +220,33 @@ test('running late, reroute, then undo', async ({ page }) => {
     .toBe(1)
   await expect(toasts.getByRole('listitem').filter({ hasText: 'Your earlier plan is back' })).toBeVisible({ timeout: 10_000 })
 })
+
+test('late for the fixed meeting before leaving: it stays at 10:00, you go anyway and tell them', async ({ page }) => {
+  test.setTimeout(120_000)
+  await planFreshDay(page)
+  await setClock(page, '08:45') // still at the hotel; the plan leaves at 08:50 for the 10:00 meeting
+
+  await page.getByRole('button', { name: 'Running late' }).click()
+  const sheet = page.getByRole('dialog')
+  const forty = sheet.getByRole('radio', { name: 'About 40 min' })
+  await forty.focus()
+  await page.keyboard.press('Space')
+  await sheet.getByRole('button', { name: 'Update my times' }).click()
+
+  // Nothing keeps 10:00, and the meeting isn't ours to move: the choice is to go anyway, late.
+  const anyway = sheet.getByRole('radio', { name: /Go anyway, about \d+ min late/ })
+  await expect(anyway).toBeAttached({ timeout: 20_000 })
+  await expect(sheet.getByText(/You reach the meeting at about \d\d:\d\d; it starts at 10:00/)).toBeVisible()
+  await anyway.focus()
+  await page.keyboard.press('Space')
+  await sheet.getByRole('button', { name: 'Reroute my day' }).click()
+  await expect(sheet).toBeHidden({ timeout: 20_000 })
+
+  // Today says when you'll really get there, and writes the message to the people waiting.
+  const banner = page.getByRole('alert').filter({ hasText: /You’ll reach the meeting at about \d\d:\d\d, \d+ min after its 10:00 start/ })
+  await expect(banner).toBeVisible({ timeout: 20_000 })
+  await banner.getByRole('button', { name: 'Tell them' }).click()
+  await expect(page.getByLabel('Your message')).toHaveValue(/running about \d+ minutes late for the meeting at 10:00\. I’ll be there around \d\d:\d\d\./)
+  await expect(page.getByRole('link', { name: 'WhatsApp' })).toHaveAttribute('href', /^https:\/\/wa\.me\/\?text=/)
+})
+

@@ -9,9 +9,12 @@ import { ChipGroup } from '@/components/ui/Choice'
 import { Field } from '@/components/ui/Field'
 import { Sheet } from '@/components/ui/Sheet'
 import { acceptOption, applyServerChange, isOptionsChanged, playLater, playTaskEdit, refetchTrip, reportDelay, saveTaskEdit, sendSkip, SKIP_TOAST } from '@/lib/actions'
-import { duration, lowerFirst } from '@/lib/format'
+import { duration, hhmm, lowerFirst } from '@/lib/format'
 import { T, useTl } from '@/lib/i18n'
 import { setState, showToast } from '@/lib/store'
+import { TellThemSheet } from '@/components/TellThemSheet'
+import { missMessage } from '@/lib/tellLate'
+import { localMinutes } from '@/lib/timeline'
 import { TaskFormSheet } from './TaskForm'
 
 type Chip = '15' | '40' | '60' | 'other'
@@ -31,6 +34,7 @@ function toCard(o: Option): OptionCardData {
   if (o.timeSavedMin > 0) tags.unshift(`Saves about ${duration(o.timeSavedMin)}`)
   if (o.kind === 'faster_mode' && o.movedTasks.length === 0) tags.push('Keeps every task today')
   if (o.kind === 'move_task') tags.unshift('Cheapest')
+  if (o.kind === 'late') tags.unshift('Keeps its time: you arrive late')
   return { optionId: o.optionId, label: o.label, extraFareInr: o.extraFareInr, consequence: o.consequence, tags: [...new Set(tags)] }
 }
 
@@ -65,6 +69,8 @@ export function RunningLateSheet({
   const [error, setError] = useState<string>()
   // The blocked task being edited from here. The sheet steps aside while its form is open.
   const [editing, setEditing] = useState<Task | null>(null)
+  // The message to the people waiting, while "Tell them" is open.
+  const [tell, setTell] = useState<string | null>(null)
   // One key per action: a retry of the same "Reroute my day" never applies it twice.
   const keysRef = useRef({ delay: newKey('late'), accept: newKey('acc'), skip: newKey('skip') })
   const view = useDay(trip, clock)
@@ -206,6 +212,7 @@ export function RunningLateSheet({
   }
 
   const name = (t: Task) => lowerFirst(t.title)
+  const fixedAt = (t: Task) => (t.fixedStart ? hhmm(localMinutes(t.fixedStart, t.day, trip?.utcOffset)) : undefined)
   const title =
     phase.kind === 'options'
       ? tl('Choose how to fix your day')
@@ -236,6 +243,22 @@ export function RunningLateSheet({
         <Button full loading={busy} loadingLabel={<T k="Rerouting…" />} onClick={accept}>
           <T k="Reroute my day" />
         </Button>
+        {keep}
+      </div>
+    )
+  } else if (phase.kind === 'blocked' && phase.task?.fixedStart) {
+    // Someone else's meeting: not yours to move or to drop. Tell them, or change its time if it really moved.
+    const meeting = phase.task
+    footer = (
+      <div className="flex flex-col gap-2">
+        <div className="grid grid-cols-2 gap-3">
+          <Button variant="destructive" onClick={() => setTell(missMessage(meeting.title, fixedAt(meeting)))}>
+            <T k="Tell them" />
+          </Button>
+          <Button variant="secondary" onClick={() => setEditing(meeting)}>
+            <T k="It moved: change the time" />
+          </Button>
+        </div>
         {keep}
       </div>
     )
@@ -271,7 +294,7 @@ export function RunningLateSheet({
 
   return (
     <>
-      <Sheet open={open && !editing} onOpenChange={(o) => !busy && onOpenChange(o)} title={title.text} titleLang={title.lang} footer={footer}>
+      <Sheet open={open && !editing && tell === null} onOpenChange={(o) => !busy && onOpenChange(o)} title={title.text} titleLang={title.lang} footer={footer}>
         {phase.kind === 'pick' && task && (
           <div className="flex flex-col gap-4">
             <ChipGroup<Chip>
@@ -320,7 +343,11 @@ export function RunningLateSheet({
               {phase.reason}
             </p>
             <p className="mt-4 t-body text-ink-2">
-              {phase.task ? `Change the ${name(phase.task)} or skip it, or keep your current plan for now.` : 'Keep your current plan for now. You can change or skip a task from its stop on the timeline.'}
+              {phase.task?.fixedStart
+                ? `The ${name(phase.task)} isn’t yours to move. Let them know, or change its time if it really has moved.`
+                : phase.task
+                  ? `Change the ${name(phase.task)} or skip it, or keep your current plan for now.`
+                  : 'Keep your current plan for now. You can change or skip a task from its stop on the timeline.'}
             </p>
           </div>
         )}
@@ -337,6 +364,7 @@ export function RunningLateSheet({
           </p>
         )}
       </Sheet>
+      <TellThemSheet open={tell !== null} onOpenChange={(o) => !o && setTell(null)} message={tell ?? ''} title="Tell them" />
       {editing && (
         <TaskFormSheet
           trip={trip}

@@ -380,7 +380,7 @@ class BlockedOut(Api):
 
 class OptionOut(Api):
     option_id: str
-    kind: Literal["faster_mode", "move_task", "skip_task"]
+    kind: Literal["faster_mode", "move_task", "skip_task", "late"]
     label: str
     consequence: str
     explanation: str

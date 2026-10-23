@@ -12,6 +12,7 @@ import { Button, ButtonLink } from '@/components/ui/Button'
 import { IconButton } from '@/components/ui/IconButton'
 import { Banner, EmptyState, ErrorState, Skeleton } from '@/components/ui/States'
 import { Tag } from '@/components/ui/Tag'
+import { TellThemSheet } from '@/components/TellThemSheet'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { ApiError } from '@/api/client'
 import { applyServerChange, checkIn, moveTaskToDay, playLater, playTaskEdit, replanDay, undo, undoVersionOf } from '@/lib/actions'
@@ -27,6 +28,7 @@ import { useDocumentTitle, useIsDesktop, useOnline, useStatus, useTripClock, typ
 import { T, useTl } from '@/lib/i18n'
 import { useOpenLate } from '@/lib/late'
 import { useQueued } from '@/lib/offlineQueue'
+import { lateFixed, lateMessage } from '@/lib/tellLate'
 import { setState, showToast, useStore } from '@/lib/store'
 import { addDays, dayLabel, localMinutes, samePlace, weekday, type DayView, type LegView, type StopView } from '@/lib/timeline'
 
@@ -209,6 +211,9 @@ export default function Today() {
   const status = useStatus(trip, view, clock)
   const [logOpen, setLogOpen] = useState(false)
   const [shareOpen, setShareOpen] = useState(false)
+  // Late for a fixed meeting: it isn't yours to move, so the day says when you'll get there and helps you tell them.
+  const late = useMemo(() => lateFixed(view), [view])
+  const [tellOpen, setTellOpen] = useState(false)
   const [stop, setStop] = useState<StopView | null>(null)
   const [selected, setSelected] = useState<number | null>(null)
   const [confirmEarly, setConfirmEarly] = useState(false)
@@ -267,7 +272,7 @@ export default function Today() {
   // Roo on the timeline asks for "Add a task" or "Edit this stop"; do it here, then clear the request.
   const routerLocation = useRouterLocation()
   useEffect(() => {
-    const ask = routerLocation.state as { add?: number; addText?: string; stop?: string; bookTrain?: string; bookFlight?: { to?: string } } | null
+    const ask = routerLocation.state as { add?: number; addText?: string; stop?: string; bookTrain?: string; bookFlight?: { to?: string }; tellLate?: number } | null
     if (!ask || !view) return
     // Without the AI helper, a task is added with the form on Plan (and the request goes with it).
     if (ask.add && !ai) return void navigate('/plan', { state: { addTask: true } })
@@ -279,6 +284,7 @@ export default function Today() {
     if (ask.stop) setStop(view.stops.find((s) => s.id === ask.stop) ?? null)
     if (ask.bookTrain) setTrainFor(trip?.tasks.find((t) => t.taskId === ask.bookTrain) ?? null)
     if (ask.bookFlight) setFlightTo(ask.bookFlight)
+    if (ask.tellLate && late) setTellOpen(true)
     navigate(routerLocation.pathname, { replace: true, state: null })
   }, [routerLocation.state, view]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -433,6 +439,7 @@ export default function Today() {
       {tripsLoaded && <TripSwitcher open={tripsOpen} onOpenChange={setTripsOpen} />}
       {logLoaded && <RerouteLog trip={trip} open={logOpen} onOpenChange={setLogOpen} />}
       {shareLoaded && <ShareSheet trip={trip} open={shareOpen} onOpenChange={setShareOpen} />}
+      <TellThemSheet open={tellOpen && !!late} onOpenChange={setTellOpen} message={late ? lateMessage(late) : ''} />
       {addLoaded && (
         <AiPlannerSheet
           key={addText?.key ?? 'add'}
@@ -527,6 +534,18 @@ export default function Today() {
           }
         >
           {trip.openOptions.explanation || 'Your later stops no longer fit. Choose how to fix the rest of today.'}
+        </Banner>
+      )}
+      {late && !trip.openOptions && (
+        <Banner
+          tone="blocked"
+          action={
+            <Button variant="destructive" size="md" onClick={() => setTellOpen(true)}>
+              <T k="Tell them" />
+            </Button>
+          }
+        >
+          {`You’ll reach the ${lowerFirst(late.title)} at about ${late.arrive}, ${late.minutes} min after its ${late.at} start.`}
         </Banner>
       )}
       {leaveNow && !leaveExpired && (

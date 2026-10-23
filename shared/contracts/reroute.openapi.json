@@ -4542,7 +4542,8 @@
             "enum": [
               "faster_mode",
               "move_task",
-              "skip_task"
+              "skip_task",
+              "late"
             ],
             "title": "Kind"
           },
