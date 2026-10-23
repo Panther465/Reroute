@@ -37,7 +37,8 @@ SWATCHES = ("Felt Black", "Felt Tongue")
 # Sizes the app picks from: pixels to the body's radius.
 SETS = {"lg": 192, "md": 128, "sm": 80}
 
-BODY = ("Roo Body", "Roo Fur.Body", "Roo Foot.L", "Roo Fur.Foot.L", "Roo Foot.R", "Roo Fur.Foot.R")
+BODY = ("Roo Body", "Roo Fur.Body")
+FEET = ("Roo Foot.L", "Roo Fur.Foot.L", "Roo Foot.R", "Roo Fur.Foot.R")
 SPROUT = ("Roo Stem", "Roo Fur.Stem", "Roo Leaf.L", "Roo Fur.Leaf.L", "Roo Leaf.R", "Roo Fur.Leaf.R")
 
 
@@ -121,10 +122,10 @@ def load_build(here: str) -> dict:
     return ns
 
 
-def visibility(sc: bpy.types.Scene, shown=(), catchers=(), hidden=(), ground: str = "holdout"):
+def visibility(sc: bpy.types.Scene, shown=(), catchers=(), hidden=(), ground: str = "holdout", holdouts=()):
     """Who the camera sees in this render. Everything else still casts shadows and bounces light (it is only
-    invisible to the camera); `hidden` is left out entirely. The ground cuts away fur below it (holdout) or
-    catches the shadow."""
+    invisible to the camera); `hidden` is left out entirely, and `holdouts` cut away what's behind them. The
+    ground cuts away fur below it (holdout) or catches the shadow."""
     for ob in sc.objects:
         if ob.type not in {"MESH", "CURVES"}:
             continue
@@ -134,9 +135,9 @@ def visibility(sc: bpy.types.Scene, shown=(), catchers=(), hidden=(), ground: st
             ob.visible_camera = True
             continue
         ob.hide_render = ob.name in hidden
-        ob.is_holdout = False
+        ob.is_holdout = ob.name in holdouts
         ob.is_shadow_catcher = ob.name in catchers
-        ob.visible_camera = ob.name in shown or ob.name in catchers
+        ob.visible_camera = ob.name in shown or ob.name in catchers or ob.name in holdouts
 
 
 def border_of(sc: bpy.types.Scene, names, margin: float = 0.08):
@@ -182,9 +183,15 @@ def still(path: str, width: int = 1355, height: int = 1160, samples: int = 256, 
 
 
 def layers(out: str, samples: int = 256, build: dict | None = None):
-    """Renders every piece the app moves, each cropped tight, and layers.json."""
+    """Renders every piece the app moves, each cropped tight, and layers.json. Run again after a crash (the GPU
+    sometimes gives up on a render this heavy), it picks up where it stopped."""
     sc = bpy.data.scenes["Roo"]
     os.makedirs(out, exist_ok=True)
+    partial = os.path.join(out, "layers.partial.json")
+    done = {}
+    if os.path.exists(partial):
+        with open(partial, encoding="utf-8") as f:
+            done = json.load(f)
     size = round(bpy.data.objects["Roo Layer Camera"].data.ortho_scale * PPU)
     pieces = build["FACE_PIECES"]
     face_obs = {ob.name for obs in pieces.values() for ob in obs}
@@ -192,6 +199,9 @@ def layers(out: str, samples: int = 256, build: dict | None = None):
     meta: dict = {}
 
     def shoot(key: str, names, border=None, post=None, **vis):
+        if key in done and os.path.exists(os.path.join(out, f"{key}.png")):
+            meta[key] = dict(done[key])
+            return meta[key]
         visibility(sc, **vis)
         border = border or border_of(sc, names)
         tmp = os.path.join(tempfile.gettempdir(), f"roo-layer-{key}.png")
@@ -210,12 +220,21 @@ def layers(out: str, samples: int = 256, build: dict | None = None):
         save(px[top:bottom, left:right], os.path.join(out, f"{key}.png"))
         meta[key] = {"rect": [int(x0 + left), int(y0 + top), int(right - left), int(bottom - top)]}
         print(f"roo: {key} {meta[key]['rect']}", flush=True)
+        with open(partial, "w", encoding="utf-8") as f:
+            json.dump(meta, f)
         return meta[key]
 
-    # The body with its feet; the face goes on top of it, so the pile is full everywhere. The arms and sprout
-    # are drawn behind it and move, so they aren't there to shade its edge.
+    # The body; the face goes on top of it, so the pile is full everywhere. The arms and sprout are drawn
+    # behind it and move, so they aren't there to shade its edge; nor are the feet, a layer of their own that
+    # turns on the spot when Roo does (it would leave their shadow behind on the belly).
     build["show_face"](pieces, (), body_fur)
-    shoot("body", BODY, shown=BODY, hidden=face_obs | set(arm("L")) | set(arm("R")) | set(SPROUT))
+    shoot("body", BODY, shown=BODY, hidden=face_obs | set(arm("L")) | set(arm("R")) | set(SPROUT) | set(FEET))
+
+    # The feet, in front of the body: what the belly hides of them is cut away.
+    foot = build["FOOT"]
+    info = shoot("feet", FEET, shown=FEET, holdouts=BODY, hidden=face_obs)
+    info["anchor"] = [0.0, round(foot.y, 5), round(foot.z, 5)]
+    info["pivot"] = project(sc, Vector((0.0, foot.y, foot.z)), size)
 
     # Each arm in each pose, turning about its shoulder. The app draws arms and sprout behind the body, whose
     # fuzzy edge covers where they join; so they're rendered without the body, lit all over (with it, the parts
@@ -225,14 +244,16 @@ def layers(out: str, samples: int = 256, build: dict | None = None):
         rest = ob.rotation_euler.y
         for k, raise_ in enumerate(ARM_POSES):
             ob.rotation_euler.y = rest - side * raise_
-            info = shoot(f"arm.{tag}.{k}", arm(tag), shown=arm(tag), hidden=face_obs | set(BODY))
+            info = shoot(f"arm.{tag}.{k}", arm(tag), shown=arm(tag), hidden=face_obs | set(BODY) | set(FEET))
             info["pivot"] = project(sc, ob.matrix_world.translation, size)
+            info["anchor"] = [round(v, 5) for v in ob.matrix_world.translation]
             info["raise"] = raise_
         ob.rotation_euler.y = rest
 
     # The sprout, swaying about where it comes out of the head.
-    info = shoot("sprout", SPROUT, shown=SPROUT, hidden=face_obs | set(BODY))
+    info = shoot("sprout", SPROUT, shown=SPROUT, hidden=face_obs | set(BODY) | set(FEET))
     info["pivot"] = project(sc, Vector((0.0, 0.0, build["BODY"].z)), size)
+    info["anchor"] = [0.0, 0.0, round(build["BODY"].z, 5)]
 
     # The contact shadow alone, on the ground: the faintest shading dropped and the rest faded out towards
     # the edges, so it has no edge of its own.
@@ -250,22 +271,40 @@ def layers(out: str, samples: int = 256, build: dict | None = None):
 
     shoot("shadow", (), hidden=face_obs, ground="catcher", border=(0.0, 0.0, 1.0, 0.5), post=soften)
 
-    # The face pieces, each on the fur it presses down: the body only catches their shadow. That catches a
-    # faint haze far around a piece too, which would show as the edge of its box: it's dropped, and what's left
-    # fades out before the edge.
+    # The face pieces, each on the fur it presses down: the body only catches their shadow. Nothing else is
+    # there to cast one (the body's layer has no arms, sprout or feet either). Beyond the contact shadow right
+    # at a piece's edge, the fur catches a faint haze of shading around it, which would darken the fur around
+    # the piece (the photo's pieces sit clean on the pile): it's dropped, and what's left fades out before the
+    # edge of the piece's box.
     def feather(px, x0, y0):
         h, w = px.shape[:2]
         ramp = 0.05 * PPU
         wx = np.clip(np.minimum(np.arange(w), w - 1 - np.arange(w)) / ramp, 0, 1)
         wy = np.clip(np.minimum(np.arange(h), h - 1 - np.arange(h)) / ramp, 0, 1)
         px = px.copy()
-        px[..., 3] = np.clip((px[..., 3] - 0.015) / 0.985, 0, 1) * wy[:, None] * wx[None, :]
+        a = np.clip((px[..., 3] - 0.015) / 0.985, 0, 1)
+        # How far each pixel is from the piece itself (its solid part), in pixels, out to `far`.
+        piece = a > 0.8
+        far = round(0.035 * PPU)
+        dist = np.where(piece, 0.0, float(far))
+        grown = piece
+        for step in range(1, far + 1):
+            more = grown.copy()
+            more[1:] |= grown[:-1]
+            more[:-1] |= grown[1:]
+            more[:, 1:] |= grown[:, :-1]
+            more[:, :-1] |= grown[:, 1:]
+            dist = np.where(more & ~grown, float(step), dist)
+            grown = more
+        keep = np.clip((far - dist) / (far - round(0.012 * PPU)), 0, 1)
+        px[..., 3] = a * keep * wy[:, None] * wx[None, :]
         return px
 
     for name in SPRITES + SWATCHES:
         build["show_face"](pieces, (name,), body_fur)
         names = [ob.name for ob in pieces[name]]
-        info = shoot(name, names, shown=names, catchers=BODY[:2], hidden=face_obs - set(names), post=feather if name in SPRITES else None)
+        others = (face_obs - set(names)) | set(arm("L")) | set(arm("R")) | set(SPROUT) | set(FEET)
+        info = shoot(name, names, shown=names, catchers=BODY, hidden=others, post=feather if name in SPRITES else None)
         x, z = build["FACE_ANCHORS"][name]
         point, normal = build["body_point"](x, z, build["FACE_LIFT"])
         info["anchor"] = [round(v, 5) for v in point]
@@ -274,9 +313,10 @@ def layers(out: str, samples: int = 256, build: dict | None = None):
     # The whole of Roo at rest with the reference's face, to check the layers stack back up to it.
     build["show_face"](pieces, build["HERO_FACE"], body_fur)
     visibility(sc, shown=[ob.name for ob in sc.objects], hidden=face_obs - {ob.name for n in build["HERO_FACE"] for ob in pieces[n]}, ground="catcher")
-    tmp = os.path.join(tempfile.gettempdir(), "roo-layer-whole.png")
-    render_rgba(sc, tmp, size, size, samples, "Roo Layer Camera")
-    save(pixels(tmp), os.path.join(out, "whole.png"))
+    if not os.path.exists(os.path.join(out, "whole.png")):
+        tmp = os.path.join(tempfile.gettempdir(), "roo-layer-whole.png")
+        render_rgba(sc, tmp, size, size, samples, "Roo Layer Camera")
+        save(pixels(tmp), os.path.join(out, "whole.png"))
 
     cam = bpy.data.objects["Roo Layer Camera"]
     m = cam.matrix_world.to_3x3()
@@ -289,6 +329,7 @@ def layers(out: str, samples: int = 256, build: dict | None = None):
     }
     with open(os.path.join(out, "layers.json"), "w", encoding="utf-8") as f:
         json.dump(meta, f, indent=1)
+    os.remove(partial)
     return meta
 
 
@@ -333,15 +374,40 @@ def pack(sizes: dict, pad: int = 2):
 
 def shade(key: str, px: np.ndarray) -> np.ndarray:
     """The arms are rendered without the body (see layers()), so they miss the shade it casts on them, which
-    leaves them lighter than the photo's: darken them to match. The felt cheeks' shadow on the fur, rendered
-    on pressed-down pile, is darker than it looks on the full pile they're drawn over: soften it."""
+    leaves them lighter than the photo's: darken them to match."""
     px = px.copy()
     if key.startswith("arm."):
         px[..., :3] *= 0.85
-    if key.startswith("Cheek."):
-        lum = px[..., :3] @ np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
-        px[..., 3] *= np.where(lum < 0.25, 0.4, 1.0)
     return px
+
+
+def shading(master: str, meta: dict) -> list:
+    """The body's rendered shading as a smooth function of which way its surface faces (nine terms: a constant,
+    the normal's x, y, z, and their products), fitted to its brightness. The app turns the rendered body; with
+    this it relights it, so the light stays where the studio's was."""
+    cam = meta["camera"]
+    right, up, toward = (np.array(cam[k]) for k in ("right", "up", "toward"))
+    radii = np.array(meta["body"]["radii"])
+    x0, y0, w, h = meta["layers"]["body"]["rect"]
+    px = pixels(os.path.join(master, "body.png"))
+    ys, xs = np.mgrid[0:h, 0:w]
+    u = (xs + 0.5 + x0 - cam["centre"][0]) / meta["ppu"]
+    v = (cam["centre"][1] - (ys + 0.5 + y0)) / meta["ppu"]
+    o = u[..., None] * right + v[..., None] * up
+    oi, di = o / radii, toward / radii
+    a, b, c = di @ di, 2 * (oi @ di), (oi * oi).sum(-1) - 1
+    disc = b * b - 4 * a * c
+    half = np.sqrt(np.maximum(disc, 0)) / (2 * a)
+    x = o + (-b / (2 * a) - half)[..., None] * toward
+    n = x / radii**2
+    n /= np.linalg.norm(n, axis=-1, keepdims=True)
+    # Well inside the outline, where the fur is solid.
+    use = (disc > 0) & (half > 0.25) & (px[..., 3] > 0.99)
+    nx, ny, nz = n[..., 0][use], n[..., 1][use], n[..., 2][use]
+    terms = np.stack([np.ones_like(nx), nx, ny, nz, nx * ny, nx * nz, ny * nz, nx * nx - ny * ny, 3 * nz * nz - 1], -1)
+    lum = px[..., :3] @ np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
+    fit, *_ = np.linalg.lstsq(terms, lum[use], rcond=None)
+    return [round(float(f), 5) for f in fit]
 
 
 def atlas(master: str, app: str, quality: int = 82):
@@ -350,6 +416,7 @@ def atlas(master: str, app: str, quality: int = 82):
     with open(os.path.join(master, "layers.json"), encoding="utf-8") as f:
         meta = json.load(f)
     meta["body"]["ground"] = load_build(os.path.dirname(os.path.abspath(__file__)))["GROUND"]
+    meta["body"]["shade"] = shading(master, meta)
     os.makedirs(os.path.join(app, "assets"), exist_ok=True)
     sets = {}
     for name, ppu in SETS.items():
@@ -380,11 +447,12 @@ def atlas(master: str, app: str, quality: int = 82):
         "export interface Piece {",
         "  /** Where it sits in the master render. */",
         "  rect: Rect",
-        "  /** What it turns about (arms, sprout). */",
+        "  /** What it turns about (arms, sprout, feet). */",
         "  pivot?: readonly [number, number]",
         "  /** How far raised this arm pose is, in radians. */",
         "  raise?: number",
-        "  /** A face piece's place on the body, and the body's normal there (Blender's axes: x right, y back, z up). */",
+        "  /** Where it's fixed to the body (a face piece's place on it, a shoulder, the top of the head; Blender's axes:",
+        "   *  x right, y back, z up), and for a face piece, the body's normal there. */",
         "  anchor?: readonly [number, number, number]",
         "  normal?: readonly [number, number, number]",
         "}",
@@ -418,7 +486,7 @@ def check(master: str, out: str):
         full[y : y + h, x : x + w] = px
         return full
 
-    keys = ["shadow", "sprout", "arm.L.0", "arm.R.0", "body", "Cheek.L", "Cheek.R", "Eye Happy.L", "Eye Happy.R"]
+    keys = ["shadow", "sprout", "arm.L.0", "arm.R.0", "body", "Cheek.L", "Cheek.R", "Eye Happy.L", "Eye Happy.R", "feet"]
     stacked = over(stack(*[at(k) for k in keys]))
     whole = over(pixels(os.path.join(master, "whole.png")))
     save(np.concatenate([stacked, whole], axis=1), out)

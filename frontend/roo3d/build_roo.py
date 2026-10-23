@@ -21,25 +21,46 @@ GROUND = -1.1
 BODY = Vector((1.0, 0.95, 1.0))
 
 # Where the shoulders, the sprout and the feet are. The arms hang low on the sides, angled a little out.
-SHOULDER = Vector((0.94, 0.08, -0.04))
-ARM_REST = math.radians(20)
+SHOULDER = Vector((0.96, 0.08, -0.05))
+ARM_REST = math.radians(22)
 STEM_BASE = Vector((0.0, 0.0, 0.9))
-FOOT = Vector((0.33, -0.36, GROUND + 0.19))
+FOOT = Vector((0.34, -0.37, GROUND + 0.2))
 
 # The face, as seen from straight ahead (x across, z up) and laid onto the body's front. The stitching and the
-# felt sit FACE_LIFT out from the fabric, on the pile, which is pressed flat under them.
+# felt sit FACE_LIFT out from the fabric, up on the pile (as if sewn on top of it), which is pressed flat only
+# right under them: so they sit on the fur, not down in a hollow.
 EYE = (0.41, 0.245)  # each eye's middle (x mirrored)
 MOUTH_Z = -0.24  # where the mouth's corners meet
-MOUTH_UNIT = 1.02 / 29  # the app's mouth shapes are in flat-drawing units, 29 to the body's radius
-CHEEK = (0.64, -0.125, 0.14, 0.104)  # centre x and z, radii
-FACE_LIFT = 0.024
+MOUTH_UNIT = 1.1 / 29  # the app's mouth shapes are in flat-drawing units, 29 to the body's radius
+CHEEK = (0.64, -0.125, 0.15, 0.111)  # centre x and z, radii
+FACE_LIFT = 0.045
 HAPPY = {"open": 0.55, "wide": 0.45, "round": 0.0, "smile": 1.0}
 
+# The pile on the body and arms (the fur_nodes() inputs; the feet, stem and leaves have shorter pile).
+PILE = dict(
+    density=260000.0,
+    length=0.16,
+    length_random=0.4,
+    root_radius=0.0007,
+    rise=0.65,
+    lie=1.5,
+    lie_random=0.1,
+    comb_random=0.3,
+    tousle=0.45,
+    tousle_scale=3.0,
+    wave=0.05,
+    waves=1.2,
+    frizz=0.04,
+    clump=0.25,
+    clump_density=7000.0,
+    stray=0.015,
+)
+
 # The fur's colours (root to tip) and the light, calibrated so renders measure like the photo.
-FUR_ROOT, FUR_TIP = "#357540", "#5E9E65"
+FUR_ROOT, FUR_TIP = "#326D3D", "#589460"
 STEM_ROOT, STEM_TIP = "#1E4A26", "#356E3E"
-KEY, FILL, RIM, TOP, ROOM = 380.0, 210.0, 40.0, 290.0, 0.4
-BOUNCE = 110.0
+KEY, FILL, RIM, TOP, ROOM = 350.0, 380.0, 40.0, 230.0, 0.4
+BOUNCE = 200.0
 
 # The layers are rendered square, LAYER_FRAME across, centred on LAYER_CENTRE.
 LAYER_FRAME = 3.1
@@ -89,8 +110,9 @@ def clear(sc: bpy.types.Scene):
         bpy.data.collections.remove(coll)
     for ob in list(sc.collection.objects):
         bpy.data.objects.remove(ob, do_unlink=True)
-    if bpy.data.collections.get("Roo Lit"):
-        bpy.data.collections.remove(bpy.data.collections["Roo Lit"])
+    for name in ("Roo Lit", "Roo Lit From Below"):
+        if bpy.data.collections.get(name):
+            bpy.data.collections.remove(bpy.data.collections[name])
     for block in (bpy.data.meshes, bpy.data.curves, bpy.data.hair_curves, bpy.data.materials, bpy.data.lights, bpy.data.cameras):
         for item in list(block):
             if item.name.startswith("Roo ") and item.users == 0:
@@ -155,12 +177,12 @@ def arm_shape(p: Vector) -> Vector:
     # A stuffed stub like a bean, hanging from the shoulder (the origin), fuller at the paw end.
     t = (1 - p.z) / 2
     s = 0.9 + 0.16 * t
-    return Vector((p.x * 0.13 * s, p.y * 0.125 * s, p.z * 0.29 - 0.27))
+    return Vector((p.x * 0.165 * s, p.y * 0.155 * s, p.z * 0.35 - 0.32))
 
 
 def foot_shape(p: Vector) -> Vector:
     # An oblong pill lying across, flatter underneath.
-    p = Vector((p.x * 0.25, p.y * 0.23, p.z * 0.19))
+    p = Vector((p.x * 0.265, p.y * 0.245, p.z * 0.2))
     if p.z < 0:
         p.z *= 0.85
     return p
@@ -808,20 +830,20 @@ def build_face(sc: bpy.types.Scene) -> dict:
     ink = thread_material("Roo Thread", "#0A0A0A")
     white = thread_material("Roo Thread White", "#F4F4F2")
     black_felt = felt_material("Roo Felt Black", "#1E1E1E")
-    pink_felt = felt_material("Roo Felt Pink", "#FFC2CC")
+    pink_felt = felt_material("Roo Felt Pink", "#FFBAC6")
     tongue_felt = felt_material("Roo Felt Tongue", "#F0909C")
     made = {}
     FACE_SHAPES.clear()
     for side, tag in ((-1, "L"), (1, "R")):
         ex, ez = side * EYE[0], EYE[1]
         # Closed happy eyes, like ^ ^: thick satin-stitched arcs.
-        centre, width = arc(ex, ez - 0.05, 0.125, 0.1, round_=True), round_ends(0.046)
-        made[f"Eye Happy.{tag}"] = [threads(face, f"Roo Eye Happy.{tag}", satin(centre, width, spacing=0.0042, puff=0.008, base=0.012, seed=1 + side), 0.0026, ink), ribbon(face, f"Roo Eye Happy Under.{tag}", centre, width, black_felt, 0.009)]
-        FACE_SHAPES[f"Eye Happy.{tag}"] = {"strokes": [(centre, width)], "feather": 0.03}
+        centre, width = arc(ex, ez - 0.05, 0.133, 0.105, round_=True), round_ends(0.06)
+        made[f"Eye Happy.{tag}"] = [threads(face, f"Roo Eye Happy.{tag}", satin(centre, width, spacing=0.0042, slant=0.35, puff=0.013, base=0.014, seed=1 + side), 0.003, ink), ribbon(face, f"Roo Eye Happy Under.{tag}", centre, width, black_felt, 0.011)]
+        FACE_SHAPES[f"Eye Happy.{tag}"] = {"strokes": [(centre, width)], "inset": 0.0}
         # Asleep: a thinner arc the other way, like ‿.
         centre, width = arc(ex, ez + 0.03, 0.12, -0.065), round_ends(0.032)
         made[f"Eye Sleep.{tag}"] = [threads(face, f"Roo Eye Sleep.{tag}", satin(centre, width, spacing=0.0042, puff=0.006, base=0.01, seed=3 + side), 0.0024, ink), ribbon(face, f"Roo Eye Sleep Under.{tag}", centre, width, black_felt, 0.007)]
-        FACE_SHAPES[f"Eye Sleep.{tag}"] = {"strokes": [(centre, width)], "feather": 0.03}
+        FACE_SHAPES[f"Eye Sleep.{tag}"] = {"strokes": [(centre, width)], "inset": 0.0}
         # Open: a satin-filled oval with a white stitched catchlight up and to the left.
         oval = [(ex + 0.085 * math.cos(a), ez + 0.105 * math.sin(a)) for a in (2 * math.pi * k / 48 for k in range(48))]
         made[f"Eye Open.{tag}"] = [
@@ -829,25 +851,25 @@ def build_face(sc: bpy.types.Scene) -> dict:
             felt_patch(face, f"Roo Eye Open Under.{tag}", oval, 0.003, black_felt, -0.003),
             threads(face, f"Roo Eye Glint.{tag}", fill_rows(ex - 0.028, ez + 0.042, 0.02, 0.022, spacing=0.004, puff=0.004, lift=0.0075, seed=7 + side), 0.0024, white),
         ]
-        FACE_SHAPES[f"Eye Open.{tag}"] = {"fills": [oval], "feather": 0.03}
+        FACE_SHAPES[f"Eye Open.{tag}"] = {"fills": [oval], "inset": 0.0}
         # A stitched brow, for thinking and alarm.
         centre, width = arc(ex, ez + 0.19, 0.075, 0.012), round_ends(0.028)
         made[f"Brow.{tag}"] = [threads(face, f"Roo Brow.{tag}", satin(centre, width, spacing=0.0042, puff=0.006, base=0.01, seed=9 + side), 0.0024, ink), ribbon(face, f"Roo Brow Under.{tag}", centre, width, black_felt, 0.007)]
-        FACE_SHAPES[f"Brow.{tag}"] = {"strokes": [(centre, width)], "feather": 0.03}
+        FACE_SHAPES[f"Brow.{tag}"] = {"strokes": [(centre, width)], "inset": 0.0}
         # A felt cheek below and outside the eye.
         cheek = [(side * CHEEK[0] + CHEEK[2] * math.cos(a), CHEEK[1] + CHEEK[3] * math.sin(a)) for a in (2 * math.pi * k / 48 for k in range(48))]
         made[f"Cheek.{tag}"] = [felt_patch(face, f"Roo Cheek.{tag}", cheek, 0.004, pink_felt, 0.008)]
-        FACE_SHAPES[f"Cheek.{tag}"] = {"fills": [cheek], "feather": 0.002, "block_inset": 0.005}
+        FACE_SHAPES[f"Cheek.{tag}"] = {"fills": [cheek], "feather": 0.002, "inset": 0.005}
     groom = bpy.data.node_groups["Roo Fur"]
     for side, tag in ((-1, "L"), (1, "R")):
-        made[f"Cheek.{tag}"] += fuzz(made[f"Cheek.{tag}"], "#FFC2CC", groom, 0.01)
+        made[f"Cheek.{tag}"] += fuzz(made[f"Cheek.{tag}"], "#FFBAC6", groom, 0.01)
     # The mouth: the app's happy shape in black felt, with a pink felt tongue low in it.
     mouth = mouth_front(mouth_outline(HAPPY)[0])
     made["Mouth"] = [felt_patch(face, "Roo Mouth", mouth, 0.01, black_felt)]
     made["Mouth"] += fuzz(made["Mouth"], "#1E1E1E", groom)
     made["Tongue"] = [felt_patch(face, "Roo Tongue", mouth_front(tongue_outline(HAPPY)), 0.004, tongue_felt, 0.01)]
     made["Tongue"] += fuzz(made["Tongue"], "#F0909C", groom)
-    FACE_SHAPES["Mouth"] = {"fills": [mouth], "feather": 0.028}
+    FACE_SHAPES["Mouth"] = {"fills": [mouth], "inset": 0.0}
     # Swatches of the mouth's felt, as wide as any mouth Roo makes: the app cuts its live mouth from these.
     swatch = [(-0.37, MOUTH_Z - 0.45), (0.37, MOUTH_Z - 0.45), (0.37, MOUTH_Z + 0.09), (-0.37, MOUTH_Z + 0.09)]
     swatch = [(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t) for (x0, z0), (x1, z1) in zip(swatch, swatch[1:] + swatch[:1]) for t in (k / 12 for k in range(12))]
@@ -869,9 +891,10 @@ def build_face(sc: bpy.types.Scene) -> dict:
 
 
 def face_mask(names, size: int = 1024) -> bpy.types.Image:
-    """The fur mask for these face pieces, feathered at the edges: red where the pile is pressed flat, green
-    where strands lying across must stop short. A piece with "block_inset" (the felt cheeks) lets the pile lie
-    over that much of its rim. It covers the body's front from -1 to 1 across and up."""
+    """The fur mask for these face pieces: red where the pile is pressed flat (under a piece, fading out
+    `feather` past its edge), green where strands lying across must stop short (inside a piece, `inset` in from
+    its edge: so the pile may lie over its rim that much, as a real plush's does). It covers the body's front
+    from -1 to 1 across and up."""
     import numpy as np
 
     g = (np.arange(size) + 0.5) / size * 2 - 1
@@ -880,17 +903,18 @@ def face_mask(names, size: int = 1024) -> bpy.types.Image:
     block = np.zeros((size, size), dtype=np.float32)
     for name in names:
         shape = FACE_SHAPES.get(name, {})  # the tongue lies on the mouth
-        feather = shape.get("feather", 0.018)
-        m = np.zeros((size, size), dtype=np.float32)
+        feather = shape.get("feather", 0.006)
+        inset = shape.get("inset", 0.006)
+        # The distance out from the piece's edge (negative inside it).
+        out = np.full((size, size), 1e9, dtype=np.float32)
         for centre, width in shape.get("strokes", []):
             for i in range(97):
                 s = -1 + 2 * i / 96
                 cx, cz = centre(s)
-                d = np.hypot(x - cx, z - cz) - width(s) / 2
-                m = np.maximum(m, np.clip(1 - d / feather, 0, 1))
+                out = np.minimum(out, np.hypot(x - cx, z - cz) - width(s) / 2)
         for poly in shape.get("fills", []):
-            inside = np.ones_like(m, dtype=bool)
-            dist = np.full_like(m, 1e9)
+            inside = np.ones_like(out, dtype=bool)
+            dist = np.full_like(out, 1e9)
             px, pz = np.array([p[0] for p in poly]), np.array([p[1] for p in poly])
             orient = np.sign(np.sum(px * np.roll(pz, -1) - np.roll(px, -1) * pz))
             for i in range(len(poly)):
@@ -900,12 +924,9 @@ def face_mask(names, size: int = 1024) -> bpy.types.Image:
                 inside &= cross >= 0
                 t = np.clip(((x - ax) * ex + (z - az) * ez) / (ex * ex + ez * ez), 0, 1)
                 dist = np.minimum(dist, np.hypot(x - (ax + t * ex), z - (az + t * ez)))
-            m = np.maximum(m, np.where(inside, 1.0, np.clip(1 - dist / feather, 0, 1)))
-            if "block_inset" in shape:
-                block = np.maximum(block, np.where(inside, np.clip((dist - shape["block_inset"]) / 0.014, 0, 1), 0.0))
-        press = np.maximum(press, m)
-        if "block_inset" not in shape:
-            block = np.maximum(block, m)
+            out = np.minimum(out, np.where(inside, -dist, dist))
+        press = np.maximum(press, np.clip(1 - out / feather, 0, 1))
+        block = np.maximum(block, np.clip((-out - inset) / 0.01, 0, 1))
     key = "Roo Mask " + ",".join(sorted(names))
     old = bpy.data.images.get(key)
     if old:
@@ -954,8 +975,10 @@ def build_shapes(sc: bpy.types.Scene) -> dict:
 
     body = place(parts, "Roo Body", sphere_mesh("Roo Body", body_shape, 96, 64))
     body.data.materials.append(fabric)
-    # The pile is brushed down from the crown (where the stem hides its whorl) all the way round.
-    add_fur(body, groom, fur, density=210000.0, length=0.14, comb=(0.0, 0.05, -1.0), comb_from=(0.0, 0.15, 1.45), comb_from_weight=0.6, shorten_below=-0.55, shorten_to=0.32, seed=1)
+    # Long, fine pile brushed down from the crown (where the stem hides its whorl) all the way round. Each
+    # strand leaves the fabric already leaning and lies down along it, so the pile shingles: you see the
+    # strands' lengths, softly waved, in loose locks, and little of the dark between them.
+    add_fur(body, groom, fur, **PILE, comb=(0.0, 0.05, -1.0), comb_from=(0.0, 0.15, 1.45), comb_from_weight=0.6, shorten_below=-0.7, shorten_to=0.5, seed=1)
 
     # The arms' and feet's fur runs down them and towards the toes.
     arms = []
@@ -963,7 +986,7 @@ def build_shapes(sc: bpy.types.Scene) -> dict:
         arm = place(parts, f"Roo Arm.{tag}", sphere_mesh(f"Roo Arm.{tag}", arm_shape, 48, 32), (side * SHOULDER.x, SHOULDER.y, SHOULDER.z))
         arm.rotation_euler = (0.0, -side * ARM_REST, 0.0)
         arm.data.materials.append(fabric)
-        add_fur(arm, groom, fur, density=200000.0, length=0.09, seed=2 + side)
+        add_fur(arm, groom, fur, **{**PILE, "density": 230000.0, "length": 0.1, "clump_density": 12000.0}, seed=2 + side)
         arms.append(arm)
 
     feet = []
@@ -996,6 +1019,12 @@ def build_studio(sc: bpy.types.Scene):
     lit = bpy.data.collections.new("Roo Lit")
     lit.children.link(bpy.data.collections["Roo"])
     lit.children.link(bpy.data.collections["Roo Face"])
+    # The light off the pale floor reaches the body's underside, as in the photo; the feet and arms stay in
+    # its shade.
+    below = bpy.data.collections.new("Roo Lit From Below")
+    for name in ("Roo Body", "Roo Fur.Body"):
+        below.objects.link(bpy.data.objects[name])
+    below.children.link(bpy.data.collections["Roo Face"])
     # As the reference was shot: from the front, a touch above, with a long lens.
     cam_data = bpy.data.cameras.new("Roo Hero Camera")
     cam_data.lens = 85
@@ -1037,7 +1066,7 @@ def build_studio(sc: bpy.types.Scene):
         light.rotation_euler = (aim - light.location).to_track_quat("-Z", "Y").to_euler()
         # Only Roo gets these: on the ground they'd cast shadows with edges. The ground is lit by the room
         # alone, which leaves the very soft contact shadow of the reference.
-        light.light_linking.receiver_collection = lit
+        light.light_linking.receiver_collection = below if name == "Roo Bounce" else lit
     world = bpy.data.worlds.get("Roo Studio") or bpy.data.worlds.new("Roo Studio")
     world.use_nodes = True
     world.node_tree.nodes["Background"].inputs["Color"].default_value = lin("#EBF8EF")
