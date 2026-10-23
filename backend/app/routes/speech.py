@@ -19,7 +19,7 @@ router = APIRouter(prefix="/v1/speech", tags=["speech"])
 log = logging.getLogger("reroute.speech")
 
 
-@router.get("/voices", response_model=list[VoiceOut], response_model_by_alias=True, summary="The voices Roo can speak with")
+@router.get("/voices", response_model=list[VoiceOut], response_model_by_alias=True, summary="The voices Rico can speak with")
 def voices(user: CurrentUser) -> list[VoiceOut]:
     return [VoiceOut(voice_id=k, label=v) for k, v in tts.VOICES.items()]
 

@@ -108,7 +108,7 @@ export default function SignIn() {
               Reroute plans a work day in a city you don’t know: the order, when to leave, how to get there and what it costs. When a meeting runs over, it re-plans the rest of the day.
             </p>
             <ul className="mt-6 hidden max-w-[34rem] flex-col gap-3 t-body text-ink-2 lg:flex">
-              {['Plans the order, the times and the cheapest way there', 'Re-plans the rest of the day when you run late', 'Roo, a companion you can talk to, keeps you on time'].map((line) => (
+              {['Plans the order, the times and the cheapest way there', 'Re-plans the rest of the day when you run late', 'Rico, a companion you can talk to, keeps you on time'].map((line) => (
                 <li key={line} className="flex items-start gap-3">
                   <span aria-hidden="true" className="mt-2 size-2 shrink-0 rounded-full bg-green" />
                   {line}
@@ -187,7 +187,7 @@ export default function SignIn() {
           <p className="mt-3 max-w-[34rem] t-body text-ink-2">
             {demoOn
               ? 'A Wednesday in Bengaluru with a meeting, a bank and a university office. Run late on purpose and see what Reroute does.'
-              : 'Make an account, and Roo sets up your first trip with you in about a minute.'}
+              : 'Make an account, and Rico sets up your first trip with you in about a minute.'}
           </p>
           <div className="mt-6 flex w-full max-w-[22rem] flex-col gap-2">
             {demoOn && (

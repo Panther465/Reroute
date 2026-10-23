@@ -36,7 +36,7 @@ def test_roo_sends_the_day_and_the_conversation_as_one_transcript(monkeypatch):
     assert req.headers["x-goog-api-key"] == "test-key" and "test-key" not in str(req.url)
     body = json.loads(req.content)
     text = body["contents"][0]["parts"][0]["text"]
-    assert "id=task-bank" in text and "Roo: Hi Arjun!\nTraveller: hello" in text and text.endswith("Traveller: can the bank wait")
+    assert "id=task-bank" in text and "Rico: Hi Arjun!\nTraveller: hello" in text and text.endswith("Traveller: can the bank wait")
     assert body["generationConfig"]["responseSchema"]["required"] == ["reply", "action"]
 
 

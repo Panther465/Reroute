@@ -105,7 +105,7 @@ export function RooChat({ trip, clock }: { trip: Trip | undefined; clock: number
                     <RooAvatar mood={face} size={58} reduce={reduce} framing="portrait" hop={c.msgs.length} />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <Dialog.Title className="t-title text-ink">Roo</Dialog.Title>
+                    <Dialog.Title className="t-title text-ink">Rico</Dialog.Title>
                     <p className="truncate t-small text-muted" aria-live="polite">
                       {status}
                     </p>
@@ -114,7 +114,7 @@ export function RooChat({ trip, clock }: { trip: Trip | undefined; clock: number
                     type="button"
                     onClick={() => setState({ rooVoice: !voice })}
                     aria-pressed={voice}
-                    aria-label={voice ? 'Mute Roo' : 'Let Roo speak'}
+                    aria-label={voice ? 'Mute Rico' : 'Let Rico speak'}
                     className="flex size-12 shrink-0 items-center justify-center rounded-control text-ink-2 [@media(hover:hover)]:hover:bg-sunken"
                   >
                     {voice ? <Volume2 size={20} strokeWidth={1.75} aria-hidden="true" /> : <VolumeX size={20} strokeWidth={1.75} aria-hidden="true" />}

@@ -163,11 +163,11 @@ export function ChatThread(p: ThreadProps) {
   const ex = p.expect
   const waiting = p.thinking || p.busy
   const placeholder =
-    p.listening ? 'Listening…' : ex.kind === 'text' || ex.kind === 'place' ? ex.placeholder : ex.kind === 'choice' && !ex.allowText ? 'Or type your own answer' : 'Ask Roo about your day'
+    p.listening ? 'Listening…' : ex.kind === 'text' || ex.kind === 'place' ? ex.placeholder : ex.kind === 'choice' && !ex.allowText ? 'Or type your own answer' : 'Ask Rico about your day'
 
   return (
     <div className={`flex min-h-0 flex-col ${p.className ?? ''}`}>
-      <div ref={list} role="log" aria-label="Conversation with Roo" aria-live="polite" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
+      <div ref={list} role="log" aria-label="Conversation with Rico" aria-live="polite" className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4">
         <ol className="flex flex-col gap-3">
           {p.msgs.map((m, i) => (
             <motion.li
@@ -183,7 +183,7 @@ export function ChatThread(p: ThreadProps) {
               )}
               <div className={`flex max-w-[85%] flex-col ${m.from === 'me' ? 'items-end' : 'items-start'}`}>
                 <p className={`rounded-[18px] px-4 py-2.5 t-body ${m.from === 'me' ? 'rounded-br-md bg-green text-on-green' : 'rounded-bl-md bg-sunken text-ink'}`}>
-                  <span className="sr-only">{m.from === 'me' ? 'You: ' : 'Roo: '}</span>
+                  <span className="sr-only">{m.from === 'me' ? 'You: ' : 'Rico: '}</span>
                   {m.from === 'roo' ? <Typewriter text={m.text} play={!!m.fresh} speechId={m.speechId} /> : m.text}
                 </p>
                 {m.card && <ActionCard card={m.card} onYes={() => p.onRun(m.id, m.card!)} onNo={() => p.onDecline(m.id)} />}
@@ -205,7 +205,7 @@ export function ChatThread(p: ThreadProps) {
                 <RooArt mood="thinking" size={26} reduce />
               </span>
               <p className="rr-typing flex items-center gap-1 rounded-[18px] rounded-bl-md bg-sunken px-4 py-3.5">
-                <span className="sr-only">Roo is typing</span>
+                <span className="sr-only">Rico is typing</span>
                 <span aria-hidden="true" />
                 <span aria-hidden="true" />
                 <span aria-hidden="true" />
@@ -291,7 +291,7 @@ export function ChatThread(p: ThreadProps) {
               </button>
             )}
             <label htmlFor="roo-input" className="sr-only">
-              {ex.kind === 'place' ? 'Search for a place' : 'Message Roo'}
+              {ex.kind === 'place' ? 'Search for a place' : 'Message Rico'}
             </label>
             <input
               id="roo-input"
@@ -312,7 +312,7 @@ export function ChatThread(p: ThreadProps) {
               <button
                 type="button"
                 onClick={p.onListen}
-                aria-label={p.listening ? 'Stop listening' : 'Talk to Roo'}
+                aria-label={p.listening ? 'Stop listening' : 'Talk to Rico'}
                 aria-pressed={p.listening}
                 className={`flex size-12 shrink-0 items-center justify-center rounded-full transition-colors duration-[var(--dur-quick)] ${p.listening ? 'bg-red-tint text-red-ink' : 'text-ink-2 [@media(hover:hover)]:hover:bg-sunken'}`}
               >

@@ -9,13 +9,13 @@ The demo account is a prepared day on a simulated clock. A real account is an or
 | | Demo account | Real account |
 |---|---|---|
 | Sign in | **Use the demo account**, shown only with `DEMO_LOGIN=true` in `.env` (off by default) | **Create account** with a name, email and password on the home screen, or **Continue with Google** once Google is set up (below). Trips are kept with the account. |
-| First visit | The sample day | **Roo, full screen**, introduces itself and sets up the first trip by chatting, then plans it |
+| First visit | The sample day | **Rico, full screen**, introduces itself and sets up the first trip by chatting, then plans it |
 | Cities | Bengaluru | **Any city or town in India**, typed by name (slips are fine: "bengluru", "Gurgaon"), like Rajpura with Chitkara University. Outside Bengaluru, travel is rough cab and walking times |
 | Travel options | Metro, shared autos, walks and cabs from the sample travel-time file | Places you search for get **a rough cab estimate**, and a walk under 1.5 km, from the straight-line distance, marked "Rough estimate". No metro or shared auto until real routing data is set up (below). |
 | Clock | Simulated: the **Simulate** panel moves time on | Real time. The Simulate panel is shown only to the demo account, so testing "running late" means reporting a delay at the real time. |
 | Bookings (train, flight, cab) and the wallet | Simulated, ₹5,000 to start, every partner connected | Simulated too while `SIMULATED_SERVICES` is on (the default; off in production): ₹2,000 to start, partners to connect in Me |
 | Morning planning | Not for the sample dates | Works: each later day of a multi-day trip is planned from 06:00 local time |
-| Everything else | Works | Works: planning, running late, options, Undo, skip, move, Why this plan?, Roo, Raasta, share, summary, offline, alerts |
+| Everything else | Works | Works: planning, running late, options, Undo, skip, move, Why this plan?, Rico, Raasta, share, summary, offline, alerts |
 
 A real Bengaluru day was tried end to end through the API: a trip for today staying in Indiranagar, with a fixed meeting at Phoenix Marketcity, Cubbon Park and Lalbagh. It planned, re-planned after a 20-minute delay, and answered Why this plan? and the summary. Every leg was a rough cab estimate (₹1,150 for the day), as the table says.
 
@@ -42,7 +42,7 @@ A real Bengaluru day was tried end to end through the API: a trip for today stay
 
 ### Optional: the AI helper
 
-`GEMINI_API_KEY` is already set in `.env`, but the helper is off. Add `AI_HELPER_ENABLED=true` to `.env` and run `docker compose up -d`. That turns on **Describe your day**. It also lets Roo answer messages its built-in rules can't understand.
+`GEMINI_API_KEY` is already set in `.env`, but the helper is off. Add `AI_HELPER_ENABLED=true` to `.env` and run `docker compose up -d`. That turns on **Describe your day**. It also lets Rico answer messages its built-in rules can't understand.
 
 ### Optional: real road times
 
@@ -69,15 +69,15 @@ Until then a city simply isn't offered.
 
 Each row says which account to use (**D** for demo, **R** for real, **Both**).
 
-### Landing page, accounts and meeting Roo
+### Landing page, accounts and meeting Rico
 
 | Step | Account | What should happen |
 |---|---|---|
 | Open https://localhost signed out | | The landing page: "Running late? We'll reroute your day." with a live demo beside it |
 | In the demo, choose **15 min**, then **40 min**, then **Keep it cheap** | | 15 min: the times move by themselves (bank 12:40). 40 min: two fixes appear; a cab keeps everything for +₹350, keeping it cheap moves the office to tomorrow at 10:00 |
 | **Use the demo account** | D | Today opens with the Bengaluru sample trip |
-| **Create account** with a name, an email and a password of 8 or more | R | Roo pops up to say hello, then **/welcome**: Roo, full screen, introduces itself |
-| Chat with Roo: Bengaluru, From today, Just that day, search your hotel, then a task (what, where, any time, how long), then **That’s all, plan my day** | R | "Your day is planned!" with when you leave and get back; **Show my day** opens Today |
+| **Create account** with a name, an email and a password of 8 or more | R | Rico pops up to say hello, then **/welcome**: Rico, full screen, introduces itself |
+| Chat with Rico: Bengaluru, From today, Just that day, search your hotel, then a task (what, where, any time, how long), then **That’s all, plan my day** | R | "Your day is planned!" with when you leave and get back; **Show my day** opens Today |
 | Create an account again with the same email | | "An account with this email already exists. Sign in instead." |
 | **Sign in** with a wrong password | | "Email or password is wrong." |
 | **Continue with Google** | R | Google's pop-up (only once Google is set up; otherwise the button says it isn't) |
@@ -100,11 +100,11 @@ Each row says which account to use (**D** for demo, **R** for real, **Both**).
 | Look at the Next card and the timeline | Both | Leave-by time with a countdown, the mode chain, fare and arrival; the day as a transit line with a yellow Now line |
 | Click a leg (desktop) or tap it (phone) | Both | Desktop: the map and directions on the right. Phone: the leg detail screen with stands, directions and fare |
 | **I've left** | Both | Toast "On your way…"; the main button becomes **Mark done** |
-| **Mark done** | Both | The stop turns green with a tick, Roo celebrates, and a toast offers **Undo** for 5 seconds |
+| **Mark done** | Both | The stop turns green with a tick, Rico celebrates, and a toast offers **Undo** for 5 seconds |
 | **Mark done** more than 10 minutes before a stop starts | Both | It asks first |
 | **Simulate → Next departure / +15 min** | D | The clock moves on; the Now line and countdown follow |
 | **Simulate → Simulate the ride to the meeting** | D | A dot moves along the road on the map, then "You've arrived" |
-| **Book a cab** (next leg), Roo's **Book my ticket** for the train | Both (demo server) | Simulated booking sheets; a ride with a driver and OTP, a ticket with a PNR. Nothing is charged |
+| **Book a cab** (next leg), Rico's **Book my ticket** for the train | Both (demo server) | Simulated booking sheets; a ride with a driver and OTP, a ticket with a PNR. Nothing is charged |
 
 ### Running late (the core)
 
@@ -116,7 +116,7 @@ Each row says which account to use (**D** for demo, **R** for real, **Both**).
 | Choose one, then **Undo** | D | The day re-routes with the split-flap times, then comes back |
 | On your own trip, **Running late** with any delay | R | The same rules at the real time: a shift if it fits, options if it doesn't |
 | **Simulate → Current time 08:45**, then **Running late → About 40 min** (still at the hotel) | D | The 10:00 meeting can't be reached in time, and it isn't yours to move: **Go anyway, about 25 min late** ("You reach the meeting at about 10:25; it starts at 10:00"). Choose it: Today says "You'll reach the meeting at about 10:25, 25 min after its 10:00 start" with **Tell them** |
-| **Tell them** (or ask Roo "tell them I'm late") | Both | A message with your arrival time, to change and send by WhatsApp, SMS or the phone's share sheet. Reroute sends nothing itself |
+| **Tell them** (or ask Rico "tell them I'm late") | Both | A message with your arrival time, to change and send by WhatsApp, SMS or the phone's share sheet. Reroute sends nothing itself |
 | Running late so far that you'd miss the whole meeting | Both | No "skip" or "edit": **Tell them** (a message asking for another time), or **It moved: change the time** if the host really moved it |
 
 ### Change the day
@@ -128,12 +128,12 @@ Each row says which account to use (**D** for demo, **R** for real, **Both**).
 | Move a task to tomorrow (Plan or the not-in-plan card) | Both | Today re-plans without it; it shows under Tomorrow |
 | **Why this plan?** (Today or Plan) | Both | Your day beside "cabs door to door" and "no cabs", how Reroute chose, and every way for each leg with its points |
 
-### Roo
+### Rico
 
 | Step | Account | What should happen |
 |---|---|---|
-| Watch Roo on the Now line | Both | It breathes, blinks, glances about, follows the mouse; near a departure it says "Leave in 8 min…" by itself |
-| Tap Roo (or **Ask Roo** in the desktop top bar) | Both | The chat opens and Roo greets you by name with where the day stands |
+| Watch Rico on the Now line | Both | It breathes, blinks, glances about, follows the mouse; near a departure it says "Leave in 8 min…" by itself |
+| Tap Rico (or **Ask Rico** in the desktop top bar) | Both | The chat opens and Rico greets you by name with where the day stands |
 | Type "what's next?" | Both | The next departure and arrival |
 | "I'm 20 minutes late" | Both | Running late opens with 20 filled in |
 | "move the bank to tomorrow" → **Move it** | Both | A card first; after the tap, "Done. The bank is on Thursday now…" and the timeline re-routes |
@@ -141,11 +141,11 @@ Each row says which account to use (**D** for demo, **R** for real, **Both**).
 | "make the meeting 2 hours", "move the office to 3", "skip the office" | Both | A card each; **Not now** leaves the day as it is |
 | "plan my day again", "how's my day?", "dark mode", "mute" | Both | Re-plan card; a summary with a link; the theme changes; voice alerts off |
 | "hey i wanna re plan" | Both | "What’s changed?" with answers; A task changed, then which, then what (time, length, move, skip), ending in a card |
-| "create an entire new plan" | Both | "Are you sure?" Adjust this plan, Start a new trip (Roo sets it up), or Never mind |
+| "create an entire new plan" | Both | "Are you sure?" Adjust this plan, Start a new trip (Rico sets it up), or Never mind |
 | "what's my balance?", "add 1000 to my wallet", "book a flight to Delhi" | Both (demo server) | The balance; a card to add the money; the flight sheet with Delhi chosen |
-| The speaker button in the chat header | Both | Roo stops (or starts) reading its replies aloud |
-| The mic button (Chrome or Edge), say "what's next" | Both | Roo listens, answers on screen and out loud |
-| With the AI helper on: "can the bank wait till Thursday?" | Both | Roo understands free wording and still asks before changing anything |
+| The speaker button in the chat header | Both | Rico stops (or starts) reading its replies aloud |
+| The mic button (Chrome or Edge), say "what's next" | Both | Rico listens, answers on screen and out loud |
+| With the AI helper on: "can the bank wait till Thursday?" | Both | Rico understands free wording and still asks before changing anything |
 
 ### Raasta (shared autos)
 
@@ -173,12 +173,12 @@ Each row says which account to use (**D** for demo, **R** for real, **Both**).
 |---|---|---|
 | **Share** (Today header) → copy the link → open it in a private window | Both | Family view: stops and progress, never your exact location; nothing can be changed |
 | **Simulate → Expire share links** | D | The family link says it has ended |
-| **Summary** (Roo's "How's my day?" or the end of the day) | Both | Tasks done, the mini line, the expense slip; **Download the slip** and **Share with my office** |
+| **Summary** (Rico's "How's my day?" or the end of the day) | Both | Tasks done, the mini line, the expense slip; **Download the slip** and **Share with my office** |
 | **Me**: Language हिन्दी, Theme Light/Dark/System | Both | The interface switches language and theme at once |
-| **The sun or moon button** (home page, Roo's welcome, the desktop top bar, Today's header on a phone) | Both | Light and dark swap with a short cross-fade; the choice stays after a reload, with no flash of the other theme |
-| **Me → Alerts**: sound, chime, Roo's voice, **Hear Roo**, volume, vibration, phone notifications | Both | **Hear Roo** speaks; notifications ask for permission once |
-| Roo in 3D: open /welcome or Ask Roo on a laptop or a recent phone | Both | A fuzzy plush 3D Roo breathes, blinks, follows the pointer and hops on each line. With reduced motion, Save-Data or a slow GPU, the flat Roo shows instead (force either with `localStorage['reroute.roo3d']` = `on` or `off`) |
-| Turn on **Roo reads its replies aloud** (Me) and open /welcome | Both | Each line plays to its end before the next; the words appear as they're said; Roo's mouth closes on b, m and p and between words |
+| **The sun or moon button** (home page, Rico's welcome, the desktop top bar, Today's header on a phone) | Both | Light and dark swap with a short cross-fade; the choice stays after a reload, with no flash of the other theme |
+| **Me → Alerts**: sound, chime, Rico's voice, **Hear Rico**, volume, vibration, phone notifications | Both | **Hear Rico** speaks; notifications ask for permission once |
+| Rico in 3D: open /welcome or Ask Rico on a laptop or a recent phone | Both | A fuzzy plush 3D Rico breathes, blinks, follows the pointer and hops on each line. With reduced motion, Save-Data or a slow GPU, the flat Rico shows instead (force either with `localStorage['reroute.roo3d']` = `on` or `off`) |
+| Turn on **Rico reads its replies aloud** (Me) and open /welcome | Both | Each line plays to its end before the next; the words appear as they're said; Rico's mouth closes on b, m and p and between words |
 | **Me → Reroute log** | Both | Every plan and change with its reason |
 | **Me → Delete my location history** | Both | Confirms, then deletes |
 
@@ -197,15 +197,15 @@ Each row says which account to use (**D** for demo, **R** for real, **Both**).
 |---|---|
 | At 1366 and 1920 wide: Today, Plan, Why, Raasta, Leg detail, Summary, Me | Two-column layouts; nothing stretched or empty |
 | Keyboard only: Tab through Today, open Running late with Enter, Escape closes | Visible focus everywhere; focus returns to the button |
-| Windows: Settings → Accessibility → Visual effects → Animation effects off | Roo, the pulse and the re-route choreography stop moving; everything still works |
-| A screen reader (NVDA) on Today and in Roo's chat | Every button named; Roo's messages announced |
+| Windows: Settings → Accessibility → Visual effects → Animation effects off | Rico, the pulse and the re-route choreography stop moving; everything still works |
+| A screen reader (NVDA) on Today and in Rico's chat | Every button named; Rico's messages announced |
 
 ## The automated tests
 
 | Command | What it checks |
 |---|---|
-| `cd backend && pytest` | Planner rules, the golden day, Roo's checks; with `TEST_DATABASE_URL` (a throwaway PostGIS, never the stack's database) the whole API |
+| `cd backend && pytest` | Planner rules, the golden day, Rico's checks; with `TEST_DATABASE_URL` (a throwaway PostGIS, never the stack's database) the whole API |
 | `cd raasta && pytest` | Ride trimming, matching, fares, moderation, freshness |
-| `cd frontend && pnpm test` | The timeline model, Roo's understanding, voice, the offline queue |
+| `cd frontend && pnpm test` | The timeline model, Rico's understanding, voice, the offline queue |
 | `npx newman run postman/reroute.postman_collection.json --insecure` | The demo day over HTTP, against the running stack |
 | `cd frontend && E2E_BASE_URL=https://localhost pnpm e2e` | Every flow above that can be scripted, on a phone and a desktop, with axe accessibility checks in light and dark. Run it with `AUTH_RATE_LIMIT_PER_MINUTE=1000 RATE_LIMIT_PER_MINUTE=1000 docker compose up -d` first, then `docker compose up -d` after |

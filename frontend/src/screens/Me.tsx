@@ -188,7 +188,7 @@ export default function Me() {
               />
             </div>
           )}
-          <Switch label="Roo’s voice" description="Roo reads each alert aloud in a natural voice. Without a connection, your phone’s own voice reads it." checked={alertPrefs.voice} onChange={(v) => setAlerts({ voice: v })} />
+          <Switch label="Rico’s voice" description="Rico reads each alert aloud in a natural voice. Without a connection, your phone’s own voice reads it." checked={alertPrefs.voice} onChange={(v) => setAlerts({ voice: v })} />
           {alertPrefs.voice && (
             <div className="flex flex-col gap-4 py-4">
               <div>
@@ -213,8 +213,8 @@ export default function Me() {
                   { value: 'fast', label: 'Fast' },
                 ]}
               />
-              <Button variant="secondary" size="md" className="self-start" icon={<Volume2 size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={() => void speak('Hi, I’m Roo. Time to leave for the bank in Koramangala.', alertPrefs)}>
-                Hear Roo
+              <Button variant="secondary" size="md" className="self-start" icon={<Volume2 size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={() => void speak('Hi, I’m Rico. Time to leave for the bank in Koramangala.', alertPrefs)}>
+                Hear Rico
               </Button>
             </div>
           )}
@@ -254,17 +254,17 @@ export default function Me() {
           variant="secondary"
           size="md"
           className="mt-3"
-          onClick={() => raise({ key: 'test', title: 'This is how Reroute tells you it’s time.', speech: 'Hi, it’s Roo. This is how I’ll tell you it’s time to go.' }, { force: true })}
+          onClick={() => raise({ key: 'test', title: 'This is how Reroute tells you it’s time.', speech: 'Hi, it’s Rico. This is how I’ll tell you it’s time to go.' }, { force: true })}
         >
           Try an alert
         </Button>
       </Section>
 
-      <Section title="Roo">
+      <Section title="Rico">
         <div className="rounded-card border border-line bg-surface px-4">
-          <Switch label="Roo on Today" description="Roo rides the Now line on Today; tap it to chat. Alerts still come when it's off." checked={roo} onChange={(v) => setState({ roo: v })} />
+          <Switch label="Rico on Today" description="Rico rides the Now line on Today; tap it to chat. Alerts still come when it's off." checked={roo} onChange={(v) => setState({ roo: v })} />
           <div className="border-t border-line" />
-          <Switch label="Roo reads its replies aloud" description="In the chat, Roo speaks as well as types. The speaker button in the chat turns it off too." checked={rooVoice} onChange={(v) => setState({ rooVoice: v })} />
+          <Switch label="Rico reads its replies aloud" description="In the chat, Rico speaks as well as types. The speaker button in the chat turns it off too." checked={rooVoice} onChange={(v) => setState({ rooVoice: v })} />
         </div>
       </Section>
 

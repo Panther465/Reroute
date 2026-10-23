@@ -38,10 +38,10 @@ Every travel time and fare is an estimate. All demo data is sample data.
 - **It shows its working.** "Why this plan?" sets the chosen day beside the same tasks planned cab-only and with no cab, lists every way Reroute knew for each leg with what it would have changed, and says whether the order search was exact. The worker works this out with the plan and stores it; the API only reads it back.
 - **Never plans inside a request.** The API saves and queues; an RQ worker plans. Plans are immutable versions, so Undo reactivates an earlier one, and a scheduler checks every trip each five minutes, raises leave-now alerts and plans each morning of a multi-day trip from 06:00 local time.
 - **Built for a bad connection.** An installable PWA: the day is cached, check-ins made offline are queued and replayed with idempotency keys, and live changes arrive over server-sent events with a watchdog that reconnects.
-- **Real accounts, met by Roo.** Create an account with an email and a password (stored as a salted scrypt hash) or Google; a new account meets Roo full screen, which sets up the first trip by chatting and plans it.
+- **Real accounts, met by Rico.** Create an account with an email and a password (stored as a salted scrypt hash) or Google; a new account meets Rico full screen, which sets up the first trip by chatting and plans it.
 - **A wallet, flights and connected services, all simulated.** Cab, train and flight bookings through invented partners (RideNow, AutoGo, ZipBike, RailGo, SkyHop) are paid from a wallet of pretend money, and a short balance says how much to add.
-- **Talk to Roo.** Say "I'm 20 minutes late" and Running late opens with 20 filled in; "done", "I've left" and "what's next" work too. Plain patterns, no AI, and nothing changes without your last tap.
-- **Roo in 3D, lips in time with its voice.** On devices that draw 3D well, Roo is a soft plush 3D sprout (three.js, built from shapes in code: fuzzy fur, felt cheeks, a stitched face) that breathes, blinks, follows your pointer and hops as it speaks. Its mouth takes the shape of each sound it says, timed from the voice service's word timings and the clip's loudness; elsewhere the flat Roo's mouth does the same. Lines play one after another, never cutting each other off.
+- **Talk to Rico.** Say "I'm 20 minutes late" and Running late opens with 20 filled in; "done", "I've left" and "what's next" work too. Plain patterns, no AI, and nothing changes without your last tap.
+- **Rico in 3D, lips in time with its voice.** On devices that draw 3D well, Rico is a soft plush 3D sprout (three.js, built from shapes in code: fuzzy fur, felt cheeks, a stitched face) that breathes, blinks, follows your pointer and hops as it speaks. Its mouth takes the shape of each sound it says, timed from the voice service's word timings and the clip's loudness; elsewhere the flat Rico's mouth does the same. Lines play one after another, never cutting each other off.
 - **A second service with its own rules.** Raasta trims the ends of every recorded ride for privacy, verifies a route only with a moderator or two different riders, lets routes go stale, and serves Reroute over HTTP with a service token: the database roles make reading its tables from Reroute impossible.
 - **Accessible in both themes.** Playwright runs axe on every screen at phone and desktop sizes, in light and in dark; targets are at least 48 px, and motion follows the reduced-motion setting.
 
@@ -57,7 +57,7 @@ cd Reroute
 docker compose up --build
 ```
 
-Open **https://localhost**, accept the local certificate, and choose **Create account**: Roo meets you and sets up your first trip.
+Open **https://localhost**, accept the local certificate, and choose **Create account**: Rico meets you and sets up your first trip.
 
 To try the prepared demo day (and its **Simulate** panel), add `DEMO_LOGIN=true` to the `.env` file at the repository root and run `docker compose up -d`; **Use the demo account** then appears under the sign-in options.
 
@@ -69,7 +69,7 @@ Try the golden path:
 2. Open the **Simulate** panel, set the time to 10:55, then **Running late** → **About 15 min**. Everything still fits, so Reroute shifts the later stops (12:40, 15:55, 17:05) without asking.
 3. Undo it, then report **About 40 min**. Now something must give: **Take a cab to the bank** (+₹350, saves 30 min) or **Keep it cheap** (the office moves to tomorrow at 10:00). Choose one, then Undo.
 4. On Today, tap **Why this plan?** to see the day planned three ways and every option for each leg.
-5. Tap Roo on the Now line, then **Talk to Roo**, and say "what's next" (Chrome or Edge; the browser asks for the microphone once).
+5. Tap Rico on the Now line, then **Talk to Rico**, and say "what's next" (Chrome or Edge; the browser asks for the microphone once).
 6. **Share** your trip and open the link in a private window: family see your stops and progress, never your exact location.
 
 ## How it fits together

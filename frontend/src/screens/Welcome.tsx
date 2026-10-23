@@ -24,7 +24,7 @@ export default function Welcome() {
   const online = useOnline()
   const ai = useAiHelperEnabled()
   const voice = useStore((s) => s.rooVoice)
-  useDocumentTitle('Meet Roo')
+  useDocumentTitle('Meet Rico')
 
   const c = useConversation({
     storageKey: null,
@@ -69,7 +69,7 @@ export default function Welcome() {
             type="button"
             onClick={() => setState({ rooVoice: !voice })}
             aria-pressed={voice}
-            aria-label={voice ? 'Mute Roo' : 'Let Roo speak'}
+            aria-label={voice ? 'Mute Rico' : 'Let Rico speak'}
             className="flex size-12 items-center justify-center rounded-control text-ink-2 [@media(hover:hover)]:hover:bg-sunken"
           >
             {voice ? <Volume2 size={20} strokeWidth={1.75} aria-hidden="true" /> : <VolumeX size={20} strokeWidth={1.75} aria-hidden="true" />}
@@ -81,7 +81,7 @@ export default function Welcome() {
       </header>
 
       <main className="relative mx-auto flex min-h-0 w-full max-w-[680px] flex-1 flex-col">
-        <h1 className="sr-only">Meet Roo, your travel companion</h1>
+        <h1 className="sr-only">Meet Rico, your travel companion</h1>
         <div className="flex shrink-0 justify-center pb-2 pt-1">
           <RooPet mood={face} hop={hop} size={desktop ? 170 : 116} />
         </div>

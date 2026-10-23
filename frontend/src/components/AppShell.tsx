@@ -164,7 +164,7 @@ function AskRoo() {
       <span className="flex size-9 items-end justify-center" aria-hidden="true">
         <RooArt mood="happy" size={30} reduce />
       </span>
-      Ask Roo
+      Ask Rico
     </button>
   )
 }

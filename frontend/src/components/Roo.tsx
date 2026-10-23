@@ -158,7 +158,7 @@ function BubbleBody({ msg, onAction, onClose }: { msg: RooMessage; onAction: (id
       <button
         type="button"
         onClick={onClose}
-        aria-label="Close Roo’s message"
+        aria-label="Close Rico’s message"
         className="absolute right-1 top-1 flex size-12 items-center justify-center rounded-full text-muted [@media(hover:hover)]:hover:bg-sunken"
       >
         <X size={18} strokeWidth={1.75} aria-hidden="true" />
@@ -197,7 +197,7 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
 
   // Hello waits for Today: on the start form it would sit over "Plan my day", the one button that matters.
   const greeting: RooMessage | null =
-    greeted || pathname !== '/' ? null : { id: 'greet', text: 'Hi, I’m Roo! I’ll keep an eye on your day and nudge you when it’s time. Tap me to chat, any time.', mood: 'wave' }
+    greeted || pathname !== '/' ? null : { id: 'greet', text: 'Hi, I’m Rico! I’ll keep an eye on your day and nudge you when it’s time. Tap me to chat, any time.', mood: 'wave' }
   const msg = override ?? greeting ?? (derived && !dismissed.current.has(derived.id) ? derived : null)
 
   const schedule = useCallback((m: RooMessage) => {
@@ -341,7 +341,7 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
               ref={artRef}
               type="button"
               onClick={tap}
-              aria-label="Roo, your travel companion. Chat with Roo"
+              aria-label="Rico, your travel companion. Chat with Rico"
               aria-haspopup="dialog"
               aria-expanded={chatting}
               className="group flex size-12 cursor-pointer items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--focus)]"

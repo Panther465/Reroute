@@ -38,7 +38,7 @@ _TASKS_SCHEMA: dict[str, Any] = {
 }
 
 SYSTEM_PROMPT = """\
-You are Roo, the travel planner inside Reroute. The traveller describes their \
+You are Rico, the travel planner inside Reroute. The traveller describes their \
 day in a city and you extract structured tasks.
 
 Return ONLY a JSON array. Each element is an object with these fields:
@@ -107,7 +107,7 @@ _ROO_SCHEMA: dict[str, Any] = {
 }
 
 ROO_PROMPT = """\
-You are Roo, a small, warm travel companion inside Reroute, an app that plans a traveller's work day \
+You are Rico, a small, warm travel companion inside Reroute, an app that plans a traveller's work day \
 in an Indian city and re-plans it when they run late. You talk with the traveller about their day.
 
 Answer with ONE JSON object:
@@ -143,7 +143,7 @@ async def roo_chat(message: str, history: list[tuple[str, str]], context: str, c
     if not settings.gemini_api_key:
         return None
     # The conversation goes in as one transcript: a model turn first is rejected by some Gemini models.
-    lines = [f"{'Traveller' if role == 'user' else 'Roo'}: {text}" for role, text in history]
+    lines = [f"{'Traveller' if role == 'user' else 'Rico'}: {text}" for role, text in history]
     prompt = f"{context}\n\nConversation so far:\n{chr(10).join(lines) or '(none)'}\n\nTraveller: {message}"
     try:
         raw = json.loads(await _generate(ROO_PROMPT, prompt, _ROO_SCHEMA, 0.4, settings.gemini_api_key, settings.gemini_model, client))

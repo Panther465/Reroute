@@ -117,7 +117,7 @@ const first = (name?: string | null) => (name ? name.replace(/\s*\(.*\)\s*$/, ''
 export function intro(name?: string | null): string[] {
   const n = first(name)
   return [
-    `Hi${n ? ` ${n}` : ''}! I’m Roo.`,
+    `Hi${n ? ` ${n}` : ''}! I’m Rico.`,
     'I’m your travel companion. I plan your work day in a city you don’t know, tell you when to leave, and re-plan the rest when something runs late.',
     'Let’s set up your first trip. It takes about a minute.',
   ]

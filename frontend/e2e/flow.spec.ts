@@ -85,7 +85,7 @@ test('the day keeps up: leave, mark done, and add a task without planning again'
   await expect(page.getByRole('main').getByText('Pick up documents').first()).toBeVisible()
 })
 
-test('ride a leg: the live dot follows the road, and Roo says when you arrive', async ({ page }) => {
+test('ride a leg: the live dot follows the road, and Rico says when you arrive', async ({ page }) => {
   test.setTimeout(150_000)
   await planFreshDay(page)
   await setClock(page, '08:00')
@@ -155,16 +155,16 @@ test('book a train ticket and a cab (simulated)', async ({ page }) => {
   await expect(main.getByRole('button', { name: /OTP \d{4}/ })).toBeVisible()
 })
 
-test('Roo rides the timeline: tap it to chat, and it changes the day when asked', async ({ page }) => {
+test('Rico rides the timeline: tap it to chat, and it changes the day when asked', async ({ page }) => {
   test.setTimeout(120_000)
   await planFreshDay(page)
-  await page.getByRole('button', { name: 'Roo, your travel companion. Chat with Roo' }).click()
-  const chat = page.getByRole('dialog', { name: 'Roo' })
+  await page.getByRole('button', { name: 'Rico, your travel companion. Chat with Rico' }).click()
+  const chat = page.getByRole('dialog', { name: 'Rico' })
   await expect(chat).toBeVisible()
-  await expect(chat.getByRole('log', { name: 'Conversation with Roo' })).toContainText(/Good (morning|afternoon|evening), Arjun!/)
+  await expect(chat.getByRole('log', { name: 'Conversation with Rico' })).toContainText(/Good (morning|afternoon|evening), Arjun!/)
 
-  // Asked to move a task, Roo offers a card; nothing changes until it's tapped.
-  await chat.getByLabel('Message Roo').fill('move the bank to tomorrow')
+  // Asked to move a task, Rico offers a card; nothing changes until it's tapped.
+  await chat.getByLabel('Message Rico').fill('move the bank to tomorrow')
   await chat.getByRole('button', { name: 'Send' }).click()
   await chat.getByRole('button', { name: 'Not now' }).click()
   await expect(chat.getByRole('log')).toContainText('Okay, I’ll leave it as it is.')

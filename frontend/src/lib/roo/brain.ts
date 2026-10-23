@@ -312,7 +312,7 @@ export function understand(spoken: string, ctx: RooContext): RooAnswer {
   // Talk
   if (/^(hi|hello|hey|hii+|namaste|namaskar|hola|yo|good (morning|afternoon|evening))( roo)?$/.test(t)) return greeting(ctx)
   if (/\b(thanks|thank you|thx|shukriya|dhanyavaad|dhanyavad|cheers)\b/.test(t)) return { reply: 'Any time! I’m right here on your Now line.', mood: 'happy' }
-  if (/\b(who are you|what are you|your name)\b/.test(t)) return { reply: 'I’m Roo, your travel companion. I watch your day, nudge you when it’s time to go, and change the plan when you ask.', mood: 'wave' }
+  if (/\b(who are you|what are you|your name)\b/.test(t)) return { reply: 'I’m Rico, your travel companion. I watch your day, nudge you when it’s time to go, and change the plan when you ask.', mood: 'wave' }
   if (/\b(how are you|how're you|how r u|how do you do)\b/.test(t)) return { reply: `I’m good, thanks for asking! ${status(ctx)}`, mood: 'happy' }
   if (/\b(help|what can you do|what do you do|commands)\b/.test(t)) {
     return {

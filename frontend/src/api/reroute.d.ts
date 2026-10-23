@@ -215,7 +215,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** The voices Roo can speak with */
+        /** The voices Rico can speak with */
         get: operations["voices_v1_speech_voices_get"];
         put?: never;
         post?: never;
@@ -512,8 +512,8 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * Talk to Roo: one message understood, with at most one change it offers (AI helper)
-         * @description Roo answers from the day as it is. It only offers a change: the app asks the traveller before making it.
+         * Talk to Rico: one message understood, with at most one change it offers (AI helper)
+         * @description Rico answers from the day as it is. It only offers a change: the app asks the traveller before making it.
          */
         post: operations["talk_to_roo_v1_trips__trip_id__roo_post"];
         delete?: never;
@@ -1521,7 +1521,7 @@ export interface components {
         };
         /**
          * RooActionOut
-         * @description A change Roo offers. The app asks the traveller before doing it.
+         * @description A change Rico offers. The app asks the traveller before doing it.
          */
         RooActionOut: {
             /**
@@ -1695,7 +1695,7 @@ export interface components {
         };
         /**
          * SpeechTimedOut
-         * @description A clip and its word timings together, so Roo's mouth can follow the words.
+         * @description A clip and its word timings together, so Rico's mouth can follow the words.
          */
         SpeechTimedOut: {
             /** Audio */

@@ -90,7 +90,7 @@ export function RooPet({ mood, hop, size = 150 }: { mood: Mood; hop: number; siz
           ref={ref}
           type="button"
           onClick={poke}
-          aria-label="Roo. Poke it"
+          aria-label="Rico. Poke it"
           className="block rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--focus)]"
         >
           <span className={solid ? 'block' : 'rr-roo-breathe block'}>

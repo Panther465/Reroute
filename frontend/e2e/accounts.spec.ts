@@ -1,10 +1,10 @@
 import { expect, test, type Page } from '@playwright/test'
 
-// A real account from the home screen, set up with Roo; and the wallet paying for a flight.
+// A real account from the home screen, set up with Rico; and the wallet paying for a flight.
 // Needs the full stack with DEMO_LOGIN=true. Skipped when E2E_BASE_URL is unset.
 test.skip(!process.env.E2E_BASE_URL, 'Set E2E_BASE_URL to run against a running stack')
 
-/** Answer Roo's question by tapping one of the answers it offers. */
+/** Answer Rico's question by tapping one of the answers it offers. */
 async function answer(page: Page, label: string) {
   await page.getByRole('group', { name: 'Answers' }).getByRole('button', { name: label }).click()
 }
@@ -15,9 +15,9 @@ async function place(page: Page, query: string, name: string) {
   await page.getByRole('group', { name: 'Places found' }).getByRole('button', { name: new RegExp(name) }).first().click()
 }
 
-test('create an account, meet Roo, and plan a day by chatting', async ({ page }) => {
+test('create an account, meet Rico, and plan a day by chatting', async ({ page }) => {
   test.setTimeout(150_000)
-  const roo = page.getByRole('log', { name: 'Conversation with Roo' })
+  const roo = page.getByRole('log', { name: 'Conversation with Rico' })
   const said = (text: string | RegExp) => expect(roo.getByText(text).last()).toBeVisible({ timeout: 30_000 })
 
   await page.goto('/signin')
@@ -27,7 +27,7 @@ test('create an account, meet Roo, and plan a day by chatting', async ({ page })
   await page.getByRole('button', { name: 'Create my account' }).click()
 
   await expect(page).toHaveURL(/\/welcome$/, { timeout: 20_000 })
-  await said('Hi Asha! I’m Roo.')
+  await said('Hi Asha! I’m Rico.')
   await said('Which city are you visiting?')
   await answer(page, 'Bengaluru')
   await said('When are you there?')
@@ -37,7 +37,7 @@ test('create an account, meet Roo, and plan a day by chatting', async ({ page })
   await said(/Where are you staying\?/)
   await place(page, 'Majestic', 'Hotel near Majestic')
   await said(/first thing you need to do/)
-  await page.getByLabel('Message Roo').fill('Bank')
+  await page.getByLabel('Message Rico').fill('Bank')
   await page.getByRole('button', { name: 'Send' }).click()
   await said('Where is the bank?')
   await place(page, '80 Feet Road', 'Bank, 80 Feet Road')
@@ -51,10 +51,10 @@ test('create an account, meet Roo, and plan a day by chatting', async ({ page })
   await answer(page, 'Show my day')
   await expect(page.getByRole('heading', { level: 1, name: 'Bengaluru' })).toBeVisible({ timeout: 20_000 })
 
-  // Later, Roo re-plans by asking what changed, and asks before starting over.
-  await page.getByRole('button', { name: /Chat with Roo|Ask Roo/ }).first().click()
-  const chat = page.getByRole('dialog', { name: 'Roo' })
-  await chat.getByLabel('Message Roo').fill('hey i wanna re plan')
+  // Later, Rico re-plans by asking what changed, and asks before starting over.
+  await page.getByRole('button', { name: /Chat with Rico|Ask Rico/ }).first().click()
+  const chat = page.getByRole('dialog', { name: 'Rico' })
+  await chat.getByLabel('Message Rico').fill('hey i wanna re plan')
   await chat.getByRole('button', { name: 'Send' }).click()
   await expect(chat.getByText('What’s changed?').last()).toBeVisible({ timeout: 20_000 })
   await chat.getByRole('group', { name: 'Answers' }).getByRole('button', { name: 'Start a new trip' }).click()
