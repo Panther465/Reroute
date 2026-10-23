@@ -2,9 +2,9 @@
 // Each one plays the traveller's chosen chime, buzzes, has Roo say it in a natural voice and sends a
 // phone notification, as chosen in Me, and always shows a toast and tells screen readers, so no alert
 // relies on sound alone. Every alert fires once.
-import { apiBase, getAccessToken, refreshSession } from '@/api/client'
+import { enqueue } from './speech/channel'
 import { notify } from './live'
-import { getState, showToast, type ChimeStyle, type VoiceRate } from './store'
+import { getState, showToast, type ChimeStyle } from './store'
 
 export type Tone = 'nudge' | 'urgent' | 'arrive'
 
@@ -118,75 +118,10 @@ export function chime(tone: Tone = 'nudge', style: ChimeStyle = getState().alert
 }
 
 // ---------- Roo's voice ----------
-const clips = new Map<string, string>()
-let playing: HTMLAudioElement | null = null
-
-async function naturalClip(text: string, voiceId: string, rate: VoiceRate): Promise<string> {
-  const key = `${voiceId}|${rate}|${text}`
-  const known = clips.get(key)
-  if (known) return known
-  const url = `${apiBase}/v1/speech?${new URLSearchParams({ text, voice: voiceId, rate })}`
-  const get = () => fetch(url, { credentials: 'include', headers: getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : {} })
-  let res = await get()
-  if (res.status === 401 && (await refreshSession()) === 'ok') res = await get()
-  if (!res.ok) throw new Error(`speech ${res.status}`)
-  const blobUrl = URL.createObjectURL(await res.blob())
-  clips.set(key, blobUrl)
-  return blobUrl
-}
-
-/** Resolves when the phone has finished saying it (or after a while, if the browser never says). */
-function phoneVoice(text: string, rate: VoiceRate, volume: number): Promise<void> {
-  if (!('speechSynthesis' in window)) return Promise.resolve()
-  const u = new SpeechSynthesisUtterance(text)
-  // The alerts are written in English, so an English (India) voice reads them, whatever the app language.
-  u.lang = 'en-IN'
-  const voices = window.speechSynthesis.getVoices()
-  const voice = voices.find((v) => v.lang === 'en-IN') ?? voices.find((v) => v.lang.startsWith('en'))
-  if (voice) u.voice = voice
-  u.rate = rate === 'slow' ? 0.85 : rate === 'fast' ? 1.15 : 1
-  u.volume = volume
-  window.speechSynthesis.cancel()
-  return new Promise((done) => {
-    const stop = setTimeout(done, SPEECH_LIMIT_MS)
-    u.onend = u.onerror = () => {
-      clearTimeout(stop)
-      done()
-    }
-    window.speechSynthesis.speak(u)
-  })
-}
-
-/** The longest an alert's voice may hold the next alert back. */
-const SPEECH_LIMIT_MS = 15_000
-
-/** Wait for a clip to finish (or be paused by the next one), at most SPEECH_LIMIT_MS. */
-function finished(el: HTMLAudioElement): Promise<void> {
-  return new Promise((done) => {
-    const stop = setTimeout(done, SPEECH_LIMIT_MS)
-    const end = () => {
-      clearTimeout(stop)
-      done()
-    }
-    el.addEventListener('ended', end, { once: true })
-    el.addEventListener('pause', end, { once: true })
-    el.addEventListener('error', end, { once: true })
-  })
-}
-
-/** Roo says it: the chosen natural voice, or the phone's own voice when that can't be fetched. Resolves once it's said. */
+/** Roo says it: the chosen natural voice, or the phone's own voice when that can't be fetched. Resolves once
+ *  it's said. An alert cuts in on whatever Roo was saying in the chat (lib/speech/channel.ts). */
 export async function speak(text: string, prefs = getState().alerts) {
-  playing?.pause()
-  try {
-    const clip = await naturalClip(text, prefs.voiceId, prefs.voiceRate)
-    const el = new Audio(clip)
-    el.volume = prefs.volume
-    playing = el
-    await el.play()
-    await finished(el)
-  } catch {
-    await phoneVoice(text, prefs.voiceRate, prefs.volume)
-  }
+  await enqueue(text, { priority: 'alert', interrupt: true, prefs }).done
 }
 
 // Alerts sound one after another: two in the same minute (leave soon, and a task ending) never talk over each other.

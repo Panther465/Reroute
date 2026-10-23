@@ -65,7 +65,7 @@ POST /v1/trips/:id/bookings/:bookingId/cancel {"idempotencyKey"}  → cancelled,
 ## Map and voice helpers
 
 - `GET /v1/road-path?from=lng,lat&to=lng,lat&profile=driving|foot` returns a leg's path along the roads for the map (`source: "road"`), or just its two ends (`source: "line"`) when the routing server is unavailable. Only cities Reroute covers; cached 30 days.
-- `GET /v1/speech?text=…&voice=…&rate=slow|normal|fast` reads a short alert aloud as MP3 (Microsoft Edge's neural voices; cached 7 days). `GET /v1/speech/voices` lists the voices. 404 when natural voices are off (`features.voices` is false), 502 when the voice service doesn't answer: the app then uses the phone's own voice.
+- `GET /v1/speech?text=…&voice=…&rate=slow|normal|fast` reads a short alert aloud as MP3 (Microsoft Edge's neural voices; cached 7 days). `GET /v1/speech/voices` lists the voices. `GET /v1/speech/timed` (same parameters) returns the clip with when each word is said, `{audio (base64 MP3), mime, durationMs, words:[{text, offsetMs, durationMs}]}`, for Roo's lip-sync. 404 when natural voices are off (`features.voices` is false), 502 when the voice service doesn't answer: the app then uses the phone's own voice.
 - `GET /v1/places?q=…&city=bengaluru` searches places in a covered city: known places first, then OpenStreetMap.
 
 `POST /v1/trips/:id/task-drafts` (describe your day) and `POST /v1/trips/:id/calendar-import` return draft tasks and save nothing. Each draft's `placeText` is matched like a place search (known places first, then OpenStreetMap): `placeId` and `place` hold the best match, or are null when nothing matched and the traveller must choose.

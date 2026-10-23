@@ -733,6 +733,24 @@ class VoiceOut(Api):
     label: str
 
 
+class SpeechWordOut(Api):
+    """One spoken word and when it's said, from the start of the clip."""
+
+    text: str
+    offset_ms: int
+    duration_ms: int
+
+
+class SpeechTimedOut(Api):
+    """A clip and its word timings together, so Roo's mouth can follow the words."""
+
+    #: The MP3, base64-encoded.
+    audio: str
+    mime: str = "audio/mpeg"
+    duration_ms: int
+    words: list[SpeechWordOut]
+
+
 class RoadPathOut(Api):
     #: [lng, lat] pairs along the roads; just the two ends when `source` is "line".
     coords: list[list[float]]

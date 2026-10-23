@@ -225,6 +225,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/speech/timed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A line read aloud, with when each word is said */
+        get: operations["speak_timed_v1_speech_timed_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/speech": {
         parameters: {
             query?: never;
@@ -1676,6 +1693,35 @@ export interface components {
             /** Password */
             password: string;
         };
+        /**
+         * SpeechTimedOut
+         * @description A clip and its word timings together, so Roo's mouth can follow the words.
+         */
+        SpeechTimedOut: {
+            /** Audio */
+            audio: string;
+            /**
+             * Mime
+             * @default audio/mpeg
+             */
+            mime: string;
+            /** Durationms */
+            durationMs: number;
+            /** Words */
+            words: components["schemas"]["SpeechWordOut"][];
+        };
+        /**
+         * SpeechWordOut
+         * @description One spoken word and when it's said, from the start of the clip.
+         */
+        SpeechWordOut: {
+            /** Text */
+            text: string;
+            /** Offsetms */
+            offsetMs: number;
+            /** Durationms */
+            durationMs: number;
+        };
         /** SummaryLegOut */
         SummaryLegOut: {
             /** Fromname */
@@ -2561,6 +2607,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["VoiceOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    speak_timed_v1_speech_timed_get: {
+        parameters: {
+            query: {
+                text: string;
+                voice?: string;
+                rate?: "slow" | "normal" | "fast";
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SpeechTimedOut"];
                 };
             };
             /** @description Validation Error */

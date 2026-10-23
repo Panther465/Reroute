@@ -737,6 +737,92 @@
         }
       }
     },
+    "/v1/speech/timed": {
+      "get": {
+        "tags": [
+          "speech"
+        ],
+        "summary": "A line read aloud, with when each word is said",
+        "operationId": "speak_timed_v1_speech_timed_get",
+        "parameters": [
+          {
+            "name": "text",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 300,
+              "title": "Text"
+            }
+          },
+          {
+            "name": "voice",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 40,
+              "default": "en-IN-NeerjaNeural",
+              "title": "Voice"
+            }
+          },
+          {
+            "name": "rate",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "slow",
+                "normal",
+                "fast"
+              ],
+              "type": "string",
+              "default": "normal",
+              "title": "Rate"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SpeechTimedOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/speech": {
       "get": {
         "tags": [
@@ -5542,6 +5628,62 @@
           "password"
         ],
         "title": "SignUpIn"
+      },
+      "SpeechTimedOut": {
+        "properties": {
+          "audio": {
+            "type": "string",
+            "title": "Audio"
+          },
+          "mime": {
+            "type": "string",
+            "title": "Mime",
+            "default": "audio/mpeg"
+          },
+          "durationMs": {
+            "type": "integer",
+            "title": "Durationms"
+          },
+          "words": {
+            "items": {
+              "$ref": "#/components/schemas/SpeechWordOut"
+            },
+            "type": "array",
+            "title": "Words"
+          }
+        },
+        "type": "object",
+        "required": [
+          "audio",
+          "durationMs",
+          "words"
+        ],
+        "title": "SpeechTimedOut",
+        "description": "A clip and its word timings together, so Roo's mouth can follow the words."
+      },
+      "SpeechWordOut": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "offsetMs": {
+            "type": "integer",
+            "title": "Offsetms"
+          },
+          "durationMs": {
+            "type": "integer",
+            "title": "Durationms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "offsetMs",
+          "durationMs"
+        ],
+        "title": "SpeechWordOut",
+        "description": "One spoken word and when it's said, from the start of the clip."
       },
       "SummaryLegOut": {
         "properties": {
