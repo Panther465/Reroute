@@ -374,6 +374,67 @@ class PlanOut(Api):
     created_at: datetime
 
 
+class PathStopOut(Api):
+    name: str
+    lng: float
+    lat: float
+
+
+class PathStepOut(Api):
+    """One instruction. Along roads, OSRM's manoeuvre (`kind`: depart, turn, continue, roundabout, arrive…, with
+    its `modifier` and the road's `name`); on a metro or shared ride, `board` and `alight`."""
+
+    kind: str
+    modifier: str = ""
+    name: str = ""
+    #: The exit to take at a roundabout.
+    exit: int | None = None
+    distance_m: int = 0
+    duration_s: int = 0
+    #: Where the step starts: an index into its segment's coords.
+    at: int = 0
+    #: Boarding: the line, where it heads, and how many stops to ride.
+    line: str | None = None
+    towards: str | None = None
+    stops: int | None = None
+
+
+class PathLineOut(Api):
+    name: str
+    colour: str
+
+
+class PathSegmentOut(Api):
+    mode: Mode
+    #: road: along OpenStreetMap's roads; rail: a metro line station to station; recorded: a Raasta route's GPS
+    #: path; approximate: a straight line where nothing better is known (drawn dashed).
+    source: Literal["road", "rail", "recorded", "approximate"]
+    #: [lng, lat] pairs.
+    coords: list[list[float]]
+    #: Stations or stands passed, boarding first and getting off last.
+    stops: list[PathStopOut] = []
+    line: PathLineOut | None = None
+    distance_m: int
+    #: For the map and the directions only: the plan's own times are the planner's.
+    duration_s: int
+    steps: list[PathStepOut] = []
+
+
+class LegPathOut(Api):
+    seq: int
+    segments: list[PathSegmentOut]
+    #: False while part of it waits to be drawn (routing was busy): it's drawn straight until then.
+    complete: bool = True
+
+
+class PlanPathsOut(Api):
+    plan_id: str
+    version: int | None
+    #: False while legs are still being drawn: ask again, or wait for the `paths_ready` live event.
+    complete: bool
+    legs: list[LegPathOut]
+
+
 class BlockedOut(Api):
     task_id: str
     title: str

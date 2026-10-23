@@ -15,7 +15,7 @@ import { Field } from '@/components/ui/Field'
 import { EmptyState, ErrorState, LoadingRegion, Skeleton } from '@/components/ui/States'
 import { Tag } from '@/components/ui/Tag'
 import { rupees } from '@/lib/format'
-import { routeLine, type LngLat } from '@/lib/geo'
+import { recordedPath, routeLine, type LngLat } from '@/lib/geo'
 import { useDocumentTitle, useIsDesktop } from '@/lib/hooks'
 import { showToast } from '@/lib/store'
 
@@ -71,7 +71,12 @@ function Panel({ c, onClose }: { c: Contribution; onClose?: () => void }) {
   const route = c.route
   const stands = route?.stands ?? []
   const points = useMemo(() => stands.map((s, i) => ({ id: s.standId, lngLat: [s.location.lng, s.location.lat] as LngLat, kind: 'stand' as const, number: i + 1, label: `${i + 1}. ${s.name}` })), [stands])
-  const lines = useMemo(() => (route ? routeLine(route.routeId, (route.path.length > 1 ? route.path : stands.map((s) => s.location)).map((p) => [p.lng, p.lat] as LngLat), route.vehicleType) : []), [route, stands])
+  // Its recorded GPS path when it has one; otherwise straight between its stands, marked approximate.
+  const lines = useMemo(() => {
+    if (!route) return []
+    const recorded = recordedPath(route)
+    return routeLine(route.routeId, recorded ?? stands.map((s) => [s.location.lng, s.location.lat] as LngLat), route.vehicleType, !recorded)
+  }, [route, stands])
 
   const decide = async (body: ContributionDecision, toast: string) => {
     setBusy(true)

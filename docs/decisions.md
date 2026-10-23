@@ -214,4 +214,22 @@ A workspace review found the app had drifted from its own UI brief (emoji as ico
   - The model is Flash-Lite because Flash's free tier allows only 20 requests a day (a message takes 3 or 4). When a model's quota runs out, Roo rests it for as long as Gemini says and uses `GEMINI_MODEL` for the next message; each message stays on one model, since Gemini's thought signatures don't carry over.
   - Browser tests use a scripted model (`ROO_FAKE_LLM`, refused in production).
   - **Needs team sign-off:** new endpoints, `features.agent`, the in-process calls, and more of the day sent to Gemini.
+- **Real roads, rails and recorded paths; turn by turn; Google Maps.** The owner asked for "real maps".
+  - **Routing.** Legs were drawn from the public OSRM demo server (car only), and any gap as a smooth curve that looked like a road but wasn't. Routing now comes from FOSSGIS's public servers (`routing.openstreetmap.de`, car and foot, with steps), following their policy:
+    - one request a second per server, across every copy of the API;
+    - a User-Agent naming the app;
+    - credit on the map;
+    - answers cached 30 days, "no road" a day;
+    - a server that says 429 or fails is left alone (as long as it asks, else 30 s doubling to 15 minutes);
+    - a daily cap.
+  - **Drawing.** A worker job on a new `maps` queue (after planning) draws each leg once per plan, a few routing calls a run, and keeps it a week in Redis rather than the database: it's a cache of what the plan already says.
+    - A metro ride runs station to station along its line. The lines come from OpenStreetMap through `infra/metro/from_osm.py` (ODbL, credited in the file).
+    - A shared auto follows its recorded path, or the roads through its stands.
+    - Anything nothing can place is a straight dashed line, marked approximate. Never a made-up road.
+  - **New in the API:** `GET /v1/trips/:id/plans/:version/paths` and the `paths_ready` event.
+  - **Navigate screen** (`/leg/:seq/navigate`). Instructions are worked out on the phone. Your position never leaves it, and spoken turns use the phone's own voice. You're off route after two fixes beyond the larger of the fix's accuracy and 40 m on foot (60 m riding); fixes worse than 100 m are ignored.
+  - **Google Maps:** **Open in Google Maps** passes the leg as a directions link (transit for the metro, walking, or driving).
+  - **Road distances for rough estimates.** In a city without sample data, rough estimates now use real road distances: one distance table per plan, in place of 1.3 times the straight line. Speeds stay the city averages (18 km/h by cab, 4.5 on foot); an empty-road time would promise too much. Bengaluru, the golden test and the inputs hash are unchanged.
+  - **CI** turns routing off. Tests never call FOSSGIS.
+  - **Needs team sign-off:** the new routing service and data sent to it, the paths endpoint, the queue, the event and the metro data.
 

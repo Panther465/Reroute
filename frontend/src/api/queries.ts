@@ -35,7 +35,7 @@ export const keys = {
   legOptions: (from: string, to: string) => ['raasta', 'options', from, to] as const,
   stands: (near: string) => ['raasta', 'stands', near] as const,
   queue: (status: string) => ['raasta', 'queue', status] as const,
-  roadPath: (from: string, to: string, profile: string) => ['road', from, to, profile] as const,
+  paths: (tripId: string, version: number) => ['paths', tripId, version] as const,
   bookings: (tripId: string) => ['bookings', tripId] as const,
   wallet: ['wallet'] as const,
   airports: ['airports'] as const,
@@ -43,7 +43,7 @@ export const keys = {
 
 /** Which queries survive a reload (the rest are cheap to refetch). */
 export function persistable(key: readonly unknown[]) {
-  return ['me', 'trips', 'trip', 'summary', 'raasta', 'road', 'bookings'].includes(String(key[0]))
+  return ['me', 'trips', 'trip', 'summary', 'raasta', 'paths', 'bookings'].includes(String(key[0]))
 }
 
 export function useMe(enabled = true) {

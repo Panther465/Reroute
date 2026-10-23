@@ -41,8 +41,15 @@ class Settings(BaseSettings):
     osrm_car_url: str = "http://osrm-car:5000"
     osrm_foot_url: str = "http://osrm-foot:5000"
     nominatim_url: str = "https://nominatim.openstreetmap.org"
-    #: OSRM server for drawing legs along roads on the map (not for planning). Empty draws straight lines.
-    road_path_url: str = "https://router.project-osrm.org"
+    #: Real roads for the map and the directions (not for planning): FOSSGIS's public OSRM servers, car and
+    #: foot, with turn-by-turn steps. Empty turns routing off, and legs are drawn as approximate straight lines.
+    routing_car_url: str = "https://routing.openstreetmap.de/routed-car"
+    routing_foot_url: str = "https://routing.openstreetmap.de/routed-foot"
+    #: FOSSGIS's usage policy: name the app and a way to reach its makers.
+    routing_user_agent: str = "Reroute student project (https://github.com/Panther465/Reroute)"
+    #: At most one request a second to each routing server, and this many a day, across every API copy.
+    routing_min_interval_ms: int = 1000
+    routing_daily_limit: int = 5000
     #: Natural voices for Roo's alerts (Microsoft Edge's neural voices). Off: the app uses the browser's voice.
     tts_enabled: bool = True
     nominatim_user_agent: str = "Reroute student project (contact via repository)"
