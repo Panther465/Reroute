@@ -172,7 +172,8 @@ test('Roo rides the timeline: tap it to chat, and it changes the day when asked'
   await chat.getByRole('group', { name: 'Suggestions' }).getByRole('button', { name: 'Add a task' }).click()
   // Describe-your-day with the AI helper on; the task form (on Plan) with it off.
   const sheet = page.getByRole('dialog')
-  await expect(sheet.getByLabel('What do you need to do?').or(sheet.getByLabel('Title', { exact: true }))).toBeVisible()
+  // Roo answers first, then the sheet opens: give a busy machine time for both.
+  await expect(sheet.getByLabel('What do you need to do?').or(sheet.getByLabel('Title', { exact: true }))).toBeVisible({ timeout: 15_000 })
 })
 
 test('running late, reroute, then undo', async ({ page }) => {

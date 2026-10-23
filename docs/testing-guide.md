@@ -42,7 +42,7 @@ A real Bengaluru day was tried end to end through the API: a trip for today stay
 
 ### Optional: the AI helper
 
-`GEMINI_API_KEY` is already set in `.env`, but the helper is off. Add `AI_HELPER_ENABLED=true` to `.env` and run `docker compose up -d`. That turns on **Describe your day**. It also lets Roo answer messages its built-in rules can't understand.
+`GEMINI_API_KEY` is already set in `.env`, but the helper is off. Add `AI_HELPER_ENABLED=true` to `.env` and run `docker compose up -d`. That turns on **Describe your day**. With the key it also turns on Roo's agent: Roo answers what its built-in rules can't understand, and can do several things from one message, on one card you confirm.
 
 ### Optional: real road times
 
@@ -146,6 +146,7 @@ Each row says which account to use (**D** for demo, **R** for real, **Both**).
 | The speaker button in the chat header | Both | Roo stops (or starts) reading its replies aloud |
 | The mic button (Chrome or Edge), say "what's next" | Both | Roo listens, answers on screen and out loud |
 | With the AI helper on: "can the bank wait till Thursday?" | Both | Roo understands free wording and still asks before changing anything |
+| With the AI helper and the key: "skip the university office, book a cab to the bank and go dark" | Both | Roo says what it looked at, then shows one card: *Roo will do 3 things*. Nothing changes until **Do all**. Then each step gets a tick, the ride is booked, dark mode comes on, and **Undo** puts it all back |
 
 ### Raasta (shared autos)
 

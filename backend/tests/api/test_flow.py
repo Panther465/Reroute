@@ -907,8 +907,11 @@ def test_bookings_exist_only_with_simulated_services(client, monkeypatch):
 def test_the_user_says_which_features_are_on(client, monkeypatch):
     from app.config import get_settings
 
-    assert client.get("/v1/me").json()["features"] == {"bookings": True, "aiHelper": False, "voices": True, "wallet": True}
+    assert client.get("/v1/me").json()["features"] == {"bookings": True, "aiHelper": False, "voices": True, "wallet": True, "agent": False}
     monkeypatch.setattr(get_settings(), "ai_helper_enabled", True)
     monkeypatch.setattr(get_settings(), "tts_enabled", False)
     signed_in = TestClient(app, base_url="https://testserver").post("/v1/auth/demo", json={"as": "traveller"}).json()
-    assert signed_in["user"]["features"] == {"bookings": True, "aiHelper": True, "voices": False, "wallet": True}
+    # The AI helper alone (its pattern parser) isn't Roo's agent: that needs a Gemini key.
+    assert signed_in["user"]["features"] == {"bookings": True, "aiHelper": True, "voices": False, "wallet": True, "agent": False}
+    monkeypatch.setattr(get_settings(), "gemini_api_key", "test-key")
+    assert client.get("/v1/me").json()["features"]["agent"] is True
