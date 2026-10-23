@@ -6,12 +6,13 @@ import { api, ApiError, newKey } from '@/api/client'
 import { keys, queryClient, waitForJob } from '@/api/queries'
 import type { City, JobAccepted, Place, RooOut, Trip } from '@/api/types'
 import { addTask, checkIn, editTask, moveTaskToDay, replanDay, skipTask, undo, undoVersionOf } from '@/lib/actions'
-import { speak } from '@/lib/alerts'
 import { hhmm } from '@/lib/format'
 import { useOpenLate } from '@/lib/late'
 import { confirmFor, forSpeech, understand, type RooAction, type RooAnswer, type RooContext, type RooLink } from '@/lib/roo/brain'
 import { beginDayPlan, beginEditTask, beginNewTrip, beginOnboard, beginReplan, intro, next, planSummary, type Answer, type Effect, type Expect, type FlowContext, type FlowState } from '@/lib/roo/flows'
 import { understandPlan } from '@/lib/roo/understand'
+import { cancel as hush, enqueue } from '@/lib/speech/channel'
+import { useSpeaking } from '@/lib/speech/useSpeaking'
 import { getState, setState } from '@/lib/store'
 import { buildDay, weekday } from '@/lib/timeline'
 import { listenOnce, VoiceError } from '@/lib/voice'
@@ -35,6 +36,8 @@ export interface ChatMsg {
   links?: RooLink[]
   /** Typed out as it arrives (a message restored from earlier shows at once). */
   fresh?: boolean
+  /** The voice line it was said with (lib/speech/channel.ts), so the words appear as they're spoken. */
+  speechId?: number
 }
 
 const KEEP = 40
@@ -94,13 +97,17 @@ export function useConversation(o: ConversationOptions) {
   const openLate = useOpenLate()
   const [msgs, setMsgs] = useState<ChatMsg[]>(() => load(o.storageKey))
   const [thinking, setThinking] = useState(false)
-  const [talking, setTalking] = useState(false)
+  // Talking is whatever Roo's one voice is saying: a line aloud, or murmuring as it types.
+  const talking = useSpeaking() !== null
   const [listening, setListening] = useState(false)
   const [mood, setMood] = useState<Mood>('happy')
   const [flow, setFlow] = useState<FlowState | null>(null)
   const [expect, setExpect] = useState<Expect>(FREE)
   const [busy, setBusy] = useState(false)
   const lastTask = useRef<string | null>(null)
+  // Each reply Roo gives is a turn. A new message from the traveller ends the turn being spoken: the rest
+  // of its lines still appear, quietly.
+  const turn = useRef(0)
   const listenCtl = useRef<AbortController | null>(null)
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
   // The trip a conversation made (a new trip): tasks are added to it and it is planned.
@@ -143,43 +150,45 @@ export function useConversation(o: ConversationOptions) {
     return { trip: t, view: ctx.view, today, now, name: ctx.name }
   }
 
-  /** Roo says one or more lines, typing each out in turn (and reading them aloud), then waits for `expect`. */
-  const say = useCallback((lines: string[], extra: { card?: Card; links?: RooLink[]; mood?: Mood; spoken?: boolean; expect?: Expect } = {}) => {
+  const pause = (ms: number) => new Promise<void>((resolve) => later(resolve, ms))
+
+  /** Roo says one or more lines, one after another, then waits for `expect`. Read aloud, each line appears
+   *  as its voice starts and the next waits for it to finish, so nothing is cut off; quiet, each types out
+   *  at the usual pace. */
+  const say = useCallback(async (lines: string[], extra: { card?: Card; links?: RooLink[]; mood?: Mood; spoken?: boolean; expect?: Expect } = {}) => {
     const words = lines.filter(Boolean)
     if (!words.length) {
       setThinking(false)
       if (extra.expect) setExpect(extra.expect)
-      return Promise.resolve()
+      return
     }
-    return new Promise<void>((done) => {
-      let at = 0
-      words.forEach((line, i) => {
-        const last = i === words.length - 1
-        // A short pause, as anyone takes; then the line types out.
-        at += i === 0 ? Math.min(700, 260 + line.length * 3) : 420
-        later(() => {
-          setThinking(false)
-          setMood(extra.mood && extra.mood !== 'idle' ? extra.mood : 'happy')
-          push({ from: 'roo', text: line, fresh: true, ...(last ? { card: extra.card, links: extra.links } : {}) })
-          if (latest.current.voice || extra.spoken) {
-            setTalking(true)
-            void speak(forSpeech(line)).finally(() => setTalking(false))
-          } else {
-            setTalking(true)
-            later(() => setTalking(false), typingMs(line))
-          }
-          if (!last) setThinking(true)
-          if (last) {
-            later(() => {
-              if (extra.expect) setExpect(extra.expect)
-              done()
-            }, typingMs(line))
-          }
-        }, at)
-        at += typingMs(line)
-      })
-    })
+    const mine = ++turn.current
+    const aloud = latest.current.voice || !!extra.spoken
+    for (let i = 0; i < words.length; i++) {
+      const line = words[i]
+      const last = i === words.length - 1
+      // A short pause, as anyone takes; then the line.
+      await pause(i === 0 ? Math.min(700, 260 + line.length * 3) : 420)
+      const quiet = !aloud || turn.current !== mine
+      const voiced = enqueue(forSpeech(line), { priority: 'chat', silent: quiet, durationMs: typingMs(line) })
+      await voiced.started
+      if (!alive.current) return
+      setThinking(false)
+      setMood(extra.mood && extra.mood !== 'idle' ? extra.mood : 'happy')
+      push({ from: 'roo', text: line, fresh: true, speechId: voiced.id, ...(last ? { card: extra.card, links: extra.links } : {}) })
+      if (!last) setThinking(true)
+      await voiced.done
+      if (!alive.current) return
+    }
+    if (extra.expect) setExpect(extra.expect)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  /** The traveller said something: Roo stops talking (its words still finish appearing). */
+  const interrupt = () => {
+    turn.current += 1
+    hush('chat')
+  }
 
   // Actions that need no card: a sheet opens, a setting changes, or Roo says where you are.
   const runNow = (action: RooAction) => {
@@ -313,6 +322,7 @@ export function useConversation(o: ConversationOptions) {
   const send = async (text: string, spoken = false) => {
     const said = text.trim()
     if (!said || thinking || busy) return
+    interrupt()
     push({ from: 'me', text: said })
     setExpect(FREE)
     const f = flowRef.current
@@ -358,6 +368,7 @@ export function useConversation(o: ConversationOptions) {
   }
 
   const pick = (choiceId: string, label: string) => {
+    interrupt()
     const f = flowRef.current
     push({ from: 'me', text: label })
     setExpect(FREE)
@@ -442,6 +453,7 @@ export function useConversation(o: ConversationOptions) {
       stopListening()
       return setMood('happy')
     }
+    interrupt()
     const ctl = new AbortController()
     listenCtl.current = ctl
     setListening(true)

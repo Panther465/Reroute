@@ -5,6 +5,7 @@ Needs PostgreSQL with PostGIS: TEST_DATABASE_URL. Jobs run inline; Raasta answer
 
 from __future__ import annotations
 
+import base64
 from datetime import date
 
 import pytest
@@ -320,11 +321,12 @@ def test_speech_reads_an_alert_and_caches_it(client, monkeypatch):
     calls: list[tuple[str, str, str]] = []
 
     class FakeCommunicate:
-        def __init__(self, text, voice, rate):
+        def __init__(self, text, voice, rate, boundary="SentenceBoundary"):
+            assert boundary == "WordBoundary"
             calls.append((text, voice, rate))
 
         async def stream(self):
-            yield {"type": "WordBoundary"}
+            yield {"type": "WordBoundary", "offset": 500_000, "duration": 2_100_000, "text": "Time"}
             yield {"type": "audio", "data": b"ID3fake-mp3"}
 
     import edge_tts
@@ -338,6 +340,13 @@ def test_speech_reads_an_alert_and_caches_it(client, monkeypatch):
     assert calls == [("Time to leave for the bank.", "en-IN-PrabhatNeural", "+15%")]  # the second came from the cache
     assert client.get("/v1/speech", params={**params, "voice": "xx-Robot"}).status_code == 422
     assert [v["voiceId"] for v in client.get("/v1/speech/voices").json()][0] == "en-IN-NeerjaNeural"
+    # The same clip with when each word is said, for Roo's mouth.
+    timed = client.get("/v1/speech/timed", params=params)
+    assert timed.status_code == 200, timed.text
+    body = timed.json()
+    assert base64.b64decode(body["audio"]) == b"ID3fake-mp3" and body["mime"] == "audio/mpeg"
+    assert body["words"] == [{"text": "Time", "offsetMs": 50, "durationMs": 210}] and body["durationMs"] == len(b"ID3fake-mp3") // 6
+    assert client.get("/v1/speech/timed", params={**params, "voice": "xx-Robot"}).status_code == 422
 
 
 def test_speech_outage_is_a_502_the_app_can_fall_back_from(client, monkeypatch):

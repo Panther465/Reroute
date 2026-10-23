@@ -1,7 +1,8 @@
 import { motion, useReducedMotion } from 'motion/react'
 import { useEffect, useRef, useState } from 'react'
 import { EASE_OUT } from '@/lib/motion'
-import { RooArt, type Mood } from './RooArt'
+import { RooAvatar, useRoo3D } from '@/components/roo3d/RooAvatar'
+import type { Mood } from './RooArt'
 
 /**
  * Roo as a pet, big, for the welcome screen. It springs in and waves; breathes; hops (a squash and
@@ -10,6 +11,8 @@ import { RooArt, type Mood } from './RooArt'
  */
 export function RooPet({ mood, hop, size = 150 }: { mood: Mood; hop: number; size?: number }) {
   const reduce = !!useReducedMotion()
+  // The 3D Roo hops, breathes and follows the pointer itself; the flat one needs the wrapper to.
+  const solid = useRoo3D(reduce)
   const ref = useRef<HTMLButtonElement>(null)
   const [look, setLook] = useState({ x: 0, y: 0 })
   const [poked, setPoked] = useState(0)
@@ -90,14 +93,14 @@ export function RooPet({ mood, hop, size = 150 }: { mood: Mood; hop: number; siz
           aria-label="Roo. Poke it"
           className="block rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--focus)]"
         >
-          <span className="rr-roo-breathe block">
+          <span className={solid ? 'block' : 'rr-roo-breathe block'}>
             {/* A hop each time Roo speaks, and a bigger one when poked: up, stretch; down, squash; settle. */}
             <motion.span
               key={`${hop}-${poked}`}
-              className="block origin-bottom drop-shadow-lg"
+              className={solid ? 'block origin-bottom' : 'block origin-bottom drop-shadow-lg'}
               initial={false}
               animate={
-                reduce || (hop === 0 && poked === 0)
+                reduce || solid || (hop === 0 && poked === 0)
                   ? {}
                   : {
                       transform: giggle
@@ -107,7 +110,7 @@ export function RooPet({ mood, hop, size = 150 }: { mood: Mood; hop: number; siz
               }
               transition={{ duration: giggle ? 0.7 : 0.5, times: [0, 0.35, 0.7, 1], ease: EASE_OUT }}
             >
-              <RooArt mood={face} look={look} size={size} reduce={reduce} />
+              <RooAvatar mood={face} look={look} size={size} reduce={reduce} hop={hop + poked} />
             </motion.span>
           </span>
         </button>

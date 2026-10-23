@@ -1,17 +1,51 @@
 import { motion } from 'motion/react'
+import { useEffect, useRef } from 'react'
+import { mouthPathD, mouthSize, REST } from '@/lib/roo/lipsync/mouth'
+import { POSES } from '@/lib/roo/lipsync/visemes'
 import { EASE_IN_OUT } from '@/lib/motion'
+import { mouthNow } from '@/lib/speech/channel'
 
 export type Mood = 'idle' | 'happy' | 'alert' | 'sleeping' | 'celebrate' | 'wave' | 'thinking' | 'listening' | 'talking'
 
-// Roo blinks, and while it talks its mouth moves. Both are CSS animations of transform (off the main
-// thread), and both stop with reduced motion (index.css).
+// Roo blinks (a CSS animation of transform, off the main thread, stopped with reduced motion). While it
+// talks, its mouth takes the shape of each sound it's saying (lib/speech/channel.ts).
 const ART_CSS = `
 @keyframes roo-blink { 0%, 93%, 100% { transform: scaleY(1) } 96% { transform: scaleY(0.1) } }
-@keyframes roo-talk { 0%, 100% { transform: scaleY(0.35) } 50% { transform: scaleY(1) } }
 .roo-eyes { animation: roo-blink 4.5s ease-in-out infinite; transform-origin: 40px 46px }
-.roo-mouth-talk { animation: roo-talk 260ms ease-in-out infinite; transform-origin: 40px 60px; transform-box: view-box }
-@media (prefers-reduced-motion: reduce) { .roo-eyes, .roo-mouth-talk { animation: none } }
+@media (prefers-reduced-motion: reduce) { .roo-eyes { animation: none } }
 `
+
+/** The talking mouth, redrawn every frame from the voice; still and half open with reduced motion. */
+function TalkingMouth({ reduce }: { reduce: boolean }) {
+  const lips = useRef<SVGPathElement>(null)
+  const tongue = useRef<SVGEllipseElement>(null)
+  useEffect(() => {
+    if (reduce) return
+    let raf = 0
+    const draw = () => {
+      const p = mouthNow() ?? REST
+      lips.current?.setAttribute('d', mouthPathD(p))
+      const t = tongue.current
+      if (t) {
+        const { halfWidth, height, dip } = mouthSize(p)
+        t.setAttribute('cy', (60 + dip + 0.5 * height).toFixed(2))
+        t.setAttribute('rx', (halfWidth * 0.5).toFixed(2))
+        t.setAttribute('ry', Math.max(0.3, height * 0.2).toFixed(2))
+        t.setAttribute('opacity', p.open > 0.3 ? '1' : '0')
+      }
+      raf = requestAnimationFrame(draw)
+    }
+    raf = requestAnimationFrame(draw)
+    return () => cancelAnimationFrame(raf)
+  }, [reduce])
+  const still = reduce ? { ...POSES.AI, open: 0.45 } : REST
+  return (
+    <g>
+      <path ref={lips} d={mouthPathD(still)} fill="var(--roo-ink)" />
+      <ellipse ref={tongue} cx="40" cy="64" rx="3" ry="1" fill="var(--roo-blush)" opacity={reduce ? 1 : 0} />
+    </g>
+  )
+}
 
 function Eyes({ mood, look }: { mood: Mood; look: { x: number; y: number } }) {
   const ink = 'var(--roo-ink)'
@@ -58,19 +92,12 @@ function Eyes({ mood, look }: { mood: Mood; look: { x: number; y: number } }) {
   )
 }
 
-function Mouth({ mood }: { mood: Mood }) {
+function Mouth({ mood, reduce }: { mood: Mood; reduce: boolean }) {
   const ink = 'var(--roo-ink)'
   if (mood === 'sleeping') return <path d="M37 61 Q40 63 43 61" stroke={ink} strokeWidth="2" fill="none" strokeLinecap="round" />
   if (mood === 'alert') return <ellipse cx="40" cy="62" rx="3.2" ry="3.8" fill={ink} />
   if (mood === 'thinking') return <path d="M35 62 Q40 60 45 62" stroke={ink} strokeWidth="2.4" fill="none" strokeLinecap="round" />
-  if (mood === 'talking') {
-    return (
-      <g className="roo-mouth-talk">
-        <ellipse cx="40" cy="61" rx="6" ry="5" fill={ink} />
-        <ellipse cx="40" cy="63.5" rx="3.5" ry="1.6" fill="var(--roo-blush)" />
-      </g>
-    )
-  }
+  if (mood === 'talking') return <TalkingMouth reduce={reduce} />
   if (mood === 'happy' || mood === 'celebrate' || mood === 'wave' || mood === 'listening') {
     return (
       <g>
@@ -112,7 +139,7 @@ export function RooArt({ mood, look = { x: 0, y: 0 }, size, reduce }: { mood: Mo
       <ellipse cx="40" cy="63" rx="17" ry="11.5" fill="#fff" opacity="0.15" />
       <ellipse cx="28" cy="36" rx="9" ry="5.5" fill="#fff" opacity="0.25" transform="rotate(-28 28 36)" />
       <Eyes mood={mood} look={look} />
-      <Mouth mood={mood} />
+      <Mouth mood={mood} reduce={reduce} />
       <ellipse cx="19" cy="57" rx="4.6" ry="2.9" fill="var(--roo-blush)" opacity={mood === 'happy' || mood === 'celebrate' ? 0.85 : 0.6} />
       <ellipse cx="61" cy="57" rx="4.6" ry="2.9" fill="var(--roo-blush)" opacity={mood === 'happy' || mood === 'celebrate' ? 0.85 : 0.6} />
     </svg>

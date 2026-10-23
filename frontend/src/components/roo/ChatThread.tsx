@@ -6,17 +6,37 @@ import type { Place } from '@/api/types'
 import { Spinner } from '@/components/ui/Spinner'
 import { EASE_OUT } from '@/lib/motion'
 import type { Expect } from '@/lib/roo/flows'
+import { progressOf } from '@/lib/speech/channel'
 import { voiceSupported } from '@/lib/voice'
 import { RooArt } from './RooArt'
 import { typingMs, type Card, type ChatMsg } from './useConversation'
 
-/** Roo's words appearing as it types them, word by word. The whole sentence is there for screen readers. */
-function Typewriter({ text, play }: { text: string; play: boolean }) {
+/** Roo's words appearing as it says them, word by word: in step with its voice when it reads them aloud,
+ *  at typing pace when it doesn't. The whole sentence is there for screen readers. */
+function Typewriter({ text, play, speechId }: { text: string; play: boolean; speechId?: number }) {
   const reduce = !!useReducedMotion()
   const words = text.split(/(\s+)/)
   const [shown, setShown] = useState(play && !reduce ? 0 : words.length)
   useEffect(() => {
     if (!play || reduce) return setShown(words.length)
+    // The share of the text to show: by characters, so long words take longer, as they do to say.
+    const total = text.length || 1
+    const upTo = (fraction: number) => {
+      let chars = 0
+      let n = 0
+      while (n < words.length && chars + words[n].length <= fraction * total + 0.5) chars += words[n++].length
+      return n
+    }
+    if (speechId != null) {
+      let raf = 0
+      const tick = () => {
+        const n = upTo(progressOf(speechId))
+        setShown(n)
+        if (n < words.length) raf = requestAnimationFrame(tick)
+      }
+      raf = requestAnimationFrame(tick)
+      return () => cancelAnimationFrame(raf)
+    }
     const step = typingMs(text) / Math.max(1, words.length)
     let n = 0
     const t = setInterval(() => {
@@ -164,7 +184,7 @@ export function ChatThread(p: ThreadProps) {
               <div className={`flex max-w-[85%] flex-col ${m.from === 'me' ? 'items-end' : 'items-start'}`}>
                 <p className={`rounded-[18px] px-4 py-2.5 t-body ${m.from === 'me' ? 'rounded-br-md bg-green text-on-green' : 'rounded-bl-md bg-sunken text-ink'}`}>
                   <span className="sr-only">{m.from === 'me' ? 'You: ' : 'Roo: '}</span>
-                  {m.from === 'roo' ? <Typewriter text={m.text} play={!!m.fresh} /> : m.text}
+                  {m.from === 'roo' ? <Typewriter text={m.text} play={!!m.fresh} speechId={m.speechId} /> : m.text}
                 </p>
                 {m.card && <ActionCard card={m.card} onYes={() => p.onRun(m.id, m.card!)} onNo={() => p.onDecline(m.id)} />}
                 {m.links && (

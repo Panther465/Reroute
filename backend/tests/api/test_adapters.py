@@ -261,3 +261,53 @@ def test_only_a_404_makes_a_route_unverified(fake_redis):
     assert adapter.routes(["sample-kor-jay"]) == {}
     # Raasta said it doesn't know the route: the last good answer is forgotten, not used.
     assert not fake_redis.exists("raasta:route:sample-kor-jay:good") and not fake_redis.exists("raasta:backoff")
+
+
+# ---------- Roo's voice: word timings for the mouth ----------
+
+
+class _TimedVoice:
+    """edge-tts without the network: two words, a comma, and a little audio (48 kbps: 6 bytes a ms)."""
+
+    calls: list[str] = []
+
+    def __init__(self, text, voice, rate, boundary="SentenceBoundary"):
+        _TimedVoice.calls.append(boundary)
+
+    async def stream(self):
+        yield {"type": "WordBoundary", "offset": 500_000, "duration": 2_100_000, "text": "Time"}
+        yield {"type": "WordBoundary", "offset": 2_700_000, "duration": 100_000, "text": ","}
+        yield {"type": "WordBoundary", "offset": 3_000_000, "duration": 1_400_000, "text": "Roo"}
+        yield {"type": "audio", "data": b"x" * 600}
+
+
+def test_word_timings_come_in_milliseconds_without_punctuation():
+    from app.adapters.tts import Word, words_from_chunks
+
+    chunks = [
+        {"type": "WordBoundary", "offset": 500_000, "duration": 2_100_000, "text": "Time"},
+        {"type": "WordBoundary", "offset": 2_700_000, "duration": 100_000, "text": ","},
+        {"type": "SentenceBoundary", "offset": 0, "duration": 9, "text": "Time, Roo"},
+    ]
+    assert words_from_chunks(chunks) == (Word("Time", 50, 210),)
+
+
+def test_a_timed_clip_is_cached_with_its_words_and_old_audio_is_made_again(fake_redis, monkeypatch):
+    import asyncio
+
+    import edge_tts
+
+    from app.adapters import tts
+    from app.redis_client import get_redis_bytes
+
+    _TimedVoice.calls = []
+    monkeypatch.setattr(edge_tts, "Communicate", _TimedVoice)
+    raw = get_redis_bytes()
+    # Audio cached before timings existed: fine for /v1/speech, made again when the words are wanted.
+    raw.set(tts.cache_key("Time, Roo", "en-IN-NeerjaNeural", "normal"), b"old-audio")
+    assert asyncio.run(tts.synthesize("Time, Roo", "en-IN-NeerjaNeural", "normal", raw)).audio == b"old-audio"
+    clip = asyncio.run(tts.synthesize("Time, Roo", "en-IN-NeerjaNeural", "normal", raw, need_words=True))
+    assert [(w.text, w.offset_ms, w.duration_ms) for w in clip.words] == [("Time", 50, 210), ("Roo", 300, 140)]
+    assert clip.duration_ms == 100 and not clip.cached and _TimedVoice.calls == ["WordBoundary"]
+    again = asyncio.run(tts.synthesize("Time, Roo", "en-IN-NeerjaNeural", "normal", raw, need_words=True))
+    assert again.cached and again.words == clip.words and _TimedVoice.calls == ["WordBoundary"]

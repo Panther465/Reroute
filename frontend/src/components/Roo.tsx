@@ -15,7 +15,8 @@ import { useSheetOpen } from '@/lib/sheets'
 import { setState, useStore } from '@/lib/store'
 import { activeBooking, isTrainTask } from '@/lib/bookings'
 import { addDays, localMinutes, type DayView } from '@/lib/timeline'
-import { RooArt, type Mood } from './roo/RooArt'
+import { RooAvatar, useRoo3D } from './roo3d/RooAvatar'
+import type { Mood } from './roo/RooArt'
 
 // Labels avoid "Running late" and "Plan my day": those name the screens' own buttons.
 type ActionId = 'done' | 'more-time' | 'options' | 'describe' | 'plan' | 'summary' | 'add' | 'book-train' | 'later' | 'chat'
@@ -323,6 +324,8 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
   const eyes = shown ? { x: -1.5, y: -2 } : look
 
   // On Today, Roo rides the timeline at the Now line; its words open in a popover above the page.
+  // The 3D Roo breathes and hops by itself; the flat one needs the wrapper to.
+  const solid = useRoo3D(reduce)
   if (anchor && pathname === '/') {
     return createPortal(
       <Popover.Root
@@ -343,12 +346,12 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
               aria-expanded={chatting}
               className="group flex size-12 cursor-pointer items-center justify-center rounded-full focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[var(--focus)]"
             >
-              <span className="rr-roo-breathe block">
+              <span className={solid ? 'block' : 'rr-roo-breathe block'}>
                 <span className="block transition-[scale] duration-[var(--dur-quick)] motion-safe:group-active:scale-[0.9]">
                   <motion.span
-                    className="block drop-shadow-md"
+                    className={solid ? 'block' : 'block drop-shadow-md'}
                     animate={
-                      reduce
+                      reduce || solid
                         ? {}
                         : mood === 'celebrate'
                           ? { transform: ['translateY(0px)', 'translateY(-14px)', 'translateY(0px)'], transition: { duration: 0.8, ease: EASE_OUT } }
@@ -357,7 +360,7 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
                             : { transform: 'translateY(0px)' }
                     }
                   >
-                    <RooArt mood={mood} look={eyes} size={46} reduce={reduce} />
+                    <RooAvatar mood={mood} look={eyes} size={46} reduce={reduce} quiet />
                   </motion.span>
                 </span>
               </span>

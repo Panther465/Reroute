@@ -11,7 +11,8 @@ import { greeting, suggestions, type RooContext } from '@/lib/roo/brain'
 import { setState, useStore } from '@/lib/store'
 import { dayLabel } from '@/lib/timeline'
 import { ChatThread } from './ChatThread'
-import { RooArt, type Mood } from './RooArt'
+import { RooAvatar } from '@/components/roo3d/RooAvatar'
+import type { Mood } from './RooArt'
 import { useConversation } from './useConversation'
 
 const PANEL_DESKTOP = 'fixed right-4 top-20 bottom-4 z-50 flex w-[400px] flex-col overflow-hidden rounded-sheet border border-line bg-surface text-ink shadow-[var(--shadow-toast)] outline-none'
@@ -100,8 +101,8 @@ export function RooChat({ trip, clock }: { trip: Trip | undefined; clock: number
                 exit={reduce ? { opacity: 0, transition: { duration: 0.12 } } : desktop ? { opacity: 0, transform: 'translateX(24px)', transition: { duration: 0.16, ease: EASE_OUT } } : { transform: 'translateY(100%)', transition: { duration: 0.22, ease: EASE_DRAWER } }}
               >
                 <header className="flex items-center gap-3 border-b border-line py-2 pl-4 pr-2">
-                  <span className="rr-roo-breathe flex size-12 shrink-0 items-end justify-center">
-                    <RooArt mood={face} size={42} reduce={reduce} />
+                  <span className="flex size-16 shrink-0 items-end justify-center">
+                    <RooAvatar mood={face} size={58} reduce={reduce} framing="portrait" hop={c.msgs.length} />
                   </span>
                   <div className="min-w-0 flex-1">
                     <Dialog.Title className="t-title text-ink">Roo</Dialog.Title>

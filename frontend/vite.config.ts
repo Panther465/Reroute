@@ -20,6 +20,7 @@ export default defineConfig(({ mode }) => ({
           // dependencies, React included), so Sign in loads neither up front: its hero animation
           // loads after first paint.
           if (id.includes('maplibre-gl')) return 'maplibre'
+          if (/node_modules\/three\//.test(id)) return 'three'
           if (/node_modules\/(react|react-dom|react-router|scheduler|@tanstack\/[^/]+)\//.test(id)) return 'react'
           return undefined
         },
@@ -57,12 +58,18 @@ export default defineConfig(({ mode }) => ({
         navigateFallbackDenylist: [/^\/v1\//],
         // MapLibre is large and its map needs a connection anyway: cache it the first time a map opens.
         // The landing page's screenshots are for first-time visitors, not for offline use.
-        globIgnores: ['**/maplibre*', 'landing/**'],
+        globIgnores: ['**/maplibre*', '**/three*', 'landing/**'],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/assets/maplibre'),
             handler: 'CacheFirst',
             options: { cacheName: 'maplibre', expiration: { maxEntries: 8 } },
+          },
+          {
+            // Roo in 3D: three.js, the first time a 3D Roo appears.
+            urlPattern: ({ url }) => url.pathname.startsWith('/assets/three'),
+            handler: 'CacheFirst',
+            options: { cacheName: 'three', expiration: { maxEntries: 4 } },
           },
           {
             urlPattern: /^https:\/\/tiles\.openfreemap\.org\/.*/i,
