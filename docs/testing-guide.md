@@ -44,6 +44,17 @@ A real Bengaluru day was tried end to end through the API: a trip for today stay
 
 `GEMINI_API_KEY` is already set in `.env`, but the helper is off. Add `AI_HELPER_ENABLED=true` to `.env` and run `docker compose up -d`. That turns on **Describe your day**. It also lets Rico answer messages its built-in rules can't understand.
 
+### Optional: Rico's voice from Azure
+
+Rico speaks through Microsoft Edge's free read-aloud service. To use Azure AI Speech instead (Microsoft's official service, with the same voices), create a **Speech** resource in the [Azure portal](https://portal.azure.com) on the **Free F0** tier (0.5 million characters a month). Open its **Keys and Endpoint** page and add the key and region to `.env`:
+
+```
+AZURE_SPEECH_KEY=<KEY 1>
+AZURE_SPEECH_REGION=centralindia
+```
+
+Then run `docker compose up -d`. **Hear Rico** in Me now speaks through Azure. If Azure can't answer (a wrong key, or the free tier's limits), Edge's service reads the line instead.
+
 ### Optional: real road times
 
 `TRAVEL_TIMES_SOURCE=osrm` and `docker compose --profile routing up -d --build` download and prepare a map of the region (a large download that takes a while the first time). Every leg between searched places then gets road times for cabs and walking. Metro legs need a timetable file (`examples/bengaluru/metro.json`) that isn't supplied yet. Shared autos come from verified Raasta routes.

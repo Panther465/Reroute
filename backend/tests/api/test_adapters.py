@@ -6,6 +6,7 @@ import json
 from datetime import date
 
 import httpx
+import pytest
 
 from app.adapters.transit import RaastaHttpAdapter, RaastaLeg, RouteInfo, StaticTransitAdapter
 from app.adapters.travel_times import OsrmSnapshotAdapter, PlacePoint, SampleSnapshotAdapter
@@ -298,8 +299,10 @@ def test_a_timed_clip_is_cached_with_its_words_and_old_audio_is_made_again(fake_
     import edge_tts
 
     from app.adapters import tts
+    from app.config import get_settings
     from app.redis_client import get_redis_bytes
 
+    monkeypatch.setattr(get_settings(), "azure_speech_key", "")
     _TimedVoice.calls = []
     monkeypatch.setattr(edge_tts, "Communicate", _TimedVoice)
     raw = get_redis_bytes()
@@ -311,3 +314,122 @@ def test_a_timed_clip_is_cached_with_its_words_and_old_audio_is_made_again(fake_
     assert clip.duration_ms == 100 and not clip.cached and _TimedVoice.calls == ["WordBoundary"]
     again = asyncio.run(tts.synthesize("Time, Roo", "en-IN-NeerjaNeural", "normal", raw, need_words=True))
     assert again.cached and again.words == clip.words and _TimedVoice.calls == ["WordBoundary"]
+
+
+# ---------- Roo's voice from Azure AI Speech ----------
+
+
+def test_azure_reads_the_line_as_written_and_bills_markup_only_for_a_speed():
+    from app.adapters.tts import ssml
+
+    plain = ssml("Fish & chips <now>", "en-US-AnaNeural", "normal")
+    assert "<voice name='en-US-AnaNeural'>Fish &amp; chips &lt;now&gt;</voice>" in plain and "xml:lang='en-US'" in plain
+    assert "prosody" not in plain
+    assert "<prosody rate='-15%'>Namaste</prosody>" in ssml("Namaste", "hi-IN-SwaraNeural", "slow")
+
+
+class _AzureSocket:
+    """Azure's WebSocket without the network: it keeps what it's sent and replies with the given messages."""
+
+    def __init__(self, replies):
+        self.replies, self.sent, self.close_code = replies, [], 1000
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    async def send_str(self, data):
+        self.sent.append(data)
+
+    async def __aiter__(self):
+        for r in self.replies:
+            yield r
+
+
+class _AzureSession:
+    def __init__(self, socket):
+        self.socket = socket
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *exc):
+        return False
+
+    def ws_connect(self, url, headers):
+        self.url, self.headers = url, headers
+        return self.socket
+
+
+def test_azure_sends_the_line_and_hands_back_its_audio_and_word_timings(monkeypatch):
+    import asyncio
+    from types import SimpleNamespace
+
+    import aiohttp
+
+    from app.adapters import tts
+
+    def text(data):
+        return SimpleNamespace(type=aiohttp.WSMsgType.TEXT, data=data)
+
+    def binary(path, payload):
+        head = f"X-RequestId:r1\r\nPath:{path}\r\n".encode()
+        return SimpleNamespace(type=aiohttp.WSMsgType.BINARY, data=len(head).to_bytes(2, "big") + head + payload)
+
+    word = {"Offset": 500_000, "Duration": 2_100_000, "text": {"Text": "Hi", "Length": 2, "BoundaryType": "WordBoundary"}}
+    meta = json.dumps({"Metadata": [{"Type": "WordBoundary", "Data": word}, {"Type": "SessionEnd", "Data": {"Offset": 9}}]})
+    replies = [
+        text("X-RequestId:r1\r\nPath:turn.start\r\n\r\n{}"),
+        text(f"X-RequestId:r1\r\nContent-Type:application/json\r\nPath:audio.metadata\r\n\r\n{meta}"),
+        binary("audio", b"mp3"),
+        binary("something.else", b"??"),
+        text("X-RequestId:r1\r\nPath:turn.end\r\n\r\n"),
+    ]
+    session = _AzureSession(_AzureSocket(replies))
+    monkeypatch.setattr(aiohttp, "ClientSession", lambda: session)
+    audio, marks = asyncio.run(tts._azure("Hi", "en-US-AnaNeural", "normal", "test-key", "centralindia"))
+    assert audio == b"mp3" and tts.words_from_chunks(marks) == (tts.Word("Hi", 50, 210),)
+    assert session.url == "wss://centralindia.tts.speech.microsoft.com/cognitiveservices/websocket/v1"
+    assert session.headers["Ocp-Apim-Subscription-Key"] == "test-key"
+    context, line = session.socket.sent
+    assert "Path:synthesis.context" in context and '"wordBoundaryEnabled": true' in context
+    assert "Path:ssml" in line and "<voice name='en-US-AnaNeural'>Hi</voice>" in line
+    # Closed before the end of the line (refused, or the connection dropped): an error, so Edge reads it instead.
+    monkeypatch.setattr(aiohttp, "ClientSession", lambda: _AzureSession(_AzureSocket(replies[:3])))
+    with pytest.raises(RuntimeError):
+        asyncio.run(tts._azure("Hi", "en-US-AnaNeural", "normal", "test-key", "centralindia"))
+
+
+def test_rico_speaks_through_azure_when_it_is_set_up_and_edge_steps_in_when_it_fails(fake_redis, monkeypatch):
+    import asyncio
+
+    import edge_tts
+
+    from app.adapters import tts
+    from app.config import get_settings
+    from app.redis_client import get_redis_bytes
+
+    monkeypatch.setattr(get_settings(), "azure_speech_key", "test-key")
+    monkeypatch.setattr(get_settings(), "azure_speech_region", "centralindia")
+    asked = []
+
+    async def azure(text, voice, rate, key, region):
+        asked.append((text, voice, rate, key, region))
+        return b"y" * 1200, [{"type": "WordBoundary", "offset": 500_000, "duration": 2_100_000, "text": "Hi"}]
+
+    monkeypatch.setattr(tts, "_azure", azure)
+    _TimedVoice.calls = []
+    monkeypatch.setattr(edge_tts, "Communicate", _TimedVoice)
+    raw = get_redis_bytes()
+    clip = asyncio.run(tts.synthesize("Hi Rico", "en-US-AnaNeural", "normal", raw, need_words=True))
+    assert clip.audio == b"y" * 1200 and clip.duration_ms == 200 and [w.text for w in clip.words] == ["Hi"]
+    assert asked == [("Hi Rico", "en-US-AnaNeural", "normal", "test-key", "centralindia")] and _TimedVoice.calls == []
+
+    async def refused(*args):
+        raise RuntimeError("401")
+
+    monkeypatch.setattr(tts, "_azure", refused)
+    clip = asyncio.run(tts.synthesize("Time, Roo", "en-US-AnaNeural", "normal", raw, need_words=True))
+    assert [w.text for w in clip.words] == ["Time", "Roo"] and _TimedVoice.calls == ["WordBoundary"]
