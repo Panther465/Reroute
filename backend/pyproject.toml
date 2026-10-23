@@ -19,6 +19,7 @@ dependencies = [
   "pyjwt[crypto]>=2.10",
   "sse-starlette>=2.1",
   "edge-tts>=7.0",
+  "aiohttp>=3.9",
 ]
 
 [project.optional-dependencies]

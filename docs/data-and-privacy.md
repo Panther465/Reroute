@@ -35,7 +35,8 @@ Reroute uses free public services. Each sees only what it needs, and none gets y
 
 | Service | What it receives | When |
 |---|---|---|
-| Microsoft Edge's read-aloud service (through the edge-tts library) | The text of an alert or a chat reply Rico reads out, such as "Time to leave for the bank" (Rico reads its chat replies by default; the speaker button or Me turns it off) | Only with natural voices on (`TTS_ENABLED`); otherwise your phone's own voice reads it and nothing is sent |
+| Microsoft Azure AI Speech | The text of an alert or a chat reply Rico reads out, such as "Time to leave for the bank" (Rico reads its chat replies by default; the speaker button or Me turns it off) | Only with natural voices on (`TTS_ENABLED`) and an Azure key set on the server (`AZURE_SPEECH_KEY`); otherwise your phone's own voice reads it and nothing is sent |
+| Microsoft Edge's read-aloud service (through the edge-tts library) | The same text | Only with natural voices on, when no Azure key is set or Azure doesn't answer |
 | Your browser's speech service (Google's, in Chrome) | The sound of the one sentence you say to Rico; Reroute never receives or keeps the recording, only the words your browser hands back, and those stay on your phone | Only while Rico shows "Listening", after you tap "Talk to Rico". The microphone goes off when you finish the sentence, after 8 seconds of silence, or when you close Rico |
 | OpenStreetMap Nominatim | The text you type in place search, and the city | When you search for a place Reroute doesn't already know |
 | OpenFreeMap (map tiles) | Which map tiles your phone loads, so the area you look at, including around your position while "Follow me" is on | Whenever the map is shown; your phone fetches the tiles directly |

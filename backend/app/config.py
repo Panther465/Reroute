@@ -43,8 +43,12 @@ class Settings(BaseSettings):
     nominatim_url: str = "https://nominatim.openstreetmap.org"
     #: OSRM server for drawing legs along roads on the map (not for planning). Empty draws straight lines.
     road_path_url: str = "https://router.project-osrm.org"
-    #: Natural voices for Roo's alerts (Microsoft Edge's neural voices). Off: the app uses the browser's voice.
+    #: Natural voices for Roo's alerts (Microsoft's neural voices). Off: the app uses the browser's voice.
     tts_enabled: bool = True
+    #: Azure AI Speech, Microsoft's official service for those voices: with both set, it reads each line (its free
+    #: F0 tier gives 0.5 million characters a month). Unset, or when Azure fails, Edge's free read-aloud service does.
+    azure_speech_key: str = ""
+    azure_speech_region: str = ""
     nominatim_user_agent: str = "Reroute student project (contact via repository)"
     travel_times_source: Literal["sample", "osrm"] = "sample"
     examples_dir: Path = Path(__file__).resolve().parents[2] / "examples"
