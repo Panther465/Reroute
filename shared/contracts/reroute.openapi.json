@@ -2287,6 +2287,259 @@
         }
       }
     },
+    "/v1/roo/turns": {
+      "post": {
+        "tags": [
+          "roo"
+        ],
+        "summary": "Talk to Roo: it reads your trip and puts any changes on one card (AI helper)",
+        "operationId": "turn_v1_roo_turns_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RooAgentIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RooAgentOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/roo/proposals/{proposal_id}": {
+      "get": {
+        "tags": [
+          "roo"
+        ],
+        "summary": "A card Roo made, while it's kept",
+        "operationId": "get_proposal_v1_roo_proposals__proposal_id__get",
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Proposal Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RooProposalOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/roo/proposals/{proposal_id}/execute": {
+      "post": {
+        "tags": [
+          "roo"
+        ],
+        "summary": "Do everything on Roo's card, in order",
+        "operationId": "execute_v1_roo_proposals__proposal_id__execute_post",
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Proposal Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RooRunOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/roo/proposals/{proposal_id}/undo": {
+      "post": {
+        "tags": [
+          "roo"
+        ],
+        "summary": "Take back what Roo's card did",
+        "operationId": "undo_v1_roo_proposals__proposal_id__undo_post",
+        "parameters": [
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Proposal Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RooRunOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/trips/{trip_id}/bookings": {
       "get": {
         "tags": [
@@ -3955,6 +4208,11 @@
             "type": "boolean",
             "title": "Wallet",
             "default": false
+          },
+          "agent": {
+            "type": "boolean",
+            "title": "Agent",
+            "default": false
           }
         },
         "type": "object",
@@ -5248,6 +5506,111 @@
         "title": "RooActionOut",
         "description": "A change Roo offers. The app asks the traveller before doing it."
       },
+      "RooAgentIn": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 4,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Idempotencykey"
+          },
+          "message": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Message"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/RooTurnIn"
+            },
+            "type": "array",
+            "maxItems": 12,
+            "title": "History",
+            "default": []
+          },
+          "tripId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tripid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotencyKey",
+          "message"
+        ],
+        "title": "RooAgentIn"
+      },
+      "RooAgentOut": {
+        "properties": {
+          "reply": {
+            "type": "string",
+            "title": "Reply"
+          },
+          "reads": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reads",
+            "default": []
+          },
+          "ask": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RooAskOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "proposal": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RooProposalOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "reply"
+        ],
+        "title": "RooAgentOut"
+      },
+      "RooAskOut": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "options": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question",
+          "options"
+        ],
+        "title": "RooAskOut"
+      },
       "RooIn": {
         "properties": {
           "idempotencyKey": {
@@ -5302,6 +5665,242 @@
           "reply"
         ],
         "title": "RooOut"
+      },
+      "RooProposalOut": {
+        "properties": {
+          "proposalId": {
+            "type": "string",
+            "title": "Proposalid"
+          },
+          "tripId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tripid"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/RooStepOut"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "totalCostInr": {
+            "type": "integer",
+            "title": "Totalcostinr"
+          },
+          "final": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Final",
+            "default": []
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expiresat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "proposalId",
+          "tripId",
+          "steps",
+          "totalCostInr",
+          "expiresAt"
+        ],
+        "title": "RooProposalOut"
+      },
+      "RooRunOut": {
+        "properties": {
+          "proposalId": {
+            "type": "string",
+            "title": "Proposalid"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "done",
+              "partial",
+              "failed",
+              "undone"
+            ],
+            "title": "State"
+          },
+          "tripId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tripid"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/RooStepResultOut"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "phone": {
+            "items": {
+              "$ref": "#/components/schemas/RooStepOut"
+            },
+            "type": "array",
+            "title": "Phone",
+            "default": []
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "canUndo": {
+            "type": "boolean",
+            "title": "Canundo",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "proposalId",
+          "state",
+          "tripId",
+          "steps",
+          "summary"
+        ],
+        "title": "RooRunOut"
+      },
+      "RooStepOut": {
+        "properties": {
+          "stepId": {
+            "type": "string",
+            "title": "Stepid"
+          },
+          "tool": {
+            "type": "string",
+            "title": "Tool"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "server",
+              "phone"
+            ],
+            "title": "Kind"
+          },
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "detail": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Detail"
+          },
+          "icon": {
+            "type": "string",
+            "title": "Icon"
+          },
+          "args": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Args",
+            "default": {}
+          },
+          "costInr": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Costinr"
+          },
+          "refundInr": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refundinr"
+          },
+          "topUpInr": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Topupinr"
+          },
+          "auto": {
+            "type": "boolean",
+            "title": "Auto",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "stepId",
+          "tool",
+          "kind",
+          "label",
+          "icon"
+        ],
+        "title": "RooStepOut",
+        "description": "One thing Roo will do when the traveller taps Do all."
+      },
+      "RooStepResultOut": {
+        "properties": {
+          "stepId": {
+            "type": "string",
+            "title": "Stepid"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "done",
+              "failed",
+              "skipped",
+              "phone"
+            ],
+            "title": "Status"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "stepId",
+          "status"
+        ],
+        "title": "RooStepResultOut"
       },
       "RooTurnIn": {
         "properties": {

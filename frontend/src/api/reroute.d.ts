@@ -573,6 +573,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/roo/turns": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Talk to Roo: it reads your trip and puts any changes on one card (AI helper) */
+        post: operations["turn_v1_roo_turns_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/roo/proposals/{proposal_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A card Roo made, while it's kept */
+        get: operations["get_proposal_v1_roo_proposals__proposal_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/roo/proposals/{proposal_id}/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Do everything on Roo's card, in order */
+        post: operations["execute_v1_roo_proposals__proposal_id__execute_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/roo/proposals/{proposal_id}/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Take back what Roo's card did */
+        post: operations["undo_v1_roo_proposals__proposal_id__undo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/trips/{trip_id}/bookings": {
         parameters: {
             query?: never;
@@ -1077,6 +1145,11 @@ export interface components {
              * @default false
              */
             wallet: boolean;
+            /**
+             * Agent
+             * @default false
+             */
+            agent: boolean;
         };
         /** FlightFareOut */
         FlightFareOut: {
@@ -1542,6 +1615,39 @@ export interface components {
             /** Theme */
             theme?: ("light" | "dark" | "system") | null;
         };
+        /** RooAgentIn */
+        RooAgentIn: {
+            /** Idempotencykey */
+            idempotencyKey: string;
+            /** Message */
+            message: string;
+            /**
+             * History
+             * @default []
+             */
+            history: components["schemas"]["RooTurnIn"][];
+            /** Tripid */
+            tripId?: string | null;
+        };
+        /** RooAgentOut */
+        RooAgentOut: {
+            /** Reply */
+            reply: string;
+            /**
+             * Reads
+             * @default []
+             */
+            reads: string[];
+            ask?: components["schemas"]["RooAskOut"] | null;
+            proposal?: components["schemas"]["RooProposalOut"] | null;
+        };
+        /** RooAskOut */
+        RooAskOut: {
+            /** Question */
+            question: string;
+            /** Options */
+            options: string[];
+        };
         /** RooIn */
         RooIn: {
             /** Idempotencykey */
@@ -1559,6 +1665,107 @@ export interface components {
             /** Reply */
             reply: string;
             action?: components["schemas"]["RooActionOut"] | null;
+        };
+        /** RooProposalOut */
+        RooProposalOut: {
+            /** Proposalid */
+            proposalId: string;
+            /** Tripid */
+            tripId: string | null;
+            /** Steps */
+            steps: components["schemas"]["RooStepOut"][];
+            /** Totalcostinr */
+            totalCostInr: number;
+            /**
+             * Final
+             * @default []
+             */
+            final: string[];
+            /**
+             * Expiresat
+             * Format: date-time
+             */
+            expiresAt: string;
+        };
+        /** RooRunOut */
+        RooRunOut: {
+            /** Proposalid */
+            proposalId: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "done" | "partial" | "failed" | "undone";
+            /** Tripid */
+            tripId: string | null;
+            /** Steps */
+            steps: components["schemas"]["RooStepResultOut"][];
+            /**
+             * Phone
+             * @default []
+             */
+            phone: components["schemas"]["RooStepOut"][];
+            /** Summary */
+            summary: string;
+            /**
+             * Canundo
+             * @default false
+             */
+            canUndo: boolean;
+        };
+        /**
+         * RooStepOut
+         * @description One thing Roo will do when the traveller taps Do all.
+         */
+        RooStepOut: {
+            /** Stepid */
+            stepId: string;
+            /** Tool */
+            tool: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "server" | "phone";
+            /** Label */
+            label: string;
+            /** Detail */
+            detail?: string | null;
+            /** Icon */
+            icon: string;
+            /**
+             * Args
+             * @default {}
+             */
+            args: {
+                [key: string]: unknown;
+            };
+            /** Costinr */
+            costInr?: number | null;
+            /** Refundinr */
+            refundInr?: number | null;
+            /** Topupinr */
+            topUpInr?: number | null;
+            /**
+             * Auto
+             * @default false
+             */
+            auto: boolean;
+        };
+        /** RooStepResultOut */
+        RooStepResultOut: {
+            /** Stepid */
+            stepId: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "done" | "failed" | "skipped" | "phone";
+            /**
+             * Message
+             * @default
+             */
+            message: string;
         };
         /** RooTurnIn */
         RooTurnIn: {
@@ -3397,6 +3604,148 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TripOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    turn_v1_roo_turns_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RooAgentIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RooAgentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_proposal_v1_roo_proposals__proposal_id__get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                proposal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RooProposalOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    execute_v1_roo_proposals__proposal_id__execute_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                proposal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RooRunOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    undo_v1_roo_proposals__proposal_id__undo_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                proposal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RooRunOut"];
                 };
             };
             /** @description Validation Error */

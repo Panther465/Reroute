@@ -1,7 +1,7 @@
 import { Volume2, VolumeX } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, Navigate, useNavigate } from 'react-router'
-import { useAiHelperEnabled, useMe } from '@/api/queries'
+import { useAgentEnabled, useAiHelperEnabled, useMe } from '@/api/queries'
 import { RouteMark } from '@/components/icons'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { ChatThread } from '@/components/roo/ChatThread'
@@ -23,6 +23,7 @@ export default function Welcome() {
   const desktop = useIsDesktop()
   const online = useOnline()
   const ai = useAiHelperEnabled()
+  const agent = useAgentEnabled()
   const voice = useStore((s) => s.rooVoice)
   useDocumentTitle('Meet Roo')
 
@@ -30,6 +31,7 @@ export default function Welcome() {
     storageKey: null,
     ctx: { trip: undefined, view: null, clock: null, leftFor: null, name: me.data?.name },
     ai,
+    agent,
     online,
     voice,
     stepAside: () => undefined,
@@ -94,6 +96,7 @@ export default function Welcome() {
           suggestions={[]}
           inFlow={!!c.flow}
           busy={c.busy}
+          working={c.working}
           autoFocus={desktop}
           onSend={(t) => void c.send(t)}
           onPick={c.pick}
@@ -103,6 +106,9 @@ export default function Welcome() {
           onLeave={c.leaveFlow}
           onRun={(id, card) => void c.run(id, card)}
           onDecline={c.decline}
+          onPlanRun={(id, plan) => void c.runPlan(id, plan)}
+          onPlanDecline={c.declinePlan}
+          onPlanUndo={(id, plan) => void c.undoPlan(id, plan)}
           onListen={() => void c.listen()}
           onLink={(to) => navigate(to)}
         />

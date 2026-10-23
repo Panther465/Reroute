@@ -4,19 +4,21 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { api, ApiError, newKey } from '@/api/client'
 import { keys, queryClient, waitForJob } from '@/api/queries'
-import type { City, JobAccepted, Place, RooOut, Trip } from '@/api/types'
-import { addTask, checkIn, editTask, moveTaskToDay, replanDay, skipTask, undo, undoVersionOf } from '@/lib/actions'
+import type { City, JobAccepted, Place, RooOut, RooStep, Trip } from '@/api/types'
+import { addTask, applyServerChange, checkIn, editTask, moveTaskToDay, replanDay, skipTask, undo, undoVersionOf } from '@/lib/actions'
 import { hhmm } from '@/lib/format'
 import { useOpenLate } from '@/lib/late'
+import { askAgent, asksMore, forAgent, runProposal, SCREEN_PATHS, undoProposal } from '@/lib/roo/agent'
 import { confirmFor, forSpeech, understand, type RooAction, type RooAnswer, type RooContext, type RooLink } from '@/lib/roo/brain'
 import { beginDayPlan, beginEditTask, beginNewTrip, beginOnboard, beginReplan, intro, next, planSummary, type Answer, type Effect, type Expect, type FlowContext, type FlowState } from '@/lib/roo/flows'
 import { understandPlan } from '@/lib/roo/understand'
 import { cancel as hush, enqueue } from '@/lib/speech/channel'
 import { useSpeaking } from '@/lib/speech/useSpeaking'
-import { getState, setState } from '@/lib/store'
-import { buildDay, weekday } from '@/lib/timeline'
+import { getState, setState, type Theme } from '@/lib/store'
+import { buildDay, weekday, type DayView } from '@/lib/timeline'
 import { listenOnce, VoiceError } from '@/lib/voice'
 import { topUp } from '@/lib/wallet'
+import type { PlanCardData } from './PlanCard'
 import type { Mood } from './RooArt'
 
 export type CardState = 'ask' | 'busy' | 'done' | 'no' | 'failed'
@@ -38,6 +40,10 @@ export interface ChatMsg {
   fresh?: boolean
   /** The voice line it was said with (lib/speech/channel.ts), so the words appear as they're spoken. */
   speechId?: number
+  /** Roo's agent's card: everything it would do, done only on "Do all". */
+  plan?: PlanCardData
+  /** What Roo looked at before answering ("Read your day"). */
+  reads?: string[]
 }
 
 const KEEP = 40
@@ -48,8 +54,14 @@ function load(key: string | null): ChatMsg[] {
   if (!key) return []
   try {
     const saved = JSON.parse(sessionStorage.getItem(key) ?? '[]') as ChatMsg[]
-    // A change cut off by a reload never ran: ask again. Nothing restored types itself out again.
-    return saved.map((m) => ({ ...m, fresh: false, card: m.card?.state === 'busy' ? { ...m.card, state: 'ask' as const } : m.card }))
+    // A change cut off by a reload never ran: ask again (a card that did run says so when tapped). Nothing
+    // restored types itself out again.
+    return saved.map((m) => ({
+      ...m,
+      fresh: false,
+      card: m.card?.state === 'busy' ? { ...m.card, state: 'ask' as const } : m.card,
+      plan: m.plan?.state === 'busy' ? { ...m.plan, state: 'ask' as const } : m.plan?.state === 'undoing' ? { ...m.plan, state: 'done' as const } : m.plan,
+    }))
   } catch {
     return []
   }
@@ -83,6 +95,8 @@ export interface ConversationOptions {
   storageKey: string | null
   ctx: RooContext
   ai: boolean
+  /** Roo's agent is on (the server's AI helper with a Gemini key): it answers what the phone can't place. */
+  agent?: boolean
   online: boolean
   /** Roo reads its replies aloud. */
   voice: boolean
@@ -97,6 +111,8 @@ export function useConversation(o: ConversationOptions) {
   const openLate = useOpenLate()
   const [msgs, setMsgs] = useState<ChatMsg[]>(() => load(o.storageKey))
   const [thinking, setThinking] = useState(false)
+  // Roo's agent is working on a message (reading the day, places, fares).
+  const [working, setWorking] = useState(false)
   // Talking is whatever Roo's one voice is saying: a line aloud, or murmuring as it types.
   const talking = useSpeaking() !== null
   const [listening, setListening] = useState(false)
@@ -112,6 +128,8 @@ export function useConversation(o: ConversationOptions) {
   const timers = useRef<ReturnType<typeof setTimeout>[]>([])
   // The trip a conversation made (a new trip): tasks are added to it and it is planned.
   const flowTrip = useRef<Trip | null>(null)
+  // The theme and voice before a card changed them, so its Undo can put them back.
+  const phoneBefore = useRef<Record<string, { theme: Theme; voice: boolean }>>({})
   const latest = useRef(o)
   latest.current = o
   const flowRef = useRef(flow)
@@ -155,7 +173,7 @@ export function useConversation(o: ConversationOptions) {
   /** Roo says one or more lines, one after another, then waits for `expect`. Read aloud, each line appears
    *  as its voice starts and the next waits for it to finish, so nothing is cut off; quiet, each types out
    *  at the usual pace. */
-  const say = useCallback(async (lines: string[], extra: { card?: Card; links?: RooLink[]; mood?: Mood; spoken?: boolean; expect?: Expect } = {}) => {
+  const say = useCallback(async (lines: string[], extra: { card?: Card; links?: RooLink[]; plan?: PlanCardData; reads?: string[]; mood?: Mood; spoken?: boolean; expect?: Expect } = {}) => {
     const words = lines.filter(Boolean)
     if (!words.length) {
       setThinking(false)
@@ -175,7 +193,14 @@ export function useConversation(o: ConversationOptions) {
       if (!alive.current) return
       setThinking(false)
       setMood(extra.mood && extra.mood !== 'idle' ? extra.mood : 'happy')
-      push({ from: 'roo', text: line, fresh: true, speechId: voiced.id, ...(last ? { card: extra.card, links: extra.links } : {}) })
+      push({
+        from: 'roo',
+        text: line,
+        fresh: true,
+        speechId: voiced.id,
+        ...(i === 0 && extra.reads?.length ? { reads: extra.reads } : {}),
+        ...(last ? { card: extra.card, links: extra.links, plan: extra.plan } : {}),
+      })
       if (!last) setThinking(true)
       await voiced.done
       if (!alive.current) return
@@ -209,12 +234,18 @@ export function useConversation(o: ConversationOptions) {
     }, 900)
   }
 
-  /** Where the day stands after a change, from the fresh trip. */
-  const afterChange = (tripId: string, action: RooAction): string => {
+  /** When the traveller will be back at the hotel, from the fresh trip. */
+  const backAt = (tripId: string): string => {
     const trip = queryClient.getQueryData<Trip>(keys.trip(tripId))
     const view = trip ? buildDay(trip) : null
     const end = view?.stops[view.stops.length - 1]
-    const back = end && !view?.done ? ` You’ll be back at the hotel around ${hhmm(end.time)}.` : ''
+    return end && !view?.done ? ` You’ll be back at the hotel around ${hhmm(end.time)}.` : ''
+  }
+
+  /** Where the day stands after a change, from the fresh trip. */
+  const afterChange = (tripId: string, action: RooAction): string => {
+    const trip = queryClient.getQueryData<Trip>(keys.trip(tripId))
+    const back = backAt(tripId)
     const task = trip && 'taskId' in action ? trip.tasks.find((x) => x.taskId === action.taskId) : undefined
     const name = task ? `the ${task.title.toLowerCase()}` : 'it'
     if (action.type === 'move') return `Done. ${name[0].toUpperCase()}${name.slice(1)} is on ${weekday(action.day)} now.${back}`
@@ -355,8 +386,11 @@ export function useConversation(o: ConversationOptions) {
       const target = act && 'taskId' in act ? t.tasks.find((x) => x.taskId === act.taskId) : undefined
       const aboutKnown = !!target && said.toLowerCase().includes(target.title.toLowerCase().split(/\s+/)[0])
       const open = local.unknown || local.guess || local.action?.type === 'add' || local.action?.type === 'replan' || said.split(/\s+/).length >= 8
-      if (hints.tasks.length >= 2 || (hints.tasks.length === 1 && !aboutKnown && open)) return void begin(beginDayPlan(hints, flowCtx()))
+      // A day that also asks for more ("…and book a cab to the meeting") is for Roo's agent, which does it all.
+      const forPhone = !(o2.agent && o2.online && asksMore(said))
+      if (forPhone && (hints.tasks.length >= 2 || (hints.tasks.length === 1 && !aboutKnown && open))) return void begin(beginDayPlan(hints, flowCtx()))
     }
+    if (o2.agent && o2.online && forAgent(said, local)) return void agentTurn(said, spoken, local)
     if ((!local.unknown && !local.guess) || !o2.ai || !o2.online || !t) return answer(local, spoken)
     try {
       const history = msgs.slice(-8).map((m) => ({ role: m.from === 'me' ? ('user' as const) : ('roo' as const), text: m.text.slice(0, 600) }))
@@ -367,9 +401,113 @@ export function useConversation(o: ConversationOptions) {
     }
   }
 
+  // ---- Roo's agent ----
+
+  /** A message for Roo's agent: what it read, its reply, a question to tap or its card. If the agent can't
+   *  answer (busy, or Gemini is down), the phone's own answer stands in. */
+  const agentTurn = async (said: string, spoken: boolean, local: RooAnswer) => {
+    const history = msgs.slice(-8).map((m) => ({ role: m.from === 'me' ? ('user' as const) : ('roo' as const), text: m.text.slice(0, 600) }))
+    setWorking(true)
+    try {
+      const out = await askAgent(said, history, latest.current.ctx.trip?.tripId ?? null)
+      setWorking(false)
+      const ask: Expect = out.ask ? { kind: 'choice', options: out.ask.options.map((label, i) => ({ id: `agent-${i}`, label })), allowText: true } : FREE
+      await say([out.reply], { plan: out.proposal ? { proposal: out.proposal, state: 'ask' } : undefined, reads: out.reads, mood: 'happy', spoken, expect: ask })
+    } catch {
+      setWorking(false)
+      answer(local, spoken)
+    }
+  }
+
+  const setPlan = (msgId: string, change: Partial<PlanCardData>) =>
+    setMsgs((all) => all.map((m) => (m.id === msgId && m.plan ? { ...m, plan: { ...m.plan, ...change } } : m)))
+
+  /** After a card ran or was undone: the day, the wallet and the bookings as they are now. */
+  const refresh = async (tripId: string | null, before: DayView | null, kind: 'reroute' | 'undo') => {
+    void queryClient.invalidateQueries({ queryKey: keys.wallet })
+    if (!tripId) return
+    void queryClient.invalidateQueries({ queryKey: keys.bookings(tripId) })
+    if (tripId === latest.current.ctx.trip?.tripId) return void (await applyServerChange(tripId, before, { kind }))
+    // A trip the card started becomes the one on screen.
+    await queryClient.refetchQueries({ queryKey: keys.trips })
+    setState({ tripId })
+  }
+
+  /** The card's steps the app does itself: the theme and voice at once, a screen or sheet once Roo has spoken. */
+  const runPhone = (steps: RooStep[]) => {
+    for (const s of steps) {
+      if (s.tool === 'set_theme') setState({ theme: s.args.theme as Theme })
+      else if (s.tool === 'set_voice') setState({ rooVoice: s.args.on === true })
+    }
+    const go = steps.find((s) => s.tool === 'open_screen' || s.tool === 'tell_them_late' || s.tool === 'show_options')
+    if (!go) return
+    later(() => {
+      latest.current.stepAside()
+      if (go.tool === 'show_options') openLate(null, 'options')
+      else if (go.tool === 'tell_them_late') navigate('/', { state: { tellLate: Date.now() } })
+      else if (go.args.screen === 'add_task') navigate('/', { state: { add: Date.now() } })
+      else if (go.args.screen === 'book_flight') navigate('/', { state: { bookFlight: {} } })
+      else navigate(SCREEN_PATHS[String(go.args.screen)] ?? '/')
+    }, 900)
+  }
+
+  const runPlan = async (msgId: string, plan: PlanCardData) => {
+    const before = latest.current.ctx.view
+    const id = plan.proposal.proposalId
+    setPlan(msgId, { state: 'busy' })
+    setMood('thinking')
+    try {
+      const run = await runProposal(id)
+      setPlan(msgId, { state: run.state === 'done' ? 'done' : run.state === 'partial' ? 'partial' : 'failed', run })
+      phoneBefore.current[id] = { theme: getState().theme, voice: getState().rooVoice }
+      await refresh(run.tripId ?? null, before, 'reroute')
+      setMood(run.state === 'done' ? 'celebrate' : 'alert')
+      later(() => setMood('happy'), 1600)
+      const back = run.state !== 'failed' && run.tripId ? backAt(run.tripId) : ''
+      void say([`${run.summary}${back}`])
+      runPhone(run.phone)
+    } catch (err) {
+      setMood('alert')
+      if (err instanceof ApiError && err.status !== 0) {
+        // Expired, already done, or the day changed since: the card can't run as it is.
+        setPlan(msgId, { state: 'expired', note: err.message })
+        return void say([err.message])
+      }
+      setPlan(msgId, { state: 'ask' })
+      void say(['I lost the connection. Check your day before trying again.'])
+    }
+  }
+
+  const declinePlan = (msgId: string) => {
+    setPlan(msgId, { state: 'no' })
+    void say(['Okay, I’ll leave it as it is.'])
+  }
+
+  const undoPlan = async (msgId: string, plan: PlanCardData) => {
+    const before = latest.current.ctx.view
+    const id = plan.proposal.proposalId
+    setPlan(msgId, { state: 'undoing' })
+    setMood('thinking')
+    try {
+      const out = await undoProposal(id)
+      const was = phoneBefore.current[id]
+      if (was) setState({ theme: was.theme, rooVoice: was.voice })
+      await refresh(out.tripId ?? null, before, 'undo')
+      setPlan(msgId, { state: 'undone' })
+      setMood('happy')
+      void say([out.summary])
+    } catch (err) {
+      setPlan(msgId, { state: plan.state })
+      setMood('alert')
+      void say([`I couldn’t undo that: ${err instanceof ApiError ? err.message : 'something went wrong.'}`])
+    }
+  }
+
   const pick = (choiceId: string, label: string) => {
-    interrupt()
     const f = flowRef.current
+    // Outside a conversation, a choice answers Roo's agent's question: it's a message to Roo.
+    if (!f) return void send(label)
+    interrupt()
     push({ from: 'me', text: label })
     setExpect(FREE)
     if (f) void feed(f, { kind: 'choice', id: choiceId, label })
@@ -469,5 +607,30 @@ export function useConversation(o: ConversationOptions) {
     }
   }
 
-  return { msgs, thinking, talking, listening, mood, flow, expect, busy, say, send, pick, pickPlace, pickDate, pickTime, leaveFlow, run, decline, listen, stopListening, startFlow }
+  return {
+    msgs,
+    thinking,
+    working,
+    talking,
+    listening,
+    mood,
+    flow,
+    expect,
+    busy,
+    say,
+    send,
+    pick,
+    pickPlace,
+    pickDate,
+    pickTime,
+    leaveFlow,
+    run,
+    decline,
+    runPlan,
+    declinePlan,
+    undoPlan,
+    listen,
+    stopListening,
+    startFlow,
+  }
 }

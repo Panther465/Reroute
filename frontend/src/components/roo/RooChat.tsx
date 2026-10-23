@@ -3,7 +3,7 @@ import { Volume2, VolumeX, X } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useEffect, useMemo, useRef } from 'react'
 import { useNavigate } from 'react-router'
-import { useAiHelperEnabled, useDay, useMe, useWallet } from '@/api/queries'
+import { useAgentEnabled, useAiHelperEnabled, useDay, useMe, useWallet } from '@/api/queries'
 import type { Trip } from '@/api/types'
 import { useIsDesktop, useOnline } from '@/lib/hooks'
 import { EASE_DRAWER, EASE_OUT } from '@/lib/motion'
@@ -19,9 +19,10 @@ const PANEL_DESKTOP = 'fixed right-4 top-20 bottom-4 z-50 flex w-[400px] flex-co
 const PANEL_PHONE = 'fixed inset-x-0 bottom-0 z-50 mx-auto flex h-[88dvh] w-full max-w-[560px] flex-col overflow-hidden rounded-t-sheet bg-surface text-ink shadow-[var(--shadow-sheet)] outline-none'
 
 /**
- * Talking with Roo. Roo answers from the day as it is (on the phone; the server's AI helper for what the
- * phone can't place, when that's on), asks questions to re-plan or start a new trip, and offers every
- * change as a card. On a desktop the chat sits beside the page, so the timeline re-routes in view.
+ * Talking with Roo. Roo answers from the day as it is (on the phone; Roo's agent on the server for what the
+ * phone can't place, or several things at once, when that's on), asks questions to re-plan or start a new
+ * trip, and offers every change as a card. On a desktop the chat sits beside the page, so the timeline
+ * re-routes in view.
  */
 export function RooChat({ trip, clock }: { trip: Trip | undefined; clock: number | null }) {
   const open = useStore((s) => s.rooChat)
@@ -31,6 +32,7 @@ export function RooChat({ trip, clock }: { trip: Trip | undefined; clock: number
   const navigate = useNavigate()
   const online = useOnline()
   const ai = useAiHelperEnabled()
+  const agent = useAgentEnabled()
   const me = useMe()
   const wallet = useWallet(open)
   const view = useDay(trip, clock)
@@ -42,6 +44,7 @@ export function RooChat({ trip, clock }: { trip: Trip | undefined; clock: number
     storageKey: trip ? `reroute.roo.chat.v2:${trip.tripId}` : null,
     ctx,
     ai,
+    agent,
     online,
     voice,
     stepAside: () => {
@@ -133,6 +136,7 @@ export function RooChat({ trip, clock }: { trip: Trip | undefined; clock: number
                   suggestions={chips}
                   inFlow={!!c.flow}
                   busy={c.busy}
+                  working={c.working}
                   autoFocus={desktop}
                   onSend={(t) => void c.send(t)}
                   onPick={c.pick}
@@ -142,6 +146,9 @@ export function RooChat({ trip, clock }: { trip: Trip | undefined; clock: number
                   onLeave={c.leaveFlow}
                   onRun={(id, card) => void c.run(id, card)}
                   onDecline={c.decline}
+                  onPlanRun={(id, plan) => void c.runPlan(id, plan)}
+                  onPlanDecline={c.declinePlan}
+                  onPlanUndo={(id, plan) => void c.undoPlan(id, plan)}
                   onListen={() => void c.listen()}
                   onLink={(to) => {
                     if (!desktop) close()

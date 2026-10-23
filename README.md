@@ -42,6 +42,7 @@ Every travel time and fare is an estimate. All demo data is sample data.
 - **A wallet, flights and connected services, all simulated.** Cab, train and flight bookings through invented partners (RideNow, AutoGo, ZipBike, RailGo, SkyHop) are paid from a wallet of pretend money, and a short balance says how much to add.
 - **Talk to Roo.** Say "I'm 20 minutes late" and Running late opens with 20 filled in; "done", "I've left" and "what's next" work too. Plain patterns, no AI, and nothing changes without your last tap.
 - **Roo in 3D, lips in time with its voice.** On devices that draw 3D well, Roo is a soft plush 3D sprout (three.js, built from shapes in code: fuzzy fur, felt cheeks, a stitched face) that breathes, blinks, follows your pointer and hops as it speaks. Its mouth takes the shape of each sound it says, timed from the voice service's word timings and the clip's loudness; elsewhere the flat Roo's mouth does the same. Lines play one after another, never cutting each other off.
+- **Roo does it for you** (with the AI helper and a Gemini key). Ask for several things at once ("skip the university office, book a cab to the bank and go dark") and Roo reads your day, the rides and your wallet, then puts every change on one card: *Roo will do 3 things*. Nothing changes until you tap **Do all**; each step then shows how it went, and **Undo** takes the card back. Roo works through the app's own API, signed in as you, so it can do exactly what you can and no more.
 - **A second service with its own rules.** Raasta trims the ends of every recorded ride for privacy, verifies a route only with a moderator or two different riders, lets routes go stale, and serves Reroute over HTTP with a service token: the database roles make reading its tables from Reroute impossible.
 - **Accessible in both themes.** Playwright runs axe on every screen at phone and desktop sizes, in light and in dark; targets are at least 48 px, and motion follows the reduced-motion setting.
 
@@ -135,11 +136,11 @@ cd frontend && pnpm install && pnpm dev
 
 | Suite | Size | Command |
 |---|---|---|
-| Reroute API and planner | 219 tests (the API flow tests need `TEST_DATABASE_URL` pointing at PostGIS) | `cd backend && pytest` |
+| Reroute API and planner | 232 tests (the API flow tests need `TEST_DATABASE_URL` pointing at PostGIS) | `cd backend && pytest` |
 | Raasta | 107 tests | `cd raasta && pytest` |
-| Web app | 111 tests | `cd frontend && pnpm test` |
+| Web app | 132 tests | `cd frontend && pnpm test` |
 | The demo day over HTTP | 32 requests, 54 assertions | `npx newman run postman/reroute.postman_collection.json --insecure` |
-| End to end with axe | 46 tests, phone and desktop | `cd frontend && E2E_BASE_URL=https://localhost pnpm e2e` |
+| End to end with axe | 52 tests, phone and desktop | `cd frontend && E2E_BASE_URL=https://localhost pnpm e2e` |
 | Load | 500 virtual users, 95% under 500 ms | `k6 run tests/load/k6.js` |
 
 CI runs all of them except the load test, which runs on demand, and fails if either API's OpenAPI file drifts from `shared/contracts/`.
