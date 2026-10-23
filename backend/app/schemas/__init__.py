@@ -55,6 +55,8 @@ class FeaturesOut(Api):
     voices: bool
     #: The simulated wallet that pays for simulated bookings (SIMULATED_SERVICES, like bookings).
     wallet: bool = False
+    #: Roo as an agent: it reads the trip and proposes changes on one card (AI_HELPER_ENABLED with a Gemini key).
+    agent: bool = False
 
 
 class UserOut(Api):
@@ -621,6 +623,80 @@ class RooActionOut(Api):
 class RooOut(Api):
     reply: str
     action: RooActionOut | None = None
+
+
+# ---------- Roo, the agent ----------
+
+
+class RooAgentIn(PostBody):
+    message: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=1000)]
+    #: The conversation so far, oldest first; the app sends the last few turns.
+    history: Annotated[list[RooTurnIn], Field(max_length=12)] = []
+    #: The trip on screen; none before the traveller has one (Roo can start one).
+    trip_id: str | None = None
+
+
+class RooStepOut(Api):
+    """One thing Rico will do when the traveller taps Do all."""
+
+    step_id: str
+    tool: str
+    #: "server" changes the trip; "phone" is done by the app itself (the theme, the voice, a screen, a message).
+    kind: Literal["server", "phone"]
+    label: str
+    detail: str | None = None
+    icon: str
+    #: What the app needs for a phone step (the theme, the screen).
+    args: dict = {}
+    #: Simulated money: what it costs, what comes back, what goes in.
+    cost_inr: int | None = None
+    refund_inr: int | None = None
+    top_up_inr: int | None = None
+    #: Added by Roo itself, such as planning the day after adding tasks to it.
+    auto: bool = False
+
+
+class RooProposalOut(Api):
+    proposal_id: str
+    trip_id: str | None
+    steps: list[RooStepOut]
+    total_cost_inr: int
+    #: What Undo can't take back (money added, a new trip).
+    final: list[str] = []
+    expires_at: datetime
+
+
+class RooAskOut(Api):
+    question: str
+    options: list[str]
+
+
+class RooAgentOut(Api):
+    reply: str
+    #: What Roo looked at to answer, in words ("Read your day").
+    reads: list[str] = []
+    #: A question with answers to tap, when a detail is missing.
+    ask: RooAskOut | None = None
+    #: The changes Roo proposes, all on one card. Nothing has changed yet.
+    proposal: RooProposalOut | None = None
+
+
+class RooStepResultOut(Api):
+    step_id: str
+    status: Literal["done", "failed", "skipped", "phone"]
+    message: str = ""
+
+
+class RooRunOut(Api):
+    proposal_id: str
+    state: Literal["done", "partial", "failed", "undone"]
+    #: The trip the card changed (a new one, if it started one).
+    trip_id: str | None
+    steps: list[RooStepResultOut]
+    #: Steps the app does itself, in order.
+    phone: list[RooStepOut] = []
+    summary: str
+    can_undo: bool = False
 
 
 class TrainClassOut(Api):

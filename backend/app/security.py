@@ -22,6 +22,12 @@ from app.config import get_settings
 from app.errors import ApiError
 from app.models import RefreshToken, User, new_id
 
+#: Marks the API calls Roo makes for the traveller, from inside this process (services/roo_agent): they skip
+#: the per-minute limit, since one confirmed card may take a dozen calls. Random per process and never sent
+#: anywhere, so no request from outside can carry it.
+ROO_STEP_HEADER = "x-roo-step"
+ROO_STEP_SECRET = secrets.token_urlsafe(32)
+
 ISSUER = "reroute"
 AUDIENCE = "reroute-api"
 REFRESH_COOKIE = "rr_refresh"

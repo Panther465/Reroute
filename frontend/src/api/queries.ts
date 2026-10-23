@@ -80,6 +80,11 @@ export function useAiHelperEnabled() {
   return useMe().data?.features?.aiHelper === true
 }
 
+/** Roo as an agent (the AI helper with a Gemini key): it reads the trip and proposes changes on one card. */
+export function useAgentEnabled() {
+  return useMe().data?.features?.agent === true
+}
+
 export function useTrips(enabled = true) {
   return useQuery({ queryKey: keys.trips, queryFn: () => api.get<TripsPage>('/v1/trips', { query: { limit: 20 } }), enabled })
 }

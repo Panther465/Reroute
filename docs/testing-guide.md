@@ -42,7 +42,7 @@ A real Bengaluru day was tried end to end through the API: a trip for today stay
 
 ### Optional: the AI helper
 
-`GEMINI_API_KEY` is already set in `.env`, but the helper is off. Add `AI_HELPER_ENABLED=true` to `.env` and run `docker compose up -d`. That turns on **Describe your day**. It also lets Rico answer messages its built-in rules can't understand.
+`GEMINI_API_KEY` is already set in `.env`, but the helper is off. Add `AI_HELPER_ENABLED=true` to `.env` and run `docker compose up -d`. That turns on **Describe your day**. With the key it also turns on Rico's agent: Rico answers what its built-in rules can't understand, and can do several things from one message, on one card you confirm.
 
 ### Optional: Rico's voice from Azure
 
@@ -157,6 +157,7 @@ Each row says which account to use (**D** for demo, **R** for real, **Both**).
 | The speaker button in the chat header | Both | Rico stops (or starts) reading its replies aloud |
 | The mic button (Chrome or Edge), say "what's next" | Both | Rico listens, answers on screen and out loud |
 | With the AI helper on: "can the bank wait till Thursday?" | Both | Rico understands free wording and still asks before changing anything |
+| With the AI helper and the key: "skip the university office, book a cab to the bank and go dark" | Both | Rico says what it looked at, then shows one card: *Rico will do 3 things*. Nothing changes until **Do all**. Then each step gets a tick, the ride is booked, dark mode comes on, and **Undo** puts it all back |
 
 ### Raasta (shared autos)
 

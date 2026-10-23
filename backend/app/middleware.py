@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import contextlib
 import hashlib
+import hmac
 import json
 import logging
 import re
@@ -25,7 +26,7 @@ from app.config import get_settings
 from app.errors import ApiError, error_body
 from app.hashing import canonical_body
 from app.redis_client import get_redis
-from app.security import decode_access_token
+from app.security import ROO_STEP_HEADER, ROO_STEP_SECRET, decode_access_token
 
 log = logging.getLogger("reroute.guard")
 access_log = logging.getLogger("reroute.access")
@@ -115,7 +116,9 @@ class GuardMiddleware(BaseHTTPMiddleware):
         subject = _subject(request)
 
         # 429: per-user (or per-IP) limits; sign-in gets a strict per-IP limit, refresh and sign-out their own.
-        if not path.endswith(STREAMING_SUFFIX):
+        # Roo's own steps for a card the traveller confirmed are counted once, as that one tap.
+        roo_step = hmac.compare_digest(request.headers.get(ROO_STEP_HEADER, ""), ROO_STEP_SECRET)
+        if not path.endswith(STREAMING_SUFFIX) and not roo_step:
             if path in SIGN_IN_PATHS:
                 limit, bucket = settings.auth_rate_limit_per_minute, "auth:" + _subject_ip(request)
             elif path in SESSION_PATHS:
