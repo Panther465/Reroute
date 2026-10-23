@@ -333,10 +333,14 @@ def pack(sizes: dict, pad: int = 2):
 
 def shade(key: str, px: np.ndarray) -> np.ndarray:
     """The arms are rendered without the body (see layers()), so they miss the shade it casts on them, which
-    leaves them lighter than the photo's: darken them to match."""
+    leaves them lighter than the photo's: darken them to match. The felt cheeks' shadow on the fur, rendered
+    on pressed-down pile, is darker than it looks on the full pile they're drawn over: soften it."""
+    px = px.copy()
     if key.startswith("arm."):
-        px = px.copy()
         px[..., :3] *= 0.85
+    if key.startswith("Cheek."):
+        lum = px[..., :3] @ np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
+        px[..., 3] *= np.where(lum < 0.25, 0.4, 1.0)
     return px
 
 

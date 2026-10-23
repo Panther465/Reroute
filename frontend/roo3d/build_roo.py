@@ -21,24 +21,25 @@ GROUND = -1.1
 BODY = Vector((1.0, 0.95, 1.0))
 
 # Where the shoulders, the sprout and the feet are. The arms hang low on the sides, angled a little out.
-SHOULDER = Vector((0.94, -0.05, -0.04))
+SHOULDER = Vector((0.94, 0.08, -0.04))
 ARM_REST = math.radians(20)
 STEM_BASE = Vector((0.0, 0.0, 0.9))
-FOOT = Vector((0.37, -0.22, GROUND + 0.14))
+FOOT = Vector((0.33, -0.36, GROUND + 0.19))
 
 # The face, as seen from straight ahead (x across, z up) and laid onto the body's front. The stitching and the
 # felt sit FACE_LIFT out from the fabric, on the pile, which is pressed flat under them.
 EYE = (0.41, 0.245)  # each eye's middle (x mirrored)
 MOUTH_Z = -0.24  # where the mouth's corners meet
 MOUTH_UNIT = 1.02 / 29  # the app's mouth shapes are in flat-drawing units, 29 to the body's radius
-CHEEK = (0.63, -0.11, 0.148, 0.098)  # centre x and z, radii
+CHEEK = (0.64, -0.125, 0.14, 0.104)  # centre x and z, radii
 FACE_LIFT = 0.024
 HAPPY = {"open": 0.55, "wide": 0.45, "round": 0.0, "smile": 1.0}
 
 # The fur's colours (root to tip) and the light, calibrated so renders measure like the photo.
-FUR_ROOT, FUR_TIP = "#2F6A3A", "#5E9E65"
+FUR_ROOT, FUR_TIP = "#357540", "#5E9E65"
 STEM_ROOT, STEM_TIP = "#1E4A26", "#356E3E"
-KEY, FILL, RIM, TOP, ROOM = 620.0, 250.0, 40.0, 430.0, 0.4
+KEY, FILL, RIM, TOP, ROOM = 380.0, 210.0, 40.0, 290.0, 0.4
+BOUNCE = 110.0
 
 # The layers are rendered square, LAYER_FRAME across, centred on LAYER_CENTRE.
 LAYER_FRAME = 3.1
@@ -159,7 +160,7 @@ def arm_shape(p: Vector) -> Vector:
 
 def foot_shape(p: Vector) -> Vector:
     # An oblong pill lying across, flatter underneath.
-    p = Vector((p.x * 0.215, p.y * 0.21, p.z * 0.14))
+    p = Vector((p.x * 0.25, p.y * 0.23, p.z * 0.19))
     if p.z < 0:
         p.z *= 0.85
     return p
@@ -243,8 +244,8 @@ def fur_material(name: str, root: str, tip: str) -> bpy.types.Material:
     hair = nt.nodes.new("ShaderNodeBsdfHairPrincipled")
     hair.model = "CHIANG"
     hair.parametrization = "COLOR"
-    hair.inputs["Roughness"].default_value = 0.55
-    hair.inputs["Radial Roughness"].default_value = 0.92
+    hair.inputs["Roughness"].default_value = 0.65
+    hair.inputs["Radial Roughness"].default_value = 0.95
     hair.inputs["Coat"].default_value = 0.0
     hair.inputs["IOR"].default_value = 1.5
     hair.inputs["Random Roughness"].default_value = 0.2
@@ -299,28 +300,30 @@ def fur_nodes() -> bpy.types.NodeTree:
 
     put("Geometry", "NodeSocketGeometry")
     put("Surface", "NodeSocketObject")
-    put("Density", "NodeSocketFloat", 130000.0, 0.0)
+    put("Density", "NodeSocketFloat", 200000.0, 0.0)
     put("Viewport Density", "NodeSocketFloat", 2500.0, 0.0)
     put("Length", "NodeSocketFloat", 0.12, 0.0)
     put("Length Random", "NodeSocketFloat", 0.35, 0.0, 1.0)
-    put("Root Radius", "NodeSocketFloat", 0.0009, 0.0)
+    put("Root Radius", "NodeSocketFloat", 0.0007, 0.0)
     put("Tip Radius", "NodeSocketFloat", 0.35, 0.0, 1.0)
-    put("Rise", "NodeSocketFloat", 0.22)  # radians off the surface's normal at the root
-    put("Lie", "NodeSocketFloat", 1.35)  # and at the tip
-    put("Lie Random", "NodeSocketFloat", 0.15)
+    put("Rise", "NodeSocketFloat", 0.12)  # radians off the surface's normal at the root
+    put("Lie", "NodeSocketFloat", 1.45)  # and at the tip
+    put("Lie Random", "NodeSocketFloat", 0.08)
     put("Comb", "NodeSocketVector", (0.0, 0.12, -1.0))
     put("Comb From", "NodeSocketVector", (0.0, 0.0, 0.0))  # a point the pile flows away from...
     put("Comb From Weight", "NodeSocketFloat", 0.0)  # ...and how much
-    put("Comb Random", "NodeSocketFloat", 0.3)  # how far each lock turns from the combed way, radians either way
-    put("Tousle", "NodeSocketFloat", 0.45)
+    put("Comb Random", "NodeSocketFloat", 0.25)  # how far each lock turns from the combed way, radians either way
+    put("Tousle", "NodeSocketFloat", 0.25)
     put("Tousle Scale", "NodeSocketFloat", 2.5)
-    put("Wave", "NodeSocketFloat", 0.04)
+    put("Wave", "NodeSocketFloat", 0.025)
     put("Waves", "NodeSocketFloat", 1.0)
-    put("Frizz", "NodeSocketFloat", 0.04)
+    put("Frizz", "NodeSocketFloat", 0.03)
     put("Frizz Scale", "NodeSocketFloat", 40.0)
-    put("Clump", "NodeSocketFloat", 0.15)  # how far a lock's strands gather towards its middle at the tip
-    put("Clump Density", "NodeSocketFloat", 12000.0, 0.0)  # locks per unit of area
-    put("Stray", "NodeSocketFloat", 0.01, 0.0, 1.0)
+    put("Clump", "NodeSocketFloat", 0.08)  # how far a lock's strands gather towards its middle at the tip
+    put("Clump Density", "NodeSocketFloat", 15000.0, 0.0)  # locks per unit of area
+    put("Stray", "NodeSocketFloat", 0.005, 0.0, 1.0)
+    put("Shorten Below", "NodeSocketFloat", -10.0)  # below this height (the part's own z)...
+    put("Shorten To", "NodeSocketFloat", 1.0)  # ...the pile is this much of its length
     put("Seed", "NodeSocketInt", 0)
     put("Face Mask", "NodeSocketImage")
     put("Face Mask Strength", "NodeSocketFloat", 0.0, 0.0, 1.0)
@@ -451,11 +454,21 @@ def fur_nodes() -> bpy.types.NodeTree:
 
     comb = turned(tangent(of_lock(lock_way, "FLOAT_VECTOR"), normal_at_root), normal_at_root, rand(-0.18, 0.18, 17))
     length = math_("MULTIPLY", of_lock(lock_len, "FLOAT"), rand(0.72, 1.04, 19))
+    low = node("ShaderNodeMapRange", interpolation_type="SMOOTHSTEP")
+    height = node("ShaderNodeSeparateXYZ")
+    links.new(position, height.inputs["Vector"])
+    links.new(height.outputs["Z"], low.inputs["Value"])
+    feed(low.inputs["From Min"], math_("SUBTRACT", gin["Shorten Below"], 0.3))
+    links.new(gin["Shorten Below"], low.inputs["From Max"])
+    links.new(gin["Shorten To"], low.inputs["To Min"])
+    low.inputs["To Max"].default_value = 1.0
+    length = math_("MULTIPLY", length, low.outputs["Result"])
 
     # Under the stitched face the pile is pressed flat: a mask drawn from the front (x and z across the body,
-    # -1 to 1), for the front half only. A strand that grows there is pressed flat; one that would lie across
-    # it stops short of its edge (the mask is looked up at points along the way the strand lies).
-    def pressed_at(p):
+    # -1 to 1), for the front half only. A strand that grows there is pressed flat (red); one that would lie
+    # across a piece that blocks the pile (green) stops short of its edge, looked up at points along the way
+    # the strand lies.
+    def mask_at(p, channel):
         xyz = node("ShaderNodeSeparateXYZ")
         feed(xyz.inputs["Vector"], p)
         uv = node("ShaderNodeCombineXYZ")
@@ -464,15 +477,17 @@ def fur_nodes() -> bpy.types.NodeTree:
         mask = node("GeometryNodeImageTexture")
         links.new(gin["Face Mask"], mask.inputs["Image"])
         links.new(uv.outputs["Vector"], mask.inputs["Vector"])
-        return math_("MULTIPLY", mask.outputs["Color"], math_("LESS_THAN", xyz.outputs["Y"], 0.0))
+        rgb = node("FunctionNodeSeparateColor")
+        links.new(mask.outputs["Color"], rgb.inputs["Color"])
+        return math_("MULTIPLY", rgb.outputs[channel], math_("LESS_THAN", xyz.outputs["Y"], 0.0))
 
     strength = gin["Face Mask Strength"]
-    under = math_("MULTIPLY", pressed_at(position), strength)
+    under = math_("MULTIPLY", mask_at(position, "Red"), strength)
     reach = 1.0
-    for f in (0.25, 0.5, 0.75, 1.0):
+    for f in (0.125, 0.25, 0.375, 0.5, 0.625, 0.75, 0.875, 1.0):
         along = vec("ADD", position, vec("SCALE", comb, scale=math_("MULTIPLY", length, 0.75 * f)))
-        hit = math_("MULTIPLY", math_("GREATER_THAN", pressed_at(along), 0.5), strength)
-        reach = math_("MINIMUM", reach, math_("SUBTRACT", 1.0, math_("MULTIPLY", hit, 1.0 - max(0.05, f - 0.18))))
+        hit = math_("MULTIPLY", math_("GREATER_THAN", mask_at(along, "Green"), 0.5), strength)
+        reach = math_("MINIMUM", reach, math_("SUBTRACT", 1.0, math_("MULTIPLY", hit, 1.0 - max(0.05, f - 0.15))))
     length = math_("MULTIPLY", length, math_("MULTIPLY", reach, math_("SUBTRACT", 1.0, math_("MULTIPLY", under, 0.93))))
 
     pts = roots.outputs["Points"]
@@ -793,7 +808,7 @@ def build_face(sc: bpy.types.Scene) -> dict:
     ink = thread_material("Roo Thread", "#0A0A0A")
     white = thread_material("Roo Thread White", "#F4F4F2")
     black_felt = felt_material("Roo Felt Black", "#1E1E1E")
-    pink_felt = felt_material("Roo Felt Pink", "#EF9BA3")
+    pink_felt = felt_material("Roo Felt Pink", "#FFC2CC")
     tongue_felt = felt_material("Roo Felt Tongue", "#F0909C")
     made = {}
     FACE_SHAPES.clear()
@@ -821,11 +836,11 @@ def build_face(sc: bpy.types.Scene) -> dict:
         FACE_SHAPES[f"Brow.{tag}"] = {"strokes": [(centre, width)], "feather": 0.03}
         # A felt cheek below and outside the eye.
         cheek = [(side * CHEEK[0] + CHEEK[2] * math.cos(a), CHEEK[1] + CHEEK[3] * math.sin(a)) for a in (2 * math.pi * k / 48 for k in range(48))]
-        made[f"Cheek.{tag}"] = [felt_patch(face, f"Roo Cheek.{tag}", cheek, 0.006, pink_felt, 0.006)]
-        FACE_SHAPES[f"Cheek.{tag}"] = {"fills": [cheek], "feather": 0.002}
+        made[f"Cheek.{tag}"] = [felt_patch(face, f"Roo Cheek.{tag}", cheek, 0.004, pink_felt, 0.008)]
+        FACE_SHAPES[f"Cheek.{tag}"] = {"fills": [cheek], "feather": 0.002, "block_inset": 0.005}
     groom = bpy.data.node_groups["Roo Fur"]
     for side, tag in ((-1, "L"), (1, "R")):
-        made[f"Cheek.{tag}"] += fuzz(made[f"Cheek.{tag}"], "#EF9BA3", groom)
+        made[f"Cheek.{tag}"] += fuzz(made[f"Cheek.{tag}"], "#FFC2CC", groom, 0.01)
     # The mouth: the app's happy shape in black felt, with a pink felt tongue low in it.
     mouth = mouth_front(mouth_outline(HAPPY)[0])
     made["Mouth"] = [felt_patch(face, "Roo Mouth", mouth, 0.01, black_felt)]
@@ -854,16 +869,19 @@ def build_face(sc: bpy.types.Scene) -> dict:
 
 
 def face_mask(names, size: int = 1024) -> bpy.types.Image:
-    """The fur mask for these face pieces: white where the pile is pressed flat, feathered at the edges. It
-    covers the body's front from -1 to 1 across and up."""
+    """The fur mask for these face pieces, feathered at the edges: red where the pile is pressed flat, green
+    where strands lying across must stop short. A piece with "block_inset" (the felt cheeks) lets the pile lie
+    over that much of its rim. It covers the body's front from -1 to 1 across and up."""
     import numpy as np
 
     g = (np.arange(size) + 0.5) / size * 2 - 1
     x, z = np.meshgrid(g, g)
-    m = np.zeros((size, size), dtype=np.float32)
+    press = np.zeros((size, size), dtype=np.float32)
+    block = np.zeros((size, size), dtype=np.float32)
     for name in names:
         shape = FACE_SHAPES.get(name, {})  # the tongue lies on the mouth
         feather = shape.get("feather", 0.018)
+        m = np.zeros((size, size), dtype=np.float32)
         for centre, width in shape.get("strokes", []):
             for i in range(97):
                 s = -1 + 2 * i / 96
@@ -883,6 +901,11 @@ def face_mask(names, size: int = 1024) -> bpy.types.Image:
                 t = np.clip(((x - ax) * ex + (z - az) * ez) / (ex * ex + ez * ez), 0, 1)
                 dist = np.minimum(dist, np.hypot(x - (ax + t * ex), z - (az + t * ez)))
             m = np.maximum(m, np.where(inside, 1.0, np.clip(1 - dist / feather, 0, 1)))
+            if "block_inset" in shape:
+                block = np.maximum(block, np.where(inside, np.clip((dist - shape["block_inset"]) / 0.014, 0, 1), 0.0))
+        press = np.maximum(press, m)
+        if "block_inset" not in shape:
+            block = np.maximum(block, m)
     key = "Roo Mask " + ",".join(sorted(names))
     old = bpy.data.images.get(key)
     if old:
@@ -890,18 +913,20 @@ def face_mask(names, size: int = 1024) -> bpy.types.Image:
     # Made as data from the start: changing a generated image's colour space afterwards wipes its pixels.
     img = bpy.data.images.new(key, size, size, alpha=False, is_data=True)
     rgba = np.ones((size, size, 4), dtype=np.float32)
-    rgba[..., 0] = rgba[..., 1] = rgba[..., 2] = m
+    rgba[..., 0] = press
+    rgba[..., 1] = block
+    rgba[..., 2] = 0.0
     img.pixels.foreach_set(rgba.ravel())
     img.pack()
     return img
 
 
-def fuzz(pieces, colour: str, groom: bpy.types.NodeTree):
-    """Short loose fibres on felt pieces, which soften their edges as real felt's are."""
+def fuzz(pieces, colour: str, groom: bpy.types.NodeTree, length: float = 0.012):
+    """Short loose fibres on felt pieces, lying every which way, which soften their edges as real felt's are."""
     fibre = principled(f"Roo Fuzz {colour}", colour, 0.9, 0.6)
     out = []
     for ob in pieces:
-        out.append(add_fur(ob, groom, fibre, density=120000.0, length=0.012, length_random=0.6, root_radius=0.0006, rise=0.7, lie=1.2, comb=(0.0, 0.0, 0.0), tousle=3.0, tousle_scale=40.0, clump=0.0, seed=21))
+        out.append(add_fur(ob, groom, fibre, density=160000.0, length=length, length_random=0.6, root_radius=0.0005, rise=0.5, lie=1.3, comb=(0.0, 0.0, 0.0), comb_random=1.6, tousle=3.0, tousle_scale=40.0, clump=0.0, seed=21))
     return out
 
 
@@ -919,7 +944,7 @@ def show_face(made: dict, names, body_fur: bpy.types.Object):
 
 def build_shapes(sc: bpy.types.Scene) -> dict:
     parts = collection(sc, "Roo")
-    fabric = principled("Roo Fabric", "#2A6A30", 1.0, 0.6)
+    fabric = principled("Roo Fabric", "#3A7F40", 1.0, 0.6)
     stem_fabric = principled("Roo Stem Fabric", "#1F4F25", 1.0, 0.6)
     # Dense fibres bounce light between them and look far more saturated than one fibre: these paler greens
     # come out as the reference's greens (measured on renders against the photo).
@@ -929,8 +954,8 @@ def build_shapes(sc: bpy.types.Scene) -> dict:
 
     body = place(parts, "Roo Body", sphere_mesh("Roo Body", body_shape, 96, 64))
     body.data.materials.append(fabric)
-    # The head's pile runs from the back, over the top and down the front, so its whorl is out of sight.
-    add_fur(body, groom, fur, density=150000.0, length=0.12, comb=(0.0, 0.0, -0.7), comb_from=(0.0, 1.3, 0.5), comb_from_weight=1.0, seed=1)
+    # The pile is brushed down from the crown (where the stem hides its whorl) all the way round.
+    add_fur(body, groom, fur, density=210000.0, length=0.14, comb=(0.0, 0.05, -1.0), comb_from=(0.0, 0.15, 1.45), comb_from_weight=0.6, shorten_below=-0.55, shorten_to=0.32, seed=1)
 
     # The arms' and feet's fur runs down them and towards the toes.
     arms = []
@@ -938,15 +963,15 @@ def build_shapes(sc: bpy.types.Scene) -> dict:
         arm = place(parts, f"Roo Arm.{tag}", sphere_mesh(f"Roo Arm.{tag}", arm_shape, 48, 32), (side * SHOULDER.x, SHOULDER.y, SHOULDER.z))
         arm.rotation_euler = (0.0, -side * ARM_REST, 0.0)
         arm.data.materials.append(fabric)
-        add_fur(arm, groom, fur, density=140000.0, length=0.09, seed=2 + side)
+        add_fur(arm, groom, fur, density=200000.0, length=0.09, seed=2 + side)
         arms.append(arm)
 
     feet = []
     for side, tag in ((-1, "L"), (1, "R")):
         foot = place(parts, f"Roo Foot.{tag}", sphere_mesh(f"Roo Foot.{tag}", foot_shape, 48, 32), (side * FOOT.x, FOOT.y, FOOT.z))
-        foot.rotation_euler = (0.0, 0.0, side * math.radians(-8))
+        foot.rotation_euler = (0.0, 0.0, side * math.radians(-6))
         foot.data.materials.append(fabric)
-        add_fur(foot, groom, fur, density=140000.0, length=0.06, comb=(0.0, -1.0, -0.3), seed=6 + side)
+        add_fur(foot, groom, fur, density=200000.0, length=0.065, rise=0.15, lie=1.4, comb=(0.0, 0.0, -0.3), comb_from=(0.0, 0.03, 0.22), comb_from_weight=1.0, comb_random=0.15, tousle=0.15, seed=6 + side)
         feet.append(foot)
 
     # The sprout: a thin stem from the top of the head, and two long leaves; the right one is larger and
@@ -1000,6 +1025,7 @@ def build_studio(sc: bpy.types.Scene):
         ("Roo Fill", (1.0, -7.0, 0.6), 8.0, FILL, "#F4F9FF"),
         ("Roo Rim", (2.5, 5.0, 3.5), 4.0, RIM, "#FFFFFF"),
         ("Roo Top", (0.0, -1.5, 7.0), 5.0, TOP, "#FFFFFF"),
+        ("Roo Bounce", (0.0, -4.5, -2.2), 6.0, BOUNCE, "#EEF8F0"),
     ):
         data = bpy.data.lights.new(name, "AREA")
         data.shape = "DISK"
@@ -1007,7 +1033,8 @@ def build_studio(sc: bpy.types.Scene):
         data.energy = energy
         data.color = lin(colour)[:3]
         light = place(studio, name, data, where)
-        light.rotation_euler = (Vector((0.0, 0.0, 0.1)) - light.location).to_track_quat("-Z", "Y").to_euler()
+        aim = Vector((0.0, 0.0, -0.7 if name == "Roo Bounce" else 0.1))
+        light.rotation_euler = (aim - light.location).to_track_quat("-Z", "Y").to_euler()
         # Only Roo gets these: on the ground they'd cast shadows with edges. The ground is lit by the room
         # alone, which leaves the very soft contact shadow of the reference.
         light.light_linking.receiver_collection = lit
