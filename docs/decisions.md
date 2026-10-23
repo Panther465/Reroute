@@ -211,3 +211,8 @@ A workspace review found the app had drifted from its own UI brief (emoji as ico
 ## The companion is Rico (23 October 2026)
 
 - **Roo is now Rico,** an easier name to say: in its voice lines, and for travellers talking to it. Everything people see or hear says Rico (the app, its spoken lines, the AI helper's instructions and the API's descriptions). The code keeps `roo` in its names (files, components, the `POST /v1/trips/:id/roo` path and its `"roo"` role, storage keys), so nothing saved or linked to breaks.
+
+## Rico's voice is Ana (24 October 2026)
+
+- **Rico speaks as Ana** (`en-US-AnaNeural`), Microsoft's child voice, tagged cute and cartoon: the owner asked for a young, high, cute voice, like a cartoon's. Ana is the first voice in Me and the default, also in the API; the other six stay. Settings saved while Neerja was the default move to Ana once; a voice picked since stays. Ana speaks as it is, with no pitch change: on Azure, the markup that changes pitch is billed as characters, about 45 more on every line.
+- **The same voice on Azure AI Speech,** the official service, for a launched app (the free Edge service has no licence or uptime promise; see known limits): the free tier gives 0.5 million characters a month, at most 20 requests a minute. After that, standard neural voices such as Ana cost $15 per million characters (₹1,440 in Central India), less with a monthly commitment ($960 for 80 million). Each clip is cached for 7 days and shared by every traveller, so a line many hear is billed once a week.

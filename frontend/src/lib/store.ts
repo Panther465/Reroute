@@ -17,7 +17,8 @@ export interface AlertPrefs {
   voiceId: string
   voiceRate: VoiceRate
 }
-export const DEFAULT_ALERTS: AlertPrefs = { sound: true, chime: 'bell', volume: 0.8, vibrate: true, voice: true, voiceId: 'en-IN-NeerjaNeural', voiceRate: 'normal' }
+/** Rico speaks as Ana, a child's voice, unless the traveller picks another. */
+export const DEFAULT_ALERTS: AlertPrefs = { sound: true, chime: 'bell', volume: 0.8, vibrate: true, voice: true, voiceId: 'en-US-AnaNeural', voiceRate: 'normal' }
 export type Lang = 'en' | 'hi'
 
 export interface Change extends ChangeSet {
@@ -97,6 +98,8 @@ function load(): UiState {
       base.demo = { enabled: !!saved.demo?.enabled, offline: false }
       // Settings saved by an older version keep their choices; new ones start at their defaults.
       base.alerts = { ...DEFAULT_ALERTS, ...(saved.alerts ?? {}) }
+      // Neerja was the voice before Rico had its own: saved before then, it moves to Ana, once.
+      if (!(saved as { anaDefault?: boolean }).anaDefault && base.alerts.voiceId === 'en-IN-NeerjaNeural') base.alerts.voiceId = DEFAULT_ALERTS.voiceId
       // Roo's voice was on by default and saved as "rooVoice"; only a choice made since counts.
       base.rooVoice = (saved as { rooVoiceOn?: boolean }).rooVoiceOn === true
     }
@@ -116,7 +119,7 @@ function persist() {
   const out: Partial<UiState> = {}
   for (const k of PERSISTED) (out as Record<string, unknown>)[k] = state[k]
   out.demo = { enabled: state.demo.enabled, offline: false }
-  Object.assign(out, { rooVoiceOn: state.rooVoice })
+  Object.assign(out, { rooVoiceOn: state.rooVoice, anaDefault: true })
   try {
     localStorage.setItem(KEY, JSON.stringify(out))
   } catch {

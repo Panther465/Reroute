@@ -44,7 +44,7 @@ async def speak_timed(
     user: CurrentUser,
     response: Response,
     text: Annotated[str, Query(min_length=1, max_length=300)],
-    voice: Annotated[str, Query(max_length=40)] = "en-IN-NeerjaNeural",
+    voice: Annotated[str, Query(max_length=40)] = tts.DEFAULT_VOICE,
     rate: Literal["slow", "normal", "fast"] = "normal",
 ) -> SpeechTimedOut:
     _check(voice)
@@ -66,7 +66,7 @@ async def speak_timed(
 async def speak(
     user: CurrentUser,
     text: Annotated[str, Query(min_length=1, max_length=300)],
-    voice: Annotated[str, Query(max_length=40)] = "en-IN-NeerjaNeural",
+    voice: Annotated[str, Query(max_length=40)] = tts.DEFAULT_VOICE,
     rate: Literal["slow", "normal", "fast"] = "normal",
 ) -> Response:
     _check(voice)

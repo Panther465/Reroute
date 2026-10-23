@@ -14,8 +14,10 @@ import json
 import re
 from dataclasses import dataclass, field
 
-#: The voices travellers can choose, by Edge's short name. The first is the default.
+#: The voices travellers can choose, by Edge's short name. The first is the default: Ana, a child's voice, is
+#: Rico's own. It speaks as it is, with no pitch change, which Azure would bill as extra characters.
 VOICES: dict[str, str] = {
+    "en-US-AnaNeural": "Ana, Rico’s own voice",
     "en-IN-NeerjaNeural": "Neerja, Indian English",
     "en-IN-PrabhatNeural": "Prabhat, Indian English",
     "hi-IN-SwaraNeural": "Swara, Hindi accent",
@@ -23,6 +25,7 @@ VOICES: dict[str, str] = {
     "en-GB-SoniaNeural": "Sonia, British English",
     "en-US-AriaNeural": "Aria, American English",
 }
+DEFAULT_VOICE = next(iter(VOICES))
 #: Speaking speeds, as Edge's rate offsets.
 RATES: dict[str, str] = {"slow": "-15%", "normal": "+0%", "fast": "+15%"}
 CACHE_SECONDS = 7 * 24 * 3600

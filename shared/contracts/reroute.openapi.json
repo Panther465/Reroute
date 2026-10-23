@@ -763,7 +763,7 @@
             "schema": {
               "type": "string",
               "maxLength": 40,
-              "default": "en-IN-NeerjaNeural",
+              "default": "en-US-AnaNeural",
               "title": "Voice"
             }
           },
@@ -849,7 +849,7 @@
             "schema": {
               "type": "string",
               "maxLength": 40,
-              "default": "en-IN-NeerjaNeural",
+              "default": "en-US-AnaNeural",
               "title": "Voice"
             }
           },

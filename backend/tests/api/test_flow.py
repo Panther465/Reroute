@@ -339,7 +339,7 @@ def test_speech_reads_an_alert_and_caches_it(client, monkeypatch):
     assert client.get("/v1/speech", params=params).content == b"ID3fake-mp3"
     assert calls == [("Time to leave for the bank.", "en-IN-PrabhatNeural", "+15%")]  # the second came from the cache
     assert client.get("/v1/speech", params={**params, "voice": "xx-Robot"}).status_code == 422
-    assert [v["voiceId"] for v in client.get("/v1/speech/voices").json()][0] == "en-IN-NeerjaNeural"
+    assert [v["voiceId"] for v in client.get("/v1/speech/voices").json()][0] == "en-US-AnaNeural"
     # The same clip with when each word is said, for Roo's mouth.
     timed = client.get("/v1/speech/timed", params=params)
     assert timed.status_code == 200, timed.text
