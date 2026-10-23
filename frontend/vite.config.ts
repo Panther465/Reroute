@@ -20,7 +20,6 @@ export default defineConfig(({ mode }) => ({
           // dependencies, React included), so Sign in loads neither up front: its hero animation
           // loads after first paint.
           if (id.includes('maplibre-gl')) return 'maplibre'
-          if (/node_modules\/three\//.test(id)) return 'three'
           if (/node_modules\/(react|react-dom|react-router|scheduler|@tanstack\/[^/]+)\//.test(id)) return 'react'
           return undefined
         },
@@ -57,8 +56,9 @@ export default defineConfig(({ mode }) => ({
         // API responses are cached by the persisted query cache, not the service worker.
         navigateFallbackDenylist: [/^\/v1\//],
         // MapLibre is large and its map needs a connection anyway: cache it the first time a map opens.
-        // The landing page's screenshots are for first-time visitors, not for offline use.
-        globIgnores: ['**/maplibre*', '**/three*', 'landing/**'],
+        // The landing page's screenshots are for first-time visitors, not for offline use. (The rendered Roo's
+        // sheets are WebP, which isn't precached either.)
+        globIgnores: ['**/maplibre*', 'landing/**'],
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/assets/maplibre'),
@@ -66,10 +66,10 @@ export default defineConfig(({ mode }) => ({
             options: { cacheName: 'maplibre', expiration: { maxEntries: 8 } },
           },
           {
-            // Roo in 3D: three.js, the first time a 3D Roo appears.
-            urlPattern: ({ url }) => url.pathname.startsWith('/assets/three'),
+            // Roo in 3D: its rendered sheet, the first time a 3D Roo of that size appears.
+            urlPattern: ({ url }) => url.pathname.startsWith('/assets/roo-'),
             handler: 'CacheFirst',
-            options: { cacheName: 'three', expiration: { maxEntries: 4 } },
+            options: { cacheName: 'roo', expiration: { maxEntries: 6 } },
           },
           {
             urlPattern: /^https:\/\/tiles\.openfreemap\.org\/.*/i,

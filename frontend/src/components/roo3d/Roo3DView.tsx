@@ -2,8 +2,8 @@ import { useEffect, useRef } from 'react'
 import type { Mood } from '@/components/roo/RooArt'
 import { RooEngine, type Framing } from './engine'
 
-/** The 3D Roo's canvas (a lazy chunk: three.js loads only where it's shown). Decorative: the button or
- *  dialog around it carries the name. */
+/** The 3D Roo's canvas (a lazy chunk: the rendered Roo loads only where it's shown). Decorative: the button
+ *  or dialog around it carries the name. */
 export default function Roo3DView({
   mood,
   hop,

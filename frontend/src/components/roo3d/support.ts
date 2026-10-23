@@ -1,5 +1,5 @@
 // Whether this device shows Roo in 3D. Not with reduced motion, Save-Data, a low-end phone, or a GPU the
-// browser calls slow (software rendering): there the flat Roo stays, and three.js is never downloaded.
+// browser calls slow (software rendering): there the flat Roo stays, and the rendered Roo is never downloaded.
 // `localStorage['reroute.roo3d']` = 'on' or 'off' overrides it, for testing.
 
 let known: boolean | null = null
