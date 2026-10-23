@@ -2,6 +2,8 @@
 
 - Leave 5 minutes after a task ends. For a fixed task, leave at the latest time that still
   arrives 10 minutes early.
+- A fixed task the traveller goes to anyway (late_ok) that can't be reached in time: leave as soon
+  as possible; it starts on arrival. Arriving after it would have ended is still a failure.
 - A window task starts on arrival, never before it opens, and must finish by closing time.
 - Never depart outside a route's or the metro's service hours.
 - The first leg from the place of stay leaves as late as the first task allows, so the
@@ -27,6 +29,8 @@ class LegTiming:
     end: int = 0
     wait: int = 0
     failure: Failure | None = None
+    #: Minutes after a fixed start, for a fixed task the traveller goes to anyway.
+    late: int = 0
 
 
 def time_leg(rule: RuleSettings, ready: int, from_stay: bool, task: PlanTask | None, opt: LegOption) -> LegTiming:
@@ -39,6 +43,13 @@ def time_leg(rule: RuleSettings, ready: int, from_stay: bool, task: PlanTask | N
         latest = latest_for_task if last is None else min(latest_for_task, last)
         low = earliest if first is None else max(earliest, first)
         if latest < low:
+            if task.late_ok and latest_for_task < earliest and (last is None or low <= last):
+                # Going anyway: leave now; the task starts when you get there.
+                arrive = low + travel
+                if arrive >= task.fixed_start + task.duration_min:
+                    return LegTiming(ok=False, failure="fixed")
+                start = max(arrive, task.fixed_start)
+                return LegTiming(True, low, arrive, start, start + task.duration_min, 0, late=max(0, arrive - task.fixed_start))
             # Distinguish "can't get there in time" from "the route isn't running then".
             failure: Failure = "fixed" if latest_for_task < earliest else "service"
             return LegTiming(ok=False, failure=failure)
@@ -74,6 +85,6 @@ def time_leg(rule: RuleSettings, ready: int, from_stay: bool, task: PlanTask | N
 
 
 def leg_cost_scaled(rule: RuleSettings, opt: LegOption, timing: LegTiming) -> int:
-    """travel + fare / divisor + wait, multiplied by the divisor so it stays an integer."""
+    """travel + fare / divisor + wait (+ minutes late), multiplied by the divisor so it stays an integer."""
     d = rule.fare_divisor
-    return d * rule.weight_travel * opt.travel_min + opt.fare_inr + d * rule.weight_wait * timing.wait
+    return d * rule.weight_travel * opt.travel_min + opt.fare_inr + d * rule.weight_wait * timing.wait + d * rule.weight_late * timing.late

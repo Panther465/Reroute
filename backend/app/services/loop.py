@@ -28,6 +28,7 @@ from app.services import morning, plan_store
 from app.services.day import RULE, DayContext, build_input, fetch_snapshot, needed_places, sense
 from app.services.planner import Objective, ReplanInput, ReplanOption, ReplanResult, TravelSnapshot, explain, plan_day, replan
 from app.services.planner.hashing import canonical_json
+from app.services.planner.replan import going_anyway, late_legs
 from app.services.planner.util import hhmm, lower_first, rupees
 
 #: How long a run waits for another run on the same trip before answering 409 BUSY.
@@ -135,11 +136,22 @@ def create_plan(db: Session, trip: Trip, adapter: TravelTimeAdapter, now: dateti
         raise ApiError(409, "This day doesn't need a morning plan any more.", code="NOT_DUE")
     inp = build_input(ctx, _snapshot(db, ctx, adapter, gathered, include_unplaced=True), Objective(allow_unplace=True), include_unplaced=True)
     result = plan_day(inp)
+    late_text = ""
+    if not result.feasible and any(t.fixed_start is not None for t in inp.tasks):
+        # A fixed time that can no longer be kept: nobody can move someone else's meeting, so plan the day
+        # going anyway, from when the traveller really gets there, and say so.
+        anyway = going_anyway(inp)
+        late_plan = plan_day(anyway)
+        if late_plan.feasible:
+            inp, result = anyway, late_plan
+            late_text = " " + " ".join(explain.late_note(title, arrival, start) for title, arrival, start in late_legs(anyway, late_plan))
     if not result.feasible:
         reason = (_passed(ctx, result.blocked.task_id) or result.blocked.reason) if result.blocked else "No plan keeps every fixed time"
         blocked = {"taskId": result.blocked.task_id, "title": result.blocked.title, "reason": reason} if result.blocked else None
-        raise ApiError(409, f"{reason}. Move it to another day or change it.", code="NO_FEASIBLE_PLAN", extra={"blocked": blocked})
-    text = explain.created(len(inp.tasks), result.approximate)
+        fixed = result.blocked is not None and any(t.task_id == result.blocked.task_id and t.fixed_start is not None for t in inp.tasks)
+        what = "Let them know, or change its time if it has moved." if fixed else "Move it to another day or change it."
+        raise ApiError(409, f"{reason}. {what}", code="NO_FEASIBLE_PLAN", extra={"blocked": blocked})
+    text = explain.created(len(inp.tasks), result.approximate) + late_text
     unplaced = [m for m in result.moved if m.kind == "unplaced"]
     if unplaced:
         text += " " + " ".join(f"{m.reason}." for m in unplaced)
@@ -404,6 +416,8 @@ def accept(db: Session, trip: Trip, option_id: str, now: datetime, option_set_id
             if meta.get("extraFareInr")
             else meta.get("label", "Changed the plan")
         )
+    elif meta.get("kind") == "late":
+        text = meta.get("consequence", "Going anyway, late").split(";")[0].replace("You reach", "Going anyway: you reach", 1)
     elif meta.get("kind") == "move_task":
         text = meta.get("consequence", "Moved a task to tomorrow").replace("The ", "Moved the ", 1).replace(" moves to", " to", 1)
     else:

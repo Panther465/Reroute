@@ -34,6 +34,7 @@ Every travel time and fare is an estimate. All demo data is sample data.
 
 - **An exact planner, pinned by a golden test.** The planner (`backend/app/services/planner/`) is a pure function: tasks, opening hours, fixed times and travel options in, a plan out, with no clock, network or database. It searches every order up to eight tasks with branch and bound, and `backend/tests/planner/test_golden.py` holds the demo day to the minute: 08:50, 10:00, 12:25, 15:40, 16:50.
 - **Re-planning that knows when to ask.** Fifteen minutes late, the later stops shift by themselves and Undo brings the old plan back. Forty minutes late, nothing changes until you pick one of two or three explained options: a cab to the bank for ₹350 more, or the office moved to tomorrow at 10:00.
+- **Someone else's meeting is never moved.** A fixed time is a rule the planner can't break. If you can't make it in time, Reroute offers to **go anyway**: the meeting stays at 10:00, the rest of the day is planned from when you really arrive, and **Tell them** writes the message ("I'm running about 25 minutes late… I'll be there around 10:25").
 - **It shows its working.** "Why this plan?" sets the chosen day beside the same tasks planned cab-only and with no cab, lists every way Reroute knew for each leg with what it would have changed, and says whether the order search was exact. The worker works this out with the plan and stores it; the API only reads it back.
 - **Never plans inside a request.** The API saves and queues; an RQ worker plans. Plans are immutable versions, so Undo reactivates an earlier one, and a scheduler checks every trip each five minutes, raises leave-now alerts and plans each morning of a multi-day trip from 06:00 local time.
 - **Built for a bad connection.** An installable PWA: the day is cached, check-ins made offline are queued and replayed with idempotency keys, and live changes arrive over server-sent events with a watchdog that reconnects.
@@ -133,11 +134,11 @@ cd frontend && pnpm install && pnpm dev
 
 | Suite | Size | Command |
 |---|---|---|
-| Reroute API and planner | 211 tests (the API flow tests need `TEST_DATABASE_URL` pointing at PostGIS) | `cd backend && pytest` |
+| Reroute API and planner | 219 tests (the API flow tests need `TEST_DATABASE_URL` pointing at PostGIS) | `cd backend && pytest` |
 | Raasta | 107 tests | `cd raasta && pytest` |
-| Web app | 108 tests | `cd frontend && pnpm test` |
+| Web app | 111 tests | `cd frontend && pnpm test` |
 | The demo day over HTTP | 32 requests, 54 assertions | `npx newman run postman/reroute.postman_collection.json --insecure` |
-| End to end with axe | 40 tests, phone and desktop | `cd frontend && E2E_BASE_URL=https://localhost pnpm e2e` |
+| End to end with axe | 46 tests, phone and desktop | `cd frontend && E2E_BASE_URL=https://localhost pnpm e2e` |
 | Load | 500 virtual users, 95% under 500 ms | `k6 run tests/load/k6.js` |
 
 CI runs all of them except the load test, which runs on demand, and fails if either API's OpenAPI file drifts from `shared/contracts/`.

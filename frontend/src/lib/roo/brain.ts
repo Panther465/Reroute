@@ -5,6 +5,7 @@
 
 import type { Task, Trip } from '@/api/types'
 import { duration, hhmm, lowerFirst, rupees } from '@/lib/format'
+import { lateFixed } from '@/lib/tellLate'
 import { addDays, localMinutes, weekday, type DayView } from '@/lib/timeline'
 import { minutesIn, parseCommand } from '@/lib/voice'
 
@@ -24,6 +25,7 @@ export type RooAction =
   | { type: 'voice'; on: boolean }
   | { type: 'topup'; amount: number }
   | { type: 'flight'; to?: string }
+  | { type: 'tellLate' }
 
 /** Screens Roo can point to. */
 export type RooLink = { label: string; to: '/why' | '/summary' | '/plan' | '/raasta' | '/me' }
@@ -172,6 +174,8 @@ export function status(ctx: RooContext): string {
   if (trip.openOptions) return 'Your later stops don’t fit any more. There are fixes waiting for you to choose.'
   const end = view.stops[view.stops.length - 1]
   const back = end ? ` Back at the hotel around ${hhmm(end.time)}.` : ''
+  const late = lateFixed(view)
+  if (late) return `You’ll reach the ${lowerFirst(late.title)} at about ${late.arrive}, ${late.minutes} min after its ${late.at} start. Say “tell them I’m late” and I’ll write the message.${back}`
   const leg = view.nextLeg
   if (leg) {
     const dest = destOf(view, leg.toId)
@@ -319,6 +323,12 @@ export function understand(spoken: string, ctx: RooContext): RooAnswer {
 
   // Settings
   if (/\b(dark|night)\s*(mode|theme)\b|\bgo dark\b|\bturn (the )?lights off\b/.test(t)) return { reply: 'Dark mode it is. Easier on the eyes at night.', action: { type: 'theme', theme: 'dark' }, mood: 'happy' }
+  // Late for someone else's meeting: Roo can't move it, but it writes the message to the people waiting.
+  if (/\b(tell|message|text|inform|notify|whatsapp)\b.{0,30}\b(them|him|her|boss|host|manager|client|team|everyone)\b|\blet (them|him|her|my boss|the host|my manager) know\b/.test(t)) {
+    const late = lateFixed(view)
+    if (!late) return { reply: 'You’ll be on time for your fixed stops, so there’s nothing to tell them yet.', mood: 'happy' }
+    return { reply: `Here’s a message saying you’ll reach the ${lowerFirst(late.title)} around ${late.arrive}. Change it if you like, then send it.`, action: { type: 'tellLate' } }
+  }
   if (/\b(light|day|bright|white)\s*(mode|theme)\b/.test(t)) return { reply: 'Light mode it is.', action: { type: 'theme', theme: 'light' }, mood: 'happy' }
   if (/\b(mute|be quiet|stop talking|silence|quiet mode|no voice|turn off (the |your )?voice)\b/.test(t)) return { reply: 'I’ll stay quiet. Alerts still show on screen and chime.', action: { type: 'voice', on: false } }
   if (/\b(unmute|turn on (the |your )?voice|speak up|talk out loud|read (it|them) (out|aloud))\b/.test(t)) return { reply: 'I’ll read your alerts out loud again.', action: { type: 'voice', on: true }, mood: 'happy' }

@@ -115,6 +115,9 @@ Each row says which account to use (**D** for demo, **R** for real, **Both**).
 | **Running late → About 40 min** | D | "Choose how to fix your day": **Take a cab to the bank** (+₹350) or **Keep it cheap** (the office moves to tomorrow at 10:00) |
 | Choose one, then **Undo** | D | The day re-routes with the split-flap times, then comes back |
 | On your own trip, **Running late** with any delay | R | The same rules at the real time: a shift if it fits, options if it doesn't |
+| **Simulate → Current time 08:45**, then **Running late → About 40 min** (still at the hotel) | D | The 10:00 meeting can't be reached in time, and it isn't yours to move: **Go anyway, about 25 min late** ("You reach the meeting at about 10:25; it starts at 10:00"). Choose it: Today says "You'll reach the meeting at about 10:25, 25 min after its 10:00 start" with **Tell them** |
+| **Tell them** (or ask Roo "tell them I'm late") | Both | A message with your arrival time, to change and send by WhatsApp, SMS or the phone's share sheet. Reroute sends nothing itself |
+| Running late so far that you'd miss the whole meeting | Both | No "skip" or "edit": **Tell them** (a message asking for another time), or **It moved: change the time** if the host really moved it |
 
 ### Change the day
 

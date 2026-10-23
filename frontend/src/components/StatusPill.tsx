@@ -23,7 +23,13 @@ export function StatusPill({ live, onOpen }: { live: Status; onOpen: () => void 
   const { cls, Icon } = look[status.kind]
   const text = t(status.text)
   return (
-    <button type="button" onClick={onOpen} className="group -my-2 flex min-h-12 items-center rounded-full" aria-label={`${text}. Open the Reroute log`}>
+    // The name carries every word on the button ("See why" too), so a voice command can say what it sees.
+    <button
+      type="button"
+      onClick={onOpen}
+      className="group -my-2 flex min-h-12 items-center rounded-full"
+      aria-label={status.kind === 'rerouted' ? `${text}. See why in the Reroute log` : `${text}. Open the Reroute log`}
+    >
       <motion.span layout transition={{ layout: { duration: 0.24, ease: EASE_OUT } }} className={`inline-flex h-8 items-center gap-1.5 overflow-hidden rounded-full px-3 t-caption ${cls}`} style={{ borderRadius: 999 }}>
         <AnimatePresence mode="popLayout" initial={false}>
           <motion.span
@@ -40,11 +46,14 @@ export function StatusPill({ live, onOpen }: { live: Status; onOpen: () => void 
           </motion.span>
         </AnimatePresence>
       </motion.span>
-      {/* After a change, say plainly that the reason is one tap away. */}
+      {/* After a change, say plainly that the reason is one tap away. The space keeps "08:45 See why" two words. */}
       {status.kind === 'rerouted' && (
-        <span aria-hidden="true" className="ml-2 t-small font-bold text-ink underline decoration-2 underline-offset-4 [@media(hover:hover)]:group-hover:decoration-green">
-          See why
-        </span>
+        <>
+          {' '}
+          <span aria-hidden="true" className="ml-2 t-small font-bold text-ink underline decoration-2 underline-offset-4 [@media(hover:hover)]:group-hover:decoration-green">
+            See why
+          </span>
+        </>
       )}
     </button>
   )

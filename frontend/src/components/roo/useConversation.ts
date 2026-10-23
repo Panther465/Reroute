@@ -196,6 +196,7 @@ export function useConversation(o: ConversationOptions) {
       else if (action.type === 'options') openLate(null, 'options')
       else if (action.type === 'add') navigate('/', { state: { add: Date.now(), addText: action.text || undefined } })
       else if (action.type === 'flight') navigate('/', { state: { bookFlight: { to: action.to } } })
+      else if (action.type === 'tellLate') navigate('/', { state: { tellLate: Date.now() } })
     }, 900)
   }
 

@@ -192,7 +192,23 @@ def sense(db: Session, trip: Trip, now: datetime, delay_min: int = 0, done_at: d
     return ctx
 
 
-def to_plan_task(task: Task, day: date, tz: timezone) -> PlanTask:
+def late_accepted(ctx: DayContext) -> frozenset[str]:
+    """Fixed tasks the active plan reaches later than the rule wants (after the 10 minutes before their
+    start): the traveller chose to go anyway, or a fresh plan could only get there late. Later re-plans keep
+    that, rather than call the day infeasible again. Undoing to an on-time version, or a new time, ends it."""
+    if ctx.active is None:
+        return frozenset()
+    late = set()
+    for leg in ctx.active.legs:
+        task = ctx.tasks.get(leg.get("taskId") or "")
+        if task is None or task.fixed_start is None or not leg.get("arriveAt"):
+            continue
+        if _leg_min(leg, "arriveAt", ctx.day, ctx.tz) > minutes_of_day(task.fixed_start, ctx.day, ctx.tz) - RULE.fixed_buffer_min:
+            late.add(task.task_id)
+    return frozenset(late)
+
+
+def to_plan_task(task: Task, day: date, tz: timezone, late_ok: bool = False) -> PlanTask:
     fixed = minutes_of_day(task.fixed_start, day, tz) if task.fixed_start else None
     window = Window(opens=to_minutes(task.opens_at), closes=to_minutes(task.closes_at)) if task.opens_at and task.closes_at else None
     return PlanTask(
@@ -205,6 +221,7 @@ def to_plan_task(task: Task, day: date, tz: timezone) -> PlanTask:
         priority=task.priority,  # type: ignore[arg-type]
         hours_unknown=task.hours_unknown,
         movable=task.fixed_start is None,
+        late_ok=late_ok and fixed is not None,
     )
 
 
@@ -223,13 +240,14 @@ def fetch_snapshot(db: Session, ctx: DayContext, adapter: TravelTimeAdapter, pla
 
 
 def build_input(ctx: DayContext, snapshot: TravelSnapshot, objective: Objective | None = None, include_unplaced: bool = False) -> PlannerInput:
+    late = late_accepted(ctx)
     return PlannerInput(
         rule=RULE,
         day=ctx.day,
         utc_offset=ctx.trip.utc_offset,
         stay_place_id=ctx.trip.stay_place_id,
         start=ctx.start,  # type: ignore[arg-type]
-        tasks=tuple(to_plan_task(t, ctx.day, ctx.tz) for t in ctx.planner_tasks(include_unplaced)),
+        tasks=tuple(to_plan_task(t, ctx.day, ctx.tz, t.task_id in late) for t in ctx.planner_tasks(include_unplaced)),
         snapshot=snapshot,
         has_next_day=ctx.day < ctx.trip.end_date,
         objective=objective or Objective(),

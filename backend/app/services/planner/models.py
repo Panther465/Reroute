@@ -108,6 +108,9 @@ class PlanTask(Frozen):
     hours_unknown: bool = False
     #: The task may move to the next trip day. Fixed tasks never move.
     movable: bool = True
+    #: A fixed task the traveller goes to anyway, late: nobody can move someone else's meeting, so when
+    #: it can't be reached in time it starts on arrival (never before its time), until it would have ended.
+    late_ok: bool = False
 
 
 class RuleSettings(Frozen):
@@ -116,6 +119,9 @@ class RuleSettings(Frozen):
     version: str = "1.0"
     leave_after_task_min: int = 5
     fixed_buffer_min: int = 10
+    #: Each minute late for a fixed task you go to anyway weighs like 5 minutes of travel (₹50), so the
+    #: plan gets there as soon as it sensibly can.
+    weight_late: int = 5
     behind_threshold_min: int = 5
     weight_travel: int = 1
     #: Cost uses fare / fare_divisor. Costs are kept as integers scaled by fare_divisor.

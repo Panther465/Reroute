@@ -126,4 +126,4 @@ def test_a_fixed_time_that_has_passed_says_so(client):
     res = client.post("/v1/trips/trip-001/plans", json={"idempotencyKey": key()})
     job = client.get(f"/v1/jobs/{res.json()['jobId']}").json()
     assert job["status"] == "failed", job
-    assert "was at 10:00, and that time has already passed today. Move it to another day or change it." in str(job)
+    assert "was at 10:00, and that time has already passed today. Let them know, or change its time if it has moved." in str(job)

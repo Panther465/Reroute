@@ -26,6 +26,31 @@ def fixed_at_risk(title: str, arrival: int, start: int, buffer_min: int) -> str:
     return f"You'll reach the {name} at about {hhmm(arrival)}, {start - arrival} min before its {hhmm(start)} start; you need {buffer_min}."
 
 
+def late_label(minutes: int) -> str:
+    return f"Go anyway, about {minutes} min late" if minutes > 0 else "Go anyway"
+
+
+def late_consequence(title: str, arrival: int, start: int, moved: str | None) -> str:
+    """The fixed task stays where it is; you get there late. `moved`: what else changes, if anything."""
+    base = f"You reach the {lower_first(title)} at about {hhmm(arrival)}; it starts at {hhmm(start)}"
+    return f"{base}. {moved}" if moved else base
+
+
+def late_explanation(title: str, arrival: int, start: int, uses_cab: bool, extra: int) -> str:
+    name = lower_first(title)
+    how = f" A cab gets you there soonest, for {rupees(extra)} more." if uses_cab and extra > 0 else ""
+    tell = " Tell them you’re running late." if arrival > start else " You’ll walk in just as it starts."
+    return f"The {name} stays at {hhmm(start)}: it isn’t yours to move, so you go anyway.{how} The rest of your day is planned from when you get there.{tell}"
+
+
+def late_note(title: str, arrival: int, start: int) -> str:
+    """For a fresh plan that can only reach a fixed task late (or with less than the usual margin)."""
+    name = lower_first(title)
+    if arrival > start:
+        return f"You’ll reach the {name} at about {hhmm(arrival)}, {arrival - start} min after it starts. Tell them you’re running late."
+    return f"You’ll reach the {name} at about {hhmm(arrival)}, just before its {hhmm(start)} start."
+
+
 def on_time() -> str:
     return "You're on time. Nothing changed."
 

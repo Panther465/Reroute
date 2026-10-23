@@ -397,6 +397,12 @@ def _blocked(ctx: _Ctx) -> Blocked:
         earliest_leave = max(start.ready_at, rule.day_earliest_departure) if start.kind == "stay" else start.ready_at + rule.leave_after_task_min
         fastest = min((o.travel_min for o in opts), default=0)
         arrival = earliest_leave + fastest
+        if t.late_ok:
+            ends = t.fixed_start + t.duration_min  # type: ignore[operator]
+            if arrival >= ends:
+                reason = f"The {lower_first(t.title)} ends at {hhmm(ends)}; the earliest arrival is {hhmm(arrival)}"
+                return Blocked(task_id=t.task_id, title=t.title, reason=reason)
+            continue
         if arrival > t.fixed_start - rule.fixed_buffer_min:  # type: ignore[operator]
             return Blocked(
                 task_id=t.task_id, title=t.title, reason=f"The {lower_first(t.title)} starts at {hhmm(t.fixed_start)}; the earliest arrival is {hhmm(arrival)}"
