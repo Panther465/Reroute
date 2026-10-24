@@ -2,6 +2,7 @@
 // time you'll really get there. The message is plain text the traveller can change before sending.
 
 import { hhmm, lowerFirst } from './format'
+import { native } from './platform'
 import type { DayView } from './timeline'
 
 export interface LateFor {
@@ -57,7 +58,11 @@ export const smsLink = (text: string) => `sms:?&body=${encodeURIComponent(text)}
 
 /** Through the phone's share sheet where there is one (WhatsApp, SMS, email…); otherwise copied. */
 export async function shareText(text: string): Promise<'shared' | 'copied' | 'cancelled' | 'failed'> {
-  if (typeof navigator.share === 'function') {
+  // Android's share sheet in the app (the web view has no navigator.share).
+  if (native.shareText) {
+    const shared = await native.shareText(text)
+    if (shared !== 'failed') return shared
+  } else if (typeof navigator.share === 'function') {
     try {
       await navigator.share({ text })
       return 'shared'

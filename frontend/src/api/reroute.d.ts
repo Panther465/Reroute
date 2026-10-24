@@ -1709,6 +1709,14 @@ export interface components {
             /** Idempotencykey */
             idempotencyKey: string;
         };
+        /**
+         * RefreshIn
+         * @description The Android app's own refresh token, for /v1/auth/refresh and /v1/auth/logout (a browser sends no body).
+         */
+        RefreshIn: {
+            /** Refreshtoken */
+            refreshToken: string;
+        };
         /** RoadPathOut */
         RoadPathOut: {
             /** Coords */
@@ -2276,6 +2284,8 @@ export interface components {
             /** Expiresin */
             expiresIn: number;
             user: components["schemas"]["UserOut"];
+            /** Refreshtoken */
+            refreshToken?: string | null;
         };
         /** TopUpIn */
         TopUpIn: {
@@ -2563,7 +2573,10 @@ export interface operations {
     signup_v1_auth_signup_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description `android` from the Android app: the refresh token comes back in the body instead of a cookie. */
+                "X-Reroute-Client"?: "android" | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -2596,7 +2609,10 @@ export interface operations {
     login_v1_auth_login_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description `android` from the Android app: the refresh token comes back in the body instead of a cookie. */
+                "X-Reroute-Client"?: "android" | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -2629,7 +2645,10 @@ export interface operations {
     google_v1_auth_google_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description `android` from the Android app: the refresh token comes back in the body instead of a cookie. */
+                "X-Reroute-Client"?: "android" | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -2662,7 +2681,10 @@ export interface operations {
     demo_v1_auth_demo_post: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description `android` from the Android app: the refresh token comes back in the body instead of a cookie. */
+                "X-Reroute-Client"?: "android" | null;
+            };
             path?: never;
             cookie?: never;
         };
@@ -2704,7 +2726,11 @@ export interface operations {
                 rr_csrf?: string | null;
             };
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RefreshIn"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -2738,7 +2764,11 @@ export interface operations {
                 rr_csrf?: string | null;
             };
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["RefreshIn"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             204: {

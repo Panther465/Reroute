@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     service_rate_limit_per_minute: int = 3000
     examples_dir: str = "../examples/bengaluru"
     log_level: str = "INFO"
+    #: Origins allowed to call Raasta from another origin, comma-separated: the Android app runs at
+    #: https://localhost inside the phone. Empty keeps CORS closed (one origin behind NGINX).
+    cors_origins: str = ""
 
     @model_validator(mode="after")
     def _no_dev_secret_in_production(self) -> Settings:
@@ -44,7 +47,13 @@ class Settings(BaseSettings):
         token = self.raasta_service_token
         if self.app_env == "production" and token and (token.startswith(("dev-only", "change-me")) or len(token) < 32):
             raise ValueError("Set a real RAASTA_SERVICE_TOKEN (32 or more random characters) in production, or leave it empty")
+        if "*" in self.cors_origin_list:
+            raise ValueError("CORS_ORIGINS lists origins one by one; '*' would let any site call Raasta")
         return self
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        return [o.strip().rstrip("/") for o in self.cors_origins.split(",") if o.strip()]
 
 
 @lru_cache

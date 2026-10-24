@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 import { flushSync } from 'react-dom'
 import { useMediaQuery } from './hooks'
+import { native } from './platform'
 import { setState, useStore, type Theme } from './store'
 
 export function useResolvedTheme(): 'light' | 'dark' {
@@ -25,6 +26,7 @@ function applyTheme(theme: Theme, resolved: 'light' | 'dark') {
   else root.setAttribute('data-theme', theme)
   const meta = document.querySelector('meta[name="theme-color"]')
   meta?.setAttribute('content', resolved === 'dark' ? '#10161F' : '#EDF0EB')
+  native.systemBars?.(resolved === 'dark')
 }
 
 /** Switches to light or dark at once; the page cross-fades where the browser can (and motion is welcome). */

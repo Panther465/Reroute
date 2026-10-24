@@ -426,3 +426,37 @@ def test_tokens_must_be_access_tokens_for_reroute():
     assert decode_access_token(make_token(role="root"), s) is None
     assert decode_access_token(make_token(exp=1), s) is None
     assert decode_access_token("not-a-jwt", s) is None
+
+
+# ---------- CORS, for the Android app ----------
+
+
+def test_cors_stays_closed_without_origins(api):
+    r = api.options("/v1/raasta/stands", headers={"Origin": "https://localhost", "Access-Control-Request-Method": "GET"})
+    assert "access-control-allow-origin" not in r.headers
+
+
+def test_the_android_app_origin_may_call_raasta(redis, monkeypatch):
+    monkeypatch.setattr(get_settings(), "cors_origins", "https://localhost")
+    app = TestClient(create_app())
+    pre = app.options(
+        "/v1/raasta/contributions",
+        headers={
+            "Origin": "https://localhost",
+            "Access-Control-Request-Method": "POST",
+            "Access-Control-Request-Headers": "authorization,content-type,x-request-id",
+        },
+    )
+    assert pre.status_code == 200 and pre.headers["access-control-allow-origin"] == "https://localhost"
+    assert "access-control-allow-credentials" not in pre.headers
+    r = app.get("/v1/raasta/healthz", headers={"Origin": "https://localhost", "X-Request-ID": "trace-12345678"})
+    assert r.headers["access-control-allow-origin"] == "https://localhost"
+    assert "x-request-id" in r.headers["access-control-expose-headers"].lower()
+    other = app.options("/v1/raasta/stands", headers={"Origin": "https://evil.example", "Access-Control-Request-Method": "GET"})
+    assert "access-control-allow-origin" not in other.headers
+
+
+def test_cors_origins_are_listed_one_by_one():
+    with pytest.raises(ValidationError, match="CORS_ORIGINS"):
+        Settings(app_env="development", cors_origins="https://localhost, *")
+    assert Settings(app_env="development", cors_origins=" https://localhost/ ,").cors_origin_list == ["https://localhost"]

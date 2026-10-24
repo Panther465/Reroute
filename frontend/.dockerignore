@@ -1,5 +1,7 @@
 node_modules
 dist
+dist-android
+android
 dev-dist
 test-results
 playwright-report

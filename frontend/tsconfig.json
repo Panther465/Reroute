@@ -21,5 +21,5 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true
   },
-  "include": ["src", "vite.config.ts", "e2e", "playwright.config.ts"]
+  "include": ["src", "vite.config.ts", "capacitor.config.ts", "e2e", "e2e-android", "playwright.config.ts", "playwright.android.config.ts"]
 }

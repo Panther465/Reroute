@@ -73,6 +73,15 @@ class TokenOut(Api):
     token_type: Literal["Bearer"] = "Bearer"
     expires_in: int
     user: UserOut
+    #: Only for the Android app (X-Reroute-Client: android): the refresh token it keeps and sends back to
+    #: /v1/auth/refresh. A browser gets it as an httpOnly cookie instead, so this stays null there.
+    refresh_token: str | None = None
+
+
+class RefreshIn(Api):
+    """The Android app's own refresh token, for /v1/auth/refresh and /v1/auth/logout (a browser sends no body)."""
+
+    refresh_token: Annotated[str, StringConstraints(min_length=16, max_length=256)]
 
 
 class GoogleSignIn(Api):

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The dark theme's ground, for the splash screen when the phone is in dark mode. -->
+<resources>
+    <color name="reroute_ground">#10161F</color>
+</resources>

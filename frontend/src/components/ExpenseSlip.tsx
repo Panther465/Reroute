@@ -4,25 +4,35 @@ import { MODE_META } from '@/components/icons'
 import { ModeChain } from '@/components/timeline/ModeChain'
 import { Button } from '@/components/ui/Button'
 import { duration, hhmm, rupees } from '@/lib/format'
+import { native } from '@/lib/platform'
 import { showToast } from '@/lib/store'
 import { dayLabel, localMinutes } from '@/lib/timeline'
 
 export function ExpenseSlip({ summary, offset }: { summary: Summary; offset: string }) {
   const date = dayLabel(summary.day)
   const reroutes = summary.reroutes.map((r) => hhmm(localMinutes(r, summary.day, offset)))
-  const download = () => {
+  const download = async () => {
+    const name = `reroute-expenses-${summary.day}.txt`
+    // A web view can't download: the Android app saves the file itself.
+    if (native.saveText) {
+      const where = await native.saveText(name, summary.slipText)
+      showToast({ title: where ? `Slip saved to ${where}.` : "Couldn't save the slip. Share it instead." })
+      return
+    }
     const blob = new Blob([summary.slipText], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
     const a = document.createElement('a')
     a.href = url
-    a.download = `reroute-expenses-${summary.day}.txt`
+    a.download = name
     a.click()
     // Some browsers start the download after click() returns; revoke later.
     setTimeout(() => URL.revokeObjectURL(url), 10_000)
     showToast({ title: 'Slip downloaded.' })
   }
   const share = async () => {
-    if (navigator.share) {
+    if (native.shareText) {
+      if ((await native.shareText(summary.slipText, 'Travel expenses')) !== 'failed') return
+    } else if (navigator.share) {
       try {
         await navigator.share({ title: 'Travel expenses', text: summary.slipText })
       } catch {

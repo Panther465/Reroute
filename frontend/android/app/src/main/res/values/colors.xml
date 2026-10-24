@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- The web app's colours (src/styles/tokens.css): the page's ground, and Reroute green. -->
+<resources>
+    <color name="reroute_ground">#EDF0EB</color>
+    <color name="reroute_green">#0B7A4B</color>
+    <color name="colorPrimary">#0B7A4B</color>
+    <color name="colorPrimaryDark">#0B7A4B</color>
+    <color name="colorAccent">#0B7A4B</color>
+</resources>

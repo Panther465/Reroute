@@ -6,6 +6,7 @@ import type { Token, User } from '@/api/types'
 import { cancelPendingCheckins } from './actions'
 import { stopTracking } from './location'
 import { clearQueue } from './offlineQueue'
+import { native } from './platform'
 import { clearShareTokens } from './shareTokens'
 import { setState } from './store'
 
@@ -77,6 +78,8 @@ function accept(token: Token) {
   // Someone else signing in on this phone must not see the last traveller's saved plan.
   const previous = queryClient.getQueryData<User>(keys.me)
   if (previous && previous.userId !== token.user.userId) queryClient.clear()
+  // The Android app keeps its refresh token (a browser has it as a cookie).
+  if (native.session && token.refreshToken) void native.session.save(token.refreshToken).catch(() => {})
   setAccessToken(token.accessToken)
   queryClient.setQueryData(keys.me, token.user)
   set('signedIn')
@@ -101,7 +104,20 @@ export async function signInWithPassword(email: string, password: string) {
 
 export async function signOut() {
   try {
-    await fetch(`${apiBase}/v1/auth/logout`, { method: 'POST', credentials: 'include', headers: { 'X-CSRF-Token': cookie('rr_csrf') } })
+    const kept = native.session ? await native.session.load() : null
+    if (native.session) {
+      // The Android app ends its own token's session on the server, then forgets it.
+      await native.session.clear()
+      if (kept)
+        await fetch(`${apiBase}/v1/auth/logout`, {
+          method: 'POST',
+          credentials: 'omit',
+          headers: { 'Content-Type': 'application/json', 'X-Reroute-Client': 'android' },
+          body: JSON.stringify({ refreshToken: kept }),
+        })
+    } else {
+      await fetch(`${apiBase}/v1/auth/logout`, { method: 'POST', credentials: 'include', headers: { 'X-CSRF-Token': cookie('rr_csrf') } })
+    }
   } catch {
     /* offline: the local session still ends */
   }

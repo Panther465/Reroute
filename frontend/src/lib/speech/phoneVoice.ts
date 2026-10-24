@@ -1,6 +1,7 @@
 // The phone's own voice, for when the natural voice can't be fetched (offline, or the server has it off).
 // It doesn't say when each word is spoken on every phone, so its timing is estimated from the words.
 
+import { native } from '@/lib/platform'
 import type { AlertPrefs } from '@/lib/store'
 
 export interface PhoneSpeech {
@@ -25,6 +26,8 @@ export function phoneEstimateMs(text: string, rate: AlertPrefs['voiceRate']): nu
 }
 
 export function phoneSay(text: string, prefs: Pick<AlertPrefs, 'voiceRate' | 'volume'>): PhoneSpeech | null {
+  // The Android app speaks with Android's own text-to-speech (the web view has no speechSynthesis).
+  if (native.phoneSay) return native.phoneSay(text, prefs)
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) return null
   const u = new SpeechSynthesisUtterance(text)
   // Roo's lines are written in English, so an English (India) voice reads them, whatever the app language.

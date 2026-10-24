@@ -7,6 +7,7 @@ import logging
 from contextlib import asynccontextmanager, suppress
 
 from fastapi import APIRouter, FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
 from app.errors import install_error_handlers
@@ -85,6 +86,16 @@ def create_app() -> FastAPI:
     # Added last runs first: request IDs wrap everything, so every error carries a traceId.
     app.add_middleware(BodyLimitAndIdempotencyMiddleware, redis_getter=lambda: get_redis(), namespace="raasta")
     app.add_middleware(RequestIdMiddleware)
+    if settings.cors_origin_list:
+        # Outermost, for the Android app (its own origin): preflights are answered first, and errors stay readable.
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.cors_origin_list,
+            allow_methods=["GET", "POST", "PATCH", "DELETE"],
+            allow_headers=["Accept", "Authorization", "Content-Type", "X-Request-ID"],
+            expose_headers=["X-Request-ID", "Retry-After", "Idempotent-Replayed"],
+            max_age=600,
+        )
     return app
 
 

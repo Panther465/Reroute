@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Copy, Eye } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { api, ApiError, newKey } from '@/api/client'
+import { api, apiBase, ApiError, newKey } from '@/api/client'
 import type { ShareLink, Trip } from '@/api/types'
 import { Button } from '@/components/ui/Button'
 import { Switch } from '@/components/ui/Choice'
@@ -10,11 +10,12 @@ import { Sheet } from '@/components/ui/Sheet'
 import { Banner, ErrorState } from '@/components/ui/States'
 import { useOnline } from '@/lib/hooks'
 import { T, useTl } from '@/lib/i18n'
+import { webOrigin } from '@/lib/platform'
 import { forgetShareToken, saveShareToken, shareToken } from '@/lib/shareTokens'
 import { showToast } from '@/lib/store'
 
 export function shareUrl(token: string) {
-  return `${location.origin}/shared/${token}`
+  return `${webOrigin(apiBase)}/shared/${token}`
 }
 
 export function ShareSheet({ trip, open, onOpenChange }: { trip: Trip; open: boolean; onOpenChange: (o: boolean) => void }) {

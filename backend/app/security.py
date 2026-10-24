@@ -4,6 +4,10 @@
 - Refresh token: random, stored hashed, in an httpOnly Secure SameSite=Strict cookie, rotated on every
   use. Reusing a rotated token revokes its whole family (theft detection).
 - The refresh and logout calls also need a CSRF token (double submit: cookie + X-CSRF-Token header).
+- The Android app runs on its own origin, where the API's cookies never arrive. It signs in with
+  X-Reroute-Client: android, gets the refresh token in the response body, keeps it in the Android
+  Keystore and sends it back in the body. Rotation and theft detection are the same; with no cookie
+  involved there is nothing for CSRF to forge.
 """
 
 from __future__ import annotations
@@ -108,8 +112,8 @@ def clear_cookies(response: Response) -> None:
     response.delete_cookie(CSRF_COOKIE, path="/")
 
 
-def start_session(db: Session, user: User, response: Response, family_id: str | None = None) -> None:
-    """Issue a new refresh token (and CSRF token) as cookies."""
+def start_session(db: Session, user: User, response: Response, family_id: str | None = None, *, app: bool = False) -> str | None:
+    """Issue a new refresh token: as cookies (with a CSRF token) for a browser, or returned for the app to keep."""
     s = get_settings()
     raw = secrets.token_urlsafe(32)
     max_age = s.refresh_token_days * 24 * 3600
@@ -121,7 +125,10 @@ def start_session(db: Session, user: User, response: Response, family_id: str | 
             expires_at=datetime.now(UTC) + timedelta(seconds=max_age),
         )
     )
+    if app:
+        return raw
     _set_cookies(response, raw, secrets.token_urlsafe(24), max_age)
+    return None
 
 
 def check_csrf(cookie_value: str | None, header_value: str | None) -> None:
@@ -129,7 +136,8 @@ def check_csrf(cookie_value: str | None, header_value: str | None) -> None:
         raise ApiError(403, "Missing or wrong CSRF token.", code="CSRF")
 
 
-def rotate_refresh(db: Session, raw: str | None, response: Response) -> User:
+def rotate_refresh(db: Session, raw: str | None, response: Response, *, app: bool = False) -> tuple[User, str | None]:
+    """Swap a refresh token for a new one in the same family. Returns the user, and the new token when `app`."""
     if not raw:
         raise ApiError(401, "Sign in to continue.")
     token = db.scalar(select(RefreshToken).where(RefreshToken.token_hash == sha256(raw)))
@@ -155,9 +163,9 @@ def rotate_refresh(db: Session, raw: str | None, response: Response) -> User:
     user = db.get(User, token.user_id)
     if user is None:
         raise ApiError(401, "Sign in to continue.")
-    start_session(db, user, response, family_id=token.family_id)
+    kept = start_session(db, user, response, family_id=token.family_id, app=app)
     db.commit()
-    return user
+    return user, kept
 
 
 def revoke_refresh(db: Session, raw: str | None) -> None:

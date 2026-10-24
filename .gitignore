@@ -14,6 +14,7 @@ htmlcov/
 # Node
 node_modules/
 dist/
+dist-android/
 dev-dist/
 *.tsbuildinfo
 .vite/
@@ -24,6 +25,7 @@ test-results/
 .env
 .env.*
 !.env.example
+!.env.*.example
 
 # Data prepared at runtime
 infra/osrm/data/
@@ -36,3 +38,9 @@ infra/osrm/data/
 .DS_Store
 Thumbs.db
 *.log
+
+# Android: Firebase settings and signing keys never go in git
+google-services.json
+*.jks
+*.keystore
+keystore.properties

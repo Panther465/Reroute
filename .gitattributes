@@ -4,3 +4,5 @@
 *.ico binary
 *.zip binary
 *.pbf binary
+*.bat text eol=crlf
+*.jar binary

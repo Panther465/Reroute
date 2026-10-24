@@ -29,6 +29,7 @@ import { useDocumentTitle, useIsDesktop, useOnline, useStatus, useTripClock, typ
 import { T, useTl } from '@/lib/i18n'
 import { useOpenLate } from '@/lib/late'
 import { useQueued } from '@/lib/offlineQueue'
+import { settingsName } from '@/lib/platform'
 import { lateFixed, lateMessage } from '@/lib/tellLate'
 import { setState, showToast, useStore } from '@/lib/store'
 import { addDays, dayLabel, localMinutes, samePlace, weekday, type DayView, type LegView, type StopView } from '@/lib/timeline'
@@ -499,7 +500,7 @@ export default function Today() {
       showToast({
         title:
           getLocation().error === 'denied'
-            ? 'Location is off for Reroute in your browser settings. Your plan works without it.'
+            ? `Location is off for Reroute in ${settingsName()}. Your plan works without it.`
             : "Couldn't find your location. Your plan works without it.",
       })
   }

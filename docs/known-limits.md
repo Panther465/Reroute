@@ -28,6 +28,18 @@ Honest gaps in this build. Each is a deliberate scope choice or waits on the tea
 - **Location is not collected.** The re-plan loop works from check-ins and the clock; the `location_timeline` collection and its deletion endpoint are in place for when the team adds location sharing.
 - **Leave-now browser notifications** need the traveller's permission, asked from the Me screen.
 
+## The Android app
+
+- **Parity first.** The app does what the web app does, and no more yet: no push notifications (leave-by alerts arrive while the app is open or in the background, as in a browser), no location with the screen off, no links that open in the app, and no Play Store listing. Those wait for the owner's go-ahead.
+- **Android only.** Capacitor could build an iPhone app from the same code; it isn't set up.
+- **Release builds aren't signed yet.** A release needs an upload key and, for the Play Store, a Google Play developer account. Google sign-in in a release needs that key's SHA-1 on the Android OAuth client too (and the Play App Signing key's, once on the Play Store).
+- **The API address is built in.** Each build calls the address in `frontend/.env.android`; pointing the app at another server means building it again.
+- **Debug builds accept the local stack's self-signed certificate** for loopback and private-network addresses (the emulator's 10.0.2.2, a PC on the Wi-Fi). Release builds accept no bad certificate.
+- **Talking to Rico needs Android's speech recognizer** (Google's app on most phones). On an emulator or a phone without it, the microphone button says the phone can't listen.
+- **The phone's own voice depends on the phone's text-to-speech.** With no Indian English voice installed, another English voice reads.
+- **The expense slip is saved to Documents/Reroute** on Android 11 and later. On Android 10 and older the share sheet opens instead, to save it to Files or Drive.
+- **The icon and splash are the web app's mark,** not Rico, until the extras.
+
 ## API gaps the web app works around
 
 - **A trip's city, dates and place of stay can't be edited** after creation (no `PATCH /v1/trips/:id`); the Plan screen shows them read-only.

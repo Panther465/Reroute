@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- No backup of the app's data: the saved plan, check-ins waiting to sync and the sign-in token stay on this phone. -->
+    <application
+        android:allowBackup="false"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".MainActivity"
+            android:label="@string/title_activity_main"
+            android:theme="@style/AppTheme.NoActionBarLaunch"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
+            android:exported="true">
+
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+
+        </activity>
+
+        <!-- Rico over other apps (his code is locked: frontend/rico/README.md). -->
+        <activity
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
+            android:name=".RicoBarActivity"
+            android:theme="@style/AppTheme.RicoBar"
+            android:taskAffinity="com.reroute.app.ricobar"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:windowSoftInputMode="adjustResize"
+            android:exported="false" />
+
+        <!-- Firebase makes this phone a push token only once the traveller turns alerts on (RerouteMessagingPlugin). -->
+        <meta-data android:name="firebase_messaging_auto_init_enabled" android:value="false" />
+
+        <!-- "Hey Rico", when turned on in Me. -->
+        <service
+            android:name=".RicoListener"
+            android:exported="false"
+            android:foregroundServiceType="microphone"
+            android:process=":ear" />
+        <receiver
+            android:name=".WakeReceiver"
+            android:exported="false" />
+
+        <!-- Reroute's alerts as push notifications (Firebase): RerouteMessagingService shows each one. -->
+        <service
+            android:name=".RerouteMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"></meta-data>
+        </provider>
+    </application>
+
+    <!-- Permissions: each one stands in for what a browser already has. -->
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <!-- The offline banner and the check-in queue (navigator.onLine and its events). -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <!-- "Show me on the map" and turn by turn, only while Reroute is open, asked for the first time either is used. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <!-- Talking to Rico: the microphone, asked for the first time he listens. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <!-- "Hey Rico" with Reroute in the background, when turned on in Me, with its notification showing. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <!-- Rico over other apps, once the traveller allows "Display over other apps" from Me. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+    <!-- An alert's buzz (navigator.vibrate). -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- Leave-by alerts as phone notifications (Android 13 and later ask first), turned on in Me. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Not asked for: the notifications plugin declares it for alerts set for later, and Reroute shows each one at once. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" tools:node="remove" />
+
+    <!-- Phones without GPS or a microphone can still install the app. -->
+    <uses-feature android:name="android.hardware.location.gps" android:required="false" />
+    <uses-feature android:name="android.hardware.microphone" android:required="false" />
+
+    <!-- Android's speech recognizer, for talking to Rico (Android 11 and later only show apps what they declare). -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+    </queries>
+</manifest>

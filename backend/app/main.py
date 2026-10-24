@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from rq import Worker
 from sqlalchemy import text
@@ -20,7 +21,7 @@ log = logging.getLogger("reroute")
 
 
 def create_app() -> FastAPI:
-    get_settings()  # validates: DEMO_LOGIN is refused in production
+    settings = get_settings()  # validates: DEMO_LOGIN is refused in production
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
     app = FastAPI(
         title="Reroute API",
@@ -34,6 +35,17 @@ def create_app() -> FastAPI:
     # Order matters: the trace ID wraps everything, so even guard errors carry it.
     app.add_middleware(GuardMiddleware)
     app.add_middleware(TraceIdMiddleware)
+    if settings.cors_origin_list:
+        # Outermost: preflights are answered before the rate limits, and a 413 or 429 still reaches the app.
+        # No cookies cross: the Android app sends its access token, and its refresh token in the body.
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.cors_origin_list,
+            allow_methods=["GET", "POST", "PATCH", "DELETE"],
+            allow_headers=["Accept", "Authorization", "Content-Type", "X-Request-ID", "X-Reroute-Client"],
+            expose_headers=["X-Request-ID", "Retry-After", "Idempotent-Replayed"],
+            max_age=600,
+        )
     for module in (auth, me, cities, places, roads, speech, trips, roo, bookings, wallet, share, live):
         app.include_router(module.router)
 

@@ -2,8 +2,9 @@
 // the Authorization header (EventSource can't). Reconnects with jittered backoff and refetches the trip after
 // a reconnect, since events sent while the stream was down are lost; the trip query also refetches on events.
 import { useEffect } from 'react'
-import { apiBase, getAccessToken, refreshSession } from '@/api/client'
+import { apiBase, credentialsMode, getAccessToken, refreshSession } from '@/api/client'
 import { keys, queryClient } from '@/api/queries'
+import { native } from './platform'
 import { getState, setState } from './store'
 
 export interface LiveEvent {
@@ -34,11 +35,18 @@ export function parseSse(buffer: string): { events: LiveEvent[]; rest: string } 
   return { events, rest }
 }
 
+/** The traveller has let Reroute show phone notifications (in the Android app, Android's own permission). */
+export function canNotify(): boolean {
+  if (native.notifications) return native.notifications.granted()
+  return 'Notification' in window && Notification.permission === 'granted'
+}
+
 /**
  * Show a system notification without ever throwing: Android Chrome refuses `new Notification()`
  * (only the service worker may show one), and a throw here would end the live stream.
  */
 export async function notify(title: string, options: NotificationOptions) {
+  if (native.notifications) return native.notifications.show(title, { body: options.body, tag: options.tag, silent: options.silent ?? false }).catch(() => {})
   try {
     if ('serviceWorker' in navigator) {
       const reg = await Promise.race([navigator.serviceWorker.ready, new Promise<null>((r) => setTimeout(() => r(null), 3000))])
@@ -80,7 +88,7 @@ function handle(tripId: string, e: LiveEvent) {
     const text = inMin > 0 ? `Leave in ${inMin} min. ${label}.` : `Leave now. ${label}.`
     const seq = typeof e.data.seq === 'number' ? e.data.seq : null
     setState({ leaveNow: { text, at: Date.now(), seq } })
-    if (getState().leaveAlerts && 'Notification' in window && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
+    if (getState().leaveAlerts && canNotify() && document.visibilityState !== 'visible') {
       void notify('Reroute', { body: text, tag: `leave-${String(e.data.seq)}` })
     }
   }
@@ -108,7 +116,7 @@ export function useLive(tripId: string | null, enabled: boolean) {
         try {
           const res = await fetch(`${apiBase}/v1/trips/${tripId}/live`, {
             headers: { Accept: 'text/event-stream', ...(getAccessToken() ? { Authorization: `Bearer ${getAccessToken()}` } : {}) },
-            credentials: 'include',
+            credentials: credentialsMode,
             signal: ctrl.signal,
           })
           if (res.status === 401) {

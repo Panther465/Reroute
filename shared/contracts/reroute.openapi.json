@@ -34,15 +34,36 @@
         ],
         "summary": "Create an account with an email and a password",
         "operationId": "signup_v1_auth_signup_post",
+        "parameters": [
+          {
+            "name": "X-Reroute-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "android",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`android` from the Android app: the refresh token comes back in the body instead of a cookie.",
+              "title": "X-Reroute-Client"
+            },
+            "description": "`android` from the Android app: the refresh token comes back in the body instead of a cookie."
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/SignUpIn"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -75,15 +96,36 @@
         ],
         "summary": "Sign in with an email and a password",
         "operationId": "login_v1_auth_login_post",
+        "parameters": [
+          {
+            "name": "X-Reroute-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "android",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`android` from the Android app: the refresh token comes back in the body instead of a cookie.",
+              "title": "X-Reroute-Client"
+            },
+            "description": "`android` from the Android app: the refresh token comes back in the body instead of a cookie."
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/LoginIn"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -116,15 +158,36 @@
         ],
         "summary": "Google",
         "operationId": "google_v1_auth_google_post",
+        "parameters": [
+          {
+            "name": "X-Reroute-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "android",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`android` from the Android app: the refresh token comes back in the body instead of a cookie.",
+              "title": "X-Reroute-Client"
+            },
+            "description": "`android` from the Android app: the refresh token comes back in the body instead of a cookie."
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/GoogleSignIn"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -157,15 +220,36 @@
         ],
         "summary": "Demo sign-in (only when DEMO_LOGIN=true)",
         "operationId": "demo_v1_auth_demo_post",
+        "parameters": [
+          {
+            "name": "X-Reroute-Client",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "const": "android",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "`android` from the Android app: the refresh token comes back in the body instead of a cookie.",
+              "title": "X-Reroute-Client"
+            },
+            "description": "`android` from the Android app: the refresh token comes back in the body instead of a cookie."
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/DemoSignIn"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "200": {
@@ -248,6 +332,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RefreshIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -329,6 +430,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/RefreshIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Body"
+              }
+            }
+          }
+        },
         "responses": {
           "204": {
             "description": "Successful Response"
@@ -5702,6 +5820,22 @@
         "title": "PostBody",
         "description": "Every POST carries an idempotency key (section 13)."
       },
+      "RefreshIn": {
+        "properties": {
+          "refreshToken": {
+            "type": "string",
+            "maxLength": 256,
+            "minLength": 16,
+            "title": "Refreshtoken"
+          }
+        },
+        "type": "object",
+        "required": [
+          "refreshToken"
+        ],
+        "title": "RefreshIn",
+        "description": "The Android app's own refresh token, for /v1/auth/refresh and /v1/auth/logout (a browser sends no body)."
+      },
       "RoadPathOut": {
         "properties": {
           "coords": {
@@ -7323,6 +7457,17 @@
           },
           "user": {
             "$ref": "#/components/schemas/UserOut"
+          },
+          "refreshToken": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refreshtoken"
           }
         },
         "type": "object",

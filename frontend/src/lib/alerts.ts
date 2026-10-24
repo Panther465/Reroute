@@ -3,7 +3,7 @@
 // phone notification, as chosen in Me, and always shows a toast and tells screen readers, so no alert
 // relies on sound alone. Every alert fires once.
 import { enqueue } from './speech/channel'
-import { notify } from './live'
+import { canNotify, notify } from './live'
 import { getState, showToast, type ChimeStyle } from './store'
 
 export type Tone = 'nudge' | 'urgent' | 'arrive'
@@ -149,7 +149,7 @@ export function raise(spec: AlertSpec, opts: { force?: boolean } = {}) {
     }
   })
   // On screen, the toast says it; the phone notification is for when Reroute is in the background.
-  if (getState().leaveAlerts && 'Notification' in window && Notification.permission === 'granted' && document.visibilityState !== 'visible') {
+  if (getState().leaveAlerts && canNotify() && document.visibilityState !== 'visible') {
     void notify('Reroute', { body: spec.title, tag: spec.tag ?? spec.key, silent: prefs.sound || prefs.voice })
   }
 }

@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { api, ApiError, getAccessToken, newKey, setAccessToken, setForcedOffline } from './client'
+import { native } from '@/lib/platform'
+import { api, ApiError, getAccessToken, newKey, refreshSession, setAccessToken, setForcedOffline } from './client'
 
 type Call = { url: string; init: RequestInit }
 
@@ -105,3 +106,65 @@ describe('api client', () => {
     expect(calls).toHaveLength(0)
   })
 })
+
+describe('in the Android app', () => {
+  // The app keeps its refresh token itself (lib/platform.ts); here, in memory.
+  let kept: string | null
+  beforeEach(() => {
+    kept = 'app-refresh-0000000000000001'
+    native.session = {
+      load: vi.fn(async () => kept),
+      save: vi.fn(async (token: string) => {
+        kept = token
+      }),
+      clear: vi.fn(async () => {
+        kept = null
+      }),
+    }
+  })
+  afterEach(() => {
+    delete native.session
+  })
+
+  it('refreshes with the token it keeps, in the body, with no cookie or CSRF header, and keeps the new one', async () => {
+    responses.push(() => json(200, { accessToken: 'new-access', refreshToken: 'app-refresh-0000000000000002' }))
+    expect(await refreshSession()).toBe('ok')
+    expect(calls[0].url).toMatch(/\/v1\/auth\/refresh$/)
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ refreshToken: 'app-refresh-0000000000000001' })
+    expect(calls[0].init.credentials).toBe('omit')
+    expect(header(calls[0], 'X-Reroute-Client')).toBe('android')
+    expect(header(calls[0], 'X-CSRF-Token')).toBeNull()
+    expect(getAccessToken()).toBe('new-access')
+    expect(kept).toBe('app-refresh-0000000000000002')
+  })
+
+  it('signs out and forgets the token when the server refuses it', async () => {
+    setAccessToken('old')
+    responses.push(() => json(401, { error: { code: 'UNAUTHENTICATED', message: 'Your session ended. Sign in again.', traceId: 't' } }))
+    expect(await refreshSession()).toBe('rejected')
+    expect(kept).toBeNull()
+    expect(getAccessToken()).toBeNull()
+  })
+
+  it('skips the request when it keeps no token (never signed in on this phone)', async () => {
+    kept = null
+    expect(await refreshSession()).toBe('rejected')
+    expect(calls).toHaveLength(0)
+  })
+
+  it("keeps the token when the server can't be reached", async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))))
+    expect(await refreshSession()).toBe('unreachable')
+    expect(kept).toBe('app-refresh-0000000000000001')
+  })
+
+  it('says it is the app only when signing in, so other calls stay simple for CORS', async () => {
+    responses.push(() => json(200, { accessToken: 'a', refreshToken: 'app-refresh-0000000000000003' }))
+    responses.push(() => json(200, { userId: 'u1' }))
+    await api.post('/v1/auth/demo', { as: 'traveller' }, { noRefresh: true })
+    await api.get('/v1/me')
+    expect(header(calls[0], 'X-Reroute-Client')).toBe('android')
+    expect(header(calls[1], 'X-Reroute-Client')).toBeNull()
+  })
+})
+

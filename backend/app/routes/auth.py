@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from fastapi import APIRouter, Cookie, Header, Response
 from sqlalchemy import func, select
@@ -16,7 +16,7 @@ from app.errors import ApiError
 from app.models import Trip, User
 from app.redis_client import get_redis
 from app.routes.me import user_out
-from app.schemas import AuthOptionsOut, DemoSignIn, GoogleSignIn, LoginIn, SignUpIn, TokenOut
+from app.schemas import AuthOptionsOut, DemoSignIn, GoogleSignIn, LoginIn, RefreshIn, SignUpIn, TokenOut
 from app.security import (
     CSRF_COOKIE,
     REFRESH_COOKIE,
@@ -37,9 +37,17 @@ DEMO_EMAILS = {"traveller": "demo.traveller@reroute.example", "moderator": "demo
 DEMO_CLOCK_START = "2026-10-14T07:30:00+05:30"
 
 
-def _token(user: User) -> TokenOut:
+#: Sent by the Android app on sign-in: its refresh token comes back in the body, since the app's own origin
+#: never sees the API's cookies. A browser sends nothing and gets cookies, as before.
+AppClient = Annotated[
+    Literal["android"] | None,
+    Header(alias="X-Reroute-Client", description="`android` from the Android app: the refresh token comes back in the body instead of a cookie."),
+]
+
+
+def _token(user: User, refresh_token: str | None = None) -> TokenOut:
     token, ttl = issue_access_token(user)
-    return TokenOut(access_token=token, expires_in=ttl, user=user_out(user))
+    return TokenOut(access_token=token, expires_in=ttl, user=user_out(user), refresh_token=refresh_token)
 
 
 @router.get("/options", response_model=AuthOptionsOut, response_model_by_alias=True, summary="Which ways to sign in this server offers")
@@ -53,31 +61,31 @@ _NO_ACCOUNT = hash_password("no account has this email")
 
 
 @router.post("/signup", response_model=TokenOut, response_model_by_alias=True, status_code=201, summary="Create an account with an email and a password")
-def signup(body: SignUpIn, response: Response, db: Db) -> TokenOut:
+def signup(body: SignUpIn, response: Response, db: Db, client: AppClient = None) -> TokenOut:
     if db.scalar(select(User.user_id).where(func.lower(User.email) == body.email).limit(1)):
         raise ApiError(409, "An account with this email already exists. Sign in instead.", code="EMAIL_TAKEN")
     user = User(email=body.email, name=body.name, role="traveller", password_hash=hash_password(body.password))
     db.add(user)
     db.flush()
     wallet.credit_welcome(db, user.user_id)
-    start_session(db, user, response)
+    kept = start_session(db, user, response, app=client == "android")
     db.commit()
-    return _token(user)
+    return _token(user, kept)
 
 
 @router.post("/login", response_model=TokenOut, response_model_by_alias=True, summary="Sign in with an email and a password")
-def login(body: LoginIn, response: Response, db: Db) -> TokenOut:
+def login(body: LoginIn, response: Response, db: Db, client: AppClient = None) -> TokenOut:
     user = db.scalar(select(User).where(func.lower(User.email) == body.email, User.password_hash.is_not(None)))
     if not verify_password(body.password, user.password_hash if user else _NO_ACCOUNT) or user is None:
         # One answer for a wrong email and a wrong password: it doesn't say which accounts exist.
         raise ApiError(401, "Email or password is wrong.")
-    start_session(db, user, response)
+    kept = start_session(db, user, response, app=client == "android")
     db.commit()
-    return _token(user)
+    return _token(user, kept)
 
 
 @router.post("/google", response_model=TokenOut, response_model_by_alias=True)
-def google(body: GoogleSignIn, response: Response, db: Db) -> TokenOut:
+def google(body: GoogleSignIn, response: Response, db: Db, client: AppClient = None) -> TokenOut:
     identity = sign_in_with_code(body.code)
     user = db.scalar(select(User).where(User.google_sub == identity.sub))
     if user is None:
@@ -85,13 +93,13 @@ def google(body: GoogleSignIn, response: Response, db: Db) -> TokenOut:
         db.add(user)
         db.flush()
         wallet.credit_welcome(db, user.user_id)
-    start_session(db, user, response)
+    kept = start_session(db, user, response, app=client == "android")
     db.commit()
-    return _token(user)
+    return _token(user, kept)
 
 
 @router.post("/demo", response_model=TokenOut, response_model_by_alias=True, summary="Demo sign-in (only when DEMO_LOGIN=true)")
-def demo(body: DemoSignIn, response: Response, db: Db) -> TokenOut:
+def demo(body: DemoSignIn, response: Response, db: Db, client: AppClient = None) -> TokenOut:
     if not get_settings().demo_login:
         raise ApiError(404, "Not found.")
     user = db.scalar(select(User).where(User.email == DEMO_EMAILS[body.as_role]))
@@ -101,24 +109,29 @@ def demo(body: DemoSignIn, response: Response, db: Db) -> TokenOut:
     for trip in db.scalars(select(Trip).where(Trip.user_id == user.user_id, Trip.sample.is_(True))):
         if not get_redis().exists(demo_key(trip.trip_id)):
             set_demo_now(trip.trip_id, datetime.fromisoformat(DEMO_CLOCK_START))
-    start_session(db, user, response)
+    kept = start_session(db, user, response, app=client == "android")
     db.commit()
-    return _token(user)
+    return _token(user, kept)
 
 
 @router.post("/refresh", response_model=TokenOut, response_model_by_alias=True)
 def refresh(
     response: Response,
     db: Db,
+    body: RefreshIn | None = None,
     rr_refresh: Annotated[str | None, Cookie(alias=REFRESH_COOKIE)] = None,
     rr_csrf: Annotated[str | None, Cookie(alias=CSRF_COOKIE)] = None,
     x_csrf_token: Annotated[str | None, Header()] = None,
 ) -> TokenOut:
+    if body is not None:
+        # The Android app's own token, from its body: no cookie is involved, so there is no CSRF to check.
+        user, kept = rotate_refresh(db, body.refresh_token, response, app=True)
+        return _token(user, kept)
     if not rr_refresh:
         # No session at all (a first visit): "sign in", not a CSRF failure.
         raise ApiError(401, "Sign in to continue.")
     check_csrf(rr_csrf, x_csrf_token)
-    user = rotate_refresh(db, rr_refresh, response)
+    user, _ = rotate_refresh(db, rr_refresh, response)
     return _token(user)
 
 
@@ -126,10 +139,15 @@ def refresh(
 def logout(
     response: Response,
     db: Db,
+    body: RefreshIn | None = None,
     rr_refresh: Annotated[str | None, Cookie(alias=REFRESH_COOKIE)] = None,
     rr_csrf: Annotated[str | None, Cookie(alias=CSRF_COOKIE)] = None,
     x_csrf_token: Annotated[str | None, Header()] = None,
 ) -> Response:
+    if body is not None:
+        # The Android app signing out: end its token's whole family. It has no cookies to clear.
+        revoke_refresh(db, body.refresh_token)
+        return Response(status_code=204)
     check_csrf(rr_csrf, x_csrf_token)
     revoke_refresh(db, rr_refresh)
     out = Response(status_code=204)

@@ -1,14 +1,30 @@
 /// <reference types="vitest/config" />
-import { defineConfig, type ProxyOptions } from 'vite'
+import { defineConfig, loadEnv, type ProxyOptions } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'node:path'
 import { VitePWA } from 'vite-plugin-pwa'
 
+/**
+ * `--mode android` builds the same app for the Android app (Capacitor bundles dist-android into the APK):
+ * no service worker (its files are already on the phone), and the API's address is required, since the
+ * app's own page (https://localhost inside the phone) isn't where the API is.
+ */
+function androidOutDir(mode: string) {
+  const base = loadEnv(mode, process.cwd(), 'VITE_').VITE_API_BASE ?? ''
+  if (!/^https:\/\/[^/]+/.test(base)) {
+    throw new Error(
+      "Set VITE_API_BASE to the API's https address for the Android build (frontend/.env.android): https://10.0.2.2 for the emulator, your PC's LAN address for a phone, the real host for a release.",
+    )
+  }
+  return 'dist-android'
+}
+
 // Vite config — https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   base: '/',
   build: {
+    outDir: mode === 'android' ? androidOutDir(mode) : 'dist',
     sourcemap: mode === 'development' ? 'inline' : false,
     // MapLibre is one large library, loaded only when a map is on screen.
     chunkSizeWarningLimit: 1100,
@@ -30,6 +46,8 @@ export default defineConfig(({ mode }) => ({
     react(),
     tailwindcss(),
     VitePWA({
+      // The Android app's files are on the phone already: no service worker, so an update never serves an old copy.
+      disable: mode === 'android',
       registerType: 'autoUpdate',
       injectRegister: 'auto',
       includeAssets: ['favicon.svg', 'apple-touch-icon.png'],

@@ -2,8 +2,16 @@
 // - The access token lives in memory only. On a 401 the client refreshes once (refresh cookie + CSRF header) and retries.
 // - Errors arrive as { error: { code, message, traceId } } and become an ApiError.
 // - Every POST carries an idempotencyKey. Callers pass a key per action, so retries of that action reuse it.
+// - The Android app calls the API's host from its own origin, where no cookie arrives: it keeps its refresh
+//   token itself (lib/platform.ts) and sends it in the body.
+import { isNative, native } from '@/lib/platform'
 
 const BASE = (import.meta.env.VITE_API_BASE as string | undefined)?.replace(/\/$/, '') ?? ''
+
+/** Cookies go with every call in a browser; the Android app has none to send. */
+export const credentialsMode: RequestCredentials = isNative() ? 'omit' : 'include'
+/** Tells the API that the Android app is signing in, so the refresh token comes back in the body. */
+const APP_CLIENT = { 'X-Reroute-Client': 'android' }
 
 export class ApiError extends Error {
   status: number
@@ -116,26 +124,43 @@ export function refreshSession(): Promise<RefreshResult> {
 
 async function attemptRefresh(): Promise<RefreshResult> {
   if (forcedOffline) return 'unreachable'
+  // The Android app's own refresh token; with none kept, it was never signed in on this phone.
+  const kept = native.session ? await native.session.load() : null
+  if (native.session && !kept) return 'rejected'
   // No CSRF cookie on the same origin means there was never a session here (a first visit): skip a
   // request that could only be refused. (On another API origin the cookie isn't readable.)
-  if (!BASE && !cookie('rr_csrf')) return 'rejected'
+  if (!native.session && !BASE && !cookie('rr_csrf')) return 'rejected'
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), REFRESH_TIMEOUT_MS)
   try {
-    const res = await fetch(`${BASE}/v1/auth/refresh`, {
-      method: 'POST',
-      credentials: 'include',
-      headers: { 'X-CSRF-Token': cookie('rr_csrf'), 'X-Request-ID': crypto.randomUUID() },
-      signal: ctrl.signal,
-    })
+    const res = await fetch(
+      `${BASE}/v1/auth/refresh`,
+      kept
+        ? {
+            method: 'POST',
+            credentials: 'omit',
+            headers: { 'Content-Type': 'application/json', 'X-Request-ID': crypto.randomUUID(), ...APP_CLIENT },
+            body: JSON.stringify({ refreshToken: kept }),
+            signal: ctrl.signal,
+          }
+        : {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'X-CSRF-Token': cookie('rr_csrf'), 'X-Request-ID': crypto.randomUUID() },
+            signal: ctrl.signal,
+          },
+    )
     setReachable(true)
     // Only a refused cookie ends the session. A rate limit (429) or a server error is a passing problem.
     if (res.status === 401 || res.status === 403) {
+      if (kept) await native.session?.clear()
       setAccessToken(null)
       return 'rejected'
     }
     if (!res.ok) return 'unreachable'
-    const body = (await res.json()) as { accessToken: string }
+    const body = (await res.json()) as { accessToken: string; refreshToken?: string | null }
+    // The token was just rotated: keep the new one, or the next launch would present a used one.
+    if (kept && body.refreshToken) await native.session?.save(body.refreshToken).catch(() => {})
     setAccessToken(body.accessToken)
     return 'ok'
   } catch {
@@ -193,7 +218,8 @@ export async function request<T>(method: string, path: string, opts: RequestOpti
     const headers: Record<string, string> = { Accept: 'application/json', 'X-Request-ID': crypto.randomUUID() }
     if (body !== undefined) headers['Content-Type'] = 'application/json'
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`
-    return fetch(url, { method, headers, body, credentials: 'include', signal: withTimeout(opts.signal, opts.raw ? undefined : (opts.timeoutMs ?? 20_000)) })
+    if (native.session && path.startsWith('/v1/auth/')) Object.assign(headers, APP_CLIENT)
+    return fetch(url, { method, headers, body, credentials: credentialsMode, signal: withTimeout(opts.signal, opts.raw ? undefined : (opts.timeoutMs ?? 20_000)) })
   }
 
   const attempt = async () => {

@@ -1,5 +1,7 @@
 // Google Identity Services, authorization code flow. The browser only ever gets a one-time code;
 // the server exchanges it with the client secret. Hidden entirely when no client ID is configured.
+// In the Android app, Google refuses sign-in inside the web view: Android's own Google sign-in gets the code.
+import { native } from './platform'
 
 export const GOOGLE_CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) ?? ''
 export const googleEnabled = GOOGLE_CLIENT_ID.length > 0
@@ -36,6 +38,7 @@ function loadScript(): Promise<void> {
 
 /** Ask Google for a one-time code. Sign-in asks for identity only; Calendar import adds read-only calendar access. */
 export async function requestGoogleCode(scope = 'openid email profile'): Promise<string> {
+  if (native.googleCode) return native.googleCode(scope)
   await loadScript()
   return new Promise((resolve, reject) => {
     const client = window.google!.accounts.oauth2.initCodeClient({

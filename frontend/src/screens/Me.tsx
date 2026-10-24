@@ -15,6 +15,7 @@ import { useDocumentTitle, useOnline } from '@/lib/hooks'
 import { T, useTl } from '@/lib/i18n'
 import { chime, raise, speak, VOICES } from '@/lib/alerts'
 import { geolocationSupported, startTracking, stopTracking, useLocation } from '@/lib/location'
+import { isNative, native, settingsName } from '@/lib/platform'
 import { signOut } from '@/lib/session'
 import { setState, showToast, useStore, type AlertPrefs, type ChimeStyle, type Lang, type Theme, type VoiceRate } from '@/lib/store'
 
@@ -31,7 +32,7 @@ function Section({ title, children, className = '' }: { title: string; children:
   )
 }
 
-const notificationsSupported = typeof window !== 'undefined' && 'Notification' in window
+const notificationsSupported = isNative() || (typeof window !== 'undefined' && 'Notification' in window)
 const vibrationSupported = typeof navigator !== 'undefined' && 'vibrate' in navigator
 
 export default function Me() {
@@ -65,7 +66,9 @@ export default function Me() {
     if (!on) return setState({ leaveAlerts: false })
     let permission: NotificationPermission = 'denied'
     try {
-      permission = await Notification.requestPermission()
+      // The Android app asks for Android's notification permission (the web view has no Notification API).
+      if (native.notifications) permission = (await native.notifications.request()) ? 'granted' : 'denied'
+      else permission = await Notification.requestPermission()
     } catch {
       /* some browsers only allow asking from an installed app */
     }
@@ -74,7 +77,7 @@ export default function Me() {
       showToast({ title: 'Leave-by alerts are on. They show while Reroute is open or in the background on this phone.' })
     } else {
       setState({ leaveAlerts: false })
-      showToast({ title: 'Notifications are off for Reroute in your browser settings. Leave-by alerts still show in the app.' })
+      showToast({ title: `Notifications are off for Reroute in ${settingsName()}. Leave-by alerts still show in the app.` })
     }
   }
 
@@ -277,7 +280,7 @@ export default function Me() {
               checked={location.tracking && !location.simulated}
               onChange={async (v) => {
                 if (!v) return stopTracking()
-                if (!(await startTracking())) showToast({ title: location.error === 'denied' ? 'Location is off for Reroute in your browser settings.' : "Couldn't find your location. Try again outside or near a window." })
+                if (!(await startTracking())) showToast({ title: location.error === 'denied' ? `Location is off for Reroute in ${settingsName()}.` : "Couldn't find your location. Try again outside or near a window." })
               }}
             />
           </div>

@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, refreshSession, setAccessToken, setForcedOffline } from '@/api/client'
 import { keys, queryClient } from '@/api/queries'
 import type { User } from '@/api/types'
-import { getSessionStatus, resetSession, restoreSession } from './session'
+import { native } from './platform'
+import { getSessionStatus, resetSession, restoreSession, signInDemo, signOut } from './session'
 
 const user = { userId: 'u1', name: 'Asha Rao', email: 'asha@example.com', role: 'traveller', isDemo: true } as unknown as User
 
@@ -137,3 +138,54 @@ describe('the session ending', () => {
     expect(localStorage.getItem('reroute:checkin-queue')).toBe('[]')
   })
 })
+
+describe('in the Android app', () => {
+  let kept: string | null = null
+  beforeEach(() => {
+    kept = null
+    native.session = {
+      load: vi.fn(async () => kept),
+      save: vi.fn(async (token: string) => {
+        kept = token
+      }),
+      clear: vi.fn(async () => {
+        kept = null
+      }),
+    }
+  })
+  afterEach(() => {
+    delete native.session
+  })
+
+  it('keeps the refresh token the server hands the app on sign-in', async () => {
+    stubFetch(async () => json(200, { accessToken: 'tok', refreshToken: 'app-refresh-0000000000000009', user }))
+    await signInDemo()
+    expect(getSessionStatus()).toBe('signedIn')
+    await vi.waitFor(() => expect(kept).toBe('app-refresh-0000000000000009'))
+  })
+
+  it('restores the session from the kept token when the app opens', async () => {
+    kept = 'app-refresh-0000000000000009'
+    stubFetch(async () => json(200, { accessToken: 'tok', refreshToken: 'app-refresh-000000000000000a' }))
+    await restoreSession()
+    expect(getSessionStatus()).toBe('signedIn')
+    expect(kept).toBe('app-refresh-000000000000000a')
+  })
+
+  it('signs out with its token in the body and forgets it', async () => {
+    kept = 'app-refresh-0000000000000009'
+    const sent: { url: string; init: RequestInit }[] = []
+    stubFetch(async (url, init) => {
+      sent.push({ url, init })
+      return new Response(null, { status: 204 })
+    })
+    await signOut()
+    expect(sent).toHaveLength(1)
+    expect(sent[0].url).toMatch(/\/v1\/auth\/logout$/)
+    expect(JSON.parse(String(sent[0].init.body))).toEqual({ refreshToken: 'app-refresh-0000000000000009' })
+    expect(new Headers(sent[0].init.headers).get('X-CSRF-Token')).toBeNull()
+    expect(kept).toBeNull()
+    expect(getSessionStatus()).toBe('signedOut')
+  })
+})
+
