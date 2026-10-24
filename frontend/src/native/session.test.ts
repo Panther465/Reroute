@@ -17,6 +17,7 @@ const store = vi.hoisted(() => {
         if (!kept.delete(key)) throw new Error('Item with given key does not exist')
         return { value: true }
       }),
+      keys: vi.fn(async () => ({ value: [...kept.keys()] })),
     },
   }
 })
@@ -37,7 +38,17 @@ describe("the app's refresh token", () => {
   })
 
   it("reads as none when the Keystore can't decrypt it (a restored phone): sign in again", async () => {
+    await session.save('app-refresh-0000000000000001')
     store.plugin.get.mockRejectedValueOnce(new Error('javax.crypto.AEADBadTagException'))
     await expect(session.load()).resolves.toBeNull()
+  })
+
+  it('never asks Android for a token it does not keep, since that is logged as an error', async () => {
+    store.plugin.get.mockClear()
+    store.plugin.remove.mockClear()
+    await session.load()
+    await session.clear()
+    expect(store.plugin.get).not.toHaveBeenCalled()
+    expect(store.plugin.remove).not.toHaveBeenCalled()
   })
 })

@@ -4,12 +4,18 @@ import { SecureStoragePlugin } from 'capacitor-secure-storage-plugin'
 
 const KEY = 'reroute.refresh-token'
 
+/** Whether a token is kept: asked first, since reading or removing a missing one is logged as an error. */
+async function kept(): Promise<boolean> {
+  return (await SecureStoragePlugin.keys()).value.includes(KEY)
+}
+
 export const session = {
   async load(): Promise<string | null> {
     try {
+      if (!(await kept())) return null
       return (await SecureStoragePlugin.get({ key: KEY })).value || null
     } catch {
-      // Nothing kept (never signed in here), or the Keystore can't read it any more: sign in again.
+      // The Keystore can't read it any more (a restored phone): sign in again.
       return null
     }
   },
@@ -18,9 +24,9 @@ export const session = {
   },
   async clear(): Promise<void> {
     try {
-      await SecureStoragePlugin.remove({ key: KEY })
+      if (await kept()) await SecureStoragePlugin.remove({ key: KEY })
     } catch {
-      /* nothing was kept */
+      /* nothing to forget */
     }
   },
 }

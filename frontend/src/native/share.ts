@@ -12,18 +12,32 @@ export async function shareText(text: string, title?: string): Promise<'shared' 
   }
 }
 
-/** Saves to Documents/Reroute. Where Android won't allow that (Android 10 and older), the share sheet offers Files or Drive. */
+/** `slip.txt`, then `slip (1).txt`, `slip (2).txt`…, as a browser names downloads. */
+export function nthName(name: string, n: number): string {
+  if (n === 0) return name
+  const dot = name.lastIndexOf('.')
+  return dot > 0 ? `${name.slice(0, dot)} (${n})${name.slice(dot)}` : `${name} (${n})`
+}
+
+/**
+ * Saves to Documents/Reroute. A file of that name the app may not overwrite (one an earlier install saved) gets the
+ * next name, as a browser's downloads do. Where Android won't allow Documents at all (Android 10 and older), the share
+ * sheet offers Files or Drive.
+ */
 export async function saveText(name: string, text: string): Promise<string | null> {
-  try {
-    await Filesystem.writeFile({ path: `Reroute/${name}`, data: text, directory: Directory.Documents, encoding: Encoding.UTF8, recursive: true })
-    return `Documents/Reroute/${name}`
-  } catch {
+  for (let n = 0; n < 5; n++) {
     try {
-      const { uri } = await Filesystem.writeFile({ path: name, data: text, directory: Directory.Cache, encoding: Encoding.UTF8 })
-      await Share.share({ files: [uri], dialogTitle: 'Save the expense slip' })
-      return 'the place you picked'
+      await Filesystem.writeFile({ path: `Reroute/${nthName(name, n)}`, data: text, directory: Directory.Documents, encoding: Encoding.UTF8, recursive: true })
+      return `Documents/Reroute/${nthName(name, n)}`
     } catch {
-      return null
+      /* taken by an earlier install, or no Documents here: the next name */
     }
+  }
+  try {
+    const { uri } = await Filesystem.writeFile({ path: name, data: text, directory: Directory.Cache, encoding: Encoding.UTF8 })
+    await Share.share({ files: [uri], dialogTitle: 'Save the expense slip' })
+    return 'the place you picked'
+  } catch {
+    return null
   }
 }

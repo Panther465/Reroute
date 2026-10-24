@@ -28,20 +28,19 @@ describe('phone notifications in the app', () => {
     }
   })
 
-  it('makes its channels and reads the permission when the app starts', async () => {
+  it('makes its channel and reads the permission when the app starts', async () => {
     await startNotifications()
     expect(plugin.createChannel).toHaveBeenCalledWith(expect.objectContaining({ id: 'alerts', importance: 4 }))
-    expect(plugin.createChannel).toHaveBeenCalledWith(expect.objectContaining({ id: 'alerts-quiet', importance: 2 }))
     expect(notifications.granted()).toBe(true)
   })
 
-  it('shows an alert, quietly when Rico already says it', async () => {
+  it("shows an alert with Android's sound, even one the web would keep silent", async () => {
     await startNotifications()
     await notifications.show('Reroute', { body: 'Leave now. Cab to the bank.', tag: 'leave-2' })
     await notifications.show('Reroute', { body: 'You have arrived.', tag: 'arrive-2', silent: true })
     const [first, second] = plugin.schedule.mock.calls.map((c) => (c as unknown as [Scheduled])[0].notifications[0])
     expect(first).toMatchObject({ id: notificationId('leave-2'), title: 'Reroute', body: 'Leave now. Cab to the bank.', channelId: 'alerts' })
-    expect(second).toMatchObject({ channelId: 'alerts-quiet' })
+    expect(second).toMatchObject({ id: notificationId('arrive-2'), channelId: 'alerts' })
   })
 
   it('shows nothing without permission, and asks Android for it', async () => {

@@ -33,7 +33,7 @@ final class DevNetwork {
     static boolean isPrivateHost(String host) {
         if (host == null) return false;
         if (host.equals("localhost") || host.endsWith(".local")) return true;
-        String[] parts = host.split("\.");
+        String[] parts = host.split("\\.");
         if (parts.length != 4) return false;
         int[] octets = new int[4];
         try {

@@ -1,33 +1,61 @@
-import { _android as android, expect, request, test as base, type AndroidDevice, type APIRequestContext, type Page } from '@playwright/test'
+import { _android as android, expect, request, test as base, type AndroidDevice, type Page } from '@playwright/test'
 
 // The Android app does what the web app does: the same journeys as e2e/, inside the installed debug APK's
 // web view, plus what only the app has to get right (Android's share sheet, the Maps app, the back button,
 // the bars, staying signed in). Needs a running stack with DEMO_LOGIN=true, an emulator or phone on adb,
-// and the debug APK built against that stack. ANDROID_API is the stack's address from this computer.
-// Every console error in the app fails the last test.
+// and the debug APK built against that stack (VITE_API_BASE). Every console error in the app fails, but for
+// the two a browser shows too (EXPECTED); so does every error line in the app's own Logcat (LOGCAT_EXPECTED).
 
 const PKG = 'com.reroute.app'
 /** The app's own page inside the phone. */
 const APP = 'https://localhost'
-const API = process.env.ANDROID_API ?? 'https://localhost'
 const TRIP = 'trip-001'
+
+/** A console error, and the journey it happened in. */
+interface Logged {
+  journey: string
+  text: string
+}
+
+/** The journey running now, so each console error says where it came from. */
+let journey = ''
+/** The API the app calls, as the app's own requests show it. */
+let apiOrigin = ''
 
 interface App {
   device: AndroidDevice
   page: Page
-  errors: string[]
-  api: APIRequestContext
+  errors: Logged[]
   /** Close the app and open it again, as a traveller would; the page is the new one's. */
   relaunch: () => Promise<void>
+  /** Connect to the app's page afresh, after Android handed a link to another app (the old handle waits forever). */
+  reattach: () => Promise<void>
+  /** Let go of the page: Playwright keeps a page it drives "visible", even with the app in the background. */
+  detach: () => Promise<void>
 }
 
-async function attach(device: AndroidDevice, errors: string[]): Promise<Page> {
+/** The app's API as this computer reaches it: the emulator's 10.0.2.2 is this computer's localhost. */
+function apiFromComputer() {
+  expect(apiOrigin).toBeTruthy()
+  const url = new URL(apiOrigin)
+  if (url.hostname === '10.0.2.2') url.hostname = 'localhost'
+  return url.origin
+}
+
+async function attach(device: AndroidDevice, errors: Logged[]): Promise<Page> {
   const webview = await device.webView({ pkg: PKG })
   const page = await webview.page()
   page.on('console', (m) => {
-    if (m.type() === 'error') errors.push(m.text())
+    if (m.type() === 'error') errors.push({ journey, text: m.text() })
   })
-  page.on('pageerror', (e) => errors.push(String(e)))
+  page.on('pageerror', (e) => errors.push({ journey, text: String(e) }))
+  page.on('request', (r) => {
+    if (!apiOrigin && r.url().includes('/v1/')) apiOrigin = new URL(r.url()).origin
+  })
+  // Which request a "Failed to load resource" line was about.
+  page.on('response', (r) => {
+    if (r.status() >= 400) errors.push({ journey, text: `HTTP ${r.status()} ${r.request().method()} ${r.url()}` })
+  })
   return page
 }
 
@@ -36,39 +64,51 @@ const test = base.extend<object, { app: App }>({
     async ({}, use) => {
       const [device] = await android.devices()
       if (!device) throw new Error('No Android device: start the emulator or plug in a phone (adb devices).')
+      // A phone as if new: no app data, and none of the slips earlier runs saved.
       await device.shell(`pm clear ${PKG}`)
+      await device.shell('rm -rf /sdcard/Documents/Reroute')
+      // Logcat from this run only, for the last test.
+      await device.shell('logcat -c')
       // Granted ahead, so Android's own permission dialogs don't stand in front of the web view.
       for (const p of ['POST_NOTIFICATIONS', 'ACCESS_FINE_LOCATION', 'ACCESS_COARSE_LOCATION', 'RECORD_AUDIO']) await device.shell(`pm grant ${PKG} android.permission.${p}`)
       await device.shell(`am start -W -n ${PKG}/.MainActivity`)
-      const errors: string[] = []
+      const errors: Logged[] = []
       const app: App = {
         device,
         errors,
         page: await attach(device, errors),
-        api: await request.newContext({ baseURL: API, ignoreHTTPSErrors: true }),
         relaunch: async () => {
-          await device.shell(`am force-stop ${PKG}`)
-          await device.shell(`am start -W -n ${PKG}/.MainActivity`)
-          app.page = await attach(device, errors)
+          await app.device.shell(`am force-stop ${PKG}`)
+          await app.device.shell(`am start -W -n ${PKG}/.MainActivity`)
+          app.page = await attach(app.device, errors)
+        },
+        reattach: async () => {
+          // A new connection: the device's own one keeps handing back the page that waits.
+          await app.device.close()
+          const [again] = await android.devices()
+          app.device = again
+          app.page = await attach(again, errors)
+        },
+        detach: async () => {
+          await app.device.close()
+          app.device = (await android.devices())[0]
         },
       }
       await use(app)
-      await app.api.dispose()
-      await device.close()
+      await app.device.close()
     },
     { scope: 'worker' },
   ],
 })
 
 test.describe.configure({ mode: 'serial' })
+test.beforeEach(({}, info) => {
+  journey = info.title
+})
 
-/** Reset the sample day through the API, from this computer. */
-async function resetDemo(api: APIRequestContext) {
-  const login = await api.post('/v1/auth/demo', { data: { as: 'traveller' } })
-  const token = ((await login.json()) as { accessToken: string }).accessToken
-  const reset = await api.post(`/v1/trips/${TRIP}/demo/reset`, { headers: { Authorization: `Bearer ${token}` }, data: { idempotencyKey: `android-reset-${Date.now()}` } })
-  expect(reset.ok()).toBe(true)
-  return token
+/** A screen of the app by its path. The page is ready once its structure is: an SPA, it draws from there. */
+async function open(page: Page, path: string) {
+  await page.goto(`${APP}${path}`, { waitUntil: 'domcontentloaded' })
 }
 
 async function openSimulate(page: Page) {
@@ -88,13 +128,32 @@ async function setClock(page: Page, hhmm: string) {
   await page.keyboard.press('Escape')
 }
 
-/** The sample day, planned, on Today. */
+/** The sample day afresh and planned, on Today: reset in the app's own Simulate panel, as the browser test does. */
 async function planFreshDay(app: App) {
-  await resetDemo(app.api)
-  await app.page.goto(`${APP}/plan`)
-  await app.page.getByRole('button', { name: /^Plan my day/ }).click()
-  await expect(app.page).toHaveURL(/\/$/, { timeout: 30_000 })
-  await expect(app.page.getByRole('heading', { level: 1, name: 'Bengaluru' })).toBeVisible()
+  const page = app.page
+  await open(page, '/')
+  await openSimulate(page)
+  const reset = page.waitForResponse((r) => r.url().endsWith(`/v1/trips/${TRIP}/demo/reset`) && r.request().method() === 'POST')
+  await page.getByRole('button', { name: 'Reset the demo' }).click()
+  expect((await reset).ok()).toBe(true)
+  await expect(page).toHaveURL(/\/plan$/)
+  await page.getByRole('button', { name: /^Plan my day/ }).click()
+  await expect(page).toHaveURL(/\/$/, { timeout: 30_000 })
+  await expect(page.getByRole('heading', { level: 1, name: 'Bengaluru' })).toBeVisible()
+}
+
+/** Android's back button, as the traveller presses it (through Android itself, no test driver on the phone). */
+async function pressBack(device: AndroidDevice) {
+  await device.shell('input keyevent KEYCODE_BACK')
+}
+
+/** Back from Android's share sheet to Reroute. Android ignores Back while the sheet is still sliding in. */
+async function backToApp(device: AndroidDevice) {
+  for (let i = 0; i < 3 && !(await foreground(device)).includes(PKG); i++) {
+    await new Promise((r) => setTimeout(r, 1000))
+    await pressBack(device)
+  }
+  await expect.poll(() => foreground(device), { timeout: 10_000 }).toContain(PKG)
 }
 
 /** What Android shows on top, e.g. the share sheet or the Maps app. */
@@ -139,14 +198,14 @@ test('every tab opens: Plan, Raasta (its own API) and Me with the wallet', async
 
 test("Android's back button goes back a screen, and closes a sheet first", async ({ app }) => {
   const page = app.page
-  await page.goto(`${APP}/`)
+  await open(page, '/')
   await page.getByRole('navigation', { name: 'Main' }).getByRole('link', { name: /Me/ }).click()
   await expect(page).toHaveURL(/\/me$/)
-  await app.device.input.press('Back')
+  await pressBack(app.device)
   await expect(page).toHaveURL(/\/$/)
   await page.getByRole('button', { name: 'Running late' }).click()
   await expect(page.getByRole('dialog')).toBeVisible()
-  await app.device.input.press('Back')
+  await pressBack(app.device)
   await expect(page.getByRole('dialog')).toBeHidden()
   await expect(page).toHaveURL(/\/$/)
 })
@@ -193,28 +252,31 @@ test("go anyway, then Tell them: the message goes through Android's share sheet"
   await expect(page.getByLabel('Your message')).toHaveValue(/running about \d+ minutes late/)
   await page.getByRole('dialog').getByRole('button', { name: /^Share|^Send/ }).first().click()
   await expect.poll(() => foreground(app.device), { timeout: 10_000 }).toMatch(/ChooserActivity|ResolverActivity|intentresolver/i)
-  await app.device.input.press('Back')
-  await expect.poll(() => foreground(app.device), { timeout: 10_000 }).toContain(PKG)
+  await backToApp(app.device)
   await page.keyboard.press('Escape')
 })
 
 test('a leg: real-road map, Google Maps hand-off and turn by turn with the phone’s location', async ({ app }) => {
   const page = app.page
   await planFreshDay(app)
-  await page.goto(`${APP}/leg/1`)
+  await open(page, '/leg/1')
   await expect(page.locator('canvas.maplibregl-canvas').first()).toBeVisible({ timeout: 30_000 })
   // Google Maps opens in its own app (or the browser), never inside Reroute.
-  await page.getByRole('link', { name: /Open in Google Maps/ }).first().click()
+  // The tap hands the link to Android, so the web view never navigates: tap without waiting for one.
+  await page.getByRole('link', { name: /Google Maps/ }).first().evaluate((a: HTMLAnchorElement) => a.click())
   await expect.poll(() => foreground(app.device), { timeout: 15_000 }).not.toContain(`${PKG}/`)
-  await app.device.shell(`am start -W -n ${PKG}/.MainActivity`)
-  await expect.poll(() => foreground(app.device), { timeout: 15_000 }).toContain(PKG)
+  // Switching back (Reroute's icon) finds it on the same screen.
+  await app.device.shell(`am start -n ${PKG}/.MainActivity`)
+  await expect.poll(() => foreground(app.device), { timeout: 10_000 }).toContain(PKG)
+  await app.reattach()
+  await expect(app.page).toHaveURL(/\/leg\/1$/)
   // Turn by turn follows the phone's location: the emulator's position is set at the hotel.
   await app.device.shell('cmd location set-location-enabled true')
-  await page.goto(`${APP}/leg/1/navigate`)
-  await expect(page.getByRole('main')).toContainText(/Turn|Head|Walk|Leave|arrived|m\b/, { timeout: 30_000 })
+  await open(app.page, '/leg/1/navigate')
+  await expect(app.page.getByRole('main')).toContainText(/Turn|Head|Walk|Leave|arrived|m\b/, { timeout: 30_000 })
 })
 
-test('Rico: chat, its agent card and Undo', async ({ app }) => {
+test('Rico: chat, and the back button closes it', async ({ app }) => {
   const page = app.page
   await planFreshDay(app)
   await page.getByRole('button', { name: 'Rico, your travel companion. Chat with Rico' }).click()
@@ -224,14 +286,104 @@ test('Rico: chat, its agent card and Undo', async ({ app }) => {
   await chat.getByRole('button', { name: 'Send' }).click()
   await chat.getByRole('button', { name: 'Not now' }).click()
   await expect(chat.getByRole('log')).toContainText('Okay, I’ll leave it as it is.')
-  // Android's back button closes the chat.
-  await app.device.input.press('Back')
+  await pressBack(app.device)
+  await expect(chat).toBeHidden()
+})
+
+test("Rico's agent: three things from one message, on one card, and Undo takes them back", async ({ app }) => {
+  const page = app.page
+  await planFreshDay(app)
+  await page.getByRole('button', { name: 'Rico, your travel companion. Chat with Rico' }).click()
+  const chat = page.getByRole('dialog', { name: 'Rico' })
+  await chat.getByLabel('Message Rico').fill('Skip the university office, book a cab to the bank and go dark')
+  await chat.getByRole('button', { name: 'Send' }).click()
+  const card = chat.getByRole('group', { name: 'Rico’s card: 3 things' })
+  await expect(card).toBeVisible({ timeout: 60_000 })
+  for (const step of [/Skip “University office”/, /Book a .* to Bank/, /Switch to dark mode/]) await expect(card.getByRole('listitem').filter({ hasText: step })).toHaveCount(1)
+  await card.getByRole('button', { name: 'Do all 3' }).click()
+  await expect(card.getByRole('button', { name: 'Undo' })).toBeVisible({ timeout: 45_000 })
+  await expect(chat.getByRole('log')).toContainText('All 3 done.')
+  // Rico turned the app dark, and Android's status bar with it.
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
+  expect((await statusBarPixel(app.device)).reduce((a, b) => a + b)).toBeLessThan(150)
+  await card.getByRole('button', { name: 'Undo' }).click()
+  await expect(card.getByText('Undone')).toBeVisible({ timeout: 45_000 })
+  await expect(page.locator('html')).not.toHaveAttribute('data-theme', 'dark')
+  await pressBack(app.device)
+  await expect(chat).toBeHidden()
+})
+
+test('a simulated cab, paid from the wallet, with its OTP on Today', async ({ app }) => {
+  const page = app.page
+  await planFreshDay(app)
+  const main = page.getByRole('main')
+  await main.getByRole('button', { name: 'Book a cab' }).first().click()
+  const sheet = page.getByRole('dialog', { name: 'Book a ride' })
+  const firstRide = sheet.getByRole('radio').first()
+  await expect(firstRide).toBeVisible({ timeout: 20_000 })
+  await firstRide.check()
+  await sheet.getByRole('button', { name: /^Book .* \(demo\)$/ }).click()
+  const ride = page.getByRole('dialog', { name: 'Your ride' })
+  await expect(ride.getByText('OTP for the driver')).toBeVisible({ timeout: 30_000 })
+  await pressBack(app.device)
+  await expect(ride).toBeHidden()
+  await expect(main.getByRole('button', { name: /OTP \d{4}/ })).toBeVisible()
+})
+
+test('the expense slip is saved on the phone, in Documents', async ({ app }) => {
+  const page = app.page
+  await open(page, '/summary')
+  await page.getByRole('button', { name: 'Download the slip' }).click()
+  const toasts = page.getByRole('region', { name: /Notifications/ })
+  await expect(toasts.getByRole('listitem').filter({ hasText: /Slip saved to Documents\/Reroute\/reroute-expenses-[\d-]+\.txt/ })).toBeVisible({ timeout: 15_000 })
+  expect((await app.device.shell('ls /sdcard/Documents/Reroute')).toString()).toMatch(/reroute-expenses-\d{4}-\d{2}-\d{2}\.txt/)
+})
+
+
+test("a leave-by alert reaches Android's notifications while Reroute is in the background", async ({ app }) => {
+  const page = app.page
+  await planFreshDay(app)
+  await open(page, '/me')
+  const notifications = page.getByRole('switch', { name: /Phone notifications/ })
+  if ((await notifications.getAttribute('aria-checked')) !== 'true') await notifications.click()
+  await expect(notifications).toHaveAttribute('aria-checked', 'true')
+  await open(page, '/')
+  // 9 minutes before the 08:50 departure.
+  await setClock(page, '08:41')
+  // Reroute goes to the background (without Playwright, which would keep the page "visible"), then the server's
+  // 5-minute check sends "Leave in 9 min" over the live stream: Android shows it as a notification.
+  await app.detach()
+  await app.device.shell('input keyevent KEYCODE_HOME')
+  const api = await request.newContext({ baseURL: apiFromComputer(), ignoreHTTPSErrors: true })
+  const login = await api.post('/v1/auth/demo', { data: { as: 'traveller' } })
+  const headers = { Authorization: `Bearer ${((await login.json()) as { accessToken: string }).accessToken}` }
+  const check = await api.post(`/v1/trips/${TRIP}/demo/check`, { headers, data: { idempotencyKey: `android-check-${Date.now()}` } })
+  expect(check.ok()).toBe(true)
+  await api.dispose()
+  await expect
+    .poll(async () => (await app.device.shell('dumpsys notification --noredact')).toString().includes('Leave in 9 min'), { timeout: 30_000 })
+    .toBe(true)
+  await app.device.shell(`am start -n ${PKG}/.MainActivity`)
+  await expect.poll(() => foreground(app.device), { timeout: 10_000 }).toContain(PKG)
+  await app.reattach()
+})
+
+test("talking to Rico goes to Android's speech recognizer", async ({ app }) => {
+  const page = app.page
+  await open(page, '/')
+  await page.getByRole('button', { name: 'Rico, your travel companion. Chat with Rico' }).click()
+  const chat = page.getByRole('dialog', { name: 'Rico' })
+  await chat.getByRole('button', { name: 'Talk to Rico' }).click()
+  // Android's recognizer listens (the emulator hears silence), then Rico says it heard nothing.
+  await expect(chat.getByRole('button', { name: 'Stop listening' }).or(chat.getByText(/didn’t hear anything|didn’t catch that|can’t listen/))).toBeVisible({ timeout: 15_000 })
+  await expect(chat.getByText(/didn’t hear anything|didn’t catch that|can’t listen|couldn’t listen/).last()).toBeVisible({ timeout: 20_000 })
+  await pressBack(app.device)
   await expect(chat).toBeHidden()
 })
 
 test('light and dark: the page and the status bar change together', async ({ app }) => {
   const page = app.page
-  await page.goto(`${APP}/me`)
+  await open(page, '/me')
   await page.getByRole('radio', { name: /Dark/ }).first().click({ force: true })
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark')
   // The status bar's colour: a pixel near the top of the screen is the dark ground (#10161F).
@@ -266,20 +418,105 @@ test('offline: a check-in waits on the phone and syncs when the signal is back',
   await expect(page.getByText(/check-ins? (is|are) waiting to sync/)).toHaveCount(0, { timeout: 60_000 })
 })
 
-test('signs out, and signs in again with an email account', async ({ app }) => {
+test('signs out, creates an email account, and Rico plans its first day by chatting', async ({ app }) => {
   const page = app.page
-  await page.goto(`${APP}/me`)
+  await open(page, '/me')
   await page.getByRole('button', { name: 'Sign out' }).click()
   await expect(page).toHaveURL(/signin/, { timeout: 15_000 })
-  await page.getByRole('button', { name: /Create (an |my )?account/ }).first().click()
-  const email = `android-${Date.now()}@example.com`
   await page.getByLabel('Your name').fill('Asha Rao')
-  await page.getByLabel('Email').fill(email)
-  await page.getByLabel('Password').fill('a-long-test-password')
-  await page.getByRole('button', { name: /Create (my )?account/ }).last().click()
-  await expect(page).toHaveURL(/welcome/, { timeout: 30_000 })
+  await page.getByLabel('Email').fill(`android.${Date.now()}@example.com`)
+  await page.getByLabel('Password', { exact: true }).fill('rerouting-is-fun')
+  await page.getByRole('button', { name: 'Create my account' }).click()
+  // A new account meets Rico on Welcome (the same conversation as e2e/accounts.spec.ts).
+  await expect(page).toHaveURL(/\/welcome$/, { timeout: 30_000 })
+  const said = (text: string | RegExp) => expect(page.getByRole('log', { name: 'Conversation with Rico' }).getByText(text).last()).toBeVisible({ timeout: 30_000 })
+  const answer = (label: string) => page.getByRole('group', { name: 'Answers' }).getByRole('button', { name: label }).click()
+  const place = async (query: string, name: string) => {
+    await page.getByLabel('Search for a place').fill(query)
+    await page.getByRole('group', { name: 'Places found' }).getByRole('button', { name: new RegExp(name) }).first().click()
+  }
+  await said('Hi Asha! I’m Rico.')
+  await said('Which city are you visiting?')
+  await answer('Bengaluru')
+  await said('When are you there?')
+  await answer('From today')
+  await said('And for how many days?')
+  await answer('Just that day')
+  await said(/Where are you staying\?/)
+  await place('Majestic', 'Hotel near Majestic')
+  await said(/first thing you need to do/)
+  await page.getByLabel('Message Rico').fill('Bank')
+  await page.getByRole('button', { name: 'Send' }).click()
+  await said('Where is the bank?')
+  await place('80 Feet Road', 'Bank, 80 Feet Road')
+  await said('Does it happen at a fixed time?')
+  await answer('Any time')
+  await said('How long will the bank take?')
+  await answer('30 min')
+  await said('Added. Anything else today?')
+  await answer('That’s all, plan my day')
+  await said('Your day is planned!')
+  await answer('Show my day')
+  await expect(page.getByRole('heading', { level: 1, name: 'Bengaluru' })).toBeVisible({ timeout: 20_000 })
 })
 
+// On the new account's trip, which runs today: a link to the sample trip has already expired with its dates
+// (14 and 15 October 2026), in the browser too.
+test("a family share link points at the web app's host, not the app's own page", async ({ app }) => {
+  const page = app.page
+  await page.getByRole('button', { name: 'Share live trip' }).click()
+  const sheet = page.getByRole('dialog', { name: /Share your trip/ })
+  const sharing = sheet.getByRole('switch', { name: /Share live trip/ })
+  await expect(sheet.getByText('Checking…')).toHaveCount(0, { timeout: 15_000 })
+  await expect(sharing).toHaveAttribute('aria-checked', 'false')
+  await sharing.click()
+  const link = sheet.locator('#share-link')
+  await expect(link).toHaveValue(/^https:\/\/[^/]+\/shared\/[\w-]+$/, { timeout: 15_000 })
+  expect(new URL(await link.inputValue()).hostname).not.toBe('localhost')
+  await sheet.getByRole('button', { name: 'Stop sharing' }).click()
+  await pressBack(app.device)
+  await expect(sheet).toBeHidden()
+})
+
+/** Console errors a browser shows as well, each in the one journey it belongs to. Anything else fails. */
+const EXPECTED: { journey: RegExp; text: RegExp; why: string }[] = [
+  {
+    journey: /^offline:/,
+    text: /^Failed to load resource: net::ERR_(INTERNET_DISCONNECTED|CONNECTION_ABORTED|NETWORK_CHANGED|NAME_NOT_RESOLVED|ADDRESS_UNREACHABLE)$/,
+    why: 'Chrome logs every request that fails while the phone has no signal; the app says it is offline and keeps the check-in',
+  },
+  {
+    journey: /Tell them/,
+    text: /^\{message: Share canceled\}$/,
+    why: "Capacitor's debug build logs every plugin call it refuses, and closing Android's share sheet is one; release builds log nothing",
+  },
+]
+
 test('no errors in the app’s console on any of the journeys', async ({ app }) => {
-  expect(app.errors).toEqual([])
+  expect(app.errors.filter((e) => !EXPECTED.some((x) => x.journey.test(e.journey) && x.text.test(e.text)))).toEqual([])
+})
+
+/** Error lines in the app's own Logcat that don't come from Reroute. Anything else fails. */
+const LOGCAT_EXPECTED: { line: RegExp; why: string }[] = [
+  { line: /^E\/(GFXSTREAM|MESA)\s*:/, why: "the emulator's simulated GPU; a phone has neither" },
+  { line: /^E\/chromium\s*: \[(?:[\d/.]+:)?ERROR:net\/socket\/ssl_client_socket_impl\.cc:\d+\] handshake failed;.* net_error -202$/, why: "the local stack's self-signed certificate, which debug builds accept on private addresses" },
+  {
+    line: /^E\/chromium\s*: \[(?:[\d/.]+:)?ERROR:(?!net\/)/,
+    why: "WebView's own internal checks (its settings download, its page timing), not the page: the page's errors are in the console check",
+  },
+  { line: /^E\/Capacitor\s*: Couldn't save last Share's Plugin share call$/, why: "Capacitor's debug log when Android's share sheet sends the app to the background" },
+  { line: /^E\/Capacitor\/Console\s*: File: {2}- Line \d+ - Msg: \[object Object\]$/, why: "Capacitor's debug trace of the dismissed share sheet, which the console check names" },
+]
+
+test('Logcat: no error or crash from the app’s own process', async ({ app }) => {
+  // The app's own lines only (its Linux user): Android's services log about every app (for example AppOps on
+  // each sound played), and those aren't the app's.
+  const uid = /uid:(\d+)/.exec((await app.device.shell(`pm list packages -U ${PKG}`)).toString())?.[1]
+  expect(uid).toBeTruthy()
+  const log = (await app.device.shell(`logcat -d -v brief --uid=${uid} *:E`)).toString()
+  const errors = log
+    .split(/\r?\n/)
+    .map((line) => line.replace(/\(\s*\d+\)/, ''))
+    .filter((line) => /^[EF]\//.test(line))
+  expect(errors.filter((line) => !LOGCAT_EXPECTED.some((x) => x.line.test(line)))).toEqual([])
 })

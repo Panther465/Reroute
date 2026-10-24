@@ -14,7 +14,7 @@ export interface NativeHooks {
   phoneSay: (text: string, prefs: Pick<AlertPrefs, 'voiceRate' | 'volume'>) => PhoneSpeech | null
   /** Listening for one sentence (the web view has no speech recognition). */
   listenOnce: (opts: { ms?: number; signal?: AbortSignal }) => Promise<string>
-  /** Phone notifications (the web view has no Notification API). `silent` when Rico's chime or voice says it. */
+  /** Phone notifications (the web view has no Notification API). The app sounds even a `silent` one: see native/notifications.ts. */
   notifications: {
     granted: () => boolean
     request: () => Promise<boolean>

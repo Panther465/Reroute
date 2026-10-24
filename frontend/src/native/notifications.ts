@@ -4,8 +4,6 @@
 import { LocalNotifications } from '@capacitor/local-notifications'
 
 const ALERTS = 'alerts'
-/** For an alert Rico's chime or voice already says: no second sound. */
-const QUIET = 'alerts-quiet'
 
 let granted = false
 
@@ -26,7 +24,6 @@ async function refresh() {
 export async function startNotifications() {
   await Promise.all([
     LocalNotifications.createChannel({ id: ALERTS, name: 'Alerts', description: 'Time to leave, nearly there and arrived.', importance: 4, visibility: 1 }),
-    LocalNotifications.createChannel({ id: QUIET, name: 'Quiet alerts', description: 'The same alerts, without a sound, when Rico says them.', importance: 2, visibility: 1 }),
     refresh(),
   ])
 }
@@ -39,10 +36,12 @@ export const notifications = {
     granted = (await LocalNotifications.requestPermissions()).display === 'granted'
     return granted
   },
-  async show(title: string, { body = '', tag, silent = false }: { body?: string; tag?: string; silent?: boolean }): Promise<void> {
+  /**
+   * Always with Android's sound, even when the web asks for a silent one (because Rico's chime or voice says it):
+   * Android may not play a web view's sound while the app is in the background, which is when these show.
+   */
+  async show(title: string, { body = '', tag }: { body?: string; tag?: string; silent?: boolean }): Promise<void> {
     if (!granted) return
-    await LocalNotifications.schedule({
-      notifications: [{ id: notificationId(tag ?? `${title}\n${body}`), title, body, channelId: silent ? QUIET : ALERTS, autoCancel: true }],
-    })
+    await LocalNotifications.schedule({ notifications: [{ id: notificationId(tag ?? `${title}\n${body}`), title, body, channelId: ALERTS, autoCancel: true }] })
   },
 }

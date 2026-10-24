@@ -143,17 +143,19 @@ export function useDay(trip: Trip | undefined, clock?: number | null) {
 
 /** Why the active plan: saved with the plan, so a version's insight never changes. */
 export function useInsight(tripId: string | null, version: number | null) {
+  const signedIn = useSessionStatus() === 'signedIn'
   return useQuery({
     queryKey: keys.insight(tripId ?? 'none', version ?? 0),
     queryFn: () => api.get<PlanInsight>(`/v1/trips/${tripId}/plans/${version}/insight`),
-    enabled: !!tripId && version !== null,
+    enabled: !!tripId && version !== null && signedIn,
     staleTime: Infinity,
     retry: (n, err) => !(err instanceof ApiError && err.status === 404) && n < 2,
   })
 }
 
 export function useSummary(tripId: string | null) {
-  return useQuery({ queryKey: keys.summary(tripId ?? 'none'), queryFn: () => api.get<Summary>(`/v1/trips/${tripId}/summary`), enabled: !!tripId })
+  const signedIn = useSessionStatus() === 'signedIn'
+  return useQuery({ queryKey: keys.summary(tripId ?? 'none'), queryFn: () => api.get<Summary>(`/v1/trips/${tripId}/summary`), enabled: !!tripId && signedIn })
 }
 
 export function useShared(token: string) {
