@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const plugin = vi.hoisted(() => ({ token: vi.fn(), forget: vi.fn(async () => {}), show: vi.fn(async () => {}), addListener: vi.fn(async () => ({ remove: async () => {} })) }))
+const plugin = vi.hoisted(() => ({ token: vi.fn(), forget: vi.fn(async () => {}), show: vi.fn(async () => {}), launchAlert: vi.fn(async (): Promise<{ alert?: unknown }> => ({})), addListener: vi.fn(async () => ({ remove: async () => {} })) }))
 vi.mock('@capacitor/core', () => ({ registerPlugin: () => plugin }))
 
 import { push, showAlert, startPush } from './push'
@@ -26,6 +26,13 @@ describe('push in the app', () => {
   it("shows the page's own alerts through the app's Alerts, in every build", async () => {
     await showAlert('Reroute', 'Leave now. Metro.', 'leave-1')
     expect(plugin.show).toHaveBeenCalledWith({ title: 'Reroute', body: 'Leave now. Metro.', tag: 'leave-1' })
+  })
+
+  it('hands the page the alert whose notification opened the app', async () => {
+    const onAlert = vi.fn()
+    plugin.launchAlert.mockResolvedValueOnce({ alert: { kind: 'nudge', tag: 'nudge-2', body: 'Hi, are you there? 👋' } })
+    await startPush(onAlert)
+    expect(onAlert).toHaveBeenCalledWith({ kind: 'nudge', tag: 'nudge-2', body: 'Hi, are you there? 👋' })
   })
 
   it('passes alerts that arrive while the app is on screen to the page', async () => {

@@ -1,5 +1,6 @@
 package com.reroute.app;
 
+import android.content.Intent;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -52,6 +53,35 @@ public class RerouteMessagingPlugin extends Plugin {
         }
         Alerts.show(getContext(), call.getString("title", "Reroute"), body, tag);
         call.resolve();
+    }
+
+    /** The alert whose notification opened the app, once (its tap carries the push's details), or nothing. */
+    @PluginMethod
+    public void launchAlert(PluginCall call) {
+        Intent intent = getActivity() != null ? getActivity().getIntent() : null;
+        JSObject out = new JSObject();
+        JSObject alert = intent != null ? takeAlert(intent) : null;
+        if (alert != null) out.put("alert", alert);
+        call.resolve(out);
+    }
+
+    @Override
+    protected void handleOnNewIntent(Intent intent) {
+        super.handleOnNewIntent(intent);
+        JSObject alert = takeAlert(intent);
+        if (alert != null) notifyListeners("alert", alert);
+    }
+
+    /** The alert on a tap from its notification, removed from the intent so it's handed over once. */
+    private static JSObject takeAlert(Intent intent) {
+        String json = intent.getStringExtra(Alerts.EXTRA_ALERT);
+        if (json == null) return null;
+        intent.removeExtra(Alerts.EXTRA_ALERT);
+        try {
+            return new JSObject(json);
+        } catch (org.json.JSONException e) {
+            return null;
+        }
     }
 
     @PluginMethod

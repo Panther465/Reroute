@@ -4,6 +4,7 @@ import { Link, useNavigate } from 'react-router'
 import { api, ApiError } from '@/api/client'
 import { useCurrentTripId, useMe, usePushEnabled, useTrip, useWalletEnabled } from '@/api/queries'
 import { ConnectedServices, WalletPanel } from '@/components/money/Money'
+import { HeyRicoSettings } from '@/components/roo/HeyRicoSettings'
 import { RerouteLog } from '@/components/RerouteLog'
 import { TripSwitcher } from '@/components/TripSwitcher'
 import { Button } from '@/components/ui/Button'
@@ -46,7 +47,7 @@ export default function Me() {
   const lang = useStore((s) => s.lang)
   const alerts = useStore((s) => s.leaveAlerts)
   const roo = useStore((s) => s.roo)
-  const rooVoice = useStore((s) => s.rooVoice)
+  const ricoRoams = useStore((s) => s.ricoRoams)
   const walletOn = useWalletEnabled()
   const alertPrefs = useStore((s) => s.alerts)
   const setAlerts = (patch: Partial<AlertPrefs>) => setState((s) => ({ alerts: { ...s.alerts, ...patch } }))
@@ -277,7 +278,8 @@ export default function Me() {
         <div className="rounded-card border border-line bg-surface px-4">
           <Switch label="Rico on Today" description="Rico rides the Now line on Today; tap it to chat. Alerts still come when it's off." checked={roo} onChange={(v) => setState({ roo: v })} />
           <div className="border-t border-line" />
-          <Switch label="Rico reads its replies aloud" description="In the chat, Rico speaks as well as types. The speaker button in the chat turns it off too." checked={rooVoice} onChange={(v) => setState({ rooVoice: v })} />
+          <Switch label="Rico walks with you" description="On the other screens, Rico wanders along the bottom and pops up when he has something to say. Tap him to talk." checked={ricoRoams} onChange={(v) => setState({ ricoRoams: v })} />
+          <HeyRicoSettings />
         </div>
       </Section>
 

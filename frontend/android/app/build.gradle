@@ -39,6 +39,10 @@ dependencies {
     // Push (Firebase Cloud Messaging). A build without google-services.json runs without push.
     implementation platform('com.google.firebase:firebase-bom:35.1.0')
     implementation 'com.google.firebase:firebase-messaging'
+    // "Hey Rico": the speech recognizer that runs on the phone (Vosk, Apache 2.0), and the native bridge it uses.
+    // Both as Android libraries (@aar): JNA's plain jar has no native code for Android.
+    implementation 'com.alphacephei:vosk-android:0.3.75@aar'
+    implementation 'net.java.dev.jna:jna:5.18.1@aar'
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"

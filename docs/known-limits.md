@@ -32,7 +32,10 @@ Honest gaps in this build. Each is a deliberate scope choice or waits on the tea
 
 ## The Android app
 
-- **Beyond parity, only push so far.** No location with the screen off, no links that open in the app, and no Play Store listing yet. Those wait for the owner's go-ahead.
+- **Beyond parity, only push and "Hey Rico" so far.** No location with the screen off, no links that open in the app, and no Play Store listing yet. Those wait for the owner's go-ahead.
+- **"Hey Rico" is a small model listening for a few phrases.** Said clearly, "hey Rico", "hi Rico" and "okay Rico" wake him; a noisy street, a soft voice or another phrasing can miss him, and on the emulator's test clips a sound-alike ("hey Ricky", "hey Nico") never woke him. It hears English only.
+- **After the phone restarts, open Reroute once** to have Rico listen in the background again. Some phones' battery savers also stop a background microphone they think is idle; the "Rico is listening" notification goes when they do.
+- **The APK is about 51 MB**, 40 of it the speech library for four kinds of processor. An app bundle on the Play Store sends each phone only its own, about 10 MB.
 - **Push needs Firebase set up** (README, "Push notifications"). Without it, alerts come over the live stream only, and Android 15 and later cut an app's network a few seconds after it leaves the screen, then freeze it once other apps are in use (on the Android 17 emulator: no network after about 5 seconds, frozen about 15 seconds after two other apps). An alert sent after that waits until Reroute is opened again, where Today shows when to leave.
 - **Only leave-by alerts, the morning plan and Rico's check-ins are pushed.** "Nearly there", "arrived" and "a task ends soon" come from the phone itself while Reroute runs, as on the web.
 - **The at-time alert can sound twice** when Reroute is in the background but not yet frozen: the phone raises its own ("Time to leave for …") at the leave-by time, and the server's "Leave now" can come up to five minutes later, with other words. A copy within two minutes takes the first one's place quietly.

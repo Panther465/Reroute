@@ -64,6 +64,19 @@ export interface UiState {
   pushReady: boolean
   /** Rico full screen, talking out loud (components/roo/RicoVoice.tsx): why he came, and as what. */
   ricoVoice: RicoVoiceRequest | null
+  /** Rico out and about along the bottom of the screens (components/roo/RicoPal.tsx). */
+  ricoRoams: boolean
+  /** What Rico is saying in his speech bubble, with the answers to tap. */
+  ricoBubble: RicoBubble | null
+  /** A line for Rico to start the chat with when it next opens (a check-in, where he can't talk out loud). */
+  rooChatSay: string | null
+}
+
+export interface RicoBubble {
+  text: string
+  replies: { label: string; then: 'voice' | 'chat'; say?: string }[]
+  /** When it came up: a bubble left alone goes after a while. */
+  at: number
 }
 
 export interface RicoVoiceRequest {
@@ -76,7 +89,7 @@ export interface RicoVoiceRequest {
 }
 
 const KEY = 'reroute:prefs:v2'
-const PERSISTED: (keyof UiState)[] = ['theme', 'lang', 'leaveAlerts', 'alerts', 'demo', 'roo', 'started', 'tripId', 'connections']
+const PERSISTED: (keyof UiState)[] = ['theme', 'lang', 'leaveAlerts', 'alerts', 'demo', 'roo', 'ricoRoams', 'started', 'tripId', 'connections']
 
 function defaults(): UiState {
   return {
@@ -94,6 +107,9 @@ function defaults(): UiState {
     pendingDelay: null,
     pushReady: false,
     ricoVoice: null,
+    ricoRoams: true,
+    ricoBubble: null,
+    rooChatSay: null,
     optimisticDone: [],
     started: null,
     rooChat: false,

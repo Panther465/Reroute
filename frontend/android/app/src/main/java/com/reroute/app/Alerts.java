@@ -14,6 +14,7 @@ import androidx.core.content.ContextCompat;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+import org.json.JSONObject;
 
 /**
  * Reroute's alert notifications, shown by the app itself for a push: the channel, icon and number the page gives
@@ -25,6 +26,8 @@ import java.util.Map;
 final class Alerts {
 
     static final String CHANNEL = "alerts";
+    /** A pushed alert's details on the tap that opens the app (RerouteMessagingPlugin hands them to the page). */
+    static final String EXTRA_ALERT = "com.reroute.app.alert";
     /** How far apart two copies of one alert may come: the live stream's and the push's arrive within moments. */
     /** Shorter than the five minutes between the server's checks, so a new plan's alert in the same words still shows. */
     static final long SAME_ALERT_MS = 4 * 60 * 1000L;
@@ -101,6 +104,11 @@ final class Alerts {
 
     /** One at a time, so a push and the page's copy of the same alert can't both pass the check above. */
     static synchronized void show(Context context, String title, String body, String tag) {
+        show(context, title, body, tag, null);
+    }
+
+    /** As above, and a tap hands the page the push's details (`data`), as if it had arrived with the app open. */
+    static synchronized void show(Context context, String title, String body, String tag, Map<String, String> data) {
         NotificationManagerCompat notifications = NotificationManagerCompat.from(context);
         if (!notifications.areNotificationsEnabled()) return;
         int id = notificationId(tag);
@@ -127,6 +135,7 @@ final class Alerts {
         // Android 7 has no channels: the sound and buzz are asked for on each notification.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) builder.setDefaults(Notification.DEFAULT_ALL);
         Intent open = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+        if (open != null && data != null) open.putExtra(EXTRA_ALERT, new JSONObject(data).toString());
         if (open != null) {
             int flags = PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE;
             builder.setContentIntent(PendingIntent.getActivity(context, id, open, flags));

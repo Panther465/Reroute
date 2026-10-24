@@ -12,9 +12,12 @@ export interface PushedAlert {
   tag: string
   tripId: string
   seq?: string
+  /** A check-in's details (reason, leaveBy, extraMin…), as strings. */
+  [detail: string]: string | undefined
 }
 
 interface RerouteMessaging {
+  launchAlert(): Promise<{ alert?: PushedAlert }>
   token(): Promise<{ token: string }>
   forget(): Promise<void>
   show(alert: { title: string; body: string; tag: string }): Promise<void>
@@ -53,4 +56,7 @@ export function showAlert(title: string, body: string, tag: string): Promise<voi
 
 export async function startPush(onAlert: (alert: PushedAlert) => void) {
   await Messaging.addListener('alert', onAlert)
+  // Opened by tapping a pushed alert: the page shows it as if it had come with the app open.
+  const { alert } = await Messaging.launchAlert().catch(() => ({ alert: undefined }))
+  if (alert) onAlert(alert)
 }

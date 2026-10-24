@@ -163,9 +163,14 @@ export function seenAlert(tripId: string, tag: string, body: string, now = Date.
   return false
 }
 
-/** A pushed alert that arrived while the app is on screen: shown as the live stream's copy would be. */
-export async function showPushed(alert: { kind: string; body: string; tag: string; tripId?: string; seq?: string }) {
-  if (alert.kind === 'leave_now') {
+/** A pushed alert that arrived while the app is on screen (or opened it): shown as the live stream's copy would be. */
+export async function showPushed(alert: { kind: string; body: string; tag: string; tripId?: string; seq?: string; [detail: string]: string | undefined }) {
+  if (alert.kind === 'nudge') {
+    // Rico checking in: his bubble, once (the live stream may have brought it first).
+    if (seenAlert(alert.tripId ?? '', alert.tag, `${alert.reason}|${alert.leaveBy}`)) return
+    const { nudgeBubble } = await import('./roo/nudge')
+    setState({ ricoBubble: nudgeBubble(alert) })
+  } else if (alert.kind === 'leave_now') {
     // Already shown from the live stream: a banner the traveller dismissed stays dismissed.
     if (seenAlert(alert.tripId ?? '', alert.tag, alert.body)) return
     const seq = alert.seq != null && alert.seq !== '' ? Number(alert.seq) : null

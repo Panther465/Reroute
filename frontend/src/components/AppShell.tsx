@@ -29,6 +29,7 @@ const DemoPanel = lazy(() => import('@/components/DemoPanel').then((m) => ({ def
 const Roo = lazy(() => import('@/components/Roo').then((m) => ({ default: m.Roo })))
 const RooChat = lazy(() => import('@/components/roo/RooChat').then((m) => ({ default: m.RooChat })))
 const RicoVoice = lazy(() => import('@/components/roo/RicoVoice').then((m) => ({ default: m.RicoVoice })))
+const RicoPal = lazy(() => import('@/components/roo/RicoPal').then((m) => ({ default: m.RicoPal })))
 
 const TABS = [
   { to: '/', label: 'Today', Icon: CalendarClock, end: true },
@@ -194,9 +195,14 @@ export default function AppShell() {
   // Rico full screen, talking out loud: loaded the first time he's called.
   const voiceOpen = useStore((s) => s.ricoVoice)
   const [voiceLoaded, setVoiceLoaded] = useState(false)
+  const meLoaded = !!me.data
+  const voiceChat = me.data?.features?.voiceChat === true
   useEffect(() => {
-    if (voiceOpen) setVoiceLoaded(true)
-  }, [voiceOpen])
+    if (!voiceOpen || !meLoaded) return
+    // A server without Rico's voice (no Gemini key, or from before it): "Hey Rico" opens the chat instead.
+    if (voiceChat) setVoiceLoaded(true)
+    else setState({ ricoVoice: null, rooChat: true })
+  }, [voiceOpen, voiceChat, meLoaded])
   const serverNow = trip.data ? localMinutes(trip.data.now, trip.data.day, trip.data.utcOffset) : null
   const clock = useTripClock(serverNow, trip.dataUpdatedAt, trip.data?.clockSimulated ?? false)
   useFocusHeadingOnNavigate(location.pathname)
@@ -294,7 +300,11 @@ export default function AppShell() {
                 />
               </Suspense>
             )}
-            {/* Roo lives on Today's Now line only; it never floats over the other screens. */}
+            {/* Rico rides Today's Now line; on the other screens he's out and about along the bottom (and on Today too
+                when he comes to say something). */}
+            <Suspense fallback={null}>
+              <RicoPal onToday={location.pathname === '/'} bottom={desktop ? '16px' : pushed ? 'calc(12px + env(safe-area-inset-bottom))' : 'calc(72px + env(safe-area-inset-bottom))'} />
+            </Suspense>
             {location.pathname === '/' && (
               <Suspense fallback={null}>
                 <Roo trip={trip.data ?? undefined} clock={clock ?? null} />

@@ -26,6 +26,15 @@ export interface NativeHooks {
    * background within seconds.
    */
   push: { token: () => Promise<string | null>; forget: () => Promise<boolean> }
+  /** "Hey Rico": Rico's ear on the phone itself (src/native/wake.ts); a browser has none. */
+  wake: {
+    status: () => Promise<{ modelReady: boolean; enabled: boolean; background: boolean; listening: boolean; microphone: boolean }>
+    download: (onProgress: (percent: number) => void) => Promise<void>
+    start: (background: boolean) => Promise<void>
+    stop: () => Promise<void>
+    pause: () => Promise<void>
+    resume: () => Promise<void>
+  }
   /** The status and navigation bars follow the light or dark theme (a browser has theme-color). */
   systemBars: (dark: boolean) => void
   /** Android's share sheet (the web view has no navigator.share). */

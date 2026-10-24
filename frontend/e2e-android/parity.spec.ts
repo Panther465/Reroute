@@ -1,3 +1,4 @@
+import path from 'node:path'
 import { _android as android, expect, request, test as base, type AndroidDevice, type Page } from '@playwright/test'
 
 // The Android app does what the web app does: the same journeys as e2e/, inside the installed debug APK's
@@ -427,6 +428,64 @@ test('a leave-by alert reaches a frozen Reroute as a push', async ({ app }) => {
   await app.device.shell(`am start -n ${PKG}/.MainActivity`)
   await expect.poll(() => foreground(app.device), { timeout: 10_000 }).toContain(PKG)
   await app.reattach()
+})
+
+// "Hey Rico" on the phone itself (Vosk): turned on in Me (Rico's ear downloads the first time, 38 MB), then
+// recordings played into it in place of the microphone (debug builds only: DebugWakeReceiver). The recordings are
+// Gemini's text-to-speech in three voices: three that should wake Rico and three that shouldn't. A server without
+// Rico's voice (no Gemini key, like the CI stack) opens the chat instead of the voice screen. Run with WAKE_E2E=1.
+test('“Hey Rico” wakes Rico, on screen or in the background, and nothing else does', async ({ app }) => {
+  test.skip(!process.env.WAKE_E2E, 'Downloads Rico’s ear (38 MB): WAKE_E2E=1')
+  test.setTimeout(300_000)
+  const page = app.page
+  await open(page, '/me')
+  const hey = page.getByRole('switch', { name: /Hey Rico/ })
+  if ((await hey.getAttribute('aria-checked')) !== 'true') await hey.click()
+  await expect(hey).toHaveAttribute('aria-checked', 'true', { timeout: 240_000 })
+  // Even when Reroute is closed: Android shows that Rico is listening, all the while.
+  const closed = page.getByRole('switch', { name: /Even when Reroute is closed/ })
+  await closed.click()
+  await expect(closed).toHaveAttribute('aria-checked', 'true')
+  const notices = async () => (await app.device.shell('dumpsys notification --noredact')).toString()
+  await expect.poll(async () => (await notices()).includes('Rico is listening'), { timeout: 15_000 }).toBe(true)
+  // The recordings go where the app can read them.
+  const dir = `/sdcard/Android/data/${PKG}/files`
+  const names = ['wake-hey-rico-kore', 'wake-hi-rico-puck', 'wake-okay-rico-charon', 'sleep-hey-ricky-kore', 'sleep-report-puck', 'sleep-hey-siri-charon']
+  await app.device.shell(`mkdir -p ${dir}`)
+  for (const name of names) await app.device.push(path.join(import.meta.dirname, 'wake', `${name}.wav`), `${dir}/${name}.wav`)
+  const play = (name: string) => app.device.shell(`am broadcast -n ${PKG}/.DebugWakeReceiver --es wav ${dir}/${name}.wav`)
+  const rico = page.getByRole('dialog', { name: 'Rico' })
+  // Words that aren't "Hey Rico" leave him asleep.
+  for (const name of names.filter((n) => n.startsWith('sleep-'))) {
+    await play(name)
+    await page.waitForTimeout(4000)
+    await expect(rico).toHaveCount(0)
+  }
+  // On screen: Rico comes up.
+  await play('wake-hey-rico-kore')
+  await expect(rico).toBeVisible({ timeout: 20_000 })
+  await page.keyboard.press('Escape')
+  await expect(rico).toHaveCount(0)
+  // In the background: Rico answers as a notification...
+  await app.detach()
+  await app.device.shell('input keyevent KEYCODE_HOME')
+  await expect.poll(() => activityState(app.device), { timeout: 10_000 }).toMatch(/^(PAUSED|STOPPING|STOPPED)$/)
+  await new Promise((r) => setTimeout(r, 5000))
+  expect(await notices()).toContain('Rico is listening')
+  await play('wake-okay-rico-charon')
+  await expect.poll(async () => (await notices()).includes('Tap to talk'), { timeout: 30_000 }).toBe(true)
+  // ...and a tap on it opens him.
+  await app.device.shell(`am start -n ${PKG}/.MainActivity --es com.reroute.app.rico wake`)
+  await expect.poll(() => foreground(app.device), { timeout: 10_000 }).toContain(PKG)
+  await app.reattach()
+  await expect(app.page.getByRole('dialog', { name: 'Rico' })).toBeVisible({ timeout: 20_000 })
+  await app.page.keyboard.press('Escape')
+  // Off again, so the other journeys run as before.
+  await open(app.page, '/me')
+  const off = app.page.getByRole('switch', { name: /Hey Rico/ })
+  if ((await off.getAttribute('aria-checked')) === 'true') await off.click()
+  await expect(off).toHaveAttribute('aria-checked', 'false')
+  await expect.poll(async () => (await notices()).includes('Rico is listening'), { timeout: 15_000 }).toBe(false)
 })
 
 test("talking to Rico goes to Android's speech recognizer", async ({ app }) => {

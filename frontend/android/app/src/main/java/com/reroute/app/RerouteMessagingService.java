@@ -21,7 +21,7 @@ public class RerouteMessagingService extends FirebaseMessagingService {
         // what arrives is still worth showing. On screen, the page shows alerts itself, as it does the live stream's.
         if (MainActivity.onScreen && RerouteMessagingPlugin.deliver(data)) return;
         String title = data.get("title");
-        Alerts.show(this, title == null ? "Reroute" : title, body, tag);
+        Alerts.show(this, title == null ? "Reroute" : title, body, tag, data);
     }
 
     @Override

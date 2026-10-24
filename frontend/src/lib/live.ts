@@ -5,6 +5,7 @@ import { useEffect } from 'react'
 import { apiBase, credentialsMode, getAccessToken, refreshSession } from '@/api/client'
 import { keys, queryClient } from '@/api/queries'
 import { native } from './platform'
+import { nudgeBubble } from './roo/nudge'
 import { seenAlert } from './push'
 import { getState, setState } from './store'
 
@@ -82,6 +83,13 @@ function handle(tripId: string, e: LiveEvent) {
     // The scheduler planned today on its own, early in the morning (it plans a later trip day once it begins).
     const version = typeof e.data.version === 'number' ? e.data.version : 0
     void import('./alerts').then(({ raise }) => raise({ key: `morning-${tripId}-${version}`, title: 'Your day is planned. Open Today to see when to leave.', tone: 'nudge' }))
+  }
+  if (e.event === 'nudge') {
+    // Rico checks in on his own (busy roads ahead, or running behind): his bubble, once, even if a push brought it too.
+    if (!seenAlert(tripId, `nudge-${String(e.data.seq)}`, `${String(e.data.reason)}|${String(e.data.leaveBy)}`)) {
+      setState({ ricoBubble: nudgeBubble(e.data) })
+      void import('./roo/sounds').then(({ ricoSound }) => ricoSound('appear'))
+    }
   }
   if (e.event === 'leave_now') {
     const label = String(e.data.label ?? 'your next leg')
