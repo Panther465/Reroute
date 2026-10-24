@@ -1,7 +1,8 @@
-"""A simulated booking system for trains, flights and cabs (a class-project demo).
+"""A simulated booking system for trains, flights, cabs and entry tickets to sights (a class-project demo).
 
-The partners are invented (RailGo trains, SkyHop flights, RideNow, AutoGo and ZipBike rides): nothing
-here talks to a real railway, airline or ride app, and the wallet that pays holds simulated money.
+The partners are invented (RailGo trains, SkyHop flights, RideNow, AutoGo and ZipBike rides, SightPass
+tickets): nothing here talks to a real railway, airline, ride app or ticket office, and the wallet that
+pays holds simulated money.
 Options are generated deterministically from the trip, so the same search always shows the same
 choices, and a booking is checked against them on the server (the app can't set its own fare). Every
 answer says it's a demo.
@@ -267,3 +268,33 @@ def book_flight(flight: FlightOption, cabin: str, passengers: list[dict], bookin
     row = rng.randint(1, 4) if cabin == "business" else rng.randint(8, 32)
     letters = "AC" if cabin == "business" else "ABCDEF"
     return pnr, [{**p, "seat": f"{row + i // len(letters)}{letters[i % len(letters)]}"} for i, p in enumerate(passengers)]
+
+
+# ---------- entry tickets (SightPass, an invented ticket partner) ----------
+
+#: The ticket partner, as the booking records it, and its name.
+TICKETS = "sightpass"
+TICKETS_LABEL = "SightPass"
+#: An adult's entry, as India's monuments, museums and gardens charge (rupees), and what a guided tour adds.
+ENTRY_FARES = (20, 25, 30, 40, 50, 75, 100, 150, 200, 300)
+GUIDE_FARES = (100, 150, 200, 250)
+
+
+@dataclass(frozen=True)
+class TicketOption:
+    option_id: str
+    label: str
+    #: For one person.
+    fare_inr: int
+
+
+def ticket_options(place_id: str) -> list[TicketOption]:
+    """Entry to a sight, plain or with a guided tour, for one person: priced from the place alone, so always the same."""
+    rng = _rng("tickets", place_id)
+    entry = rng.choice(ENTRY_FARES)
+    return [TicketOption("entry", "Entry", entry), TicketOption("guided", "Entry and a guided tour", entry + rng.choice(GUIDE_FARES))]
+
+
+def ticket_number(booking_seed: str) -> str:
+    rng = _rng("ticket", booking_seed)
+    return "SP" + "".join(rng.choice("ABCDEFGHJKLMNPQRSTUVWXYZ23456789") for _ in range(8))

@@ -737,6 +737,9 @@ class RooAgentIn(PostBody):
     history: Annotated[list[RooTurnIn], Field(max_length=12)] = []
     #: The trip on screen; none before the traveller has one (Roo can start one).
     trip_id: str | None = None
+    #: "tourist": the traveller is new in the city and Rico is their local guide, recommending places to see, eat
+    #: and do, then offering to plan the day. None: Rico looks after the day as usual.
+    mode: Literal["tourist"] | None = None
 
 
 class RooStepOut(Api):
@@ -872,16 +875,21 @@ class AirportOut(Api):
 
 
 class BookingIn(PostBody):
-    kind: Literal["train", "cab", "flight"]
+    kind: Literal["train", "cab", "flight", "ticket"]
     #: Train: the task the ticket is for, where to, which train and class, and who travels.
     task_id: str | None = None
     destination: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=60)] | None = None
     train_no: str | None = None
     travel_class: Literal["SL", "3A", "2A", "1A", "CC"] | None = None
     passengers: list[PassengerIn] = Field(default_factory=list, max_length=6)
-    #: Cab: the stop the leg goes to (a task ID, or "end") and the chosen option.
+    #: Cab: the stop the leg goes to (a task ID, or "end") and the chosen option. Ticket: "entry" or "guided".
     to_id: str | None = None
     option_id: str | None = None
+    #: Ticket: entry tickets to a sight (a place in the trip's city), for a day of the trip, for this many people
+    #: (one when left out).
+    place_id: str | None = None
+    visit_date: date | None = None
+    visitors: Annotated[int, Field(ge=1, le=10)] | None = None
     #: Flight: airports (IATA codes), the day, the flight and the cabin (plus passengers above).
     origin: Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")] | None = None
     flight_to: Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")] | None = None
@@ -893,12 +901,12 @@ class BookingIn(PostBody):
 class BookingOut(Api):
     booking_id: str
     trip_id: str
-    kind: Literal["train", "cab", "flight"]
+    kind: Literal["train", "cab", "flight", "ticket"]
     task_id: str | None
     to_id: str | None
     provider: str
     status: Literal["confirmed", "cancelled"]
-    #: The PNR for a train, the ride ID for a cab.
+    #: The PNR for a train or a flight, the ride ID for a cab, the ticket number for entry tickets.
     reference: str
     fare_inr: int
     details: dict

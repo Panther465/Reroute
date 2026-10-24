@@ -1,4 +1,5 @@
-"""Simulated bookings: a train ticket for a train task, a flight, a cab for a leg. A demo: nothing real is booked.
+"""Simulated bookings: a train ticket for a train task, a flight, a cab for a leg, entry tickets to a sight. A demo:
+nothing real is booked.
 
 They're paid from the wallet's simulated money: the booking and its charge commit together, and a
 cancellation refunds. They exist for every account while SIMULATED_SERVICES=true (the default);
@@ -16,7 +17,7 @@ from sqlalchemy import select
 from app.clock import minutes_of_day, tz_for
 from app.deps import CurrentUser, Db, OwnedTrip, simulated_only
 from app.errors import ApiError
-from app.models import Booking, Task, Trip
+from app.models import Booking, Place, Task, Trip
 from app.schemas import AirportOut, BookingIn, BookingOut, CabOptionOut, FlightFareOut, FlightOptionOut, PostBody, TrainClassOut, TrainOptionOut
 from app.services import booking_sim as sim
 from app.services import plan_store, wallet
@@ -155,7 +156,7 @@ def flight_options(
     response_model=BookingOut,
     response_model_by_alias=True,
     status_code=201,
-    summary="Book a train ticket, a flight or a cab (simulated), paid from the wallet",
+    summary="Book a train ticket, a flight, a cab or entry tickets to a sight (simulated), paid from the wallet",
 )
 def create_booking(body: BookingIn, trip: OwnedTrip, user: CurrentUser, db: Db) -> BookingOut:
     seed = f"{trip.trip_id}|{body.idempotency_key}"
@@ -220,6 +221,33 @@ def create_booking(body: BookingIn, trip: OwnedTrip, user: CurrentUser, db: Db) 
                 "passengers": passengers,
             },
         )
+    elif body.kind == "ticket":
+        place = db.get(Place, body.place_id) if body.place_id else None
+        if place is None or place.city_slug != trip.city_slug or not body.visit_date or not body.option_id:
+            raise ApiError(422, "Choose a place in the trip's city, a day and a ticket.", code="VALIDATION_ERROR")
+        if not trip.start_date <= body.visit_date <= trip.end_date:
+            raise ApiError(422, "Choose a day of the trip.", code="VALIDATION_ERROR")
+        ticket = next((o for o in sim.ticket_options(place.place_id) if o.option_id == body.option_id), None)
+        if ticket is None:
+            raise ApiError(422, "That ticket isn't on offer. Choose again.", code="VALIDATION_ERROR")
+        visitors = body.visitors or 1
+        booking = Booking(
+            trip_id=trip.trip_id,
+            kind="ticket",
+            provider=sim.TICKETS,
+            reference=sim.ticket_number(seed),
+            fare_inr=ticket.fare_inr * visitors,
+            details={
+                "partner": sim.TICKETS_LABEL,
+                "placeId": place.place_id,
+                "place": place.name,
+                "date": str(body.visit_date),
+                "ticket": ticket.option_id,
+                "ticketLabel": ticket.label,
+                "visitors": visitors,
+                "fareEachInr": ticket.fare_inr,
+            },
+        )
     else:
         if not body.to_id or not body.option_id:
             raise ApiError(422, "Choose a ride for the leg.", code="VALIDATION_ERROR")
@@ -251,6 +279,8 @@ def _label(b: Booking) -> str:
         return f"Flight {d['flightNo']}, {d['originCity']} to {d['destinationCity']}"
     if b.kind == "train":
         return f"Train {d['trainNo']} to {d['destination']}"
+    if b.kind == "ticket":
+        return f"{d['partner']} tickets to {d['place']}"
     return f"{d['providerLabel']} {d['vehicleLabel'].lower()} ride"
 
 
@@ -261,7 +291,7 @@ def cancel_booking(booking_id: str, body: PostBody, trip: OwnedTrip, db: Db) -> 
         raise ApiError(404, "Booking not found.")
     if booking.status != "cancelled":
         booking.status = "cancelled"
-        # A demo refund: trains keep a small clerkage, flights a cancellation fee, cabs before pickup nothing.
+        # A demo refund: trains keep a small clerkage, flights a cancellation fee, cabs before pickup and entry tickets nothing.
         fee = {"train": 60, "flight": 500}.get(booking.kind, 0) * len(booking.details.get("passengers", []))
         refund = max(0, booking.fare_inr - fee)
         booking.details = {**booking.details, "refundInr": refund}

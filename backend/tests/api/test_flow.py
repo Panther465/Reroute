@@ -317,6 +317,40 @@ def test_book_a_cab_for_a_leg(client):
     assert client.get("/v1/trips/trip-001/bookings").json() == []
 
 
+def test_book_entry_tickets_to_a_sight(client):
+    from app.services import booking_sim as sim
+
+    def book(**body):
+        return client.post("/v1/trips/trip-001/bookings", json={"kind": "ticket", "idempotencyKey": key(), **body})
+
+    guided = sim.ticket_options("jayanagar-office")[1]
+    res = book(placeId="jayanagar-office", visitDate="2026-10-15", optionId="guided", visitors=3)
+    assert res.status_code == 201, res.text
+    tickets = res.json()
+    assert tickets["demo"] and tickets["provider"] == "sightpass" and tickets["reference"].startswith("SP")
+    assert tickets["fareInr"] == guided.fare_inr * 3
+    assert tickets["details"] == {
+        "partner": "SightPass",
+        "placeId": "jayanagar-office",
+        "place": "University admin office",
+        "date": "2026-10-15",
+        "ticket": "guided",
+        "ticketLabel": "Entry and a guided tour",
+        "visitors": 3,
+        "fareEachInr": guided.fare_inr,
+    }
+    entry = client.get("/v1/wallet").json()["entries"][0]
+    assert entry["label"] == "SightPass tickets to University admin office" and entry["amountInr"] == -tickets["fareInr"]
+    # A place the trip's city has, a day of the trip, a ticket on offer.
+    assert book(placeId="nowhere", visitDate="2026-10-15", optionId="entry").status_code == 422
+    assert book(placeId="jayanagar-office", visitDate="2026-10-20", optionId="entry").status_code == 422
+    assert book(placeId="jayanagar-office", visitDate="2026-10-15", optionId="vip").status_code == 422
+    assert book(placeId="jayanagar-office", visitDate="2026-10-15", optionId="entry", visitors=11).status_code == 422
+    # Cancelled before the visit, everything comes back.
+    cancelled = client.post(f"/v1/trips/trip-001/bookings/{tickets['bookingId']}/cancel", json={"idempotencyKey": key()}).json()
+    assert cancelled["status"] == "cancelled" and cancelled["details"]["refundInr"] == tickets["fareInr"]
+
+
 def test_speech_reads_an_alert_and_caches_it(client, monkeypatch):
     calls: list[tuple[str, str, str]] = []
 

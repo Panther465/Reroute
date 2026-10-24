@@ -726,7 +726,7 @@ export interface paths {
         /** Your simulated tickets and rides */
         get: operations["list_bookings_v1_trips__trip_id__bookings_get"];
         put?: never;
-        /** Book a train ticket, a flight or a cab (simulated), paid from the wallet */
+        /** Book a train ticket, a flight, a cab or entry tickets to a sight (simulated), paid from the wallet */
         post: operations["create_booking_v1_trips__trip_id__bookings_post"];
         delete?: never;
         options?: never;
@@ -981,7 +981,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "train" | "cab" | "flight";
+            kind: "train" | "cab" | "flight" | "ticket";
             /** Taskid */
             taskId?: string | null;
             /** Destination */
@@ -996,6 +996,12 @@ export interface components {
             toId?: string | null;
             /** Optionid */
             optionId?: string | null;
+            /** Placeid */
+            placeId?: string | null;
+            /** Visitdate */
+            visitDate?: string | null;
+            /** Visitors */
+            visitors?: number | null;
             /** Origin */
             origin?: string | null;
             /** Flightto */
@@ -1017,7 +1023,7 @@ export interface components {
              * Kind
              * @enum {string}
              */
-            kind: "train" | "cab" | "flight";
+            kind: "train" | "cab" | "flight" | "ticket";
             /** Taskid */
             taskId: string | null;
             /** Toid */
@@ -1852,6 +1858,8 @@ export interface components {
             history: components["schemas"]["RooTurnIn"][];
             /** Tripid */
             tripId?: string | null;
+            /** Mode */
+            mode?: "tourist" | null;
         };
         /** RooAgentOut */
         RooAgentOut: {
