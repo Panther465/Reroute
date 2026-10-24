@@ -1,4 +1,4 @@
-import { ArrowRight, Bike, Car, CarTaxiFront, Check, Minus, Plane, Plus, Star, TrainFront } from 'lucide-react'
+import { ArrowRight, Bike, Car, CarTaxiFront, Check, Minus, Plane, Plus, Star, Ticket, TrainFront } from 'lucide-react'
 import { AutoRickshaw } from '@/components/icons'
 import { useEffect, useId, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
@@ -554,11 +554,11 @@ export function BookingSheet({ trip, booking, onOpenChange }: { trip: Trip; book
     <Sheet
       open
       onOpenChange={onOpenChange}
-      title={booking.kind === 'train' ? 'Your train ticket' : booking.kind === 'flight' ? 'Your flight' : 'Your ride'}
+      title={{ train: 'Your train ticket', flight: 'Your flight', ticket: 'Your tickets', cab: 'Your ride' }[booking.kind]}
       footer={
         !cancelled && (
           <Button variant="destructive" full loading={cancelling} loadingLabel="Cancelling…" onClick={() => void cancel()}>
-            {booking.kind === 'train' ? 'Cancel the ticket' : booking.kind === 'flight' ? 'Cancel the flight' : 'Cancel the ride'}
+            {{ train: 'Cancel the ticket', flight: 'Cancel the flight', ticket: 'Cancel the tickets', cab: 'Cancel the ride' }[booking.kind]}
           </Button>
         )
       }
@@ -566,7 +566,28 @@ export function BookingSheet({ trip, booking, onOpenChange }: { trip: Trip; book
       <div className="flex flex-col gap-4">
         {demoBanner}
         {cancelled && <Banner tone="blocked">Cancelled. {rupees(Number(d.refundInr ?? 0))} went back to your wallet.</Banner>}
-        {booking.kind === 'flight' ? (
+        {booking.kind === 'ticket' ? (
+          <div className="overflow-hidden rounded-card border border-line bg-surface">
+            <div className="flex items-center justify-between gap-3 bg-ink px-4 py-3 text-on-ink">
+              <span className="inline-flex items-center gap-2 t-title">
+                <Ticket size={18} strokeWidth={1.75} aria-hidden="true" />
+                {String(d.partner)}
+              </span>
+              <span className="t-small">{dayLabel(String(d.date))}</span>
+            </div>
+            <div className="p-4">
+              <p className="t-display-2 text-ink">{String(d.place)}</p>
+              <p className="mt-1 t-body text-ink-2">
+                {String(d.ticketLabel)}, {Number(d.visitors) === 1 ? '1 person' : `${Number(d.visitors)} people`}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 border-t border-dashed border-line-strong px-4 py-3">
+              <Tag tone="ink">Ticket {booking.reference}</Tag>
+              {Number(d.visitors) > 1 && <Tag tone="grey-outline">{rupees(Number(d.fareEachInr))} each</Tag>}
+              <span className="ml-auto t-title text-ink tnum">{rupees(booking.fareInr)}</span>
+            </div>
+          </div>
+        ) : booking.kind === 'flight' ? (
           <div className="overflow-hidden rounded-card border border-line bg-surface">
             <div className="flex items-center justify-between gap-3 bg-ink px-4 py-3 text-on-ink">
               <span className="inline-flex items-center gap-2 t-title">

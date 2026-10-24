@@ -2,7 +2,7 @@ import { ChevronRight, History, Languages, LogOut, Luggage, Moon, ShieldCheck, S
 import { useId, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { api, ApiError } from '@/api/client'
-import { useCurrentTripId, useMe, usePushEnabled, useTrip, useWalletEnabled } from '@/api/queries'
+import { useAgentEnabled, useCurrentTripId, useMe, usePushEnabled, useTrip, useWalletEnabled } from '@/api/queries'
 import { ConnectedServices, WalletPanel } from '@/components/money/Money'
 import { HeyRicoSettings } from '@/components/roo/HeyRicoSettings'
 import { RerouteLog } from '@/components/RerouteLog'
@@ -48,6 +48,8 @@ export default function Me() {
   const alerts = useStore((s) => s.leaveAlerts)
   const roo = useStore((s) => s.roo)
   const ricoRoams = useStore((s) => s.ricoRoams)
+  const ricoGuide = useStore((s) => s.ricoGuide)
+  const agentOn = useAgentEnabled()
   const walletOn = useWalletEnabled()
   const alertPrefs = useStore((s) => s.alerts)
   const setAlerts = (patch: Partial<AlertPrefs>) => setState((s) => ({ alerts: { ...s.alerts, ...patch } }))
@@ -279,6 +281,17 @@ export default function Me() {
           <Switch label="Rico on Today" description="Rico rides the Now line on Today; tap it to chat. Alerts still come when it's off." checked={roo} onChange={(v) => setState({ roo: v })} />
           <div className="border-t border-line" />
           <Switch label="Rico walks with you" description="On the other screens, Rico wanders along the bottom and pops up when he has something to say. Tap him to talk." checked={ricoRoams} onChange={(v) => setState({ ricoRoams: v })} />
+          {agentOn && (
+            <>
+              <div className="border-t border-line" />
+              <Switch
+                label="Rico as your local guide"
+                description="For a city that's new to you: Rico puts on his guide glasses, recommends places to see, eat and do from travel guides and maps, and can plan your whole day, tickets and all."
+                checked={ricoGuide}
+                onChange={(v) => setState({ ricoGuide: v })}
+              />
+            </>
+          )}
           <HeyRicoSettings />
         </div>
       </Section>

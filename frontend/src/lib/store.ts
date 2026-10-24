@@ -66,6 +66,9 @@ export interface UiState {
   ricoVoice: RicoVoiceRequest | null
   /** Rico out and about along the bottom of the screens (components/roo/RicoPal.tsx). */
   ricoRoams: boolean
+  /** Rico is the traveller's local guide (tourist mode): he wears his guide glasses, and his agent recommends places
+   *  and offers to plan the whole day. */
+  ricoGuide: boolean
   /** What Rico is saying in his speech bubble, with the answers to tap. */
   ricoBubble: RicoBubble | null
   /** A line for Rico to start the chat with when it next opens (a check-in, where he can't talk out loud). */
@@ -89,7 +92,7 @@ export interface RicoVoiceRequest {
 }
 
 const KEY = 'reroute:prefs:v2'
-const PERSISTED: (keyof UiState)[] = ['theme', 'lang', 'leaveAlerts', 'alerts', 'demo', 'roo', 'ricoRoams', 'started', 'tripId', 'connections']
+const PERSISTED: (keyof UiState)[] = ['theme', 'lang', 'leaveAlerts', 'alerts', 'demo', 'roo', 'ricoRoams', 'ricoGuide', 'started', 'tripId', 'connections']
 
 function defaults(): UiState {
   return {
@@ -108,6 +111,7 @@ function defaults(): UiState {
     pushReady: false,
     ricoVoice: null,
     ricoRoams: true,
+    ricoGuide: false,
     ricoBubble: null,
     rooChatSay: null,
     optimisticDone: [],

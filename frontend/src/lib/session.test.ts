@@ -4,6 +4,7 @@ import { keys, queryClient } from '@/api/queries'
 import type { User } from '@/api/types'
 import { native } from './platform'
 import { getSessionStatus, resetSession, restoreSession, signInDemo, signOut } from './session'
+import { getState, setState } from './store'
 
 const user = { userId: 'u1', name: 'Asha Rao', email: 'asha@example.com', role: 'traveller', isDemo: true } as unknown as User
 
@@ -179,7 +180,10 @@ describe('in the Android app', () => {
       sent.push({ url, init })
       return new Response(null, { status: 204 })
     })
+    setState({ ricoGuide: true })
     await signOut()
+    // Rico takes his guide glasses off for whoever signs in next.
+    expect(getState().ricoGuide).toBe(false)
     expect(sent).toHaveLength(1)
     expect(sent[0].url).toMatch(/\/v1\/auth\/logout$/)
     expect(JSON.parse(String(sent[0].init.body))).toEqual({ refreshToken: 'app-refresh-0000000000000009' })
