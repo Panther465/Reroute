@@ -3,13 +3,14 @@
 The live stream reaches the app while it's open, but Android cuts a background app's network a few seconds
 after it leaves the screen and freezes it soon after. So the alerts the web app shows as notifications also go
 out as pushes: leave-by (10 minutes before and at the time) and the morning plan. Each is its own job, so a slow
-answer from Firebase never holds up planning, and the words are the ones the app would show itself.
+answer from Firebase never holds up planning, and the words are the ones the app would show itself. Rico's
+check-ins go out the same way: a hello, with what the app needs to say why once it's opened.
 """
 
 from __future__ import annotations
 
 import logging
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Literal
 
@@ -27,7 +28,7 @@ log = logging.getLogger("reroute.push")
 
 @dataclass(frozen=True)
 class PushAlert:
-    kind: Literal["leave_now", "morning"]
+    kind: Literal["leave_now", "morning", "nudge"]
     body: str
     #: Groups notifications on the phone: a newer one with the same tag replaces the older, as on the web.
     tag: str
@@ -37,6 +38,9 @@ class PushAlert:
     ttl_seconds: int
     title: str = "Reroute"
     seq: int | None = None
+    #: More for the app to read when the alert is opened (a nudge's reason and times), as text: Firebase carries
+    #: only strings. The fields above win over any of the same name.
+    details: dict[str, str] = field(default_factory=dict)
 
 
 def enabled() -> bool:
@@ -88,6 +92,10 @@ def leave_text(in_min: int, label: str) -> str:
     return f"Leave in {in_min} min. {label}." if in_min > 0 else f"Leave now. {label}."
 
 
+#: Rico's check-in. The push only says hello: the app says why when it's opened.
+NUDGE_TEXT = "Hi, are you there? 👋"
+
+
 def deliver(user_id: str, item: dict, now: datetime | None = None) -> dict:
     """The push job: one message to each phone still signed in. Phones Firebase says are gone for good, and
     phones whose sign-in has ended (signed out, expired, or cut off by the theft check), are forgotten."""
@@ -115,6 +123,7 @@ def deliver(user_id: str, item: dict, now: datetime | None = None) -> dict:
     if not phones:
         return {"sent": 0, "gone": 0}
     data = {
+        **(item.get("details") or {}),
         "kind": item["kind"],
         "title": item["title"],
         "body": item["body"],
