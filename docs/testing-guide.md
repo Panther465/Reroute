@@ -191,7 +191,7 @@ Each row says which account to use (**D** for demo, **R** for real, **Both**).
 | **Me**: Language हिन्दी, Theme Light/Dark/System | Both | The interface switches language and theme at once |
 | **The sun or moon button** (home page, Rico's welcome, the desktop top bar, Today's header on a phone) | Both | Light and dark swap with a short cross-fade; the choice stays after a reload, with no flash of the other theme |
 | **Me → Alerts**: sound, chime, Rico's voice, **Hear Rico**, volume, vibration, phone notifications | Both | **Hear Rico** speaks; notifications ask for permission once |
-| Rico in 3D: open /welcome or Ask Rico on a laptop or a recent phone | Both | A fuzzy plush 3D Rico breathes, blinks, follows the pointer and hops on each line. With reduced motion, Save-Data or a slow GPU, the flat Rico shows instead (force either with `localStorage['reroute.roo3d']` = `on` or `off`) |
+| Rico in 3D: open /welcome or Ask Rico on a laptop or a recent phone | Both | A fuzzy plush 3D Rico breathes, blinks, follows the pointer and hops on each line; the Ask Rico button and the "Welcome back!" greeting show the same Rico. Beside each of Rico's lines in the chat, and everywhere with reduced motion, Save-Data or a slow GPU, a still of the same 3D Rico shows instead, never a flat one (force either with `localStorage['reroute.roo3d']` = `on` or `off`) |
 | Turn on **Rico reads its replies aloud** (Me) and open /welcome | Both | Each line plays to its end before the next; the words appear as they're said; Rico's mouth closes on b, m and p and between words |
 | **Me → Reroute log** | Both | Every plan and change with its reason |
 | **Me → Delete my location history** | Both | Confirms, then deletes |

@@ -1,10 +1,10 @@
 import * as Tooltip from '@radix-ui/react-tooltip'
 import { CalendarClock, CircleUserRound, ListChecks } from 'lucide-react'
-import { motion, MotionConfig } from 'motion/react'
+import { motion, MotionConfig, useReducedMotion } from 'motion/react'
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Navigate, NavLink, Outlet, ScrollRestoration, useLocation, useMatches } from 'react-router'
 import { AutoRickshaw, RouteMark } from '@/components/icons'
-import { RooArt } from '@/components/roo/RooArt'
+import { RooAvatar } from '@/components/roo3d/RooAvatar'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { TodaySkeleton } from '@/components/TodaySkeleton'
 import { Toaster } from '@/components/ui/Toaster'
@@ -153,6 +153,7 @@ function TopBar({ demo }: { demo?: ReactNode }) {
 /** On a desktop, Roo is a click away from every screen. */
 function AskRoo() {
   const open = useStore((s) => s.rooChat)
+  const reduce = !!useReducedMotion()
   return (
     <button
       type="button"
@@ -162,7 +163,7 @@ function AskRoo() {
       className={`flex min-h-12 shrink-0 items-center gap-2 rounded-full border pl-1.5 pr-4 t-title transition-colors duration-[var(--dur-quick)] ${open ? 'border-green bg-green-tint text-ink' : 'border-line text-ink [@media(hover:hover)]:hover:bg-sunken'}`}
     >
       <span className="flex size-9 items-end justify-center" aria-hidden="true">
-        <RooArt mood="happy" size={30} reduce />
+        <RooAvatar mood="happy" size={30} reduce={reduce} quiet />
       </span>
       Ask Rico
     </button>

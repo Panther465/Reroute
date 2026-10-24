@@ -66,10 +66,11 @@ export default defineConfig(({ mode }) => ({
             options: { cacheName: 'maplibre', expiration: { maxEntries: 8 } },
           },
           {
-            // Roo in 3D: its rendered sheet, the first time a 3D Roo of that size appears.
+            // Roo in 3D: its rendered sheet, the first time a live Roo of that size appears, and its stills
+            // (three sheets, and nine moods at two sizes).
             urlPattern: ({ url }) => url.pathname.startsWith('/assets/roo-'),
             handler: 'CacheFirst',
-            options: { cacheName: 'roo', expiration: { maxEntries: 6 } },
+            options: { cacheName: 'roo', expiration: { maxEntries: 24 } },
           },
           {
             urlPattern: /^https:\/\/tiles\.openfreemap\.org\/.*/i,
