@@ -19,10 +19,18 @@ from app.db import session_scope
 from app.errors import ApiError
 from app.models import Place, Plan, Task, Trip
 from app.redis_client import get_redis
-from app.services import leg_paths, loop, morning, push
-from app.services.day import trip_day
+from app.services import leg_paths, loop, morning, push, traffic
+from app.services.day import RULE, DayContext, sense, trip_day
 
 log = logging.getLogger("reroute.jobs")
+
+#: Rico checks in this many minutes before a road leg's leave-by when its roads are usually busy: early enough to
+#: leave earlier, close enough to be about now. The first 5-minute check in between sends it.
+NUDGE_FROM_MIN = 40
+NUDGE_UNTIL_MIN = 20
+#: "Are you there?" to a traveller who looks behind is worth showing for a quarter of an hour: by then the 5-minute
+#: checks have moved the day on, or the traveller has answered.
+BEHIND_NUDGE_SECONDS = 15 * 60
 
 
 def default_adapter():
@@ -130,9 +138,14 @@ def replan_trip(trip_id: str, delay_min: int = 0, automatic: bool = False, check
 
 
 def five_minute_check(trip_id: str) -> dict:
-    """The automatic run: detect a late traveller, shift times if that's enough, else refresh options."""
+    """The automatic run: detect a late traveller, shift times if that's enough, else refresh options. Then the
+    alerts: leave-by, and Rico's check-ins."""
     result = replan_trip(trip_id, automatic=True)
     send_leave_now_alerts(trip_id)
+    try:
+        send_nudges(trip_id)
+    except Exception:  # a check-in is a bonus: the day and its leave-by alerts are already seen to
+        log.exception("Couldn't send Rico's check-ins for %s", trip_id)
     return result
 
 
@@ -193,3 +206,63 @@ def send_leave_now_alerts(trip_id: str) -> None:
             events.publish(trip_id, "trip_ended", {"tripId": trip_id})
     for alert in pushes:
         push.alert(user_id, alert)
+
+
+def send_nudges(trip_id: str) -> None:
+    """Rico checks in ("Hi, are you there? 👋") once per leg of a plan and reason, on the live stream and as a push.
+    The app says why when it's opened:
+    - "busy": 20 to 40 minutes before a road leg whose roads are usually busy then (services/traffic.py: typical
+      traffic, not live data), with how much earlier to leave;
+    - "behind": still not on the way 5 minutes after the next leave-by, as sense() sees it from the clock, and the
+      leave-now alert at that time never went out (a check missed its 5 minutes, or the plan came after them).
+    """
+    r = get_redis()
+    pushes: list[push.PushAlert] = []
+    with session_scope() as db:
+        trip = db.get(Trip, trip_id)
+        if trip is None:
+            return
+        ctx = sense(db, trip, now_for(trip_id))
+        if ctx.active is None:
+            return
+        user_id, plan_id = trip.user_id, ctx.active.plan_id
+        for leg in ctx.remaining_legs:
+            leave = minutes_of_day(datetime.fromisoformat(leg["leaveBy"]), ctx.day, ctx.tz)
+            if leg["mode"] not in traffic.ROAD_MODES or not leave - NUDGE_FROM_MIN <= ctx.now_min <= leave - NUDGE_UNTIL_MIN:
+                continue
+            # A wait the plan already has at the other end takes up that much of the delay.
+            extra = traffic.leg_delay_min(trip.city_slug, leg) - leg.get("waitMin", 0)
+            if traffic.meaningful(extra, leg["travelMin"]) and r.set(f"nudge:{plan_id}:{leg['seq']}:busy", "1", nx=True, ex=86400):
+                earlier = min(traffic.leave_earlier_min(extra), leave - ctx.now_min)
+                why = {"reason": "busy", "suggestLeaveBy": at_minutes(ctx.day, leave - earlier, ctx.tz).isoformat(), "extraMin": earlier}
+                # Worth showing until the leave-by time.
+                pushes.append(_nudge(trip_id, ctx, leg, leave, (leave - ctx.now_min) * 60, why))
+        nxt = ctx.remaining_legs[0] if ctx.remaining_legs else None
+        if nxt is not None:
+            leave = minutes_of_day(datetime.fromisoformat(nxt["leaveBy"]), ctx.day, ctx.tz)
+            # Behind by the clock only: a delay the traveller reported counts as behind too, but they've just said
+            # where they are. And the leave-now alert at the leave-by time has already told them to go.
+            if (
+                ctx.now_min > leave + RULE.behind_threshold_min
+                and not r.exists(f"leave_now:{plan_id}:{nxt['seq']}:now")
+                and r.set(f"nudge:{plan_id}:{nxt['seq']}:behind", "1", nx=True, ex=86400)
+            ):
+                pushes.append(_nudge(trip_id, ctx, nxt, leave, BEHIND_NUDGE_SECONDS, {"reason": "behind", "behindMin": ctx.behind_min}))
+    for alert in pushes:
+        push.alert(user_id, alert)
+
+
+def _nudge(trip_id: str, ctx: DayContext, leg: dict, leave: int, ttl_seconds: int, why: dict) -> push.PushAlert:
+    """Publish a check-in on the live stream. Its push is returned, to send once the database session has closed."""
+    data = {"seq": leg["seq"], "taskId": leg.get("taskId"), "leaveBy": at_minutes(ctx.day, leave, ctx.tz).isoformat(), "label": leg["label"], **why}
+    events.publish(trip_id, "nudge", data)
+    return push.PushAlert(
+        kind="nudge",
+        title="Rico",
+        body=push.NUDGE_TEXT,
+        tag=f"nudge-{leg['seq']}",
+        trip_id=trip_id,
+        ttl_seconds=ttl_seconds,
+        seq=leg["seq"],
+        details={k: str(v) for k, v in data.items() if v is not None},
+    )

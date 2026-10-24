@@ -1,6 +1,6 @@
 """Live events: one Redis pub/sub channel per trip, forwarded to the phone as server-sent events.
 
-Events: plan_updated, options_ready, leave_now, checkin_recorded, trip_ended.
+Events: plan_updated, options_ready, leave_now, nudge, checkin_recorded, trip_ended.
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ from typing import Literal
 
 from app.redis_client import get_redis
 
-EventName = Literal["plan_updated", "options_ready", "leave_now", "checkin_recorded", "trip_ended"]
+EventName = Literal["plan_updated", "options_ready", "leave_now", "nudge", "checkin_recorded", "trip_ended"]
 
 
 def channel(trip_id: str) -> str:
