@@ -14,13 +14,14 @@ What Reroute keeps, why, for how long, who else sees what, and how to delete it,
 | Check-ins (done, skipped, delay) | PostgreSQL `checkins` | Following the day | With the trip |
 | Reroute log | PostgreSQL `reroute_log` | Showing what Reroute changed, with Undo | With the trip |
 | Share links (hashed tokens) | PostgreSQL `share_links` | Family view | Expire when the trip ends; revocable any time |
-| Simulated bookings: passenger names and ages for a train ticket or a flight, the ride for a cab | PostgreSQL `bookings` | The booking demo (only with the demo login; nothing real is booked) | With the trip; a demo reset deletes them |
+| Simulated bookings: passenger names and ages for a train ticket or a flight, the ride for a cab, the sight and how many are going for entry tickets | PostgreSQL `bookings` | The booking demo (only with the demo login; nothing real is booked) | With the trip; a demo reset deletes them |
 | Location timeline, during active trips only | MongoDB `location_timeline` | Optional; the loop works without it. **Not collected in this build** | Planned: 30 days after the trip (TTL index), or sooner on request |
 | Recorded Raasta rides, trimmed | MongoDB `gps_rides` | Building shared-auto routes | Kept with the route; first and last 200 m never stored |
 | Rate-limit counters, idempotency keys, live state, reported delays | Redis | Safety and live updates | 1 minute to 36 hours |
 | Place searches and their results | Redis | Fewer calls to OpenStreetMap | 24 hours |
 | Road shapes of legs (the two stops' coordinates and the path) | Redis | Drawing legs on the map | 30 days |
 | Read-aloud clips (the alert text and its audio) | Redis | Not asking for the same clip twice | 7 days |
+| Rico's guide: city guides, places near an area (about a kilometre across), and web answers (kept under a hash of the question) | Redis | Not asking Wikivoyage, OpenStreetMap or Google the same twice | 7 days, a day, an hour |
 | Request logs: method, path, status, time taken, trace ID | NGINX and API logs | Running and debugging the service | As long as the server keeps its logs |
 
 Request logs never hold a query string (where place searches and read-aloud text travel) or a share link's token: both NGINX and the API mask `/shared/<token>` as `/shared/***`.
@@ -44,7 +45,10 @@ Reroute uses free public services. Each sees only what it needs, and none gets y
 | Google Maps | Your starting point and the leg's destination | Only when you tap **Open in Google Maps**; Google's own privacy policy applies there |
 | Raasta (Reroute's own route service) | The coordinates of a leg's two stops | When the worker plans a day |
 | Google | The sign-in code; the Calendar code if you import appointments | Only when you use Google sign-in or Calendar import |
-| Google Gemini | The text you type in "Describe your day"; and a message to Rico that the phone couldn't understand by itself, with the last few messages and your trip's task titles, areas, times and today's plan. With Rico's agent, also what it looks up to answer: place names and areas, ride options and fares, your bookings and wallet balance. Never your name, email or location | Only if the AI helper is turned on (off by default). Rico answers most messages on the phone, sending nothing |
+| Google Gemini | The text you type in "Describe your day"; and a message to Rico that the phone couldn't understand by itself, with the last few messages and your trip's task titles, areas, times and today's plan. With Rico's agent, also what it looks up to answer: place names and areas, ride options and fares, your bookings and wallet balance, and what it read in a city's guide. Never your name, email or location | Only if the AI helper is turned on (off by default). Rico answers most messages on the phone, sending nothing |
+| Google Search, through Gemini | The question Rico asks the web, such as "When is Lalbagh Botanical Garden open?" (Rico is told never to put your name or where you stay in it) | Only with the AI helper and a Gemini key, when Rico looks something up (at most 3 a message) |
+| Wikivoyage (the Wikimedia Foundation) | The name of the city (or the place) Rico reads a guide for | Only with Rico's agent, when it reads a city's guide |
+| OpenStreetMap's Overpass server | The area Rico looks around: a point rounded to about a kilometre, never the exact place you stay or your position | Only with Rico's agent, when it looks for places to see, eat or do |
 
 ## Live location on the map
 
@@ -83,7 +87,7 @@ Every travel time and fare is an estimate and the app says so. A rerouted plan n
 
 Off by default (`AI_HELPER_ENABLED=false`). If turned on, only the text you type goes to the provider: no name, email or location.
 
-Talking to Rico works without it: Rico reads common requests (running late, move, skip, change a time or a length, plan again, undo, what's next) on the phone. With the helper on, a message the phone can't place goes to Gemini with the day it needs to answer, and Gemini's answer is only an offer: the server checks it against your trip, and the app asks you before changing anything. With a Gemini key, Rico's agent can also read your trip, rides and wallet through Reroute's own API, signed in as you, and put several changes on one card. Nothing changes until you tap Do all, and Undo takes it back. The chat itself is kept in your browser for the session only.
+Talking to Rico works without it: Rico reads common requests (running late, move, skip, change a time or a length, plan again, undo, what's next) on the phone. With the helper on, a message the phone can't place goes to Gemini with the day it needs to answer, and Gemini's answer is only an offer: the server checks it against your trip, and the app asks you before changing anything. With a Gemini key, Rico's agent can also read your trip, rides and wallet through Reroute's own API, signed in as you, and put several changes on one card. Nothing changes until you tap Do all, and Undo takes it back. As a local guide, it reads Wikivoyage and OpenStreetMap and asks Google Search, sending only a city's name, an area about a kilometre across, or its question (see the table above). The chat itself is kept in your browser for the session only.
 
 ## Connected services and the wallet
 

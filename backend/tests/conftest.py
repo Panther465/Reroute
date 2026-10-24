@@ -17,6 +17,9 @@ os.environ.setdefault("AUTH_RATE_LIMIT_PER_MINUTE", "100000")
 # Never the real routing servers: legs are drawn approximate unless a test gives the router an answer.
 os.environ.setdefault("ROUTING_CAR_URL", "")
 os.environ.setdefault("ROUTING_FOOT_URL", "")
+# Nor the guide's sources (Wikivoyage, Overpass): a test that wants them gives them an answer.
+os.environ.setdefault("WIKIVOYAGE_URL", "")
+os.environ.setdefault("OVERPASS_URL", "")
 if os.environ.get("TEST_DATABASE_URL"):
     os.environ["DATABASE_URL"] = os.environ["TEST_DATABASE_URL"]
 
