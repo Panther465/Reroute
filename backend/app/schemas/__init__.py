@@ -57,6 +57,8 @@ class FeaturesOut(Api):
     wallet: bool = False
     #: Roo as an agent: it reads the trip and proposes changes on one card (AI_HELPER_ENABLED with a Gemini key).
     agent: bool = False
+    #: Talking with Rico out loud, in real time (Gemini Live: the AI helper with a Gemini key).
+    voice_chat: bool = False
     #: Alerts as push notifications to the Android app, which arrive after it's closed (FCM_CREDENTIALS_FILE).
     push: bool = False
 
@@ -684,6 +686,23 @@ class AiHelperIn(PostBody):
 class RooTurnIn(Api):
     role: Literal["user", "roo"]
     text: Annotated[str, StringConstraints(max_length=600)]
+
+
+class RooLiveIn(PostBody):
+    #: The trip on screen, so Rico knows the day; none before the traveller has one.
+    trip_id: str | None = None
+    #: "tourist" when the traveller is new in the city: Rico is their guide too.
+    mode: Literal["tourist"] | None = None
+
+
+class RooLiveOut(Api):
+    """A pass for one realtime voice session with Rico. The app connects to `url` with `token` as access_token
+    and sends a setup naming `model`; Rico's voice, instructions and tools are locked into the pass."""
+
+    token: str
+    url: str
+    model: str
+    expires_at: datetime
 
 
 class RooIn(PostBody):

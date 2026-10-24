@@ -85,6 +85,10 @@ Off by default (`AI_HELPER_ENABLED=false`). If turned on, only the text you type
 
 Talking to Rico works without it: Rico reads common requests (running late, move, skip, change a time or a length, plan again, undo, what's next) on the phone. With the helper on, a message the phone can't place goes to Gemini with the day it needs to answer, and Gemini's answer is only an offer: the server checks it against your trip, and the app asks you before changing anything. With a Gemini key, Rico's agent can also read your trip, rides and wallet through Reroute's own API, signed in as you, and put several changes on one card. Nothing changes until you tap Do all, and Undo takes it back. The chat itself is kept in your browser for the session only.
 
+### Talking with Rico out loud
+
+Only while the voice screen is open (the Talk button): what the microphone hears goes straight from the phone to Google's Gemini Live, which turns it into words and answers in Rico's voice. Google also gets the day in words (the same as the chat sends) when the session starts. Reroute's server never receives or keeps the audio; the captions live on the screen only. Closing the screen turns the microphone off.
+
 ## Connected services and the wallet
 
 The partners in **Me > Connected services** (RideNow, AutoGo, ZipBike, RailGo, SkyHop) are invented and simulated. Connecting one only flips a switch on your phone: nothing is sent to anyone, and no real account is linked. The wallet holds simulated money: adding money charges no card or bank, and bookings paid from it book nothing real.

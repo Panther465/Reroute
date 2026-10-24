@@ -28,6 +28,7 @@ const RunningLateSheet = lazy(() => import('@/screens/RunningLateSheet').then((m
 const DemoPanel = lazy(() => import('@/components/DemoPanel').then((m) => ({ default: m.DemoPanel })))
 const Roo = lazy(() => import('@/components/Roo').then((m) => ({ default: m.Roo })))
 const RooChat = lazy(() => import('@/components/roo/RooChat').then((m) => ({ default: m.RooChat })))
+const RicoVoice = lazy(() => import('@/components/roo/RicoVoice').then((m) => ({ default: m.RicoVoice })))
 
 const TABS = [
   { to: '/', label: 'Today', Icon: CalendarClock, end: true },
@@ -190,6 +191,12 @@ export default function AppShell() {
   useEffect(() => {
     if (chatOpen) setChatLoaded(true)
   }, [chatOpen])
+  // Rico full screen, talking out loud: loaded the first time he's called.
+  const voiceOpen = useStore((s) => s.ricoVoice)
+  const [voiceLoaded, setVoiceLoaded] = useState(false)
+  useEffect(() => {
+    if (voiceOpen) setVoiceLoaded(true)
+  }, [voiceOpen])
   const serverNow = trip.data ? localMinutes(trip.data.now, trip.data.day, trip.data.utcOffset) : null
   const clock = useTripClock(serverNow, trip.dataUpdatedAt, trip.data?.clockSimulated ?? false)
   useFocusHeadingOnNavigate(location.pathname)
@@ -296,6 +303,11 @@ export default function AppShell() {
             {chatLoaded && (
               <Suspense fallback={null}>
                 <RooChat trip={trip.data ?? undefined} clock={clock ?? null} />
+              </Suspense>
+            )}
+            {voiceLoaded && (
+              <Suspense fallback={null}>
+                <RicoVoice trip={trip.data ?? undefined} />
               </Suspense>
             )}
             <Toaster tripId={current.tripId} />

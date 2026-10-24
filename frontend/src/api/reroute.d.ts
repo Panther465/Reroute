@@ -644,6 +644,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/roo/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Talk to Rico out loud: a pass for one realtime voice session (Gemini Live, AI helper)
+         * @description Rico's voice, instructions and his one tool are locked into the pass, with the day in words, so the app
+         *     can't change who he is; the Gemini key stays here.
+         */
+        post: operations["live_v1_roo_live_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/roo/proposals/{proposal_id}": {
         parameters: {
             query?: never;
@@ -1204,6 +1225,11 @@ export interface components {
              * @default false
              */
             agent: boolean;
+            /**
+             * Voicechat
+             * @default false
+             */
+            voiceChat: boolean;
             /**
              * Push
              * @default false
@@ -1857,6 +1883,33 @@ export interface components {
              * @default []
              */
             history: components["schemas"]["RooTurnIn"][];
+        };
+        /** RooLiveIn */
+        RooLiveIn: {
+            /** Idempotencykey */
+            idempotencyKey: string;
+            /** Tripid */
+            tripId?: string | null;
+            /** Mode */
+            mode?: "tourist" | null;
+        };
+        /**
+         * RooLiveOut
+         * @description A pass for one realtime voice session with Rico. The app connects to `url` with `token` as access_token
+         *     and sends a setup naming `model`; Rico's voice, instructions and tools are locked into the pass.
+         */
+        RooLiveOut: {
+            /** Token */
+            token: string;
+            /** Url */
+            url: string;
+            /** Model */
+            model: string;
+            /**
+             * Expiresat
+             * Format: date-time
+             */
+            expiresAt: string;
         };
         /** RooOut */
         RooOut: {
@@ -3959,6 +4012,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RooAgentOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    live_v1_roo_live_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RooLiveIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RooLiveOut"];
                 };
             };
             /** @description Validation Error */

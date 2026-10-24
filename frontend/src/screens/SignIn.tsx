@@ -1,10 +1,12 @@
 import { ArrowUpRight, TriangleAlert } from 'lucide-react'
+import { useReducedMotion } from 'motion/react'
 import { lazy, Suspense, useState, type ReactNode } from 'react'
 import { Navigate, useLocation, useNavigate } from 'react-router'
 import { ApiError } from '@/api/client'
 import { useAuthOptions } from '@/api/queries'
 import { AuthCard } from '@/components/AuthCard'
 import { RouteMark } from '@/components/icons'
+import { RooAvatar } from '@/components/roo3d/RooAvatar'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Button } from '@/components/ui/Button'
 import { loadShell, loadToday } from '@/app/lazy'
@@ -55,6 +57,7 @@ export default function SignIn() {
   // Right after an account is made, Roo takes over: don't bounce to Today first.
   const [arriving, setArriving] = useState(false)
   const from = (location.state as { from?: string } | null)?.from ?? '/'
+  const reduce = !!useReducedMotion()
   useDocumentTitle('Running late? We’ll reroute your day')
 
   if (status === 'signedIn' && !arriving) return <Navigate to={from} replace />
@@ -81,6 +84,45 @@ export default function SignIn() {
       setBusy(false)
     }
   }
+
+  const account = (
+    <>
+      <AuthCard
+        onLoading={() => {
+          setArriving(true)
+          preload()
+        }}
+        onSignedIn={signedIn}
+      />
+      <p className="mt-3 max-w-[26rem] t-small text-muted">
+        {demoOn ? 'The demo is a sample day in Bengaluru. ' : ''}Bookings and the wallet are simulated: nothing real is booked or charged.
+      </p>
+    </>
+  )
+
+  // The Android app opens on signing in, with Rico: the website's landing page (its demo, screens and links)
+  // stays on the web.
+  if (import.meta.env.MODE === 'android')
+    return (
+      <div className="flex min-h-dvh flex-col bg-ground text-ink">
+        <header className="flex items-center justify-between px-5 py-3">
+          <span className="flex items-center gap-2">
+            <RouteMark size={32} />
+            <span className="font-display text-[1.75rem] font-extrabold leading-none text-ink [font-stretch:75%]">Reroute</span>
+          </span>
+          <ThemeToggle />
+        </header>
+        <main className="mx-auto flex w-full max-w-[26rem] flex-1 flex-col justify-center px-5 pb-10">
+          <div className="mb-5 flex items-center gap-3">
+            <RooAvatar mood="wave" size={72} reduce={reduce} />
+            <h1 id="hero-h" tabIndex={-1} className="t-display-2 text-ink">
+              Hi, I’m Rico! Sign in and I’ll plan your day with you.
+            </h1>
+          </div>
+          {account}
+        </main>
+      </div>
+    )
 
   return (
     <div className="min-h-dvh bg-ground text-ink">
@@ -117,16 +159,7 @@ export default function SignIn() {
             </ul>
           </div>
           <div id="account" className="scroll-mt-6">
-            <AuthCard
-              onLoading={() => {
-                setArriving(true)
-                preload()
-              }}
-              onSignedIn={signedIn}
-            />
-            <p className="mt-3 max-w-[26rem] t-small text-muted">
-              {demoOn ? 'The demo is a sample day in Bengaluru. ' : ''}Bookings and the wallet are simulated: nothing real is booked or charged.
-            </p>
+            {account}
           </div>
         </section>
 

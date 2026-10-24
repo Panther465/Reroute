@@ -95,6 +95,11 @@ export function useAgentEnabled() {
   return useMe().data?.features?.agent === true
 }
 
+/** Talking with Rico out loud, in real time (Gemini Live): only where the server has the AI helper with a key. */
+export function useVoiceChatEnabled() {
+  return useMe().data?.features?.voiceChat === true
+}
+
 /** The server sends alerts to the Android app as pushes, so they arrive even after it's closed (lib/push.ts). */
 export function usePushEnabled() {
   return useMe().data?.features?.push === true

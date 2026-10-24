@@ -2643,6 +2643,66 @@
         }
       }
     },
+    "/v1/roo/live": {
+      "post": {
+        "tags": [
+          "roo"
+        ],
+        "summary": "Talk to Rico out loud: a pass for one realtime voice session (Gemini Live, AI helper)",
+        "description": "Rico's voice, instructions and his one tool are locked into the pass, with the day in words, so the app\ncan't change who he is; the Gemini key stays here.",
+        "operationId": "live_v1_roo_live_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RooLiveIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RooLiveOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/roo/proposals/{proposal_id}": {
       "get": {
         "tags": [
@@ -4511,6 +4571,11 @@
             "title": "Agent",
             "default": false
           },
+          "voiceChat": {
+            "type": "boolean",
+            "title": "Voicechat",
+            "default": false
+          },
           "push": {
             "type": "boolean",
             "title": "Push",
@@ -6270,6 +6335,75 @@
           "message"
         ],
         "title": "RooIn"
+      },
+      "RooLiveIn": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 4,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Idempotencykey"
+          },
+          "tripId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tripid"
+          },
+          "mode": {
+            "anyOf": [
+              {
+                "type": "string",
+                "const": "tourist"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mode"
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotencyKey"
+        ],
+        "title": "RooLiveIn"
+      },
+      "RooLiveOut": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expiresat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "url",
+          "model",
+          "expiresAt"
+        ],
+        "title": "RooLiveOut",
+        "description": "A pass for one realtime voice session with Rico. The app connects to `url` with `token` as access_token\nand sends a setup naming `model`; Rico's voice, instructions and tools are locked into the pass."
       },
       "RooOut": {
         "properties": {

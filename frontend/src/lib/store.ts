@@ -62,6 +62,17 @@ export interface UiState {
   rooVoice: boolean
   /** The server has this phone for push (the Android app): its alerts arrive even after the app is closed. */
   pushReady: boolean
+  /** Rico full screen, talking out loud (components/roo/RicoVoice.tsx): why he came, and as what. */
+  ricoVoice: RicoVoiceRequest | null
+}
+
+export interface RicoVoiceRequest {
+  /** A tap on Talk or on Rico, "Hey Rico", or one of his own nudges. */
+  from: 'tap' | 'wake' | 'nudge'
+  /** "tourist": the traveller is new in the city, and Rico is their guide. */
+  mode?: 'tourist'
+  /** Something for Rico to start with (a nudge's words). */
+  say?: string
 }
 
 const KEY = 'reroute:prefs:v2'
@@ -82,6 +93,7 @@ function defaults(): UiState {
     leaveNow: null,
     pendingDelay: null,
     pushReady: false,
+    ricoVoice: null,
     optimisticDone: [],
     started: null,
     rooChat: false,
