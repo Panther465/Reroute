@@ -10,6 +10,7 @@ What Reroute keeps, why, for how long, who else sees what, and how to delete it,
 | Wallet entries: each top-up, booking and refund, with its amount and label (simulated money; no card or bank is involved) | PostgreSQL `wallet_entries` | The wallet that pays for simulated bookings (only with the demo login) | Until the account is deleted; a demo reset resets the demo wallet |
 | Refresh tokens (hashed) | PostgreSQL `refresh_tokens` | Keeping you signed in | 30 days; rotated on every use |
 | Trips, tasks, places you chose | PostgreSQL | Planning your day | Until you delete the trip |
+| Places you added: the name, kind, your note, the pin, whether you shared it and a moderator's decision | PostgreSQL `places` | Finding them again, planning with them, and showing the ones you share | Until you delete one or your account; one a trip still goes to stays with that trip, without its note, until nothing goes there |
 | Plan versions with their inputs and reason codes | PostgreSQL `plans`, `plan_legs` | Explaining and replaying every change | With the trip |
 | Check-ins (done, skipped, delay) | PostgreSQL `checkins` | Following the day | With the trip |
 | Reroute log | PostgreSQL `reroute_log` | Showing what Reroute changed, with Undo | With the trip |
@@ -69,6 +70,15 @@ The Android app is the same web app inside Android, so everything above applies 
 - **"Hey Rico"**, only with Me → "Hey Rico" on: the phone listens for Rico's name with a speech model that runs on the phone, downloaded once from Alpha Cephei's site (alphacephei.com, the makers of Vosk; the download asks for the file and sends nothing else). What the microphone hears is never recorded, kept or sent anywhere. Hearing "hey Rico" opens the voice screen, and from then on it's as "Talking with Rico out loud" says. With "Even when Reroute is closed" on, a notification shows the whole time it listens; with it off, it listens only while Reroute is on screen. Turning "Hey Rico" off stops the microphone at once.
 - **Push notifications**, only with Me → Phone notifications on: Reroute's server keeps the phone's Firebase token (an app-install identifier, no location) to send leave-by alerts, the morning plan and Rico's check-ins. The words of each alert ("Leave in 9 min. Metro, then shared auto.") pass through Google's Firebase Cloud Messaging, and with a check-in the leg's leave-by time, its mode and how much earlier to leave. The phone gets a Firebase token only once notifications are turned on. Turning them off or signing out deletes the token from the server; so does the theft check ending the sign-in that registered it, that sign-in expiring (within the hour), and Firebase reporting the app uninstalled (at the next push).
 
+## Places you add
+
+A place you add (press and hold a map, or "Add it as your own place" in place search) is personal data: what you call it, where it is and your note can say a lot about you.
+
+- **Only you see it** unless you turn on "Share with everyone". Nobody else finds it in search or on a map, and nobody else's trip can use it, even with its ID.
+- **Sharing asks a moderator first.** A moderator sees its name, kind, city, area and pin, and who added it only as an account ID: never your name, email or note. Once they approve it, every traveller can find its name, kind, area and pin, never your note or who added it. Until then, and if they say no (you see why), it stays yours alone.
+- **Your note is yours alone**, shared or not, moderators included.
+- **Nothing is sent anywhere else:** adding a place asks no outside service. The map you place the pin on loads its tiles from OpenFreeMap, as every map does.
+
 ## Family view
 
 A share link shows stops and progress. It never shows coordinates or your exact location. Links are 128 random bits, stored only as a hash, expire when the trip ends, and stop working the moment you revoke them. Server logs show the link as `/shared/***`.
@@ -77,8 +87,9 @@ A share link shows stops and progress. It never shows coordinates or your exact 
 
 - **Location history:** Me → Delete my location history (`DELETE /v1/me/location-history`). It's removed at once.
 - **Share links:** Share → Stop sharing (`DELETE /v1/share-links/:id`).
+- **Places you added:** tap the place's pin on a map → Delete this place (`DELETE /v1/me/places/:id`). It's gone at once, unless a task or a stay of a trip still goes there: that trip keeps it until nothing goes there, but its note goes at once and it leaves search, the map and your places. A plan made before then names it "A deleted place".
 - **Bookings:** cancelling keeps the (simulated) record with the trip; resetting the demo trip deletes it.
-- **Everything else:** ask the team; account deletion removes your trips, tasks, plans, check-ins and bookings (cascade). Redis copies expire on their own (at most 30 days).
+- **Everything else:** ask the team; account deletion removes your trips, tasks, plans, check-ins, bookings and the places you added (cascade). A shared place other travellers' trips go to stays for those trips, without your note or any link to you. Redis copies expire on their own (at most 30 days).
 
 ## Estimates
 

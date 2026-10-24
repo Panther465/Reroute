@@ -17,8 +17,13 @@ Honest gaps in this build. Each is a deliberate scope choice or waits on the tea
 - **The metro timetable** isn't supplied yet. `examples/bengaluru/metro.json` holds the lines and their stations, from OpenStreetMap (ODbL), for drawing rides. With OSRM on, metro legs appear only once timetables (`stations` and `rides`) are added.
 - **The campus trip and its 20 to 30 real Raasta routes** wait on the team's mapping.
 - **Sample Raasta routes** other than Koramangala–Jayanagar exist only to show the unverified, stale and e-rickshaw states.
+- **A city's area is a box, not its outline:** OpenStreetMap's outline with a margin, at least about 22 km either side of the centre and at most about 66 km. A neighbouring town inside the box counts as part of the city, and the far edge of a sprawling one can fall outside. The list's areas were looked up once, in October 2026 (`examples/india-cities.json`); after adding a city to `backend/app/india.py`, run `infra/cities/from_osm.py` again. Nominatim finds only Thrissur's district, so Thrissur's centre was placed by hand.
+- **India's bounding box is a box too,** so a point just over a border passes that check; a place must still be inside the city being planned.
 
 ## Features
+
+- **Places of your own can't be edited.** Their name, kind, note and sharing are set when they're added: to change one, delete it and add it again. A traveller keeps up to 200 and adds up to 50 a day.
+- **On a phone, press and hold a leg's map** (open a leg from Today) to add a place: Today's own maps on a phone are small previews. Desktop's Today map takes it too, and "Not here? Add it as your own place" works wherever you search for a place. There's no screen listing your places: they're on the maps and first in place search, and each pin's sheet deletes it.
 
 - **The AI helper** ("Describe your day") is off by default, as the brief says; set `AI_HELPER_ENABLED=true` to turn it on. With `GEMINI_API_KEY` set (a free key from Google AI Studio) it asks Gemini to read the description. Without a key, or once the free tier's per-minute or daily quota is used up, it falls back to a pattern-based parser that handles common day descriptions. A fixed time it can't read as a real "HH:MM" is dropped, and the traveller sets it.
 - **Talking with Rico out loud** needs the AI helper and a Gemini key, and uses Google's realtime audio model (`ROO_LIVE_MODEL`, a preview model). Google ends a session after 15 minutes, and free-tier keys allow only a few at once. Rico's planner (`ask_reroute`) answers at the agent's speed, a few seconds.

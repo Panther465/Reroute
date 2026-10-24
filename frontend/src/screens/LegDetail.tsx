@@ -9,6 +9,7 @@ import { keys, queryClient, useBookings, useBookingsEnabled, useCurrentTripId, u
 import type { Booking, LegPath, RaastaRoute, Trip } from '@/api/types'
 import { BackButton, useBack } from '@/components/BackButton'
 import { LazyMap } from '@/components/LazyMap'
+import { useOwnPlacesOnMap } from '@/components/OwnPlacesOnMap'
 import { MODE_META, ModeIcon } from '@/components/icons'
 import { ModeChain } from '@/components/timeline/ModeChain'
 import { Button, ButtonLink, buttonClass } from '@/components/ui/Button'
@@ -218,6 +219,10 @@ export function DetailBody({ model, embedded, onBack, nowIso, trip }: { model: D
   const { key: fareKey, renew: renewFareKey, after: afterFare } = useSubmitKey('fare')
   const r = model.route
   const leg = model.leg
+  // The traveller's own places on the leg's map, and press and hold to add one. The map still opens on the leg:
+  // their places further off are there when the map is moved.
+  const own = useOwnPlacesOnMap(embedded || !leg ? undefined : trip, leg ? [leg.fromPlaceId, leg.toPlaceId] : [])
+  const legStops = useMemo(() => model.points.map((p) => p.lngLat), [model.points])
   const { fix } = useLiveLocation()
   const tripId = useCurrentTripId().tripId
   const startedTo = useStore((s) => (s.started && s.started.tripId === tripId ? s.started.toId : null))
@@ -404,9 +409,19 @@ export function DetailBody({ model, embedded, onBack, nowIso, trip }: { model: D
 
       {!embedded && (
         <div className="mt-6 lg:sticky lg:top-24 lg:mt-0">
-          <LazyMap lines={model.lines} points={model.points} stations={model.stations} label={`Map of ${model.title}`} className="h-64 lg:h-[min(640px,calc(100dvh-8rem))]" me={fix} />
+          <LazyMap
+            lines={model.lines}
+            points={[...model.points, ...own.points]}
+            focus={own.points.length ? legStops : undefined}
+            stations={model.stations}
+            label={`Map of ${model.title}`}
+            className="h-64 lg:h-[min(640px,calc(100dvh-8rem))]"
+            me={fix}
+            onLongPress={trip && leg ? own.onLongPress : undefined}
+          />
         </div>
       )}
+      {own.sheets}
 
       <Sheet
         open={report}

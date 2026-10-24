@@ -405,8 +405,10 @@ def test_road_path_is_for_covered_cities_only(client, monkeypatch):
     ok = client.get("/v1/road-path", params={"from": "77.5713,12.9767", "to": "77.7318,12.9855"})
     assert ok.status_code == 200, ok.text
     assert ok.json()["source"] == "line" and len(ok.json()["coords"]) == 2
-    far = client.get("/v1/road-path", params={"from": "72.8777,19.0760", "to": "77.7318,12.9855"})  # Mumbai
+    far = client.get("/v1/road-path", params={"from": "70.9126,26.9157", "to": "77.7318,12.9855"})  # Jaisalmer, a town nobody picked
     assert far.status_code == 422
+    # Every city on the list is covered from the start.
+    assert client.get("/v1/road-path", params={"from": "72.8777,19.0760", "to": "72.8311,18.9220"}).status_code == 200  # Mumbai
 
 
 class FakeNominatim:

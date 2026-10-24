@@ -1,8 +1,9 @@
 """Indian cities and towns Reroute recognises by name, with the other names people use for them.
 
-The list is for understanding what a traveller types ("bengluru", "Gurgaon", "new to Bombay"): a city's
-area comes from OpenStreetMap the first time someone picks it (services/cities.py). A town missing here
-still works through a plain OpenStreetMap search.
+The list is for understanding what a traveller types ("bengluru", "Gurgaon", "new to Bombay"). Where each
+one is, its centre and area, is in examples/india-cities.json, looked up once from OpenStreetMap
+(infra/cities/from_osm.py), so picking one needs no lookup (app/cities.py). A town missing here still works
+through a plain OpenStreetMap search.
 """
 
 from __future__ import annotations
@@ -195,3 +196,12 @@ CITIES: tuple[tuple[str, str, tuple[str, ...]], ...] = (
     # Islands
     ("Port Blair", "Andaman and Nicobar Islands", ("sri vijaya puram",)),
 )
+
+#: India's bounding box, west, south, east, north: Gujarat to Arunachal Pradesh, Ladakh to Great Nicobar,
+#: with Lakshadweep. A box, so it takes in a little of each neighbour too.
+BOUNDS = (68.0, 6.5, 97.5, 37.1)
+
+
+def in_india(lng: float, lat: float) -> bool:
+    west, south, east, north = BOUNDS
+    return west <= lng <= east and south <= lat <= north

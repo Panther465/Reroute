@@ -2,7 +2,7 @@ import 'maplibre-gl/dist/maplibre-gl.css'
 import * as maplibregl from 'maplibre-gl'
 import type { ExpressionSpecification, GeoJSONSource, Map as MLMap } from 'maplibre-gl'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?url'
-import { LocateFixed, Navigation, type LucideIcon } from 'lucide-react'
+import { LocateFixed, MapPinPlus, Navigation, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { MODE_META } from '@/components/icons'
@@ -10,13 +10,15 @@ import { MapUnavailable } from '@/components/LazyMap'
 import { useOnline } from '@/lib/hooks'
 import type { LngLat, MapLine } from '@/lib/geo'
 import type { Fix } from '@/lib/location'
+import { longPress } from '@/lib/longPress'
 import type { StationDot } from '@/lib/paths'
 import { useResolvedTheme } from '@/lib/theme'
 
 export interface MapPoint {
   id: string
   lngLat: LngLat
-  kind: 'stand' | 'stop' | 'user'
+  /** `saved`: a place the traveller added, a blue pin (with `icon`) set apart from the day's stops. */
+  kind: 'stand' | 'stop' | 'user' | 'saved'
   label: string
   number?: number
   onClick?: () => void
@@ -35,6 +37,10 @@ interface MapCardProps {
   className?: string
   draw?: boolean
   onMapClick?: (lngLat: LngLat) => void
+  /** Press and hold the map (right-click with a mouse) to add a place there; "Add a place" adds one at the middle. */
+  onLongPress?: (lngLat: LngLat) => void
+  /** Where the map opens when there's nothing on it yet. */
+  center?: LngLat
   /** The traveller's live position: a blue dot with its heading and accuracy, and a "Follow me" button. */
   me?: Fix | null
   /** A small preview: no controls, no panning, just the route and the dot. */
@@ -172,18 +178,31 @@ function bounds(pts: LngLat[]) {
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
 
 /** A stop as a pin: its icon in a coloured head, a pointed tail, and its name beneath (full map). The icon is
- * rendered into the `data-pin-icon` slot through a portal, so it is the same lucide icon as everywhere else. */
+ * rendered into the `data-pin-icon` slot through a portal, so it is the same lucide icon as everywhere else.
+ * A place the traveller added is blue, a colour no stop takes. */
 function pinNode(p: MapPoint, compact: boolean) {
-  const node = document.createElement('div')
-  node.className = 'flex flex-col items-center'
-  const tone = p.state === 'done' ? 'bg-muted text-on-ink' : p.state === 'next' ? 'bg-green text-on-green' : p.state === 'current' ? 'bg-yellow text-on-yellow' : 'bg-ink text-on-ink'
+  // A pin that opens something (a place's sheet) is a button, at least 48 px wide; otherwise it's a picture.
+  const clickable = !!p.onClick && !compact
+  const node = document.createElement(clickable ? 'button' : 'div')
+  node.className = clickable ? 'flex min-w-12 flex-col items-center rounded-card outline-offset-2' : 'flex flex-col items-center'
+  const tone =
+    p.kind === 'saved'
+      ? 'bg-blue text-on-blue'
+      : p.state === 'done'
+        ? 'bg-muted text-on-ink'
+        : p.state === 'next'
+          ? 'bg-green text-on-green'
+          : p.state === 'current'
+            ? 'bg-yellow text-on-yellow'
+            : 'bg-ink text-on-ink'
   const size = compact ? 'size-7' : 'size-10'
   const fade = p.state === 'done' ? 'opacity-70' : ''
   node.innerHTML = `
-    <div class="relative flex ${size} items-center justify-center rounded-full border-[3px] border-surface ${tone} shadow-lg ${fade}"><span data-pin-icon class="flex"></span></div>
-    <div class="-mt-1.5 size-2.5 rotate-45 ${tone} ${fade}"></div>
+    <span class="relative flex ${size} items-center justify-center rounded-full border-[3px] border-surface ${tone} shadow-lg ${fade}"><span data-pin-icon class="flex"></span></span>
+    <span class="-mt-1.5 block size-2.5 rotate-45 ${tone} ${fade}"></span>
     ${!compact && p.caption ? `<span class="mt-1 max-w-36 truncate rounded-full bg-surface px-2 py-0.5 text-[13px] font-bold leading-5 text-ink shadow">${esc(p.caption)}</span>` : ''}`
-  node.setAttribute('role', 'img')
+  if (clickable) (node as HTMLButtonElement).type = 'button'
+  else node.setAttribute('role', 'img')
   node.setAttribute('aria-label', p.label)
   return node
 }
@@ -195,7 +214,23 @@ export default function MapCard(props: MapCardProps) {
   return <MapInner key={theme} {...props} theme={theme} />
 }
 
-function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMapClick, me, compact, eta, stations = [], followByDefault, theme }: MapCardProps & { theme: 'light' | 'dark' }) {
+function MapInner({
+  lines,
+  points,
+  focus,
+  label,
+  className = 'h-64',
+  draw,
+  onMapClick,
+  onLongPress,
+  center,
+  me,
+  compact,
+  eta,
+  stations = [],
+  followByDefault,
+  theme,
+}: MapCardProps & { theme: 'light' | 'dark' }) {
   const el = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MLMap | null>(null)
   const markers = useRef<maplibregl.Marker[]>([])
@@ -207,6 +242,8 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
   const [pins, setPins] = useState<{ key: string; host: HTMLElement; Icon: LucideIcon }[]>([])
   const clickRef = useRef(onMapClick)
   clickRef.current = onMapClick
+  const pressRef = useRef(onLongPress)
+  pressRef.current = onLongPress
   // Markers read the latest points (and their click handlers) from here, so they're rebuilt only when the points change.
   const pointsRef = useRef(points)
   pointsRef.current = points
@@ -236,8 +273,8 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
       style: STYLES[theme],
       bounds: pts.length ? bounds(pts) : undefined,
       fitBoundsOptions: { padding, maxZoom: 16 },
-      center: pts.length ? undefined : [77.5946, 12.9716],
-      zoom: pts.length ? undefined : 11,
+      center: pts.length ? undefined : (center ?? [77.5946, 12.9716]),
+      zoom: pts.length ? undefined : center ? 13 : 11,
       // The mini map is a picture with nothing to focus inside it; it credits the map below instead.
       attributionControl: compact ? false : { compact: true, customAttribution: ROUTE_CREDIT },
       interactive: !compact,
@@ -275,7 +312,27 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
       if (String(e.error?.message ?? '').includes('style')) setFailed(true)
     })
     map.on('click', (e: { lngLat: { lng: number; lat: number } }) => clickRef.current?.([e.lngLat.lng, e.lngLat.lat]))
+    // Press and hold adds a place where the finger is. Android also reports a long press as a right-click,
+    // so a second report within a moment is the same press.
+    let pressedAt = 0
+    const pressed = (at: LngLat) => {
+      if (!pressRef.current || performance.now() - pressedAt < 800) return
+      pressedAt = performance.now()
+      pressRef.current(at)
+    }
+    const hold = longPress<LngLat>(pressed)
+    type Touch = { point: { x: number; y: number }; lngLat: { lng: number; lat: number }; originalEvent: TouchEvent }
+    map.on('touchstart', (e: Touch) => (e.originalEvent.touches.length === 1 ? hold.start(e.point.x, e.point.y, [e.lngLat.lng, e.lngLat.lat]) : hold.cancel()))
+    map.on('touchmove', (e: Touch) => hold.move(e.point.x, e.point.y))
+    map.on('touchend', hold.cancel)
+    map.on('touchcancel', hold.cancel)
+    map.on('contextmenu', (e: { lngLat: { lng: number; lat: number }; originalEvent: MouseEvent }) => {
+      if (!pressRef.current) return
+      e.originalEvent.preventDefault()
+      pressed([e.lngLat.lng, e.lngLat.lat])
+    })
     const byHand = (e: { originalEvent?: unknown }) => {
+      hold.cancel()
       if (!e.originalEvent) return
       touched.current = true
       setFollowing(false)
@@ -410,19 +467,27 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stationsKey, ready])
 
-  // Markers: stops as icon pins, stands as rings, the traveller (by check-ins) as a yellow "now" dot.
+  // Markers: stops as icon pins, the traveller's own places as blue pins, stands as rings, the traveller (by
+  // check-ins) as a yellow "now" dot.
   // A new array with the same points (every render of the parent) keeps the markers; only a change rebuilds them.
-  const pointsKey = points.map((p) => `${p.id}:${p.lngLat.join(',')}:${p.kind}:${p.number ?? ''}:${p.label}:${p.state ?? ''}:${p.icon?.displayName ?? ''}:${p.onClick ? 1 : 0}`).join('|')
+  const pointsKey = points
+    .map((p) => `${p.id}:${p.lngLat.join(',')}:${p.kind}:${p.number ?? ''}:${p.label}:${p.caption ?? ''}:${p.state ?? ''}:${p.icon?.displayName ?? ''}:${p.onClick ? 1 : 0}`)
+    .join('|')
   useEffect(() => {
     const map = mapRef.current
     if (!map) return
     markers.current.forEach((m) => m.remove())
     const pins: { key: string; host: HTMLElement; Icon: LucideIcon }[] = []
     markers.current = points.map((p) => {
-      if (p.kind === 'stop' && p.icon) {
+      if ((p.kind === 'stop' || p.kind === 'saved') && p.icon) {
         const node = pinNode(p, !!compact)
         const host = node.querySelector<HTMLElement>('[data-pin-icon]')
         if (host) pins.push({ key: p.id, host, Icon: p.icon })
+        if (node instanceof HTMLButtonElement)
+          node.addEventListener('click', (e) => {
+            e.stopPropagation()
+            pointsRef.current.find((x) => x.id === p.id)?.onClick?.()
+          })
         // The pin's tail tip sits on the place.
         return new maplibregl.Marker({ element: node, anchor: 'top', offset: [0, compact ? -32 : -48] }).setLngLat(p.lngLat).addTo(map)
       }
@@ -568,6 +633,22 @@ function MapInner({ lines, points, focus, label, className = 'h-64', draw, onMap
         >
           <LocateFixed size={18} strokeWidth={1.75} aria-hidden="true" />
           {following ? 'Following you' : 'Follow me'}
+        </button>
+      )}
+      {onLongPress && !compact && ready && (
+        // A map tool under the zoom buttons, clear of the legend, the credits and the middle of the map, where it
+        // puts the new place to move. Pressing and holding puts it under the finger instead.
+        <button
+          type="button"
+          aria-label="Add a place"
+          title="Add a place (or press and hold the map)"
+          onClick={() => {
+            const c = mapRef.current?.getCenter()
+            if (c) onLongPress([c.lng, c.lat])
+          }}
+          className="absolute right-2.5 top-[4.75rem] z-10 flex size-12 items-center justify-center rounded-full border border-line bg-surface text-ink shadow-sm [@media(hover:hover)]:hover:bg-sunken"
+        >
+          <MapPinPlus size={22} strokeWidth={1.75} aria-hidden="true" />
         </button>
       )}
       {failed && (

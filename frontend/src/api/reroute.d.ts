@@ -198,7 +198,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Find a city in India by name, or in a sentence that mentions one */
+        /** Find a city in India by name, or in a sentence that mentions one; without q, every city on Reroute's list */
         get: operations["search_v1_cities_get"];
         put?: never;
         post?: never;
@@ -219,6 +219,98 @@ export interface paths {
         get: operations["search_v1_places_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/places": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Your places, newest first */
+        get: operations["my_places_v1_me_places_get"];
+        put?: never;
+        /**
+         * Add a place of your own in a city
+         * @description Only you see it. With `share`, a moderator checks it, and then everyone can find it (never its note).
+         */
+        post: operations["add_place_v1_me_places_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/places/{place_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete one of your places
+         * @description A trip that already goes there keeps it; it leaves your places, search and the map, and its note goes.
+         */
+        delete: operations["delete_place_v1_me_places__place_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/places/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Places travellers shared, for moderators to check */
+        get: operations["review_queue_v1_places_review_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/places/{place_id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Show a shared place to everyone (moderators) */
+        post: operations["approve_v1_places__place_id__approve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/places/{place_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Don't share a place (moderators) */
+        post: operations["reject_v1_places__place_id__reject_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1149,6 +1241,12 @@ export interface components {
              * @default false
              */
             sample: boolean;
+            /** Lng */
+            lng?: number | null;
+            /** Lat */
+            lat?: number | null;
+            /** Bbox */
+            bbox?: number[] | null;
         };
         /** DayAlternativeOut */
         DayAlternativeOut: {
@@ -1551,6 +1649,81 @@ export interface components {
             /** Options */
             options: components["schemas"]["OptionOut"][];
         };
+        /**
+         * OwnPlaceIn
+         * @description A place of your own, at a point in the city you're planning in.
+         */
+        OwnPlaceIn: {
+            /** Idempotencykey */
+            idempotencyKey: string;
+            /** Name */
+            name: string;
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "food" | "stay" | "sight" | "shop" | "transit" | "other";
+            /** Note */
+            note?: string | null;
+            /** Lng */
+            lng: number;
+            /** Lat */
+            lat: number;
+            /** Cityslug */
+            citySlug: string;
+            /**
+             * Share
+             * @default false
+             */
+            share: boolean;
+        };
+        /**
+         * OwnPlaceOut
+         * @description A place you added.
+         */
+        OwnPlaceOut: {
+            /** Placeid */
+            placeId: string;
+            /** Name */
+            name: string;
+            /** Area */
+            area: string;
+            /** Lng */
+            lng: number;
+            /** Lat */
+            lat: number;
+            /**
+             * Sample
+             * @default false
+             */
+            sample: boolean;
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "food" | "stay" | "sight" | "shop" | "transit" | "other";
+            /**
+             * Mine
+             * @default true
+             */
+            mine: boolean;
+            /** Cityslug */
+            citySlug: string;
+            /** Note */
+            note?: string | null;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "private" | "pending" | "approved" | "rejected";
+            /** Rejectreason */
+            rejectReason?: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+        };
         /** Page[TripSummaryOut] */
         Page_TripSummaryOut_: {
             /** Items */
@@ -1670,6 +1843,61 @@ export interface components {
              * @default false
              */
             sample: boolean;
+            /** Category */
+            category?: ("food" | "stay" | "sight" | "shop" | "transit" | "other") | null;
+            /**
+             * Mine
+             * @default false
+             */
+            mine: boolean;
+        };
+        /** PlaceRejectIn */
+        PlaceRejectIn: {
+            /** Idempotencykey */
+            idempotencyKey: string;
+            /** Reason */
+            reason?: string | null;
+        };
+        /**
+         * PlaceReviewOut
+         * @description A place a traveller asked to share with everyone, for a moderator to check. Never the owner's note.
+         */
+        PlaceReviewOut: {
+            /** Placeid */
+            placeId: string;
+            /** Name */
+            name: string;
+            /** Area */
+            area: string;
+            /** Lng */
+            lng: number;
+            /** Lat */
+            lat: number;
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "food" | "stay" | "sight" | "shop" | "transit" | "other";
+            /** Cityslug */
+            citySlug: string;
+            /** Cityname */
+            cityName: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "pending" | "approved" | "rejected";
+            /** Rejectreason */
+            rejectReason?: string | null;
+            /** Addedby */
+            addedBy?: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Reviewedat */
+            reviewedAt?: string | null;
         };
         /**
          * PlanInsightOut
@@ -3036,8 +3264,8 @@ export interface operations {
     };
     search_v1_cities_get: {
         parameters: {
-            query: {
-                q: string;
+            query?: {
+                q?: string | null;
             };
             header?: {
                 authorization?: string | null;
@@ -3093,6 +3321,212 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlaceOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    my_places_v1_me_places_get: {
+        parameters: {
+            query?: {
+                city?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnPlaceOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_place_v1_me_places_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OwnPlaceIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OwnPlaceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_place_v1_me_places__place_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                place_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    review_queue_v1_places_review_get: {
+        parameters: {
+            query?: {
+                status?: "pending" | "approved" | "rejected";
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceReviewOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_v1_places__place_id__approve_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                place_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceReviewOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reject_v1_places__place_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                place_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlaceRejectIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlaceReviewOut"];
                 };
             };
             /** @description Validation Error */

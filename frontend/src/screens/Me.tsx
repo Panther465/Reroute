@@ -334,7 +334,7 @@ export default function Me() {
             <li>
               <Link to="/moderator" className={rowLink}>
                 <ShieldCheck size={20} strokeWidth={1.75} aria-hidden="true" className="text-muted" />
-                <span className="flex-1">Route checks</span>
+                <span className="flex-1">Moderation</span>
                 <ChevronRight size={20} strokeWidth={1.75} aria-hidden="true" className="text-muted" />
               </Link>
             </li>

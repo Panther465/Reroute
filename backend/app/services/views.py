@@ -33,8 +33,18 @@ from app.services.loop import open_options
 from app.services.planner.util import count_word, rupees
 
 
-def place_out(place: Place) -> PlaceOut:
-    return PlaceOut(place_id=place.place_id, name=place.name, area=place.area, lng=place.lng, lat=place.lat, sample=place.sample)
+def place_out(place: Place, viewer: str | None = None) -> PlaceOut:
+    """`viewer` is who's looking: a place they added, and haven't deleted, says so (`mine`)."""
+    return PlaceOut(
+        place_id=place.place_id,
+        name=place.name,
+        area=place.area,
+        lng=place.lng,
+        lat=place.lat,
+        sample=place.sample,
+        category=place.category,  # type: ignore[arg-type]
+        mine=place.owner_id is not None and place.owner_id == viewer and place.status != "deleted",
+    )
 
 
 def task_out(task: Task) -> TaskOut:
@@ -44,7 +54,7 @@ def task_out(task: Task) -> TaskOut:
         trip_id=task.trip_id,
         title=task.title,
         place_id=task.place_id,
-        place=place_out(task.place),
+        place=place_out(task.place, task.trip.user_id),
         duration_min=task.duration_min,
         fixed_start=task.fixed_start,
         window=window,
@@ -128,7 +138,7 @@ def trip_out(db: Session, trip: Trip, now: datetime) -> TripOut:
     return TripOut(
         **trip_summary_out(trip).model_dump(),
         utc_offset=trip.utc_offset,
-        stay_place=place_out(stay),  # type: ignore[arg-type]
+        stay_place=place_out(stay, trip.user_id),  # type: ignore[arg-type]
         tasks=[task_out(t) for t in tasks],
         active_plan=plan_store.plan_out(plan) if plan else None,
         open_options=options_out(open_options(db, trip.trip_id)),
@@ -167,7 +177,8 @@ def summary_out(db: Session, trip: Trip, day: date) -> SummaryOut:
         if pid == trip.stay_place_id:
             return "Hotel"
         p = places.get(pid)
-        return p.area if p else pid
+        # An earlier plan can name a place its traveller has since deleted, once no task went there any more.
+        return p.area if p else "A deleted place"
 
     tasks = list(db.scalars(select(Task).where(Task.trip_id == trip.trip_id, Task.planned_day == day).order_by(Task.created_at)))
     times = {x["taskId"]: (x["taskStart"], x["taskEnd"]) for x in legs if x.get("taskId")}

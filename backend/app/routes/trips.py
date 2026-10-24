@@ -58,7 +58,7 @@ from app.schemas import (
 )
 from app.services import leg_paths, loop, plan_store
 from app.services.day import trip_day
-from app.services.places import best_place
+from app.services.places import best_place, can_see, release
 from app.services.views import options_out, place_out, summary_out, task_out, trip_out, trip_summary_out
 from app.workers import jobs
 from app.workers.queue import get_queue
@@ -79,9 +79,10 @@ class TaskAddOut(TaskOut):
 # ---------- helpers ----------
 
 
-def _place(db, place_id: str, city_slug: str) -> Place:
+def _place(db, place_id: str, city_slug: str, user_id: str) -> Place:
     place = db.get(Place, place_id)
-    if place is None or place.city_slug != city_slug:
+    # Someone else's own place is as good as missing, unless a moderator approved it for everyone.
+    if place is None or place.city_slug != city_slug or not can_see(place, user_id):
         raise ApiError(422, "Choose a place from the search results.", code="VALIDATION_ERROR")
     return place
 
@@ -140,7 +141,7 @@ def create_trip(body: TripIn, user: CurrentUser, db: Db) -> TripOut:
     where = supported_city(body.city_slug)
     if where is None:
         raise ApiError(422, "Reroute doesn't cover that city yet.", code="VALIDATION_ERROR")
-    place = _place(db, body.stay_place_id, body.city_slug)
+    place = _place(db, body.stay_place_id, body.city_slug, user.user_id)
     trip = Trip(
         user_id=user.user_id,
         city_slug=body.city_slug,
@@ -189,7 +190,7 @@ def add_task(
     db: Db,
     replan: Annotated[bool, Query(description="Re-plan the task's day if it already has a plan. Pass false for all but the last task of a batch.")] = True,
 ) -> TaskAddOut:
-    _place(db, body.place_id, trip.city_slug)
+    _place(db, body.place_id, trip.city_slug, trip.user_id)
     tz = tz_for(trip.utc_offset)
     day = body.day or (body.fixed_start.astimezone(tz).date() if body.fixed_start else trip.start_date)
     if not trip.start_date <= day <= trip.end_date:
@@ -228,9 +229,10 @@ def edit_task(task_id: str, body: TaskPatch, trip: OwnedTrip, db: Db) -> TaskEdi
     if task.state == "done":
         raise ApiError(409, "This task is already done.")
     data = body.model_dump(exclude_unset=True)
+    left = None
     if "place_id" in data and data["place_id"]:
-        _place(db, data["place_id"], trip.city_slug)
-        task.place_id = data["place_id"]
+        _place(db, data["place_id"], trip.city_slug, trip.user_id)
+        left, task.place_id = task.place_id, data["place_id"]
     for field in ("title", "duration_min", "priority", "hours_unknown"):
         if data.get(field) is not None:
             setattr(task, field, data[field])
@@ -258,6 +260,9 @@ def edit_task(task_id: str, body: TaskPatch, trip: OwnedTrip, db: Db) -> TaskEdi
             task.fixed_start = datetime.combine(new_day, task.fixed_start.astimezone(tz).timetz())
         # A task the planner moved or skipped comes back as planned on its new day.
         task.day, task.planned_day, task.state = new_day, new_day, "planned" if task.state in ("moved", "skipped") else task.state
+    if left and left != task.place_id:
+        db.flush()
+        release(db, left)
     db.commit()
     job_id = None
     active = plan_store.active_plan(db, trip.trip_id)
@@ -277,7 +282,10 @@ def delete_task(task_id: str, trip: OwnedTrip, db: Db) -> Response:
         raise ApiError(409, "This task is already in your day's record, so it can't be removed. Skip it instead if you won't do it.")
     active = plan_store.active_plan(db, trip.trip_id)
     in_plan = active is not None and any(leg.get("taskId") == task_id for leg in [*active.legs, *(active.done_legs or [])])
+    left = task.place_id
     db.delete(task)
+    db.flush()
+    release(db, left)
     db.commit()
     if in_plan:
         get_queue().enqueue(jobs.plan_trip, trip.trip_id, "edited")
@@ -447,14 +455,14 @@ def calendar_import(body: CalendarImportIn, trip: OwnedTrip, db: Db) -> list[Tas
     end = datetime.combine(trip.end_date, dtime(23, 59), tz)
     drafts = []
     for ev in calendar_events(body.code, start, end):
-        match = best_place(db, ev.location, trip.city_slug) if ev.location else None
+        match = best_place(db, ev.location, trip.city_slug, trip.user_id) if ev.location else None
         minutes = max(5, min(720, int((ev.end - ev.start).total_seconds() // 60)))
         drafts.append(
             TaskDraftOut(
                 title=ev.title[:120],
                 place_text=ev.location,
                 place_id=match.place_id if match else None,
-                place=place_out(match) if match else None,
+                place=place_out(match, trip.user_id) if match else None,
                 duration_min=minutes,
                 fixed_start=ev.start.astimezone(tz),
                 source="calendar",
@@ -480,7 +488,7 @@ async def ai_task_drafts(body: AiHelperIn, trip: OwnedTrip, db: Db) -> list[Task
     day = trip_day(trip, now_for(trip.trip_id))
     raw = await extract_tasks_llm(body.text, trip.city_name, str(day))
     # Database and Nominatim calls block (Nominatim allows one request a second), so they run off the event loop.
-    matches = await run_in_threadpool(lambda: [best_place(db, t.get("placeText", ""), trip.city_slug) for t in raw])
+    matches = await run_in_threadpool(lambda: [best_place(db, t.get("placeText", ""), trip.city_slug, trip.user_id) for t in raw])
     drafts: list[TaskDraftOut] = []
     for t, match in zip(raw, matches, strict=True):
         place_text = t.get("placeText", "")
@@ -494,7 +502,7 @@ async def ai_task_drafts(body: AiHelperIn, trip: OwnedTrip, db: Db) -> list[Task
                 title=t["title"],
                 place_text=place_text,
                 place_id=match.place_id if match else None,
-                place=place_out(match) if match else None,
+                place=place_out(match, trip.user_id) if match else None,
                 duration_min=t["durationMin"],
                 fixed_start=fixed,
                 priority=t.get("priority", 2),

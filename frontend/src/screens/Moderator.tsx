@@ -3,11 +3,12 @@ import * as Tabs from '@radix-ui/react-tabs'
 import { Download } from 'lucide-react'
 import { useMemo, useState } from 'react'
 import { Navigate, useOutletContext } from 'react-router'
-import { api, ApiError, apiBase } from '@/api/client'
-import { queryClient, useQueue, useRaastaRoute } from '@/api/queries'
-import type { Contribution, ContributionDecision, FareReport, VehicleType } from '@/api/types'
+import { api, ApiError, apiBase, newKey } from '@/api/client'
+import { queryClient, usePlaceReview, useQueue, useRaastaRoute } from '@/api/queries'
+import type { Contribution, ContributionDecision, FareReport, PlaceReview, VehicleType } from '@/api/types'
 import { BackButton, useBack } from '@/components/BackButton'
 import { LazyMap } from '@/components/LazyMap'
+import type { MapPoint } from '@/components/MapCard'
 import { MODE_META, ModeIcon, modeTextClass } from '@/components/icons'
 import { Button, buttonClass } from '@/components/ui/Button'
 import { ChipGroup, Segmented } from '@/components/ui/Choice'
@@ -17,6 +18,7 @@ import { Tag } from '@/components/ui/Tag'
 import { rupees } from '@/lib/format'
 import { recordedPath, routeLine, type LngLat } from '@/lib/geo'
 import { useDocumentTitle, useIsDesktop } from '@/lib/hooks'
+import { categoryOf } from '@/lib/ownPlaces'
 import { showToast } from '@/lib/store'
 
 
@@ -240,6 +242,95 @@ function FareReportRow({ r, onDecide }: { r: FareReport; onDecide: (id: string, 
   )
 }
 
+const REJECT_REASONS = [
+  { value: 'It looks like a private home.', label: 'Private home' },
+  { value: 'The pin is in the wrong spot.', label: 'Wrong spot' },
+  { value: 'It is already on the map.', label: 'Duplicate' },
+  { value: 'other', label: 'Other' },
+]
+
+/** A place a traveller asked to share: what and where it is (a map on request), and the decision. */
+function SharedPlaceRow({ p }: { p: PlaceReview }) {
+  const [map, setMap] = useState(false)
+  const [rejecting, setRejecting] = useState(false)
+  const [reason, setReason] = useState<string | null>(null)
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState<'approve' | 'reject' | null>(null)
+  const kind = categoryOf(p.category)
+  const points = useMemo<MapPoint[]>(() => [{ id: p.placeId, lngLat: [p.lng, p.lat], kind: 'saved', label: p.name, icon: kind.Icon, caption: p.name }], [p, kind])
+  const decide = async (action: 'approve' | 'reject') => {
+    setBusy(action)
+    try {
+      const why = reason === 'other' ? note.trim() : reason
+      await api.post(`/v1/places/${p.placeId}/${action}`, action === 'reject' && why ? { reason: why } : {}, { idempotencyKey: newKey('review') })
+      void queryClient.invalidateQueries({ queryKey: ['place-review'] })
+      showToast({ title: action === 'approve' ? `${p.name} now shows to everyone.` : `${p.name} stays with the traveller who added it. They see your reason.` })
+    } catch (err) {
+      showToast({ title: err instanceof ApiError ? err.message : "Couldn't save the decision. Try again." })
+    } finally {
+      setBusy(null)
+    }
+  }
+  return (
+    <li className="flex flex-col gap-3 px-4 py-4">
+      <div className="flex items-start gap-3">
+        <kind.Icon size={24} strokeWidth={1.75} aria-hidden="true" className="mt-0.5 shrink-0 text-blue" />
+        <span className="min-w-0 flex-1">
+          <span className="block t-title text-ink">{p.name}</span>
+          <span className="block t-small text-ink-2">
+            {kind.label} in {p.area === p.cityName ? p.cityName : `${p.area}, ${p.cityName}`}
+          </span>
+          <span className="block t-small text-muted">
+            Traveller {p.addedBy?.slice(-4) ?? ''}, {when(p.createdAt).toLowerCase()}
+          </span>
+        </span>
+      </div>
+      <Button variant="tertiary" size="md" className="-ml-2 self-start" aria-expanded={map} onClick={() => setMap((m) => !m)}>
+        {map ? 'Hide the map' : 'Show on the map'}
+      </Button>
+      {map && <LazyMap lines={[]} points={points} label={`Map of ${p.name}`} className="h-56" />}
+      {rejecting ? (
+        <div className="flex flex-col gap-4 rounded-card border border-line p-4">
+          <p className="t-title text-ink">Why aren't you sharing it?</p>
+          <ChipGroup legend="Reason" name={`reason-${p.placeId}`} value={reason} onChange={setReason} options={REJECT_REASONS} />
+          {reason === 'other' && <Field label="Reason" value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} />}
+          <div className="flex flex-wrap gap-3">
+            <Button variant="destructive" size="md" loading={busy === 'reject'} disabled={!reason || (reason === 'other' && note.trim().length < 3)} onClick={() => void decide('reject')}>
+              Don't share it
+            </Button>
+            <Button variant="tertiary" size="md" onClick={() => setRejecting(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="flex flex-wrap gap-3">
+          <Button size="md" loading={busy === 'approve'} disabled={busy !== null} onClick={() => void decide('approve')}>
+            Approve
+          </Button>
+          <Button size="md" variant="destructive" disabled={busy !== null} onClick={() => setRejecting(true)}>
+            Reject
+          </Button>
+        </div>
+      )}
+    </li>
+  )
+}
+
+function SharedPlaces() {
+  const q = usePlaceReview('pending')
+  if (q.isPending) return <Skeleton className="h-24 w-full rounded-card" />
+  if (q.isError) return <ErrorState message="Couldn't load the shared places. Check your connection and try again." onRetry={() => q.refetch()} />
+  if (!q.data.length) return <p className="t-body text-ink-2">No places waiting. They appear here when travellers share a place they added.</p>
+  return (
+    <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">
+      {q.data.map((p) => (
+        <SharedPlaceRow key={p.placeId} p={p} />
+      ))}
+    </ul>
+  )
+}
+
 function FareReports() {
   const q = useQuery({ queryKey: ['raasta', 'fare-reports'], queryFn: () => api.get<{ items: FareReport[] }>('/v1/raasta/fare-reports', { query: { status: 'waiting', limit: 50 } }) })
   const decide = async (id: string, action: 'accept' | 'reject') => {
@@ -272,7 +363,7 @@ export default function Moderator() {
   const apiStatus = filter === 'stale' ? 'waiting' : filter
   const q = useQueue(apiStatus, moderator)
   const verified = useQueue('merged', moderator && filter === 'verified')
-  useDocumentTitle('Route checks')
+  useDocumentTitle('Moderation')
   if (!moderator) return <Navigate to="/me" replace />
   const all = [...(q.data?.items ?? []), ...(filter === 'verified' ? (verified.data?.items ?? []) : [])]
   const rows = all.filter((c) => (filter === 'stale' ? c.kind === 'freshness_check' : filter === 'waiting' ? c.kind !== 'freshness_check' : true))
@@ -357,9 +448,9 @@ export default function Moderator() {
           <BackButton onClick={back} className="lg:hidden" />
           <div className="pt-1">
             <h1 tabIndex={-1} className="t-display-1 text-ink">
-              Route checks
+              Moderation
             </h1>
-            <p className="mt-1 t-body text-ink-2">Check rider routes before they show as verified.</p>
+            <p className="mt-1 t-body text-ink-2">Check rider routes before they show as verified, and the places travellers share before everyone sees them.</p>
           </div>
         </div>
         <a href={`${apiBase}/v1/raasta/cities/bengaluru/gtfs.zip`} download className={buttonClass('secondary')}>
@@ -402,6 +493,13 @@ export default function Moderator() {
           Fare reports
         </h2>
         <FareReports />
+      </section>
+      <section className="mt-10" aria-labelledby="places-h">
+        <h2 id="places-h" className="t-display-2 text-ink">
+          Shared places
+        </h2>
+        <p className="mb-3 mt-1 t-body text-ink-2">Places travellers added and asked to share. Everyone can find one once you approve it; its owner's note stays private.</p>
+        <SharedPlaces />
       </section>
     </div>
   )
