@@ -5,18 +5,18 @@
 // lib/speech/channel.ts says Roo is making), then the round body is turned as one, the face with it, and its
 // arms, feet and sprout go round with it. What it feels and does (each mood's face, giggling when poked,
 // purring when stroked, fidgets of its own, the felt emotes floating off it) is in life.ts. It draws only
-// while it's on screen.
+// while it's on screen. It also draws Roo's stills (snapshot(), for roo3d/stills.mjs).
 
-import type { Mood } from '@/components/roo/RooArt'
+import type { Mood } from '@/components/roo/mood'
 import { mix, mouthOutline, mouthSize, REST, type MouthParams } from '@/lib/roo/lipsync/mouth'
+import { POSES } from '@/lib/roo/lipsync/visemes'
 import { mouthNow } from '@/lib/speech/channel'
 import lg from './assets/roo-lg.webp'
 import md from './assets/roo-md.webp'
 import sm from './assets/roo-sm.webp'
+import { ELBOWROOM, FRAMES, HEADROOM, place, project, STILL_MARGIN, type Framing, type Vec3 } from './frame'
 import { ACTS, emoteNow, FACES, fidget, GRIN, perform, still, type Act, type Emote, type Face } from './life'
 import { PIECES, RIG, SHEETS, type Rect } from './rig'
-
-export type Framing = 'full' | 'portrait'
 
 export interface EngineOptions {
   framing: Framing
@@ -66,18 +66,25 @@ const NOD = 0.16
 const LEAN = 0.04
 const TAU = 2 * Math.PI
 
+/** Both arms up a little in alarm, and a touch while listening (radians up from hanging). */
+const LIFT: Partial<Record<Mood, number>> = { alert: 0.35, listening: 0.12 }
+
+/** The arms of a still Roo in each mood (left, right): both up to celebrate, the right one up to wave, a hand to
+ *  the chin while thinking, otherwise as they hang. */
+function restingArms(mood: Mood): [number, number] {
+  if (mood === 'celebrate') return [1.6, 1.6]
+  if (mood === 'wave') return [0, 1.35]
+  if (mood === 'thinking') return [0.3, 0]
+  const lifted = LIFT[mood] ?? 0
+  return [lifted, lifted]
+}
+
+/** A still Roo in the middle of a word. */
+const TALKING: MouthParams = { ...POSES.AI, open: 0.45 }
+
 // ---------- the rig ----------
 
-type Vec3 = readonly [number, number, number]
 type Pt = [number, number]
-
-const dot = (a: Vec3, b: Vec3) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
-
-/** A point (Blender's axes: x right, y away from you, z up; in body radii) to the master render's pixels. */
-export function project(p: Vec3): Pt {
-  const { right, up, centre } = RIG.camera
-  return [centre[0] + dot(p, right) * RIG.ppu, centre[1] - dot(p, up) * RIG.ppu]
-}
 
 /** Turns a point about the body's centre: `yaw` towards your right, then `pitch` down. */
 export function turn(p: Vec3, yaw: number, pitch: number): Vec3 {
@@ -166,17 +173,6 @@ export function armPoses(side: 'L' | 'R', raise: number): { a: string; b: string
   const hi = PIECES[keys[i + 1]].raise!
   return { a: keys[i], b: keys[i + 1], t: Math.max(0, Math.min(1, (raise - lo) / (hi - lo))) }
 }
-
-/** The part of the scene each framing shows in Roo's box: its height and the height of its middle, in body
- *  radii. */
-const FRAMES: Record<Framing, { height: number; middle: number }> = {
-  full: { height: 2.93, middle: 0.24 },
-  portrait: { height: 2.59, middle: 0.36 },
-}
-/** The canvas reaches this far above Roo's box (a share of its height), so a hop never cuts off the sprout, and
- *  this far out to each side (a share of its width), so a raised arm isn't cut off either. */
-const HEADROOM = 0.3
-const ELBOWROOM = 0.15
 
 // ---------- drawing ----------
 
@@ -950,7 +946,7 @@ export class RooEngine {
     const wavePhase = waving ? Math.sin(((now - this.waveAt) / 1000) * TAU * 1.6) : 0
     const sway = 0.04 * Math.sin(t * 1.3)
     const cheer = 0.25 * Math.sin(TAU * 2.2 * t)
-    const lifted = mood === 'alert' ? 0.35 : mood === 'listening' ? 0.12 : 0
+    const lifted = LIFT[mood] ?? 0
     let armR = cheering ? 1.6 - cheer : waving ? 1.15 + 0.4 * wavePhase : lifted + sway
     let armL = cheering ? 1.6 + cheer : mood === 'thinking' ? 0.3 + 0.05 * Math.sin(TAU * 2.6 * t) : lifted - sway
     if (m.armL !== null) armL = m.armL
@@ -1212,16 +1208,21 @@ export class RooEngine {
       this.bind(null)
       return
     }
-    const p = this.pose
     this.compose()
 
     this.bind(null)
     const { width: W, height: H } = this.canvas
-    // Master-render pixels to canvas pixels, the framing's middle at the middle of Roo's box.
-    const frame = FRAMES[this.opts.framing]
-    const scale = this.ppu() / RIG.ppu
-    const [mx, my] = project([0, 0, frame.middle])
-    const screen: Target = { w: W, h: H, m: [scale, 0, 0, scale, W / 2 - mx * scale, (H * (HEADROOM + 0.5)) / (1 + HEADROOM) - my * scale] }
+    // Master-render pixels to canvas pixels: Roo's box is the canvas less its headroom and elbowroom.
+    const w = W / (1 + 2 * ELBOWROOM)
+    const h = H / (1 + HEADROOM)
+    const { left, top, side } = place(w, h, this.opts.framing)
+    const k = side / RIG.size
+    this.paint({ w: W, h: H, m: [k, 0, 0, k, left + ELBOWROOM * w, top + HEADROOM * h] })
+  }
+
+  /** Roo as it's posed now, on `screen`, its face already put together. */
+  private paint(screen: Target) {
+    const p = this.pose
     const [gx, gy] = project([0, 0, RIG.body.ground])
     const [cx, cy] = project([0, 0, 0])
 
@@ -1275,6 +1276,67 @@ export class RooEngine {
       this.piece(screen, e.key, moved(turned(scaled(moved(IDENTITY, ex, ey), at.size, at.size), at.angle), -(x + w / 2), -(y + h / 2)), at.alpha)
     }
     this.flush(this.atlas!)
+  }
+
+  /** Roo standing still in `mood`: every spring at rest, eyes open between blinks, not breathing or hopping, and
+   *  nothing floating off it. */
+  private rest(mood: Mood) {
+    const face = FACES[mood]
+    const look = face.look ?? [0, 0]
+    const [armL, armR] = restingArms(mood)
+    Object.assign(this.pose, {
+      hopY: 0,
+      squash: 1,
+      breath: 1,
+      bob: 0,
+      roll: 0,
+      zoom: 1,
+      blink: 1,
+      eyesOpen: face.eyesOpen,
+      happy: face.happy,
+      sleep: face.sleep,
+      star: face.star,
+      heart: face.heart,
+      squint: face.squint,
+      wink: face.wink,
+      wide: face.wide,
+      brows: face.brows,
+      browTilt: face.browTilt,
+      cheeks: face.cheeks,
+      blush: face.blush,
+      sweat: face.sweat,
+      mouthShift: face.mouthShift,
+      leaf: face.leaf,
+      gaze: [look[0], look[1]],
+      tilt: face.tilt - look[0] * LEAN,
+      yaw: look[0] * TURN,
+      pitch: -look[1] * NOD,
+      armL,
+      armR,
+      mouth: mood === 'talking' ? TALKING : face.mouth,
+    })
+    this.emotes = []
+    // Twinkling stars, beating hearts and a trembling drop all at rest.
+    this.now = 0
+  }
+
+  /** A still of Roo in `mood` (roo3d/stills.mjs makes Roo's stills from these): the master render's square and its
+   *  margin (frame.ts) drawn whole on a canvas of its own, `size` pixels square. Only once the engine is ready. */
+  snapshot(mood: Mood, size: number): HTMLCanvasElement {
+    const { width, height } = this.canvas
+    this.rest(mood)
+    this.compose()
+    this.canvas.width = this.canvas.height = size
+    this.bind(null)
+    const k = size / (RIG.size * (1 + 2 * STILL_MARGIN))
+    const margin = STILL_MARGIN * RIG.size * k
+    this.paint({ w: size, h: size, m: [k, 0, 0, k, margin, margin] })
+    const out = document.createElement('canvas')
+    out.width = out.height = size
+    out.getContext('2d')!.drawImage(this.canvas, 0, 0)
+    this.canvas.width = width
+    this.canvas.height = height
+    return out
   }
 
   dispose() {

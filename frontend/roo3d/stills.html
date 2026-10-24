@@ -1,0 +1,51 @@
+<!doctype html>
+<!-- For roo3d/stills.mjs, not part of the app: the 3D engine draws Roo's stills here. -->
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Roo's stills</title>
+  </head>
+  <body style="margin: 0">
+    <!-- Big enough that the engine loads its sharpest sheet. -->
+    <span id="host" style="position: relative; display: block; width: 400px; height: 440px"></span>
+    <script type="module">
+      import { RooEngine } from '/src/components/roo3d/engine.ts'
+      import { MOODS } from '/src/components/roo/mood.ts'
+
+      /** A smaller copy, halving at most each step so the fur stays smooth. */
+      function shrink(source, size) {
+        let canvas = source
+        while (canvas.width > size) {
+          const next = Math.max(size, Math.round(canvas.width / 2))
+          const smaller = document.createElement('canvas')
+          smaller.width = smaller.height = next
+          const g = smaller.getContext('2d')
+          g.imageSmoothingQuality = 'high'
+          g.drawImage(canvas, 0, 0, next, next)
+          canvas = smaller
+        }
+        return canvas
+      }
+
+      /** Each mood's still at each size, as WebP data URLs keyed `mood-size`. */
+      window.stills = (sizes, quality) =>
+        new Promise((resolve, reject) => {
+          const engine = new RooEngine(document.getElementById('host'), {
+            framing: 'full',
+            onFail: () => reject(new Error('The 3D Roo could not draw in this browser')),
+            // After the first frame, out of the engine's own frame loop.
+            onReady: () =>
+              setTimeout(() => {
+                const out = {}
+                for (const mood of MOODS) {
+                  const picture = engine.snapshot(mood, Math.max(...sizes))
+                  for (const size of sizes) out[`${mood}-${size}`] = shrink(picture, size).toDataURL('image/webp', quality)
+                }
+                engine.dispose()
+                resolve(out)
+              }),
+          })
+        })
+    </script>
+  </body>
+</html>

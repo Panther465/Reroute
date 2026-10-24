@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Mood } from '@/components/roo/RooArt'
+import type { Mood } from '@/components/roo/mood'
 import { ACTS, emoteNow, FACES, fidget, perform, still, type Act, type Emote } from './life'
 import { PIECES } from './rig'
 

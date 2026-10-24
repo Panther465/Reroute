@@ -3,7 +3,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useState, type FormEvent } from 'react'
 import { ApiError } from '@/api/client'
 import { useAuthOptions } from '@/api/queries'
-import { RooArt } from '@/components/roo/RooArt'
+import { RooAvatar } from '@/components/roo3d/RooAvatar'
 import { Button } from '@/components/ui/Button'
 import { Segmented } from '@/components/ui/Choice'
 import { Field } from '@/components/ui/Field'
@@ -123,7 +123,7 @@ export function AuthCard({ onSignedIn, onLoading }: { onSignedIn: (how: 'created
               animate={{ transform: 'scale(1) translateY(0px)', opacity: 1 }}
               transition={{ type: 'spring', duration: 0.5, bounce: 0.35 }}
             >
-              <RooArt mood="wave" size={88} reduce={reduce} />
+              <RooAvatar mood="wave" size={88} reduce={reduce} />
             </motion.span>
             <p className="t-display-2 text-ink">{welcome ? `Hi, ${welcome}!` : 'Welcome back!'}</p>
           </motion.div>

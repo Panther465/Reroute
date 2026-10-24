@@ -95,15 +95,6 @@
   }
 }
 
-/* Roo, the companion. Character art keeps its colours in both themes, so its eyes never vanish in dark mode. */
-:root {
-  --roo-body: #2fa36a;
-  --roo-deep: #11683f;
-  --roo-leaf: #62cf93;
-  --roo-ink: #142019;
-  --roo-blush: #ff8fa3;
-}
-
 /* Google sign-in button colours, per Google's branding guidelines. */
 :root {
   --google-bg: #ffffff;

@@ -9,7 +9,7 @@ import type { Expect } from '@/lib/roo/flows'
 import { progressOf } from '@/lib/speech/channel'
 import { voiceSupported } from '@/lib/voice'
 import { PlanCard, type PlanCardData } from './PlanCard'
-import { RooArt } from './RooArt'
+import { RooStill } from '@/components/roo3d/RooStill'
 import { typingMs, type Card, type ChatMsg } from './useConversation'
 
 /** Roo's words appearing as it says them, word by word: in step with its voice when it reads them aloud,
@@ -184,7 +184,7 @@ export function ChatThread(p: ThreadProps) {
             >
               {m.from === 'roo' && (
                 <span className={`mb-0.5 flex size-7 shrink-0 items-end justify-center ${p.msgs[i + 1]?.from === 'roo' ? 'invisible' : ''}`} aria-hidden="true">
-                  <RooArt mood="happy" size={26} reduce />
+                  <RooStill mood="happy" size={26} />
                 </span>
               )}
               <div className={`flex max-w-[85%] flex-col ${m.from === 'me' ? 'items-end' : 'items-start'}`}>
@@ -217,7 +217,7 @@ export function ChatThread(p: ThreadProps) {
           {p.thinking && (
             <li className="flex items-end gap-2">
               <span className="mb-0.5 flex size-7 shrink-0 items-end justify-center" aria-hidden="true">
-                <RooArt mood="thinking" size={26} reduce />
+                <RooStill mood="thinking" size={26} />
               </span>
               {p.working ? (
                 <p className="flex items-center gap-2 rounded-[18px] rounded-bl-md bg-sunken px-4 py-2.5 t-small text-ink-2">

@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
-import type { Mood } from '@/components/roo/RooArt'
-import { RooEngine, type Framing } from './engine'
+import type { Mood } from '@/components/roo/mood'
+import { RooEngine } from './engine'
+import type { Framing } from './frame'
 
 /** The 3D Roo's canvas (a lazy chunk: the rendered Roo loads only where it's shown). Decorative: the button
  *  or dialog around it carries the name. */

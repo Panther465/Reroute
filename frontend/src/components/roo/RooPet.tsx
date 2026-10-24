@@ -1,57 +1,21 @@
 import { motion, useReducedMotion } from 'motion/react'
-import { useEffect, useRef, useState } from 'react'
+import { useState } from 'react'
 import { EASE_OUT } from '@/lib/motion'
 import { RooAvatar, useRoo3D } from '@/components/roo3d/RooAvatar'
-import type { Mood } from './RooArt'
+import type { Mood } from './mood'
 
 /**
  * Roo as a pet, big, for the welcome screen. It springs in and waves; breathes; hops (a squash and
- * stretch) each time it says something; looks at your pointer, or glances about when you're still; and
- * giggles, with a few hearts, when you poke it. Springs and transforms only; reduced motion keeps it still.
+ * stretch) each time it says something; and giggles, with a few hearts, when you poke it. Drawn live, it
+ * also looks at your pointer, or glances about when you're still. Springs and transforms only; reduced
+ * motion keeps it still.
  */
 export function RooPet({ mood, hop, size = 150 }: { mood: Mood; hop: number; size?: number }) {
   const reduce = !!useReducedMotion()
-  // The 3D Roo hops, breathes and follows the pointer itself; the flat one needs the wrapper to.
+  // The live 3D Roo hops, breathes and follows the pointer itself; its still needs the wrapper to hop.
   const solid = useRoo3D(reduce)
-  const ref = useRef<HTMLButtonElement>(null)
-  const [look, setLook] = useState({ x: 0, y: 0 })
   const [poked, setPoked] = useState(0)
   const [giggle, setGiggle] = useState(false)
-  const lastMove = useRef(0)
-
-  // Eyes on the pointer (or the last touch); when nothing moves for a while, a glance about.
-  useEffect(() => {
-    if (reduce) return
-    let frame = 0
-    const onMove = (e: PointerEvent) => {
-      lastMove.current = Date.now()
-      cancelAnimationFrame(frame)
-      frame = requestAnimationFrame(() => {
-        const r = ref.current?.getBoundingClientRect()
-        if (!r) return
-        const dx = e.clientX - (r.left + r.width / 2)
-        const dy = e.clientY - (r.top + r.height * 0.45)
-        const d = Math.hypot(dx, dy) || 1
-        const k = Math.min(1, d / 260) * 2.8
-        setLook({ x: Math.round((dx / d) * k * 4) / 4, y: Math.round((dy / d) * k * 4) / 4 })
-      })
-    }
-    window.addEventListener('pointermove', onMove, { passive: true })
-    window.addEventListener('pointerdown', onMove, { passive: true })
-    let back: ReturnType<typeof setTimeout> | undefined
-    const glance = setInterval(() => {
-      if (document.hidden || Date.now() - lastMove.current < 3500) return
-      setLook({ x: Math.random() < 0.5 ? -2.5 : 2.5, y: Math.random() < 0.5 ? -1 : 0.5 })
-      back = setTimeout(() => setLook({ x: 0, y: 0 }), 1200)
-    }, 5000)
-    return () => {
-      window.removeEventListener('pointermove', onMove)
-      window.removeEventListener('pointerdown', onMove)
-      cancelAnimationFrame(frame)
-      clearInterval(glance)
-      clearTimeout(back)
-    }
-  }, [reduce])
 
   const poke = () => {
     setPoked((n) => n + 1)
@@ -87,7 +51,6 @@ export function RooPet({ mood, hop, size = 150 }: { mood: Mood; hop: number; siz
         transition={reduce ? { duration: 0.2 } : { type: 'spring', duration: 0.7, bounce: 0.35 }}
       >
         <button
-          ref={ref}
           type="button"
           onClick={poke}
           aria-label="Rico. Poke it"
@@ -98,7 +61,7 @@ export function RooPet({ mood, hop, size = 150 }: { mood: Mood; hop: number; siz
                 Roo hops itself, and stays mounted so it carries on moving where it was. */}
             <motion.span
               key={solid ? 'solid' : `${hop}-${poked}`}
-              className={solid ? 'block origin-bottom' : 'block origin-bottom drop-shadow-lg'}
+              className="block origin-bottom"
               initial={false}
               animate={
                 reduce || solid || (hop === 0 && poked === 0)
@@ -111,7 +74,7 @@ export function RooPet({ mood, hop, size = 150 }: { mood: Mood; hop: number; siz
               }
               transition={{ duration: giggle ? 0.7 : 0.5, times: [0, 0.35, 0.7, 1], ease: EASE_OUT }}
             >
-              <RooAvatar mood={face} look={look} size={size} reduce={reduce} hop={hop + poked} />
+              <RooAvatar mood={face} size={size} reduce={reduce} hop={hop + poked} />
             </motion.span>
           </span>
         </button>

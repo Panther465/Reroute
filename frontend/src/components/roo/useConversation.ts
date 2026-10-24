@@ -19,7 +19,7 @@ import { buildDay, weekday, type DayView } from '@/lib/timeline'
 import { listenOnce, VoiceError } from '@/lib/voice'
 import { topUp } from '@/lib/wallet'
 import type { PlanCardData } from './PlanCard'
-import type { Mood } from './RooArt'
+import type { Mood } from './mood'
 
 export type CardState = 'ask' | 'busy' | 'done' | 'no' | 'failed'
 export interface Card {

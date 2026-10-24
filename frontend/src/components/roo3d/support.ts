@@ -1,5 +1,5 @@
-// Whether this device shows Roo in 3D. Not with reduced motion, Save-Data, a low-end phone, or a GPU the
-// browser calls slow (software rendering): there the flat Roo stays, and the rendered Roo is never downloaded.
+// Whether this device draws Roo live in 3D. Not with reduced motion, Save-Data, a low-end phone, or a GPU the
+// browser calls slow (software rendering): there Roo's still stays (RooStill.tsx), and its sheets never download.
 // `localStorage['reroute.roo3d']` = 'on' or 'off' overrides it, for testing.
 
 let known: boolean | null = null
@@ -35,7 +35,7 @@ export function roo3dSupported(): boolean {
   return (known = webgl(true))
 }
 
-/** The 3D Roo lost its drawing context: flat Roo for the rest of the visit. */
+/** The live 3D Roo lost its drawing context: its still for the rest of the visit. */
 export function roo3dFailed() {
   known = false
 }

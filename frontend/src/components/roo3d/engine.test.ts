@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { REST, type MouthParams } from '@/lib/roo/lipsync/mouth'
 import { POSES } from '@/lib/roo/lipsync/visemes'
-import { armPoses, mouthPoints, pickSheet, project, turn, turnAxis } from './engine'
+import { armPoses, mouthPoints, pickSheet, turn, turnAxis } from './engine'
+import { project } from './frame'
 import { PIECES, RIG } from './rig'
 
 describe('the rendered Roo', () => {

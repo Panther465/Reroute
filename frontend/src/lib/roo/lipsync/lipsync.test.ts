@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mouthOutline, mouthPathD, REST } from './mouth'
+import { mouthOutline, REST } from './mouth'
 import { buildTrack, estimateWords, sampleTrack } from './timeline'
 import { spellNumber, wordToVisemes } from './visemes'
 
@@ -90,11 +90,10 @@ describe('estimated timing, for a voice that doesn’t say', () => {
 })
 
 describe('the outline', () => {
-  it('is a closed shape whose opening grows with `open`', () => {
+  it('opens wider as `open` grows', () => {
     const shut = mouthOutline(REST)
     const open = mouthOutline({ ...REST, open: 0.9 })
     const height = (pts: [number, number][]) => Math.max(...pts.map((p) => p[1])) - Math.min(...pts.map((p) => p[1]))
     expect(height(open)).toBeGreaterThan(height(shut) * 3)
-    expect(mouthPathD(REST)).toMatch(/^M[\d.]+ [\d.]+ Q.* Z$/)
   })
 })

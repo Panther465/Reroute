@@ -12,7 +12,7 @@ import { setState, useStore } from '@/lib/store'
 import { dayLabel } from '@/lib/timeline'
 import { ChatThread } from './ChatThread'
 import { RooAvatar } from '@/components/roo3d/RooAvatar'
-import type { Mood } from './RooArt'
+import type { Mood } from './mood'
 import { useConversation } from './useConversation'
 
 const PANEL_DESKTOP = 'fixed right-4 top-20 bottom-4 z-50 flex w-[400px] flex-col overflow-hidden rounded-sheet border border-line bg-surface text-ink shadow-[var(--shadow-toast)] outline-none'

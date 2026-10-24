@@ -1,4 +1,4 @@
-// Roo's mouth as a few numbers, so the 3D Roo and the flat one draw the same shapes from the same speech.
+// Roo's mouth as a few numbers, so the 3D Roo's felt mouth takes the shape of each sound it says.
 
 /** How open (0 shut … 1 wide open), how wide (−1 narrow … 1 wide), how round (lips pushed out) and how
  *  much the corners smile (0 … 1). */
@@ -45,14 +45,4 @@ export function mouthOutline(p: MouthParams, n = 32): [number, number][] {
     pts.push([w - 2 * w * t, 2 * t * (1 - t) * (2 * bottom)])
   }
   return pts
-}
-
-/** The same shape as an SVG path for the flat Roo, its corners meeting at (cx, cy). */
-export function mouthPathD(p: MouthParams, cx = 40, cy = 60): string {
-  const { halfWidth: w, height: h, dip } = mouthSize(p)
-  const top = cy + dip - 0.45 * h
-  const bottom = cy + dip + 0.75 * h
-  const f = (n: number) => n.toFixed(2)
-  // A quadratic curve's middle sits halfway between its ends and its control point.
-  return `M${f(cx - w)} ${f(cy)} Q${f(cx)} ${f(2 * top - cy)} ${f(cx + w)} ${f(cy)} Q${f(cx)} ${f(2 * bottom - cy)} ${f(cx - w)} ${f(cy)} Z`
 }

@@ -3,7 +3,7 @@
 // a look around, a wiggle, a dance, a stretch, a yawn, a wink); and the felt emotes that float off it (Zzz, a ?
 // while it thinks, a ! when something's wrong, hearts, sparkles).
 
-import type { Mood } from '@/components/roo/RooArt'
+import type { Mood } from '@/components/roo/mood'
 import { REST, type MouthParams } from '@/lib/roo/lipsync/mouth'
 
 // ---------- faces ----------

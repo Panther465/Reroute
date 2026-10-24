@@ -16,7 +16,7 @@ import { setState, useStore } from '@/lib/store'
 import { activeBooking, isTrainTask } from '@/lib/bookings'
 import { addDays, localMinutes, type DayView } from '@/lib/timeline'
 import { RooAvatar, useRoo3D } from './roo3d/RooAvatar'
-import type { Mood } from './roo/RooArt'
+import type { Mood } from './roo/mood'
 
 // Labels avoid "Running late" and "Plan my day": those name the screens' own buttons.
 type ActionId = 'done' | 'more-time' | 'options' | 'describe' | 'plan' | 'summary' | 'add' | 'book-train' | 'later' | 'chat'
@@ -246,42 +246,7 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [doneKey])
 
-  // Eyes follow the pointer on devices that have one; left alone for a while, Roo glances about.
   const artRef = useRef<HTMLButtonElement>(null)
-  const [look, setLook] = useState({ x: 0, y: 0 })
-  const lastMove = useRef(0)
-  useEffect(() => {
-    if (reduce || hidden) return
-    let frame = 0
-    const fine = window.matchMedia('(pointer: fine)').matches
-    const onMove = (e: PointerEvent) => {
-      lastMove.current = Date.now()
-      cancelAnimationFrame(frame)
-      frame = requestAnimationFrame(() => {
-        const r = artRef.current?.getBoundingClientRect()
-        if (!r) return
-        const dx = e.clientX - (r.left + r.width / 2)
-        const dy = e.clientY - (r.top + r.height * 0.45)
-        const d = Math.hypot(dx, dy) || 1
-        const k = Math.min(1, d / 240) * 2.6
-        const next = { x: Math.round((dx / d) * k * 4) / 4, y: Math.round((dy / d) * k * 4) / 4 }
-        setLook((l) => (l.x === next.x && l.y === next.y ? l : next))
-      })
-    }
-    if (fine) window.addEventListener('pointermove', onMove, { passive: true })
-    let back: ReturnType<typeof setTimeout> | undefined
-    const glance = setInterval(() => {
-      if (document.hidden || Date.now() - lastMove.current < 4000) return
-      setLook({ x: Math.random() < 0.5 ? -2.4 : 2.4, y: Math.random() < 0.5 ? -1 : 0.5 })
-      back = setTimeout(() => setLook({ x: 0, y: 0 }), 1300)
-    }, 7000)
-    return () => {
-      window.removeEventListener('pointermove', onMove)
-      cancelAnimationFrame(frame)
-      clearInterval(glance)
-      clearTimeout(back)
-    }
-  }, [reduce, hidden])
 
   const close = () => {
     clearTimeout(fadeTimer.current)
@@ -321,10 +286,9 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
 
   const shown = open && msg && !sheetOpen && !chatting ? msg : null
   const mood: Mood = chatting ? 'happy' : (shown?.mood ?? (derived?.mood === 'sleeping' ? 'sleeping' : derived?.urgent ? 'alert' : 'idle'))
-  const eyes = shown ? { x: -1.5, y: -2 } : look
 
   // On Today, Roo rides the timeline at the Now line; its words open in a popover above the page.
-  // The 3D Roo breathes and hops by itself; the flat one needs the wrapper to.
+  // The live 3D Roo breathes and hops by itself; its still needs the wrapper to.
   const solid = useRoo3D(reduce)
   if (anchor && pathname === '/') {
     return createPortal(
@@ -349,7 +313,7 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
               <span className={solid ? 'block' : 'rr-roo-breathe block'}>
                 <span className="block transition-[scale] duration-[var(--dur-quick)] motion-safe:group-active:scale-[0.9]">
                   <motion.span
-                    className={solid ? 'block' : 'block drop-shadow-md'}
+                    className="block"
                     animate={
                       reduce || solid
                         ? {}
@@ -360,7 +324,7 @@ export function Roo({ trip, clock }: { trip: Trip | undefined; clock: number | n
                             : { transform: 'translateY(0px)' }
                     }
                   >
-                    <RooAvatar mood={mood} look={eyes} size={46} reduce={reduce} quiet />
+                    <RooAvatar mood={mood} size={46} reduce={reduce} quiet />
                   </motion.span>
                 </span>
               </span>
