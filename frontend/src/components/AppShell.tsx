@@ -203,6 +203,11 @@ export default function AppShell() {
     if (voiceChat) setVoiceLoaded(true)
     else setState({ ricoVoice: null, rooChat: true })
   }, [voiceOpen, voiceChat, meLoaded])
+  // The guide reads through Rico's agent: on a server without it, Rico takes his guide glasses off.
+  const agentOn = me.data?.features?.agent === true
+  useEffect(() => {
+    if (meLoaded && !agentOn && getState().ricoGuide) setState({ ricoGuide: false })
+  }, [meLoaded, agentOn])
   const serverNow = trip.data ? localMinutes(trip.data.now, trip.data.day, trip.data.utcOffset) : null
   const clock = useTripClock(serverNow, trip.dataUpdatedAt, trip.data?.clockSimulated ?? false)
   useFocusHeadingOnNavigate(location.pathname)

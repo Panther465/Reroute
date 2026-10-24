@@ -231,3 +231,26 @@ def test_deleting_an_account_keeps_only_shared_places_other_trips_go_to(client):
         assert (kept.owner_id, kept.note, kept.status) == (None, None, "approved")
         assert db.scalars(select(Place.place_id).where(Place.owner_id == asha_id)).all() == []
     assert found(client, "bus stand")[0]["placeId"] == shared["placeId"]
+
+
+@pytest.mark.db
+def test_nobody_else_books_tickets_to_your_place(client):
+    mine = add(client, name="Rooftop garden", category="sight")
+    asha = sign_up(client, "Asha")
+    trip = {
+        "citySlug": "bengaluru",
+        "cityName": "Bengaluru",
+        "startDate": "2026-10-22",
+        "endDate": "2026-10-22",
+        "stayLabel": "Hotel",
+        "stayPlaceId": "hotel-majestic",
+    }
+    res = client.post("/v1/trips", json={**trip, "idempotencyKey": key()}, headers=asha)
+    assert res.status_code == 201, res.text
+    tickets = {"kind": "ticket", "placeId": mine["placeId"], "optionId": "entry"}
+    res = client.post(f"/v1/trips/{res.json()['tripId']}/bookings", json={**tickets, "visitDate": "2026-10-22", "idempotencyKey": key()}, headers=asha)
+    assert res.status_code == 422, res.text
+    # Its owner can.
+    res = client.post("/v1/trips/trip-001/bookings", json={**tickets, "visitDate": "2026-10-15", "idempotencyKey": key()})
+    assert res.status_code == 201, res.text
+    assert res.json()["details"]["place"] == "Rooftop garden"

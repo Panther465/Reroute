@@ -20,7 +20,7 @@ from app.errors import ApiError
 from app.models import Booking, Place, Task, Trip
 from app.schemas import AirportOut, BookingIn, BookingOut, CabOptionOut, FlightFareOut, FlightOptionOut, PostBody, TrainClassOut, TrainOptionOut
 from app.services import booking_sim as sim
-from app.services import plan_store, wallet
+from app.services import places, plan_store, wallet
 
 router = APIRouter(prefix="/v1", tags=["bookings"], dependencies=[Depends(simulated_only)])
 
@@ -223,7 +223,8 @@ def create_booking(body: BookingIn, trip: OwnedTrip, user: CurrentUser, db: Db) 
         )
     elif body.kind == "ticket":
         place = db.get(Place, body.place_id) if body.place_id else None
-        if place is None or place.city_slug != trip.city_slug or not body.visit_date or not body.option_id:
+        # Someone else's own place is as good as unknown: its name would show on the booking.
+        if place is None or not places.can_see(place, user.user_id) or place.city_slug != trip.city_slug or not body.visit_date or not body.option_id:
             raise ApiError(422, "Choose a place in the trip's city, a day and a ticket.", code="VALIDATION_ERROR")
         if not trip.start_date <= body.visit_date <= trip.end_date:
             raise ApiError(422, "Choose a day of the trip.", code="VALIDATION_ERROR")
