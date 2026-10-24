@@ -5,11 +5,11 @@ const D = '2026-10-14'
 const iso = (hm: string, day = D) => `${day}T${hm}:00+05:30`
 
 export const places: Record<string, Place> = {
-  hotel: { placeId: 'hotel-majestic', name: 'Hotel near Majestic', area: 'Majestic', lng: 77.5713, lat: 12.9767, sample: true },
-  wf: { placeId: 'whitefield-office', name: 'ITPL Road office', area: 'Whitefield', lng: 77.7318, lat: 12.9855, sample: true },
-  kor: { placeId: 'koramangala-bank', name: 'Bank, 80 Feet Road', area: 'Koramangala', lng: 77.6195, lat: 12.9352, sample: true },
-  jay: { placeId: 'jayanagar-office', name: 'University admin office', area: 'Jayanagar', lng: 77.5838, lat: 12.9255, sample: true },
-  ksr: { placeId: 'ksr-station', name: 'KSR Bengaluru City station', area: 'KSR Bengaluru', lng: 77.5694, lat: 12.9779, sample: true },
+  hotel: { placeId: 'hotel-majestic', name: 'Hotel near Majestic', area: 'Majestic', lng: 77.5713, lat: 12.9767, sample: true, mine: false },
+  wf: { placeId: 'whitefield-office', name: 'ITPL Road office', area: 'Whitefield', lng: 77.7318, lat: 12.9855, sample: true, mine: false },
+  kor: { placeId: 'koramangala-bank', name: 'Bank, 80 Feet Road', area: 'Koramangala', lng: 77.6195, lat: 12.9352, sample: true, mine: false },
+  jay: { placeId: 'jayanagar-office', name: 'University admin office', area: 'Jayanagar', lng: 77.5838, lat: 12.9255, sample: true, mine: false },
+  ksr: { placeId: 'ksr-station', name: 'KSR Bengaluru City station', area: 'KSR Bengaluru', lng: 77.5694, lat: 12.9779, sample: true, mine: false },
 }
 
 function task(id: string, title: string, place: Place, extra: Partial<Task>): Task {

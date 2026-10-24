@@ -71,7 +71,15 @@ POST /v1/trips/:id/bookings/:bookingId/cancel {"idempotencyKey"}  → cancelled,
   - The times are for the map only: the plan's own times are the planner's.
 - `GET /v1/road-path?from=lng,lat&to=lng,lat&profile=driving|foot` returns one path along the roads (`source: "road"`), or just its two ends (`source: "line"`) when routing is unavailable. Only cities Reroute covers; cached 30 days.
 - `GET /v1/speech?text=…&voice=…&rate=slow|normal|fast` reads a short alert aloud as MP3 (Microsoft's neural voices: from Azure AI Speech when `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION` are set, otherwise, or when Azure fails, from Edge's read-aloud service; cached 7 days). `GET /v1/speech/voices` lists the voices. `GET /v1/speech/timed` (same parameters) returns the clip with when each word is said, `{audio (base64 MP3), mime, durationMs, words:[{text, offsetMs, durationMs}]}`, for Rico's lip-sync. 404 when natural voices are off (`features.voices` is false), 502 when the voice service doesn't answer: the app then uses the phone's own voice.
-- `GET /v1/places?q=…&city=bengaluru` searches places in a covered city: known places first, then OpenStreetMap.
+- `GET /v1/places?q=…&city=bengaluru` searches places in a covered city: your own places first (`mine: true`), then known places, then OpenStreetMap. A place a traveller added carries its `category`.
+- `GET /v1/cities?q=…` finds a city by name or in a sentence; without `q` it lists every city on Reroute's list, by name. Each has `lng`, `lat` and `bbox` (west, south, east, north), the area place search and trips stay inside.
+
+## Places of your own
+
+- `POST /v1/me/places {name, category, note?, lng, lat, citySlug, share, idempotencyKey}` adds a place only you see (201). `category` is `food`, `stay`, `sight`, `shop`, `transit` or `other`; the point must be in India and inside the city (422); 200 places a traveller (409 `TOO_MANY_PLACES`) and 50 added a day (429). With `share: true` it's `pending` until a moderator decides.
+- `GET /v1/me/places?city=…` lists yours, newest first, with `status` (`private`, `pending`, `approved` or `rejected`, with `rejectReason`) and your `note`, which nobody else ever sees.
+- `DELETE /v1/me/places/:placeId` deletes one of yours (204; 404 for anyone else's). A trip that already goes there keeps it until nothing does.
+- Moderators and admins: `GET /v1/places/review?status=pending|approved|rejected` lists shared places (never the note), and `POST /v1/places/:placeId/approve {idempotencyKey}` or `…/reject {reason?, idempotencyKey}` decides. 403 for anyone else, and for a moderator's own place.
 
 `POST /v1/trips/:id/task-drafts` (describe your day) and `POST /v1/trips/:id/calendar-import` return draft tasks and save nothing. Each draft's `placeText` is matched like a place search (known places first, then OpenStreetMap): `placeId` and `place` hold the best match, or are null when nothing matched and the traveller must choose.
 

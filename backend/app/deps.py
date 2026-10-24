@@ -48,6 +48,10 @@ def require_role(*roles: str):
     return check
 
 
+#: A moderator or an admin: they decide which shared places everyone sees.
+Moderator = Annotated[User, Depends(require_role("moderator", "admin"))]
+
+
 def owned_trip(trip_id: str, user: CurrentUser, db: Db) -> Trip:
     trip = db.get(Trip, trip_id)
     # Same answer for "missing" and "not yours", so trip IDs can't be probed.

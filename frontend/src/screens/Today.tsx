@@ -5,6 +5,7 @@ import { useAiHelperEnabled, useBookings, useBookingsEnabled, useCurrentTripId, 
 import type { Booking, Task, Trip } from '@/api/types'
 import { NextCard } from '@/components/NextCard'
 import { LazyMap } from '@/components/LazyMap'
+import { useOwnPlacesOnMap } from '@/components/OwnPlacesOnMap'
 import { StatusPill } from '@/components/StatusPill'
 import { Timeline } from '@/components/timeline/Timeline'
 import { TodaySkeleton } from '@/components/TodaySkeleton'
@@ -335,6 +336,8 @@ export default function Today() {
     const drawn = legCoords(paths.get(selectedLeg.seq))
     return drawn.length > 1 ? drawn : [places.get(selectedLeg.fromPlaceId), places.get(selectedLeg.toPlaceId)].filter((p): p is LngLat => !!p)
   }, [selectedLeg, places, paths])
+  // The traveller's own places on the desktop's big map, and press and hold to add one (phones add them on a leg's map).
+  const own = useOwnPlacesOnMap(desktop ? trip : undefined, view?.stops.map((s) => s.placeId))
   // The phone's mini map: just the leg that matters now.
   const miniLines = useMemo(() => (guide ? rideLines(guide.leg) : []), [guide, places, paths]) // eslint-disable-line react-hooks/exhaustive-deps
   const miniPoints = useMemo(() => {
@@ -773,7 +776,18 @@ export default function Today() {
           </div>
         </section>
         <section aria-label="Map and leg detail" className="sticky top-16 flex h-[calc(100dvh-64px)] flex-col gap-4 overflow-y-auto py-8">
-          <LazyMap lines={mapLines} points={mapPoints} stations={mapStations} focus={focus} label="Map of today's route" className="h-[44vh] min-h-72 shrink-0" draw={revealing} me={fix} eta={eta} />
+          <LazyMap
+            lines={mapLines}
+            points={[...mapPoints, ...own.points]}
+            stations={mapStations}
+            focus={focus}
+            label="Map of today's route"
+            className="h-[44vh] min-h-72 shrink-0"
+            draw={revealing}
+            me={fix}
+            eta={eta}
+            onLongPress={own.onLongPress}
+          />
           {selectedLeg && (
             <Suspense fallback={<Skeleton className="h-96 w-full shrink-0 rounded-card" />}>
               <LegDetailContent key={selectedLeg.seq} trip={trip} leg={selectedLeg} embedded />
@@ -781,6 +795,7 @@ export default function Today() {
           )}
         </section>
         {sheets}
+        {own.sheets}
       </div>
     )
   }

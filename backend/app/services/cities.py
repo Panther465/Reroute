@@ -2,16 +2,14 @@
 of a name ("raj"), or a sentence that mentions one ("I'm new to bengluru and staying at…").
 
 The built-in list of Indian cities comes first (app/india.py): it forgives spelling and knows other
-names (Bombay, Gurgaon). Then OpenStreetMap, for any other town. A city is kept in the cities table the
-first time it's needed, with its area: OpenStreetMap's outline plus a margin, so a campus or an
-industrial area just outside town still counts.
+names (Bombay, Gurgaon), and each city on it comes with its area (app/cities.py). Then OpenStreetMap, for
+any other town. Such a town is kept in the cities table the first time it's needed, with its area:
+OpenStreetMap's outline plus a margin, so a campus or an industrial area just outside town still counts.
 """
 
 from __future__ import annotations
 
 import logging
-import re
-import unicodedata
 from dataclasses import dataclass
 
 from sqlalchemy import select
@@ -20,7 +18,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.adapters.places import FoundCity, NominatimSearch
-from app.cities import CITIES, City
+from app.cities import CITIES, City, area, listed_cities, plain, slugify
 from app.db import session_scope
 from app.india import CITIES as INDIA
 from app.models import CityRow
@@ -35,29 +33,19 @@ NOT_A_CITY = frozenset(
     {"the", "a", "an", "my", "our", "your", "this", "that", "there", "here", "it", "be", "go", "get", "do", "see", "meet", "work", "office"}
     | {"college", "university", "hotel", "home", "time", "morning", "evening", "night", "today", "tomorrow", "and", "i", "me", "we", "will"}
 )
-#: An area is at least this many degrees either side of the centre (about 22 km), and at most 0.6.
-MIN_HALF, MAX_HALF, MARGIN = 0.2, 0.6, 0.08
 
 
 @dataclass(frozen=True)
 class CityChoice:
-    """A city to offer. One from the built-in list may not be looked up yet: that happens when it's picked."""
+    """A city to offer, with its area when Reroute knows it. A city the cities file lacks is looked up when
+    it's picked."""
 
     slug: str
     name: str
     state: str | None
     sample: bool = False
-
-
-def plain(text: str) -> str:
-    """Lower case, no accents: letters, digits and single spaces."""
-    t = unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode().lower()
-    return " ".join(re.sub(r"[^a-z0-9]+", " ", t).split())
-
-
-def slugify(text: str) -> str:
-    s = plain(text).replace(" ", "-")
-    return (s if s[:1].isalpha() else f"c-{s}")[:40].rstrip("-")
+    #: west, south, east, north
+    bbox: tuple[float, float, float, float] | None = None
 
 
 _ALIASES = [(plain(n), i) for i, (name, _, other) in enumerate(INDIA) for n in (name, *other)]
@@ -131,25 +119,31 @@ def _after_cues(words: list[str]) -> list[str]:
 
 
 def _choice(row: CityRow) -> CityChoice:
-    return CityChoice(slug=row.slug, name=row.name, state=row.state)
+    return CityChoice(slug=row.slug, name=row.name, state=row.state, bbox=(row.west, row.south, row.east, row.north))
 
 
-def _from_list(db: Session, idx: int) -> CityChoice:
+def _known(c: City) -> CityChoice:
+    return CityChoice(slug=c.slug, name=c.name, state=c.state, sample=c.sample, bbox=c.bbox)
+
+
+def _from_list(db: Session | None, idx: int) -> CityChoice:
+    """A city on the built-in list: Bengaluru, or its area from the cities file. Without the file, the town
+    kept the first time someone picked it, if anyone has."""
     name, state, _ = INDIA[idx]
     slug = slugify(name)
-    if slug in CITIES:
-        c = CITIES[slug]
-        return CityChoice(slug=c.slug, name=c.name, state=c.state, sample=c.sample)
-    row = db.get(CityRow, slug)
+    if slug in CITIES or slug in listed_cities():
+        return _known(CITIES.get(slug) or listed_cities()[slug])
+    row = db.get(CityRow, slug) if db is not None else None
     return _choice(row) if row else CityChoice(slug=slug, name=name, state=state)
 
 
+def every_city() -> list[CityChoice]:
+    """Every city on the built-in list, by name, for choosing from a list rather than typing."""
+    return sorted((_from_list(None, i) for i in range(len(INDIA))), key=lambda c: c.name)
+
+
 def _area(found: FoundCity) -> tuple[float, float, float, float]:
-    """OpenStreetMap's outline of the city with a margin, centred on the city, at least about 22 km either way."""
-    west, south, east, north = found.bbox
-    half_lat = min(max((north - south) / 2 + MARGIN, MIN_HALF), MAX_HALF)
-    half_lng = min(max((east - west) / 2 + MARGIN, MIN_HALF), MAX_HALF)
-    return (round(found.lng - half_lng, 5), round(found.lat - half_lat, 5), round(found.lng + half_lng, 5), round(found.lat + half_lat, 5))
+    return area(found.lng, found.lat, found.bbox)
 
 
 def _keep(db: Session, slug: str, found: FoundCity, name: str | None = None, state: str | None = None) -> CityRow:
@@ -198,7 +192,8 @@ def _city(row: CityRow) -> City:
 
 
 def kept_or_looked_up(slug: str) -> City | None:
-    """A city from the cities table; or, for a city on the built-in list, looked up now and kept."""
+    """A city from the cities table; or, for a city on the built-in list that the cities file lacks, looked up
+    now and kept."""
     try:
         with session_scope() as db:
             row = db.get(CityRow, slug)

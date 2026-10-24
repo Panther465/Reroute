@@ -1,15 +1,14 @@
-import { MapPin, Minus, Plus, Search } from 'lucide-react'
+import { Minus, Plus } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
 import { ApiError } from '@/api/client'
-import { usePlaceSearch } from '@/api/queries'
 import type { Body, Place, Task, TaskIn, Trip } from '@/api/types'
+import { PlacePicker } from '@/components/PlacePicker'
 import { Button } from '@/components/ui/Button'
 import { Segmented } from '@/components/ui/Choice'
 import { Field, FieldError } from '@/components/ui/Field'
 import { Sheet } from '@/components/ui/Sheet'
 import { duration, hhmm } from '@/lib/format'
 import { T, useTl } from '@/lib/i18n'
-import { placeSearchError } from '@/lib/placeSearch'
 import { addDays, localMinutes, weekday } from '@/lib/timeline'
 
 type Timing = 'fixed' | 'hours' | 'any'
@@ -44,15 +43,6 @@ export function fromTask(day: string, utcOffset: string, t: Task | null): FormSt
   }
 }
 
-function useDebounced<T>(value: T, ms: number) {
-  const [v, setV] = useState(value)
-  useEffect(() => {
-    const id = setTimeout(() => setV(value), ms)
-    return () => clearTimeout(id)
-  }, [value, ms])
-  return v
-}
-
 /** Why place search failed: no signal, or a city Reroute doesn't cover (the server says which). */
 export function tripDays(trip: Trip) {
   const days: string[] = []
@@ -80,14 +70,11 @@ export function TaskFormSheet({
 }) {
   const tl = useTl()
   const [form, setForm] = useState<FormState>(() => fromTask(trip.day, trip.utcOffset, initial ?? null))
-  const [query, setQuery] = useState('')
   const [errors, setErrors] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState<false | 'saving' | 'replanning'>(false)
   const errRef = useRef<HTMLDivElement>(null)
   const [removing, setRemoving] = useState(false)
   const durId = useId()
-  const debounced = useDebounced(query, 300)
-  const search = usePlaceSearch(debounced, trip.citySlug)
 
   // Reset when the form opens or switches to another task, never because the trip refetched
   // (the 60 s refresh, window focus, a live event): that would wipe what the traveller typed.
@@ -97,7 +84,6 @@ export function TaskFormSheet({
   useEffect(() => {
     if (!open) return
     setForm(fromTask(day, offset, initial ?? null))
-    setQuery('')
     setErrors({})
     // Only opening or a different task resets; `initial` is read for its values at that moment.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -187,57 +173,18 @@ export function TaskFormSheet({
       <div className="flex flex-col gap-6">
         <Field label="Title" value={form.title} onChange={(e) => set({ title: e.target.value })} error={errors.title} autoComplete="off" maxLength={120} />
 
-        <div>
-          {form.place ? (
-            <div>
-              <p className="mb-2 t-title text-ink">Place</p>
-              <div className="flex items-center gap-3 rounded-control border-2 border-green bg-green-tint px-4 py-2">
-                <MapPin size={20} strokeWidth={1.75} aria-hidden="true" className="shrink-0 text-green-ink" />
-                <span className="min-w-0 flex-1">
-                  <span className="block t-title text-ink">{form.place.name}</span>
-                  <span className="block t-small text-ink-2">{form.place.area}</span>
-                </span>
-                <Button variant="tertiary" size="md" onClick={() => set({ place: null })}>
-                  Change
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <>
-              <Field
-                label="Place"
-                hint={`Search by area or building in ${trip.cityName}`}
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                error={errors.place}
-                autoComplete="off"
-                trailing={<Search size={20} strokeWidth={1.75} aria-hidden="true" className="mr-3 text-muted" />}
-              />
-              {debounced.trim().length >= 2 && (
-                <ul aria-label="Places found" aria-busy={search.isFetching} className="mt-2 divide-y divide-line overflow-hidden rounded-control border border-line bg-surface">
-                  {search.isPending && <li className="px-4 py-3 t-small text-ink-2">Searching…</li>}
-                  {search.isError && <li className="px-4 py-3 t-small text-ink-2">{placeSearchError(search.error)}</li>}
-                  {search.data?.length === 0 && <li className="px-4 py-3 t-small text-ink-2">No places match. Try the area name, like Koramangala.</li>}
-                  {search.data?.map((p) => (
-                    <li key={p.placeId}>
-                      <button type="button" className="flex min-h-12 w-full items-center gap-3 px-4 py-2 text-left [@media(hover:hover)]:hover:bg-sunken" onClick={() => set({ place: p })}>
-                        <MapPin size={20} strokeWidth={1.75} aria-hidden="true" className="shrink-0 text-muted" />
-                        <span>
-                          <span className="block t-body text-ink">{p.name}</span>
-                          <span className="block t-small text-muted">
-                            {p.area}
-                            {p.sample ? ', sample place' : ''}
-                          </span>
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </>
-          )}
-        </div>
+        {/* A new key per task, so switching tasks starts the search afresh. */}
+        <PlacePicker
+          key={taskId ?? 'new'}
+          label="Place"
+          city={trip.citySlug}
+          cityName={trip.cityName}
+          near={[trip.stayPlace.lng, trip.stayPlace.lat]}
+          value={form.place}
+          onChange={(p) => set({ place: p })}
+          error={errors.place}
+          hint={`Search by area or building in ${trip.cityName}`}
+        />
 
         <div role="group" aria-labelledby={durId}>
           <p id={durId} className="mb-2 t-title text-ink">

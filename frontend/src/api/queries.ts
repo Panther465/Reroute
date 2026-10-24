@@ -5,7 +5,28 @@ import { useQueued } from '@/lib/offlineQueue'
 import { useStore } from '@/lib/store'
 import { buildDay } from '@/lib/timeline'
 import { api, ApiError } from './client'
-import type { Airport, AuthOptions, Booking, City, Contribution, ContributionsPage, Job, Place, PlanInsight, RaastaLegOptions, RaastaRoute, SharedTrip, StandsPage, Summary, Trip, TripsPage, User, Wallet } from './types'
+import type {
+  Airport,
+  AuthOptions,
+  Booking,
+  City,
+  Contribution,
+  ContributionsPage,
+  Job,
+  OwnPlace,
+  Place,
+  PlaceReview,
+  PlanInsight,
+  RaastaLegOptions,
+  RaastaRoute,
+  SharedTrip,
+  StandsPage,
+  Summary,
+  Trip,
+  TripsPage,
+  User,
+  Wallet,
+} from './types'
 import { getSessionStatus, useSessionStatus } from '@/lib/session'
 
 export const queryClient = new QueryClient({
@@ -30,6 +51,9 @@ export const keys = {
   insight: (id: string, version: number) => ['insight', id, version] as const,
   shared: (token: string) => ['shared', token] as const,
   places: (q: string, city: string) => ['places', city, q] as const,
+  cities: ['cities', '*'] as const,
+  ownPlaces: (city: string) => ['own-places', city] as const,
+  placeReview: (status: string) => ['place-review', status] as const,
   job: (id: string) => ['job', id] as const,
   route: (id: string) => ['raasta', 'route', id] as const,
   legOptions: (from: string, to: string) => ['raasta', 'options', from, to] as const,
@@ -43,7 +67,7 @@ export const keys = {
 
 /** Which queries survive a reload (the rest are cheap to refetch). */
 export function persistable(key: readonly unknown[]) {
-  return ['me', 'trips', 'trip', 'summary', 'raasta', 'paths', 'bookings'].includes(String(key[0]))
+  return ['me', 'trips', 'trip', 'summary', 'raasta', 'paths', 'bookings', 'own-places'].includes(String(key[0]))
 }
 
 /**
@@ -196,6 +220,11 @@ export function useCitySearch(q: string) {
   })
 }
 
+/** Every city on Reroute's list, with where it is, to choose from rather than type. */
+export function useCities(enabled = true) {
+  return useQuery({ queryKey: keys.cities, queryFn: () => api.get<City[]>('/v1/cities'), enabled, staleTime: 24 * 3600_000 })
+}
+
 export function usePlaceSearch(q: string, city: string) {
   const query = q.trim()
   return useQuery({
@@ -204,6 +233,21 @@ export function usePlaceSearch(q: string, city: string) {
     enabled: query.length >= 2,
     staleTime: 5 * 60_000,
   })
+}
+
+/** The places the traveller added in a city, for the map (kept on the phone, so they show offline). */
+export function useOwnPlaces(city: string | null | undefined) {
+  const signedIn = useSessionStatus() === 'signedIn'
+  return useQuery({
+    queryKey: keys.ownPlaces(city ?? 'none'),
+    queryFn: () => api.get<OwnPlace[]>('/v1/me/places', { query: { city } }),
+    enabled: whileSignedIn(!!city && signedIn),
+  })
+}
+
+/** Places travellers asked to share, for a moderator to approve or reject. */
+export function usePlaceReview(status: 'pending' | 'approved' | 'rejected', enabled = true) {
+  return useQuery({ queryKey: keys.placeReview(status), queryFn: () => api.get<PlaceReview[]>('/v1/places/review', { query: { status } }), enabled })
 }
 
 export function useJob(jobId: string | null) {

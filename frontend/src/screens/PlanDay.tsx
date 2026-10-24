@@ -136,7 +136,7 @@ function todayIso() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 }
 
-const BENGALURU: City = { slug: 'bengaluru', name: 'Bengaluru', state: 'Karnataka', sample: true }
+const BENGALURU: City = { slug: 'bengaluru', name: 'Bengaluru', state: 'Karnataka', sample: true, lng: 77.625, lat: 12.975, bbox: [77.35, 12.75, 77.9, 13.2] }
 
 /**
  * Start a trip on one screen: where you're staying, which days (today unless you change it) and,
@@ -191,7 +191,16 @@ function StartForm({ onCreated }: { onCreated: (trip: Trip, text: string) => voi
       />
       {errors.city && !city && <p className="-mt-4 t-small text-red-ink">{errors.city}</p>}
       {city && (
-        <PlacePicker label="Where are you staying?" city={city.slug} value={stay} onChange={setStay} error={errors.stay} hint={`Your hotel or where you sleep in ${city.name}. Search by name or area.`} />
+        <PlacePicker
+          label="Where are you staying?"
+          city={city.slug}
+          cityName={city.name}
+          near={city.lng != null && city.lat != null ? [city.lng, city.lat] : null}
+          value={stay}
+          onChange={setStay}
+          error={errors.stay}
+          hint={`Your hotel or where you sleep in ${city.name}. Search by name or area.`}
+        />
       )}
       {pickDates ? (
         <div className="grid gap-4 sm:grid-cols-2">

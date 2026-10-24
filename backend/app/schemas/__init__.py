@@ -163,6 +163,14 @@ class CityOut(Api):
     name: str
     state: str | None = None
     sample: bool = False
+    #: Its centre, and the area place search and trips stay inside ([west, south, east, north]), for the map.
+    #: Null only for a city on the list that Reroute hasn't looked up yet: that happens when it's picked.
+    lng: float | None = None
+    lat: float | None = None
+    bbox: list[float] | None = None
+
+
+PlaceCategory = Literal["food", "stay", "sight", "shop", "transit", "other"]
 
 
 class PlaceOut(Api):
@@ -172,6 +180,62 @@ class PlaceOut(Api):
     lng: float
     lat: float
     sample: bool = False
+    #: What kind of place, for one a traveller added.
+    category: PlaceCategory | None = None
+    #: The signed-in traveller added it: only they see it, unless a moderator approved it for everyone.
+    mine: bool = False
+
+
+class OwnPlaceIn(PostBody):
+    """A place of your own, at a point in the city you're planning in."""
+
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=80)]
+    category: PlaceCategory
+    note: Annotated[str, StringConstraints(strip_whitespace=True, max_length=280)] | None = None
+    lng: float = Field(ge=-180, le=180)
+    lat: float = Field(ge=-90, le=90)
+    city_slug: Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9-]{1,39}$")]
+    #: Ask for it to be shown to everyone. A moderator checks it first; until then, and if they say no, only you see it.
+    share: bool = False
+
+
+class OwnPlaceOut(PlaceOut):
+    """A place you added."""
+
+    category: PlaceCategory
+    mine: bool = True
+    city_slug: str
+    #: Only you see it.
+    note: str | None = None
+    #: private: only you see it. pending: shared, waiting for a moderator. approved: everyone can find it (never
+    #: your note). rejected: a moderator didn't share it (`rejectReason` says why), and it's still yours.
+    status: Literal["private", "pending", "approved", "rejected"]
+    reject_reason: str | None = None
+    created_at: datetime
+
+
+class PlaceReviewOut(Api):
+    """A place a traveller asked to share with everyone, for a moderator to check. Never the owner's note."""
+
+    place_id: str
+    name: str
+    area: str
+    lng: float
+    lat: float
+    category: PlaceCategory
+    city_slug: str
+    city_name: str
+    status: Literal["pending", "approved", "rejected"]
+    reject_reason: str | None = None
+    #: Who added it, as an account ID: no name or email. Null once that account is gone.
+    added_by: str | None = None
+    created_at: datetime
+    reviewed_at: datetime | None = None
+
+
+class PlaceRejectIn(PostBody):
+    #: Shown to the traveller who added it.
+    reason: Annotated[str, StringConstraints(strip_whitespace=True, min_length=3, max_length=200)] | None = None
 
 
 # ---------- trips and tasks ----------

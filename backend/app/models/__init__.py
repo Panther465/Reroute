@@ -112,7 +112,16 @@ class CityRow(Base):
 
 
 class Place(Base):
+    """A place to plan with: a sample place, one found on OpenStreetMap, or one a traveller added.
+
+    A traveller's own place (`owner_id`) is theirs alone until they share it and a moderator approves it;
+    then everyone can find it, though never its note. Deleted while a trip still goes there, it stays for
+    that trip only (status "deleted").
+    """
+
     __tablename__ = "places"
+    #: The moderators' queue: shared places waiting for a decision, oldest first.
+    __table_args__ = (Index("ix_places_waiting", "created_at", postgresql_where=text("status = 'pending'")),)
 
     place_id: Mapped[str] = mapped_column(String(80), primary_key=True)
     city_slug: Mapped[str] = mapped_column(String(40), index=True)
@@ -123,6 +132,19 @@ class Place(Base):
     lat: Mapped[float] = mapped_column(Float)
     osm_id: Mapped[str | None] = mapped_column(String(40))
     sample: Mapped[bool] = mapped_column(Boolean, default=False)
+    #: Who added it; null for every other place, and for one that outlived its owner in other travellers' trips.
+    owner_id: Mapped[str | None] = mapped_column(ForeignKey("users.user_id", ondelete="CASCADE"), index=True)
+    #: food, stay, sight, shop, transit or other: set for every place a traveller added, and only for those.
+    category: Mapped[str | None] = mapped_column(String(10))
+    #: The owner's own note. Nobody else sees it, moderators included.
+    note: Mapped[str | None] = mapped_column(String(280))
+    #: private, pending (shared, waiting for a moderator), approved (everyone sees it), rejected (still the
+    #: owner's) or deleted (kept only for the trips that go there). Null for every other place.
+    status: Mapped[str | None] = mapped_column(String(10))
+    reject_reason: Mapped[str | None] = mapped_column(String(200))
+    reviewed_by: Mapped[str | None] = mapped_column(ForeignKey("users.user_id", ondelete="SET NULL"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Trip(Base):

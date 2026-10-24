@@ -64,6 +64,8 @@ function DraftCard({ item, index, trip, onPlace, onRemove }: { item: Item; index
         <PlacePicker
           label={item.place ? 'Where' : `Where is the ${lowerFirst(draft.title)}?`}
           city={trip.citySlug}
+          cityName={trip.cityName}
+          near={[trip.stayPlace.lng, trip.stayPlace.lat]}
           value={item.place}
           onChange={onPlace}
           hint={draft.placeText && !item.place ? `You said "${draft.placeText}". Search for the building or area.` : 'Search by area or building'}
