@@ -2,7 +2,7 @@ import { ChevronRight, History, Languages, LogOut, Luggage, Moon, ShieldCheck, S
 import { useId, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { api, ApiError } from '@/api/client'
-import { useCurrentTripId, useMe, useTrip, useWalletEnabled } from '@/api/queries'
+import { useCurrentTripId, useMe, usePushEnabled, useTrip, useWalletEnabled } from '@/api/queries'
 import { ConnectedServices, WalletPanel } from '@/components/money/Money'
 import { RerouteLog } from '@/components/RerouteLog'
 import { TripSwitcher } from '@/components/TripSwitcher'
@@ -60,6 +60,9 @@ export default function Me() {
   const rowLink = 'flex min-h-14 items-center gap-3 px-4 py-3 t-title text-ink [@media(hover:hover)]:hover:bg-sunken/60'
   const user = me.data
   const moderator = user?.role === 'moderator' || user?.role === 'admin'
+  // In the Android app, with a server that sends pushes and has this phone, alerts reach it after it's closed too.
+  const pushOffered = usePushEnabled() && isNative()
+  const pushes = useStore((s) => s.pushReady) && pushOffered
   useDocumentTitle('Me')
 
   const toggleAlerts = async (on: boolean) => {
@@ -74,7 +77,10 @@ export default function Me() {
     }
     if (permission === 'granted') {
       setState({ leaveAlerts: true })
-      showToast({ title: 'Leave-by alerts are on. They show while Reroute is open or in the background on this phone.' })
+      showToast({
+        // The phone registers for push a moment after this: Me's description says when it has.
+        title: pushOffered ? 'Leave-by alerts are on.' : 'Leave-by alerts are on. They show while Reroute is open or in the background on this phone.',
+      })
     } else {
       setState({ leaveAlerts: false })
       showToast({ title: `Notifications are off for Reroute in ${settingsName()}. Leave-by alerts still show in the app.` })
@@ -247,7 +253,11 @@ export default function Me() {
             <Switch
               label={tl('Phone notifications').text}
               lang={tl('Phone notifications').lang}
-              description="When Reroute is in the background. They show while it's open on this phone, not after it's closed."
+              description={
+                pushes
+                  ? 'When Reroute is in the background, and after it’s closed: the server sends them to this phone.'
+                  : "When Reroute is in the background. They show while it's open on this phone, not after it's closed."
+              }
               checked={alerts}
               onChange={(v) => void toggleAlerts(v)}
             />

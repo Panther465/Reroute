@@ -7,6 +7,7 @@ import { cancelPendingCheckins } from './actions'
 import { stopTracking } from './location'
 import { clearQueue } from './offlineQueue'
 import { native } from './platform'
+import { dropPush } from './push'
 import { clearShareTokens } from './shareTokens'
 import { setState } from './store'
 
@@ -23,6 +24,12 @@ function set(next: SessionStatus) {
 
 export function getSessionStatus() {
   return status
+}
+
+/** Calls `listener` on every change of the session's status; returns the unsubscribe. */
+export function onSessionChange(listener: () => void): () => void {
+  listeners.add(listener)
+  return () => listeners.delete(listener)
 }
 
 export function useSessionStatus() {
@@ -103,6 +110,9 @@ export async function signInWithPassword(email: string, password: string) {
 }
 
 export async function signOut() {
+  // The phone stops getting this traveller's alerts as pushes: taken off while the session can still say so. Not
+  // for long on a weak signal: ending the session below forgets the phone on the server too.
+  await Promise.race([dropPush(true).catch(() => {}), new Promise((resolve) => setTimeout(resolve, 3000))])
   try {
     const kept = native.session ? await native.session.load() : null
     if (native.session) {

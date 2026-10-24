@@ -95,6 +95,11 @@ export function useAgentEnabled() {
   return useMe().data?.features?.agent === true
 }
 
+/** The server sends alerts to the Android app as pushes, so they arrive even after it's closed (lib/push.ts). */
+export function usePushEnabled() {
+  return useMe().data?.features?.push === true
+}
+
 export function useTrips(enabled = true) {
   const signedIn = useSessionStatus() === 'signedIn'
   return useQuery({ queryKey: keys.trips, queryFn: () => api.get<TripsPage>('/v1/trips', { query: { limit: 20 } }), enabled: whileSignedIn(enabled && signedIn) })

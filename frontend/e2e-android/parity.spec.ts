@@ -381,6 +381,53 @@ test("a leave-by alert reaches Android's notifications while Reroute is in the b
   await app.reattach()
 })
 
+/** Whether Android's freezer has stopped Reroute's own process (not its web view's sandboxed renderer). */
+async function frozen(device: AndroidDevice): Promise<boolean> {
+  const out = (await device.shell(`dumpsys activity processes ${PKG}`)).toString()
+  const own = out.split('ProcessRecord{').find((block) => block.includes(PKG) && !block.includes('sandboxed'))
+  return /isFrozen=true/.test(own ?? '')
+}
+
+// With Firebase set up (README, "Push notifications": google-services.json in the APK, the service account key on
+// the stack's worker), the alert also comes as a push, which reaches Reroute after Android has frozen it. Run with
+// PUSH_E2E=1.
+test('a leave-by alert reaches a frozen Reroute as a push', async ({ app }) => {
+  test.skip(!process.env.PUSH_E2E, 'Needs Firebase set up (README, "Push notifications"): PUSH_E2E=1')
+  // Closed and opened again: Android takes down the last test's notification with it.
+  await app.relaunch()
+  const page = app.page
+  await planFreshDay(app)
+  await open(page, '/me')
+  await expect(page.getByText('the server sends them to this phone')).toBeVisible({ timeout: 15_000 })
+  // Off and on again, so this run's registration is the one the server holds.
+  const notifications = page.getByRole('switch', { name: /Phone notifications/ })
+  if ((await notifications.getAttribute('aria-checked')) === 'true') await notifications.click()
+  await expect(notifications).toHaveAttribute('aria-checked', 'false')
+  const registered = page.waitForResponse((r) => r.url().endsWith('/v1/me/push-devices') && r.request().method() === 'POST')
+  await notifications.click()
+  expect((await registered).ok()).toBe(true)
+  await open(page, '/')
+  await setClock(page, '08:41')
+  // Home, then two other apps: Android freezes Reroute and cuts its network, so only a push can reach it.
+  await app.detach()
+  await app.device.shell('input keyevent KEYCODE_HOME')
+  await app.device.shell('am start -W -n com.android.settings/.Settings')
+  await app.device.shell('am start -W -n com.google.android.deskclock/com.android.deskclock.DeskClock')
+  await expect.poll(() => frozen(app.device), { timeout: 90_000, intervals: [2000] }).toBe(true)
+  const api = await request.newContext({ baseURL: apiFromComputer(), ignoreHTTPSErrors: true })
+  const login = await api.post('/v1/auth/demo', { data: { as: 'traveller' } })
+  const headers = { Authorization: `Bearer ${((await login.json()) as { accessToken: string }).accessToken}` }
+  const check = await api.post(`/v1/trips/${TRIP}/demo/check`, { headers, data: { idempotencyKey: `android-push-${Date.now()}` } })
+  expect(check.ok()).toBe(true)
+  await api.dispose()
+  await expect
+    .poll(async () => (await app.device.shell('dumpsys notification --noredact')).toString().includes('Leave in 9 min'), { timeout: 60_000 })
+    .toBe(true)
+  await app.device.shell(`am start -n ${PKG}/.MainActivity`)
+  await expect.poll(() => foreground(app.device), { timeout: 10_000 }).toContain(PKG)
+  await app.reattach()
+})
+
 test("talking to Rico goes to Android's speech recognizer", async ({ app }) => {
   const page = app.page
   await open(page, '/')
@@ -519,6 +566,11 @@ const LOGCAT_EXPECTED: { line: RegExp; why: string }[] = [
     line: /^E\/chromium\s*: \[(?:[\d/.]+:)?ERROR:(?!net\/)/,
     why: "WebView's own internal checks (its settings download, its page timing), not the page: the page's errors are in the console check",
   },
+  {
+    line: /^E\/cr_AwSupervisedUserDel\s*: Unable to determine if restricted content blocking is required\. Exception: java\.util\.concurrent\.TimeoutException$/,
+    why: 'WebView asking Google Play whether Family Link limits content, which can time out just after the phone starts',
+  },
+  { line: /^E\/SurfaceSyncGroup\s*: Failed to receive transaction ready in \d+ms\. Marking SurfaceSyncGroup\(.*MainActivity.*\) as ready$/, why: "Android drawing a window late on a busy emulator: the framework's timing, not the app's" },
 ]
 
 /** The app's own Logcat lines (its Linux user): Android's services log about every app, and those aren't the app's. */

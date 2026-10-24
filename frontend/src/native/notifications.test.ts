@@ -7,6 +7,8 @@ const plugin = vi.hoisted(() => ({
   schedule: vi.fn(async () => ({ notifications: [] })),
 }))
 vi.mock('@capacitor/local-notifications', () => ({ LocalNotifications: plugin }))
+const showAlert = vi.hoisted(() => vi.fn(async (_title: string, _body: string, _tag: string) => {}))
+vi.mock('./push', () => ({ showAlert }))
 
 import { notificationId, notifications, startNotifications } from './notifications'
 
@@ -16,6 +18,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   plugin.checkPermissions.mockResolvedValue({ display: 'granted' })
   plugin.requestPermissions.mockResolvedValue({ display: 'granted' })
+  showAlert.mockResolvedValue(undefined)
 })
 
 describe('phone notifications in the app', () => {
@@ -34,20 +37,22 @@ describe('phone notifications in the app', () => {
     expect(notifications.granted()).toBe(true)
   })
 
-  it("shows an alert with Android's sound, even one the web would keep silent", async () => {
+  it('shows each alert through the app’s own Alerts, as a push is shown, so the two copies show once', async () => {
     await startNotifications()
     await notifications.show('Reroute', { body: 'Leave now. Cab to the bank.', tag: 'leave-2' })
-    await notifications.show('Reroute', { body: 'You have arrived.', tag: 'arrive-2', silent: true })
-    const [first, second] = plugin.schedule.mock.calls.map((c) => (c as unknown as [Scheduled])[0].notifications[0])
-    expect(first).toMatchObject({ id: notificationId('leave-2'), title: 'Reroute', body: 'Leave now. Cab to the bank.', channelId: 'alerts' })
-    expect(second).toMatchObject({ id: notificationId('arrive-2'), channelId: 'alerts' })
+    await notifications.show('Reroute', { body: 'You have arrived.', silent: true })
+    expect(showAlert).toHaveBeenNthCalledWith(1, 'Reroute', 'Leave now. Cab to the bank.', 'leave-2')
+    // No tag: the words make one, as notificationId() does.
+    expect(showAlert).toHaveBeenNthCalledWith(2, 'Reroute', 'You have arrived.', 'Reroute\nYou have arrived.')
+    expect(plugin.schedule).not.toHaveBeenCalled()
   })
 
-  it("shows at once, never as an exact alarm (the plugin would open Android's Alarms & reminders screen first)", async () => {
+  it("falls back to the plugin, at once and never as an exact alarm (it would open Android's Alarms & reminders screen first)", async () => {
     await startNotifications()
+    showAlert.mockRejectedValue(new Error('not implemented'))
     await notifications.show('Reroute', { body: 'Leave in 9 min.', tag: 'leave-1' })
     const [shown] = (plugin.schedule.mock.calls[0] as unknown as [Scheduled])[0].notifications
-    expect(shown).toMatchObject({ isExactNotification: false })
+    expect(shown).toMatchObject({ id: notificationId('leave-1'), title: 'Reroute', body: 'Leave in 9 min.', channelId: 'alerts', isExactNotification: false })
     expect(shown).not.toHaveProperty('schedule')
   })
 
@@ -55,6 +60,7 @@ describe('phone notifications in the app', () => {
     plugin.checkPermissions.mockResolvedValue({ display: 'denied' })
     await startNotifications()
     await notifications.show('Reroute', { body: 'Leave now.' })
+    expect(showAlert).not.toHaveBeenCalled()
     expect(plugin.schedule).not.toHaveBeenCalled()
     plugin.requestPermissions.mockResolvedValue({ display: 'denied' })
     await expect(notifications.request()).resolves.toBe(false)

@@ -19,7 +19,7 @@ from app.db import session_scope
 from app.errors import ApiError
 from app.models import Place, Plan, Task, Trip
 from app.redis_client import get_redis
-from app.services import leg_paths, loop, morning
+from app.services import leg_paths, loop, morning, push
 from app.services.day import trip_day
 
 log = logging.getLogger("reroute.jobs")
@@ -137,13 +137,15 @@ def five_minute_check(trip_id: str) -> dict:
 
 
 def send_leave_now_alerts(trip_id: str) -> None:
-    """10 minutes before each leave-by time, and at it. Each alert goes out once."""
+    """10 minutes before each leave-by time, and at it. Each alert goes out once, on the live stream and as a push."""
     r = get_redis()
+    pushes: list[push.PushAlert] = []
     with session_scope() as db:
         trip = db.get(Trip, trip_id)
         plan = db.scalar(select(Plan).where(Plan.trip_id == trip_id, Plan.status == "active")) if trip else None
         if trip is None or plan is None:
             return
+        user_id = trip.user_id
         now = now_for(trip_id)
         tz = tz_for(trip.utc_offset)
         day = trip_day(trip, now)
@@ -152,6 +154,7 @@ def send_leave_now_alerts(trip_id: str) -> None:
             leave = minutes_of_day(datetime.fromisoformat(leg["leaveBy"]), day, tz)
             for lead, label in ((10, "soon"), (0, "now")):
                 if leave - lead <= now_min < leave - lead + 5 and r.set(f"leave_now:{plan.plan_id}:{leg['seq']}:{label}", "1", nx=True, ex=86400):
+                    in_min = max(0, leave - now_min)
                     events.publish(
                         trip_id,
                         "leave_now",
@@ -159,10 +162,20 @@ def send_leave_now_alerts(trip_id: str) -> None:
                             "seq": leg["seq"],
                             "taskId": leg.get("taskId"),
                             "leaveBy": at_minutes(day, leave, tz).isoformat(),
-                            "inMin": max(0, leave - now_min),
+                            "inMin": in_min,
                             "label": leg["label"],
                         },
                     )
+                    # Worth showing until the leave-by time, or for five minutes once it has come.
+                    alert = push.PushAlert(
+                        kind="leave_now",
+                        body=push.leave_text(in_min, leg["label"]),
+                        tag=f"leave-{leg['seq']}",
+                        trip_id=trip_id,
+                        ttl_seconds=(in_min or 5) * 60,
+                        seq=leg["seq"],
+                    )
+                    pushes.append(alert)
         # Tasks the plan named as unplaced won't happen: they don't keep the trip from ending.
         unplaced = {m["taskId"] for m in plan.moved or [] if m.get("kind") == "unplaced"}
         open_tasks = [
@@ -178,3 +191,5 @@ def send_leave_now_alerts(trip_id: str) -> None:
             and r.set(f"trip_ended:{trip_id}", "1", nx=True, ex=7 * 86400)
         ):
             events.publish(trip_id, "trip_ended", {"tripId": trip_id})
+    for alert in pushes:
+        push.alert(user_id, alert)

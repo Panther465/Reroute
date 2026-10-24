@@ -36,6 +36,9 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
+    // Push (Firebase Cloud Messaging). A build without google-services.json runs without push.
+    implementation platform('com.google.firebase:firebase-bom:35.1.0')
+    implementation 'com.google.firebase:firebase-messaging'
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"

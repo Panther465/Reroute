@@ -47,6 +47,26 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
+class PushDevice(Base):
+    """A phone that gets the traveller's alerts as push notifications (the Android app, through Firebase).
+
+    One row per Firebase token: the phone belongs to whoever registered it last, so after someone else signs
+    in on it, the earlier traveller's alerts stop arriving there.
+    """
+
+    __tablename__ = "push_devices"
+
+    #: The SHA-256 of the token, which the app can work out for itself to remove the phone again.
+    device_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.user_id", ondelete="CASCADE"), index=True)
+    #: The sign-in that registered it (refresh token family): when that ends, so do the phone's pushes.
+    family_id: Mapped[str | None] = mapped_column(String(40), index=True)
+    token: Mapped[str] = mapped_column(Text)
+    platform: Mapped[str] = mapped_column(String(12))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class WalletEntry(Base):
     """Simulated money in or out of a traveller's wallet. The balance is the sum of the entries."""
 

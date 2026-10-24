@@ -11,7 +11,8 @@ import { Toaster } from '@/components/ui/Toaster'
 import { useCurrentTripId, useMe, useTrip } from '@/api/queries'
 import { flushQueue } from '@/lib/actions'
 import { useIsDesktop, useOnline, useTripClock } from '@/lib/hooks'
-import { useLive } from '@/lib/live'
+import { canNotify, useLive } from '@/lib/live'
+import { syncPush } from '@/lib/push'
 import { unlockAudioOnFirstTouch } from '@/lib/alerts'
 import { useDayAlerts } from '@/lib/dayAlerts'
 import { resumeTracking } from '@/lib/location'
@@ -219,6 +220,16 @@ export default function AppShell() {
   useEffect(() => {
     if (online && session === 'signedIn') void flushQueue(current.tripId)
   }, [online, session, current.tripId])
+
+  // In the Android app, leave-by alerts also come as pushes while they're on and this server sends them
+  // (lib/push.ts): the phone is registered each time the app opens, which also hands the server a token Firebase
+  // has since replaced, and again when the signal is back if that failed. Signed out: native/boot.ts.
+  const leaveAlerts = useStore((s) => s.leaveAlerts)
+  const pushOffered = useMe().data?.features?.push
+  useEffect(() => {
+    // Wait for the server to say whether it sends pushes, so a phone registered last time isn't taken off meanwhile.
+    if (session === 'signedIn' && pushOffered !== undefined) void syncPush(leaveAlerts && canNotify() && pushOffered).catch(() => {})
+  }, [session, leaveAlerts, online, pushOffered])
 
   if (session === 'loading') {
     // Today's outline only where Today will appear: a reload of Me or Raasta mustn't flash Today first.

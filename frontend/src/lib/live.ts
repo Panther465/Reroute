@@ -5,6 +5,7 @@ import { useEffect } from 'react'
 import { apiBase, credentialsMode, getAccessToken, refreshSession } from '@/api/client'
 import { keys, queryClient } from '@/api/queries'
 import { native } from './platform'
+import { seenAlert } from './push'
 import { getState, setState } from './store'
 
 export interface LiveEvent {
@@ -87,7 +88,10 @@ function handle(tripId: string, e: LiveEvent) {
     const inMin = Number(e.data.inMin ?? 0)
     const text = inMin > 0 ? `Leave in ${inMin} min. ${label}.` : `Leave now. ${label}.`
     const seq = typeof e.data.seq === 'number' ? e.data.seq : null
+    // The Android app may have shown this one already, from a push (lib/push.ts): a dismissed banner stays dismissed.
+    if (seenAlert(tripId, `leave-${String(e.data.seq)}`, text)) return
     setState({ leaveNow: { text, at: Date.now(), seq } })
+    // A push of the same alert has the same tag, so the phone shows one notification for the two.
     if (getState().leaveAlerts && canNotify() && document.visibilityState !== 'visible') {
       void notify('Reroute', { body: text, tag: `leave-${String(e.data.seq)}` })
     }

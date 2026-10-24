@@ -15,7 +15,7 @@ from app.clock import now_for, tz_for
 from app.db import session_scope
 from app.models import Plan, Trip
 from app.redis_client import get_redis
-from app.services import morning
+from app.services import morning, push
 from app.workers.jobs import five_minute_check, morning_plan
 from app.workers.queue import get_queue
 
@@ -81,7 +81,14 @@ def tick(utc_now: datetime | None = None) -> int:
         if r.set(f"check_lock:{trip_id}", datetime.now(UTC).isoformat(), nx=True, ex=CHECK_EVERY_SECONDS):
             get_queue().enqueue(five_minute_check, trip_id, job_id=f"check-{trip_id}-{int(time.time() // CHECK_EVERY_SECONDS)}")
             queued += 1
-    return queued + queue_morning_plans(utc_now)
+    queued += queue_morning_plans(utc_now)
+    # Once an hour, phones whose sign-in has ended are forgotten (by the wall clock, as sign-ins expire).
+    if r.set("push_prune", datetime.now(UTC).isoformat(), nx=True, ex=3600):
+        try:
+            push.forget_signed_out()
+        except Exception:  # the checks above matter more; the next hour tries again
+            log.exception("Couldn't forget the phones of ended sign-ins")
+    return queued
 
 
 def main() -> None:

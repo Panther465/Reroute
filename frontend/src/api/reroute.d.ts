@@ -140,6 +140,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/me/push-devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Get alerts on this phone as push notifications */
+        post: operations["add_push_device_v1_me_push_devices_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/me/push-devices/{device_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Stop push notifications on a phone */
+        delete: operations["remove_push_device_v1_me_push_devices__device_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/location-history": {
         parameters: {
             query?: never;
@@ -1170,6 +1204,11 @@ export interface components {
              * @default false
              */
             agent: boolean;
+            /**
+             * Push
+             * @default false
+             */
+            push: boolean;
         };
         /** FlightFareOut */
         FlightFareOut: {
@@ -1708,6 +1747,26 @@ export interface components {
         PostBody: {
             /** Idempotencykey */
             idempotencyKey: string;
+        };
+        /**
+         * PushDeviceIn
+         * @description This phone's Firebase token, for alerts as push notifications while the app is in the background.
+         */
+        PushDeviceIn: {
+            /** Idempotencykey */
+            idempotencyKey: string;
+            /** Token */
+            token: string;
+            /**
+             * Platform
+             * @constant
+             */
+            platform: "android";
+        };
+        /** PushDeviceOut */
+        PushDeviceOut: {
+            /** Deviceid */
+            deviceId: string;
         };
         /**
          * RefreshIn
@@ -2807,6 +2866,72 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["UserOut"];
                 };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_push_device_v1_me_push_devices_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushDeviceIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushDeviceOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_push_device_v1_me_push_devices__device_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description Validation Error */
             422: {

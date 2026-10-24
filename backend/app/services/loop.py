@@ -24,7 +24,7 @@ from app.clock import minutes_of_day
 from app.errors import ApiError
 from app.models import Plan, RerouteLog, Trip, new_id
 from app.redis_client import get_redis
-from app.services import leg_paths, morning, plan_store
+from app.services import leg_paths, morning, plan_store, push
 from app.services.day import RULE, DayContext, build_input, fetch_snapshot, needed_places, sense
 from app.services.planner import Objective, ReplanInput, ReplanOption, ReplanResult, TravelSnapshot, explain, plan_day, replan
 from app.services.planner.hashing import canonical_json
@@ -167,6 +167,17 @@ def create_plan(db: Session, trip: Trip, adapter: TravelTimeAdapter, now: dateti
     db.commit()
     # The morning plan is news: the traveller didn't ask for it, so the phone may say so.
     events.publish(trip.trip_id, "plan_updated", _plan_event(plan, notify=trigger == "morning"))
+    if trigger == "morning":
+        push.alert(
+            trip.user_id,
+            push.PushAlert(
+                kind="morning",
+                body="Your day is planned. Open Today to see when to leave.",
+                tag=f"morning-{trip.trip_id}-{plan.version}",
+                trip_id=trip.trip_id,
+                ttl_seconds=3 * 3600,
+            ),
+        )
     leg_paths.start(plan.plan_id)
     return plan
 

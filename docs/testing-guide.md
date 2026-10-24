@@ -193,6 +193,7 @@ Each row says which account to use (**D** for demo, **R** for real, **Both**).
 | **Me → Alerts**: sound, chime, Rico's voice, **Hear Rico**, volume, vibration, phone notifications | Both | **Hear Rico** speaks; notifications ask for permission once |
 | Rico in 3D: open /welcome or Ask Rico on a laptop or a recent phone | Both | A fuzzy plush 3D Rico breathes, blinks, follows the pointer and hops on each line; the Ask Rico button and the "Welcome back!" greeting show the same Rico. Beside each of Rico's lines in the chat, and everywhere with reduced motion, Save-Data or a slow GPU, a still of the same 3D Rico shows instead, never a flat one (force either with `localStorage['reroute.roo3d']` = `on` or `off`) |
 | Turn on **Rico reads its replies aloud** (Me) and open /welcome | Both | Each line plays to its end before the next; the words appear as they're said; Rico's mouth closes on b, m and p and between words |
+| Android app with Firebase set up (README, "Push notifications"): **Me → Phone notifications** on, plan the day, **Simulate** the clock to 9 minutes before the first departure, go to the home screen and open two other apps, then **Simulate → Run the 5-minute check** from a browser signed in to the same account | D | "Leave in 9 min." arrives as a phone notification although Android has frozen Reroute; tapping it opens Today |
 | **Me → Reroute log** | Both | Every plan and change with its reason |
 | **Me → Delete my location history** | Both | Confirms, then deletes |
 

@@ -513,6 +513,117 @@
         }
       }
     },
+    "/v1/me/push-devices": {
+      "post": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Get alerts on this phone as push notifications",
+        "operationId": "add_push_device_v1_me_push_devices_post",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushDeviceIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushDeviceOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/me/push-devices/{device_id}": {
+      "delete": {
+        "tags": [
+          "me"
+        ],
+        "summary": "Stop push notifications on a phone",
+        "operationId": "remove_push_device_v1_me_push_devices__device_id__delete",
+        "parameters": [
+          {
+            "name": "device_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Device Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/me/location-history": {
       "delete": {
         "tags": [
@@ -4399,6 +4510,11 @@
             "type": "boolean",
             "title": "Agent",
             "default": false
+          },
+          "push": {
+            "type": "boolean",
+            "title": "Push",
+            "default": false
           }
         },
         "type": "object",
@@ -5819,6 +5935,49 @@
         ],
         "title": "PostBody",
         "description": "Every POST carries an idempotency key (section 13)."
+      },
+      "PushDeviceIn": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 4,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Idempotencykey"
+          },
+          "token": {
+            "type": "string",
+            "maxLength": 4096,
+            "minLength": 20,
+            "title": "Token"
+          },
+          "platform": {
+            "type": "string",
+            "const": "android",
+            "title": "Platform"
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotencyKey",
+          "token",
+          "platform"
+        ],
+        "title": "PushDeviceIn",
+        "description": "This phone's Firebase token, for alerts as push notifications while the app is in the background."
+      },
+      "PushDeviceOut": {
+        "properties": {
+          "deviceId": {
+            "type": "string",
+            "title": "Deviceid"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deviceId"
+        ],
+        "title": "PushDeviceOut"
       },
       "RefreshIn": {
         "properties": {

@@ -20,6 +20,12 @@ export interface NativeHooks {
     request: () => Promise<boolean>
     show: (title: string, options: { body?: string; tag?: string; silent?: boolean }) => Promise<void>
   }
+  /**
+   * Push from Reroute's server through Firebase: this phone's token, or null where the build has no Firebase
+   * set up. A browser gets its alerts over the live stream only, which Android stops for an app in the
+   * background within seconds.
+   */
+  push: { token: () => Promise<string | null>; forget: () => Promise<boolean> }
   /** The status and navigation bars follow the light or dark theme (a browser has theme-color). */
   systemBars: (dark: boolean) => void
   /** Android's share sheet (the web view has no navigator.share). */

@@ -7,6 +7,7 @@ type RS = Q['schemas']
 
 export type User = S['UserOut']
 export type Token = S['TokenOut']
+export type PushDevice = S['PushDeviceOut']
 export type Place = S['PlaceOut']
 export type City = S['CityOut']
 export type SpeechTimed = S['SpeechTimedOut']

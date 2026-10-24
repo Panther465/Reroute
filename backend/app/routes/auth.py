@@ -45,8 +45,8 @@ AppClient = Annotated[
 ]
 
 
-def _token(user: User, refresh_token: str | None = None) -> TokenOut:
-    token, ttl = issue_access_token(user)
+def _token(user: User, refresh_token: str | None = None, session_id: str | None = None) -> TokenOut:
+    token, ttl = issue_access_token(user, session_id=session_id)
     return TokenOut(access_token=token, expires_in=ttl, user=user_out(user), refresh_token=refresh_token)
 
 
@@ -68,9 +68,9 @@ def signup(body: SignUpIn, response: Response, db: Db, client: AppClient = None)
     db.add(user)
     db.flush()
     wallet.credit_welcome(db, user.user_id)
-    kept = start_session(db, user, response, app=client == "android")
+    kept, sid = start_session(db, user, response, app=client == "android")
     db.commit()
-    return _token(user, kept)
+    return _token(user, kept, sid)
 
 
 @router.post("/login", response_model=TokenOut, response_model_by_alias=True, summary="Sign in with an email and a password")
@@ -79,9 +79,9 @@ def login(body: LoginIn, response: Response, db: Db, client: AppClient = None) -
     if not verify_password(body.password, user.password_hash if user else _NO_ACCOUNT) or user is None:
         # One answer for a wrong email and a wrong password: it doesn't say which accounts exist.
         raise ApiError(401, "Email or password is wrong.")
-    kept = start_session(db, user, response, app=client == "android")
+    kept, sid = start_session(db, user, response, app=client == "android")
     db.commit()
-    return _token(user, kept)
+    return _token(user, kept, sid)
 
 
 @router.post("/google", response_model=TokenOut, response_model_by_alias=True)
@@ -93,9 +93,9 @@ def google(body: GoogleSignIn, response: Response, db: Db, client: AppClient = N
         db.add(user)
         db.flush()
         wallet.credit_welcome(db, user.user_id)
-    kept = start_session(db, user, response, app=client == "android")
+    kept, sid = start_session(db, user, response, app=client == "android")
     db.commit()
-    return _token(user, kept)
+    return _token(user, kept, sid)
 
 
 @router.post("/demo", response_model=TokenOut, response_model_by_alias=True, summary="Demo sign-in (only when DEMO_LOGIN=true)")
@@ -109,9 +109,9 @@ def demo(body: DemoSignIn, response: Response, db: Db, client: AppClient = None)
     for trip in db.scalars(select(Trip).where(Trip.user_id == user.user_id, Trip.sample.is_(True))):
         if not get_redis().exists(demo_key(trip.trip_id)):
             set_demo_now(trip.trip_id, datetime.fromisoformat(DEMO_CLOCK_START))
-    kept = start_session(db, user, response, app=client == "android")
+    kept, sid = start_session(db, user, response, app=client == "android")
     db.commit()
-    return _token(user, kept)
+    return _token(user, kept, sid)
 
 
 @router.post("/refresh", response_model=TokenOut, response_model_by_alias=True)
@@ -125,14 +125,14 @@ def refresh(
 ) -> TokenOut:
     if body is not None:
         # The Android app's own token, from its body: no cookie is involved, so there is no CSRF to check.
-        user, kept = rotate_refresh(db, body.refresh_token, response, app=True)
-        return _token(user, kept)
+        user, kept, sid = rotate_refresh(db, body.refresh_token, response, app=True)
+        return _token(user, kept, sid)
     if not rr_refresh:
         # No session at all (a first visit): "sign in", not a CSRF failure.
         raise ApiError(401, "Sign in to continue.")
     check_csrf(rr_csrf, x_csrf_token)
-    user, _ = rotate_refresh(db, rr_refresh, response)
-    return _token(user)
+    user, _, sid = rotate_refresh(db, rr_refresh, response)
+    return _token(user, session_id=sid)
 
 
 @router.post("/logout", status_code=204)

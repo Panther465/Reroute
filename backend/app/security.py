@@ -19,12 +19,12 @@ from datetime import UTC, datetime, timedelta
 
 import jwt
 from fastapi import Response
-from sqlalchemy import select, update
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.errors import ApiError
-from app.models import RefreshToken, User, new_id
+from app.models import PushDevice, RefreshToken, User, new_id
 
 #: Marks the API calls Roo makes for the traveller, from inside this process (services/roo_agent): they skip
 #: the per-minute limit, since one confirmed card may take a dozen calls. Random per process and never sent
@@ -70,7 +70,7 @@ def verify_password(password: str, stored: str | None) -> bool:
     return hmac.compare_digest(got.hex(), digest)
 
 
-def issue_access_token(user: User, now: datetime | None = None) -> tuple[str, int]:
+def issue_access_token(user: User, now: datetime | None = None, session_id: str | None = None) -> tuple[str, int]:
     s = get_settings()
     now = now or datetime.now(UTC)
     ttl = s.access_token_minutes * 60
@@ -83,6 +83,10 @@ def issue_access_token(user: User, now: datetime | None = None) -> tuple[str, in
         "iat": int(now.timestamp()),
         "exp": int((now + timedelta(seconds=ttl)).timestamp()),
     }
+    if session_id:
+        # The sign-in it belongs to (its refresh token family): a phone registered for push with this token
+        # stops getting the traveller's alerts when that sign-in ends.
+        claims["sid"] = session_id
     return jwt.encode(claims, s.jwt_secret, algorithm="HS256"), ttl
 
 
@@ -112,23 +116,26 @@ def clear_cookies(response: Response) -> None:
     response.delete_cookie(CSRF_COOKIE, path="/")
 
 
-def start_session(db: Session, user: User, response: Response, family_id: str | None = None, *, app: bool = False) -> str | None:
-    """Issue a new refresh token: as cookies (with a CSRF token) for a browser, or returned for the app to keep."""
+def start_session(db: Session, user: User, response: Response, family_id: str | None = None, *, app: bool = False) -> tuple[str | None, str]:
+    """Issue a new refresh token: as cookies (with a CSRF token) for a browser, or returned for the app to keep.
+
+    Returns that token when `app`, and the session (family) it belongs to.
+    """
     s = get_settings()
     raw = secrets.token_urlsafe(32)
     max_age = s.refresh_token_days * 24 * 3600
-    db.add(
-        RefreshToken(
-            user_id=user.user_id,
-            family_id=family_id or new_id("fam"),
-            token_hash=sha256(raw),
-            expires_at=datetime.now(UTC) + timedelta(seconds=max_age),
-        )
-    )
+    family = family_id or new_id("fam")
+    db.add(RefreshToken(user_id=user.user_id, family_id=family, token_hash=sha256(raw), expires_at=datetime.now(UTC) + timedelta(seconds=max_age)))
     if app:
-        return raw
+        return raw, family
     _set_cookies(response, raw, secrets.token_urlsafe(24), max_age)
-    return None
+    return None, family
+
+
+def end_session(db: Session, family_id: str, now: datetime) -> None:
+    """Revoke a whole sign-in, and forget the phones it registered for push: they stop getting its alerts."""
+    db.execute(update(RefreshToken).where(RefreshToken.family_id == family_id, RefreshToken.revoked_at.is_(None)).values(revoked_at=now))
+    db.execute(delete(PushDevice).where(PushDevice.family_id == family_id))
 
 
 def check_csrf(cookie_value: str | None, header_value: str | None) -> None:
@@ -136,8 +143,8 @@ def check_csrf(cookie_value: str | None, header_value: str | None) -> None:
         raise ApiError(403, "Missing or wrong CSRF token.", code="CSRF")
 
 
-def rotate_refresh(db: Session, raw: str | None, response: Response, *, app: bool = False) -> tuple[User, str | None]:
-    """Swap a refresh token for a new one in the same family. Returns the user, and the new token when `app`."""
+def rotate_refresh(db: Session, raw: str | None, response: Response, *, app: bool = False) -> tuple[User, str | None, str]:
+    """Swap a refresh token for a new one in the same family. Returns the user, the new token when `app`, and the family."""
     if not raw:
         raise ApiError(401, "Sign in to continue.")
     token = db.scalar(select(RefreshToken).where(RefreshToken.token_hash == sha256(raw)))
@@ -151,7 +158,7 @@ def rotate_refresh(db: Session, raw: str | None, response: Response, *, app: boo
             raise ApiError(401, "Your session ended. Sign in again.")
         if now - token.revoked_at > REUSE_GRACE:
             # A rotated token came back long after: someone may have copied it. Revoke the whole family.
-            db.execute(update(RefreshToken).where(RefreshToken.family_id == token.family_id, RefreshToken.revoked_at.is_(None)).values(revoked_at=now))
+            end_session(db, token.family_id, now)
             db.commit()
             raise ApiError(401, "Your session ended. Sign in again.")
         # Just rotated: the browser most likely lost the response (a reload or a dropped connection
@@ -163,9 +170,9 @@ def rotate_refresh(db: Session, raw: str | None, response: Response, *, app: boo
     user = db.get(User, token.user_id)
     if user is None:
         raise ApiError(401, "Sign in to continue.")
-    kept = start_session(db, user, response, family_id=token.family_id, app=app)
+    kept, family = start_session(db, user, response, family_id=token.family_id, app=app)
     db.commit()
-    return user, kept
+    return user, kept, family
 
 
 def revoke_refresh(db: Session, raw: str | None) -> None:
@@ -173,8 +180,7 @@ def revoke_refresh(db: Session, raw: str | None) -> None:
         return
     token = db.scalar(select(RefreshToken).where(RefreshToken.token_hash == sha256(raw)))
     if token is not None:
-        now = datetime.now(UTC)
-        db.execute(update(RefreshToken).where(RefreshToken.family_id == token.family_id, RefreshToken.revoked_at.is_(None)).values(revoked_at=now))
+        end_session(db, token.family_id, datetime.now(UTC))
         db.commit()
 
 

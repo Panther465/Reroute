@@ -19,6 +19,9 @@ case "$role" in
     # A short TTL keeps each blocking wait at about 45 s. With the default (405 s) the worker treated
     # the end of a long idle wait as a lost Redis connection and quit every 6 3/4 minutes.
     # Planning first; drawing legs along the roads (maps) when there's no planning to do.
+    # Tells the API whether this worker can send pushes (its Firebase key loaded), so the app isn't told
+    # alerts arrive after it's closed when they can't.
+    python -m app.services.push
     exec rq worker --url "$REDIS_URL" --worker-ttl 60 planning maps
     ;;
   scheduler)

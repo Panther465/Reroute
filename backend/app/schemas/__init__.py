@@ -57,6 +57,8 @@ class FeaturesOut(Api):
     wallet: bool = False
     #: Roo as an agent: it reads the trip and proposes changes on one card (AI_HELPER_ENABLED with a Gemini key).
     agent: bool = False
+    #: Alerts as push notifications to the Android app, which arrive after it's closed (FCM_CREDENTIALS_FILE).
+    push: bool = False
 
 
 class UserOut(Api):
@@ -82,6 +84,18 @@ class RefreshIn(Api):
     """The Android app's own refresh token, for /v1/auth/refresh and /v1/auth/logout (a browser sends no body)."""
 
     refresh_token: Annotated[str, StringConstraints(min_length=16, max_length=256)]
+
+
+class PushDeviceIn(PostBody):
+    """This phone's Firebase token, for alerts as push notifications while the app is in the background."""
+
+    token: Annotated[str, StringConstraints(min_length=20, max_length=4096)]
+    platform: Literal["android"]
+
+
+class PushDeviceOut(Api):
+    #: The SHA-256 of the token: DELETE /v1/me/push-devices/{deviceId} removes the phone again.
+    device_id: str
 
 
 class GoogleSignIn(Api):

@@ -29,6 +29,16 @@ def current_user(db: Db, authorization: Annotated[str | None, Header()] = None) 
 CurrentUser = Annotated[User, Depends(current_user)]
 
 
+def current_session(authorization: Annotated[str | None, Header()] = None) -> str | None:
+    """The sign-in the access token belongs to (its refresh token family). Run after current_user, which has checked it."""
+    if not authorization or not authorization.lower().startswith("bearer "):
+        return None
+    return decode_access_token(authorization[7:]).get("sid")
+
+
+CurrentSession = Annotated[str | None, Depends(current_session)]
+
+
 def require_role(*roles: str):
     def check(user: CurrentUser) -> User:
         if user.role not in roles:

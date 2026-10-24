@@ -60,6 +60,8 @@ export interface UiState {
   connections: Record<string, boolean>
   /** Roo reads its chat replies aloud: off until the traveller turns it on. */
   rooVoice: boolean
+  /** The server has this phone for push (the Android app): its alerts arrive even after the app is closed. */
+  pushReady: boolean
 }
 
 const KEY = 'reroute:prefs:v2'
@@ -79,6 +81,7 @@ function defaults(): UiState {
     autoBanner: null,
     leaveNow: null,
     pendingDelay: null,
+    pushReady: false,
     optimisticDone: [],
     started: null,
     rooChat: false,
