@@ -1,9 +1,11 @@
+import { QueryClient, QueryObserver } from '@tanstack/react-query'
 import { act, renderHook } from '@testing-library/react'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { enqueue, resetQueue } from '@/lib/offlineQueue'
+import { resetSession } from '@/lib/session'
 import { setState } from '@/lib/store'
 import { goldenTrip } from '@/test/fixtures'
-import { useDay } from './queries'
+import { useDay, whileSignedIn } from './queries'
 
 beforeEach(() => {
   resetQueue()
@@ -49,5 +51,36 @@ describe('useDay with check-ins the server has not confirmed', () => {
     expect(result.current!.stops.map((s) => s.status)).toEqual(['done', 'now', 'upcoming', 'upcoming', 'upcoming'])
     rerender({ clock: 670 })
     expect(result.current!.stops.map((s) => s.status)).toEqual(['done', 'done', 'now', 'upcoming', 'upcoming'])
+  })
+})
+
+describe('queries that need the session', () => {
+  /** A screen's query as it rendered while signed in, then signing out (the cache emptied) before its effect ran. */
+  async function signOutUnder(enabled: boolean | (() => boolean)) {
+    resetSession('signedIn')
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const queryFn = vi.fn(async () => ({ name: 'Asha' }))
+    const options = { queryKey: ['me'], queryFn, enabled }
+    const observer = new QueryObserver(client, options)
+    const stop = observer.subscribe(() => {})
+    await vi.waitFor(() => expect(queryFn).toHaveBeenCalledTimes(1))
+    resetSession('signedOut')
+    client.clear()
+    // The effect of the render from before signing out.
+    observer.setOptions(options)
+    await new Promise((r) => setTimeout(r, 0))
+    stop()
+    return queryFn.mock.calls.length
+  }
+
+  it('fetch nothing after signing out, even from a screen rendered just before', async () => {
+    expect(await signOutUnder(whileSignedIn(true))).toBe(1)
+    // What happened before: the same render fetched its data again, without a session (a 401 in the console).
+    expect(await signOutUnder(true)).toBe(2)
+    resetSession()
+  })
+
+  it('stay off while the screen is signed out', () => {
+    expect(whileSignedIn(false)).toBe(false)
   })
 })

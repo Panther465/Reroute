@@ -43,6 +43,14 @@ describe('phone notifications in the app', () => {
     expect(second).toMatchObject({ id: notificationId('arrive-2'), channelId: 'alerts' })
   })
 
+  it("shows at once, never as an exact alarm (the plugin would open Android's Alarms & reminders screen first)", async () => {
+    await startNotifications()
+    await notifications.show('Reroute', { body: 'Leave in 9 min.', tag: 'leave-1' })
+    const [shown] = (plugin.schedule.mock.calls[0] as unknown as [Scheduled])[0].notifications
+    expect(shown).toMatchObject({ isExactNotification: false })
+    expect(shown).not.toHaveProperty('schedule')
+  })
+
   it('shows nothing without permission, and asks Android for it', async () => {
     plugin.checkPermissions.mockResolvedValue({ display: 'denied' })
     await startNotifications()

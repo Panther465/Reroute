@@ -39,9 +39,13 @@ export const notifications = {
   /**
    * Always with Android's sound, even when the web asks for a silent one (because Rico's chime or voice says it):
    * Android may not play a web view's sound while the app is in the background, which is when these show.
+   * Not an exact alarm: these show at once, and for an exact one the plugin first opens Android's "Alarms &
+   * reminders" screen, which Android refuses to open from the background, so the alert would never show.
    */
   async show(title: string, { body = '', tag }: { body?: string; tag?: string; silent?: boolean }): Promise<void> {
     if (!granted) return
-    await LocalNotifications.schedule({ notifications: [{ id: notificationId(tag ?? `${title}\n${body}`), title, body, channelId: ALERTS, autoCancel: true }] })
+    await LocalNotifications.schedule({
+      notifications: [{ id: notificationId(tag ?? `${title}\n${body}`), title, body, channelId: ALERTS, autoCancel: true, isExactNotification: false }],
+    })
   },
 }

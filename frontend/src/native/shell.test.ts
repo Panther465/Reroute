@@ -36,13 +36,36 @@ describe("the app's frame", () => {
 })
 
 describe("Android's back button", () => {
-  it('closes a sheet on top first, as Escape does', () => {
-    document.body.innerHTML = '<div role="dialog" data-state="open"><button>Done</button></div>'
+  it("closes a sheet on top first, with the sheet's own close button (a toast showing would take Escape)", () => {
+    document.body.innerHTML = '<div role="dialog" data-state="open"><button aria-label="Close">×</button><button>Done</button></div>'
+    const closed = vi.fn()
+    document.querySelector('[aria-label="Close"]')!.addEventListener('click', closed)
+    const keys: string[] = []
+    document.addEventListener('keydown', (e) => keys.push(e.key), { once: true })
+    onBack(true)
+    expect(closed).toHaveBeenCalledOnce()
+    expect(keys).toEqual([])
+    expect(app.minimizeApp).not.toHaveBeenCalled()
+  })
+
+  it('closes the newest of two open layers, and one without a close button as Escape does', () => {
+    document.body.innerHTML =
+      '<div role="dialog" data-state="open"><button aria-label="Close the chat">×</button></div><div role="dialog" data-state="open"><button>Done</button></div>'
+    const chat = vi.fn()
+    document.querySelector('[aria-label="Close the chat"]')!.addEventListener('click', chat)
     const keys: string[] = []
     document.addEventListener('keydown', (e) => keys.push(e.key), { once: true })
     onBack(true)
     expect(keys).toEqual(['Escape'])
-    expect(app.minimizeApp).not.toHaveBeenCalled()
+    expect(chat).not.toHaveBeenCalled()
+  })
+
+  it('ignores a sheet on its way out', () => {
+    document.body.innerHTML = '<div role="dialog" data-state="closed"><button aria-label="Close">×</button></div>'
+    const back = vi.spyOn(window.history, 'back').mockImplementation(() => {})
+    onBack(true)
+    expect(back).toHaveBeenCalled()
+    back.mockRestore()
   })
 
   it("closes Rico's chat", () => {

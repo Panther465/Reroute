@@ -8,6 +8,10 @@ const config: CapacitorConfig = {
   appName: 'Reroute',
   webDir: 'dist-android',
   backgroundColor: '#EDF0EB',
+  // No bridge logging, even in a debug build: plugin calls and their answers carry the sign-in token and
+  // Google's one-time code, and Capacitor would write them to Logcat. A debug build's page console is in
+  // Chrome's DevTools (chrome://inspect).
+  loggingBehavior: 'none',
   plugins: {
     // The edge-to-edge plugin keeps the page clear of the status and navigation bars, so the layout is the
     // browser's; Capacitor's own handling would only add CSS variables the web app doesn't use.

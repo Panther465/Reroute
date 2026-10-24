@@ -21,14 +21,23 @@ export function systemBars(dark: boolean) {
 
 /** Something open on top: a sheet, a dialog, Rico's chat or a popover. */
 const OPEN_LAYER = '[role="dialog"][data-state="open"], [role="alertdialog"][data-state="open"]'
+/** Their own close buttons: "Close", "Close the chat", "Close Rico’s message". */
+const CLOSE = 'button[aria-label^="Close"]'
 
 /**
- * Android's back button. A sheet or dialog on top closes (as Escape closes it); otherwise the app goes back
- * a screen, as a browser does; on the first screen it steps aside to the home screen, as Android apps do.
+ * Android's back button. A sheet or dialog on top closes (as its close button or Escape closes it); otherwise
+ * the app goes back a screen, as a browser does; on the first screen it steps aside to the home screen, as
+ * Android apps do.
  */
 export function onBack(canGoBack: boolean) {
-  if (document.querySelector(OPEN_LAYER)) {
-    ;(document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
+  const open = document.querySelectorAll<HTMLElement>(OPEN_LAYER)
+  const top = open[open.length - 1]
+  if (top) {
+    // Its own close button where it has one. Escape goes to the newest layer, so with a toast showing it would
+    // close the toast and leave the sheet; Android's back leaves a toast be (as a snackbar), Undo and all.
+    const close = top.querySelector<HTMLElement>(CLOSE)
+    if (close) close.click()
+    else (document.activeElement ?? document.body).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }))
     return
   }
   if (getState().rooChat) {

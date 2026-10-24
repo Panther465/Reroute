@@ -43,7 +43,8 @@ const authListeners = new Set<(signedIn: boolean) => void>()
 
 /**
  * Whether the server answered lately. A weak connection can leave the browser "online" while
- * nothing gets through; the app then behaves as offline until a request succeeds again.
+ * nothing gets through; the app then behaves as offline until a request succeeds again, or until
+ * the phone has a new connection.
  */
 let reachable = true
 const reachListeners = new Set<() => void>()
@@ -52,6 +53,9 @@ function setReachable(value: boolean) {
   reachable = value
   reachListeners.forEach((l) => l())
 }
+// A new connection gets a fresh chance at once, and the next request that fails takes it away again. Without
+// this, check-ins saved offline waited for some other request to get through first, up to a minute later.
+if (typeof window !== 'undefined') window.addEventListener('online', () => setReachable(true))
 export function isReachable() {
   return reachable
 }

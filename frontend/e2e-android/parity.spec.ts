@@ -4,7 +4,7 @@ import { _android as android, expect, request, test as base, type AndroidDevice,
 // web view, plus what only the app has to get right (Android's share sheet, the Maps app, the back button,
 // the bars, staying signed in). Needs a running stack with DEMO_LOGIN=true, an emulator or phone on adb,
 // and the debug APK built against that stack (VITE_API_BASE). Every console error in the app fails, but for
-// the two a browser shows too (EXPECTED); so does every error line in the app's own Logcat (LOGCAT_EXPECTED).
+// the few listed in EXPECTED; so does every error line in the app's own Logcat, but for LOGCAT_EXPECTED.
 
 const PKG = 'com.reroute.app'
 /** The app's own page inside the phone. */
@@ -46,7 +46,10 @@ async function attach(device: AndroidDevice, errors: Logged[]): Promise<Page> {
   const webview = await device.webView({ pkg: PKG })
   const page = await webview.page()
   page.on('console', (m) => {
-    if (m.type() === 'error') errors.push({ journey, text: m.text() })
+    if (m.type() !== 'error') return
+    // A failed load names its request, so a dropped connection says which one it was.
+    const url = m.text().startsWith('Failed to load resource') ? m.location().url : ''
+    errors.push({ journey, text: url ? `${m.text()} (${new URL(url).pathname})` : m.text() })
   })
   page.on('pageerror', (e) => errors.push({ journey, text: String(e) }))
   page.on('request', (r) => {
@@ -154,6 +157,12 @@ async function backToApp(device: AndroidDevice) {
     await pressBack(device)
   }
   await expect.poll(() => foreground(device), { timeout: 10_000 }).toContain(PKG)
+}
+
+/** Where Reroute's screen is in its lifecycle: RESUMED on screen, then PAUSED, STOPPING and STOPPED as it leaves. */
+async function activityState(device: AndroidDevice): Promise<string> {
+  const out = (await device.shell('dumpsys activity activities')).toString()
+  return new RegExp(`${PKG.replace(/\./g, '\\.')}/\\.MainActivity[\\s\\S]*?\\bstate=(\\w+)`).exec(out)?.[1] ?? ''
 }
 
 /** What Android shows on top, e.g. the share sheet or the Maps app. */
@@ -354,6 +363,10 @@ test("a leave-by alert reaches Android's notifications while Reroute is in the b
   // 5-minute check sends "Leave in 9 min" over the live stream: Android shows it as a notification.
   await app.detach()
   await app.device.shell('input keyevent KEYCODE_HOME')
+  // Paused, so its page is hidden (a moment after the launcher is on top), and soon: Android 15 and later cut a
+  // background app's network a few seconds after it leaves the screen, and the alert comes over the network.
+  await expect.poll(() => activityState(app.device), { timeout: 10_000 }).toMatch(/^(PAUSED|STOPPING|STOPPED)$/)
+  await new Promise((r) => setTimeout(r, 500))
   const api = await request.newContext({ baseURL: apiFromComputer(), ignoreHTTPSErrors: true })
   const login = await api.post('/v1/auth/demo', { data: { as: 'traveller' } })
   const headers = { Authorization: `Bearer ${((await login.json()) as { accessToken: string }).accessToken}` }
@@ -374,9 +387,11 @@ test("talking to Rico goes to Android's speech recognizer", async ({ app }) => {
   await page.getByRole('button', { name: 'Rico, your travel companion. Chat with Rico' }).click()
   const chat = page.getByRole('dialog', { name: 'Rico' })
   await chat.getByRole('button', { name: 'Talk to Rico' }).click()
-  // Android's recognizer listens (the emulator hears silence), then Rico says it heard nothing.
-  await expect(chat.getByRole('button', { name: 'Stop listening' }).or(chat.getByText(/didn’t hear anything|didn’t catch that|can’t listen/))).toBeVisible({ timeout: 15_000 })
-  await expect(chat.getByText(/didn’t hear anything|didn’t catch that|can’t listen|couldn’t listen/).last()).toBeVisible({ timeout: 20_000 })
+  // Android's recognizer listens, then Rico says it heard nothing: the emulator hears silence, and Google's
+  // recognizer there sometimes can't reach its servers instead (the web's message for that, too).
+  const couldNot = /didn’t hear anything|didn’t catch that|can’t listen|couldn’t listen|Listening needs a connection/
+  await expect(chat.getByRole('button', { name: 'Stop listening' }).or(chat.getByText(couldNot))).toBeVisible({ timeout: 15_000 })
+  await expect(chat.getByText(couldNot).last()).toBeVisible({ timeout: 20_000 })
   await pressBack(app.device)
   await expect(chat).toBeHidden()
 })
@@ -478,17 +493,17 @@ test("a family share link points at the web app's host, not the app's own page",
   await expect(sheet).toBeHidden()
 })
 
-/** Console errors a browser shows as well, each in the one journey it belongs to. Anything else fails. */
+/** Console errors a browser shows as well, each where it belongs. Anything else fails. */
 const EXPECTED: { journey: RegExp; text: RegExp; why: string }[] = [
   {
     journey: /^offline:/,
-    text: /^Failed to load resource: net::ERR_(INTERNET_DISCONNECTED|CONNECTION_ABORTED|NETWORK_CHANGED|NAME_NOT_RESOLVED|ADDRESS_UNREACHABLE)$/,
+    text: /^Failed to load resource: net::ERR_(INTERNET_DISCONNECTED|CONNECTION_ABORTED|NETWORK_CHANGED|NAME_NOT_RESOLVED|ADDRESS_UNREACHABLE)( \(.*\))?$/,
     why: 'Chrome logs every request that fails while the phone has no signal; the app says it is offline and keeps the check-in',
   },
   {
-    journey: /Tell them/,
-    text: /^\{message: Share canceled\}$/,
-    why: "Capacitor's debug build logs every plugin call it refuses, and closing Android's share sheet is one; release builds log nothing",
+    journey: /./,
+    text: /^Failed to load resource: net::ERR_(CONNECTION_ABORTED|CONNECTION_RESET) \(\/v1\/trips\/[\w-]+\/live\)$/,
+    why: 'the live stream is one long request, and a dropped connection ends it: the app reconnects and fetches the trip again',
   },
 ]
 
@@ -504,19 +519,23 @@ const LOGCAT_EXPECTED: { line: RegExp; why: string }[] = [
     line: /^E\/chromium\s*: \[(?:[\d/.]+:)?ERROR:(?!net\/)/,
     why: "WebView's own internal checks (its settings download, its page timing), not the page: the page's errors are in the console check",
   },
-  { line: /^E\/Capacitor\s*: Couldn't save last Share's Plugin share call$/, why: "Capacitor's debug log when Android's share sheet sends the app to the background" },
-  { line: /^E\/Capacitor\/Console\s*: File: {2}- Line \d+ - Msg: \[object Object\]$/, why: "Capacitor's debug trace of the dismissed share sheet, which the console check names" },
 ]
 
-test('Logcat: no error or crash from the app’s own process', async ({ app }) => {
-  // The app's own lines only (its Linux user): Android's services log about every app (for example AppOps on
-  // each sound played), and those aren't the app's.
-  const uid = /uid:(\d+)/.exec((await app.device.shell(`pm list packages -U ${PKG}`)).toString())?.[1]
+/** The app's own Logcat lines (its Linux user): Android's services log about every app, and those aren't the app's. */
+async function appLogcat(device: AndroidDevice, levels = '*:V'): Promise<string[]> {
+  const uid = /uid:(\d+)/.exec((await device.shell(`pm list packages -U ${PKG}`)).toString())?.[1]
   expect(uid).toBeTruthy()
-  const log = (await app.device.shell(`logcat -d -v brief --uid=${uid} *:E`)).toString()
-  const errors = log
-    .split(/\r?\n/)
-    .map((line) => line.replace(/\(\s*\d+\)/, ''))
-    .filter((line) => /^[EF]\//.test(line))
+  const log = (await device.shell(`logcat -d -v brief --uid=${uid} ${levels}`)).toString()
+  return log.split(/\r?\n/).map((line) => line.replace(/\(\s*\d+\)/, ''))
+}
+
+test('Logcat: no error or crash from the app’s own process', async ({ app }) => {
+  const errors = (await appLogcat(app.device, '*:E')).filter((line) => /^[EF]\//.test(line))
   expect(errors.filter((line) => !LOGCAT_EXPECTED.some((x) => x.line.test(line)))).toEqual([])
+})
+
+test('Logcat: nothing from the bridge, whose calls carry the sign-in token', async ({ app }) => {
+  // Capacitor logs every plugin call and answer in a debug build unless told not to (capacitor.config.ts),
+  // the Keystore's refresh token and Google's one-time code among them.
+  expect((await appLogcat(app.device)).filter((line) => /methodData|Capacitor\/(Console|Plugin)|To native \(Capacitor plugin\)/.test(line))).toEqual([])
 })

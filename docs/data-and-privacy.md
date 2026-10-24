@@ -56,7 +56,7 @@ Roads for the map and the directions come from FOSSGIS's routing servers through
 
 The Android app is the same web app inside Android, so everything above applies to it. What differs:
 
-- **Staying signed in.** The browser keeps the refresh token in a cookie it never shows the page; the app keeps it in the Android Keystore, encrypted with a key that never leaves the phone, and sends it only to Reroute's API. Signing out deletes it from the phone and ends the session on the server.
+- **Staying signed in.** The browser keeps the refresh token in a cookie it never shows the page; the app keeps it in the Android Keystore, encrypted with a key that never leaves the phone, and sends it only to Reroute's API. It never goes to the phone's log. Signing out deletes it from the phone and ends the session on the server.
 - **What stays on the phone.** The saved plan, check-ins waiting to sync and your settings are kept in the app's own storage, as a browser keeps them for the site. Android's backup is turned off for the app, so none of it is copied to Google Drive or a new phone.
 - **Permissions, each asked the first time it's needed:** location for "Show me on the map" and turn by turn, only while Reroute is open (the position stays on the phone, as on the web); the microphone for talking to Rico; notifications for leave-by alerts (Android 13 and later). Say no and the rest of the app works.
 - **Talking to Rico** uses Android's speech recognizer instead of the browser's. On most phones that is Google's speech service, which hears the one sentence you say, as Chrome's does; Reroute receives only the words.

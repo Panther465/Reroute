@@ -6,7 +6,7 @@ import { useStore } from '@/lib/store'
 import { buildDay } from '@/lib/timeline'
 import { api, ApiError } from './client'
 import type { Airport, AuthOptions, Booking, City, Contribution, ContributionsPage, Job, Place, PlanInsight, RaastaLegOptions, RaastaRoute, SharedTrip, StandsPage, Summary, Trip, TripsPage, User, Wallet } from './types'
-import { useSessionStatus } from '@/lib/session'
+import { getSessionStatus, useSessionStatus } from '@/lib/session'
 
 export const queryClient = new QueryClient({
   defaultOptions: {
@@ -46,8 +46,18 @@ export function persistable(key: readonly unknown[]) {
   return ['me', 'trips', 'trip', 'summary', 'raasta', 'paths', 'bookings'].includes(String(key[0]))
 }
 
+/**
+ * `enabled` for a query that needs the session, given whether the screen has it as it renders. The session is
+ * checked again when the query is about to fetch: an effect from a render just before signing out can run just
+ * after it, when the cache is empty, and would fetch its data again without a session (a 401 in the console).
+ */
+export function whileSignedIn(on: boolean) {
+  return on ? () => getSessionStatus() === 'signedIn' : false
+}
+
 export function useMe(enabled = true) {
-  return useQuery({ queryKey: keys.me, queryFn: () => api.get<User>('/v1/me'), enabled })
+  const signedIn = useSessionStatus() === 'signedIn'
+  return useQuery({ queryKey: keys.me, queryFn: () => api.get<User>('/v1/me'), enabled: whileSignedIn(enabled && signedIn) })
 }
 
 /** Simulated bookings are a demo: the server says whether they're on, and only then does the app offer them. */
@@ -63,7 +73,7 @@ export function useWalletEnabled() {
 export function useWallet(enabled = true) {
   const on = useWalletEnabled()
   const signedIn = useSessionStatus() === 'signedIn'
-  return useQuery({ queryKey: keys.wallet, queryFn: () => api.get<Wallet>('/v1/wallet'), enabled: enabled && on && signedIn })
+  return useQuery({ queryKey: keys.wallet, queryFn: () => api.get<Wallet>('/v1/wallet'), enabled: whileSignedIn(enabled && on && signedIn) })
 }
 
 export function useAirports(enabled = true) {
@@ -86,7 +96,8 @@ export function useAgentEnabled() {
 }
 
 export function useTrips(enabled = true) {
-  return useQuery({ queryKey: keys.trips, queryFn: () => api.get<TripsPage>('/v1/trips', { query: { limit: 20 } }), enabled })
+  const signedIn = useSessionStatus() === 'signedIn'
+  return useQuery({ queryKey: keys.trips, queryFn: () => api.get<TripsPage>('/v1/trips', { query: { limit: 20 } }), enabled: whileSignedIn(enabled && signedIn) })
 }
 
 /** The trip the app shows: the one the traveller chose, else the most recent one. */
@@ -102,7 +113,7 @@ export function useCurrentTripId(): { tripId: string | null; isPending: boolean;
 /** The trip's simulated tickets and rides (kept on the phone, so a ticket shows offline). */
 export function useBookings(tripId: string | null | undefined) {
   const signedIn = useSessionStatus() === 'signedIn'
-  return useQuery({ queryKey: keys.bookings(tripId ?? 'none'), queryFn: () => api.get<Booking[]>(`/v1/trips/${tripId}/bookings`), enabled: !!tripId && signedIn })
+  return useQuery({ queryKey: keys.bookings(tripId ?? 'none'), queryFn: () => api.get<Booking[]>(`/v1/trips/${tripId}/bookings`), enabled: whileSignedIn(!!tripId && signedIn) })
 }
 
 export function useTrip(tripId: string | null) {
@@ -110,7 +121,7 @@ export function useTrip(tripId: string | null) {
   return useQuery({
     queryKey: keys.trip(tripId ?? 'none'),
     queryFn: () => api.get<Trip>(`/v1/trips/${tripId}`),
-    enabled: !!tripId && signedIn,
+    enabled: whileSignedIn(!!tripId && signedIn),
     // The saved copy renders at once (and offline); on every load, confirm it with the server.
     refetchOnMount: 'always',
     // Live events invalidate this; the interval is a safety net for missed events.
@@ -147,7 +158,7 @@ export function useInsight(tripId: string | null, version: number | null) {
   return useQuery({
     queryKey: keys.insight(tripId ?? 'none', version ?? 0),
     queryFn: () => api.get<PlanInsight>(`/v1/trips/${tripId}/plans/${version}/insight`),
-    enabled: !!tripId && version !== null && signedIn,
+    enabled: whileSignedIn(!!tripId && version !== null && signedIn),
     staleTime: Infinity,
     retry: (n, err) => !(err instanceof ApiError && err.status === 404) && n < 2,
   })
@@ -155,7 +166,7 @@ export function useInsight(tripId: string | null, version: number | null) {
 
 export function useSummary(tripId: string | null) {
   const signedIn = useSessionStatus() === 'signedIn'
-  return useQuery({ queryKey: keys.summary(tripId ?? 'none'), queryFn: () => api.get<Summary>(`/v1/trips/${tripId}/summary`), enabled: !!tripId && signedIn })
+  return useQuery({ queryKey: keys.summary(tripId ?? 'none'), queryFn: () => api.get<Summary>(`/v1/trips/${tripId}/summary`), enabled: whileSignedIn(!!tripId && signedIn) })
 }
 
 export function useShared(token: string) {

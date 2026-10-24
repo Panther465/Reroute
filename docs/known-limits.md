@@ -30,7 +30,8 @@ Honest gaps in this build. Each is a deliberate scope choice or waits on the tea
 
 ## The Android app
 
-- **Parity first.** The app does what the web app does, and no more yet: no push notifications (leave-by alerts arrive while the app is open or in the background, as in a browser), no location with the screen off, no links that open in the app, and no Play Store listing. Those wait for the owner's go-ahead.
+- **Parity first.** The app does what the web app does, and no more yet: no push notifications, no location with the screen off, no links that open in the app, and no Play Store listing. Those wait for the owner's go-ahead.
+- **Leave-by alerts reach a phone in the background only briefly, as in a browser.** They come over the live stream, and Android 15 and later cut an app's network a few seconds after it leaves the screen, then freeze it once other apps are in use (on the Android 17 emulator: no network after about 5 seconds, frozen about 15 seconds after two other apps). An alert sent after that waits until Reroute is opened again, where Today shows when to leave. Alerts that always arrive need push, which waits for the go-ahead.
 - **Android only.** Capacitor could build an iPhone app from the same code; it isn't set up.
 - **Release builds aren't signed yet.** A release needs an upload key and, for the Play Store, a Google Play developer account. Google sign-in in a release needs that key's SHA-1 on the Android OAuth client too (and the Play App Signing key's, once on the Play Store).
 - **The API address is built in.** Each build calls the address in `frontend/.env.android`; pointing the app at another server means building it again.

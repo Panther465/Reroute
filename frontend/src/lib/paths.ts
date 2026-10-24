@@ -6,7 +6,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { api } from '@/api/client'
-import { keys } from '@/api/queries'
+import { keys, whileSignedIn } from '@/api/queries'
 import type { LegPath, PlanPaths, Trip } from '@/api/types'
 import type { LngLat, MapLine, PlaceIndex } from './geo'
 import { useSessionStatus } from './session'
@@ -19,7 +19,7 @@ export function usePlanPaths(trip: Trip | undefined): Map<number, LegPath> {
   const q = useQuery({
     queryKey: keys.paths(trip?.tripId ?? '', version ?? 0),
     queryFn: () => api.get<PlanPaths>(`/v1/trips/${trip!.tripId}/plans/${version}/paths`),
-    enabled: !!trip && version != null && signedIn,
+    enabled: whileSignedIn(!!trip && version != null && signedIn),
     // A plan version's paths never change once drawn; until then, ask again.
     staleTime: Infinity,
     gcTime: 7 * 24 * 3600_000,

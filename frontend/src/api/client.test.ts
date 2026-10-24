@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { native } from '@/lib/platform'
-import { api, ApiError, getAccessToken, newKey, refreshSession, setAccessToken, setForcedOffline } from './client'
+import { api, ApiError, getAccessToken, isReachable, newKey, refreshSession, setAccessToken, setForcedOffline } from './client'
 
 type Call = { url: string; init: RequestInit }
 
@@ -97,6 +97,15 @@ describe('api client', () => {
     const err = await api.get('/v1/trips').catch((e: unknown) => e)
     expect(err).toBeInstanceOf(ApiError)
     expect((err as ApiError).offline).toBe(true)
+  })
+
+  it('counts the server out of reach after a failure, until the phone has a new connection', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new TypeError('Failed to fetch'))))
+    await api.get('/v1/trips').catch(() => undefined)
+    expect(isReachable()).toBe(false)
+    // Check-ins saved offline go out at once, not when some other request next gets through.
+    window.dispatchEvent(new Event('online'))
+    expect(isReachable()).toBe(true)
   })
 
   it('fails as offline while the demo switch is on, without calling the network', async () => {
