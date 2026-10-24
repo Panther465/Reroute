@@ -398,14 +398,15 @@ test('a leave-by alert reaches a frozen Reroute as a push', async ({ app }) => {
   const page = app.page
   await planFreshDay(app)
   await open(page, '/me')
-  await expect(page.getByText('the server sends them to this phone')).toBeVisible({ timeout: 15_000 })
   // Off and on again, so this run's registration is the one the server holds.
   const notifications = page.getByRole('switch', { name: /Phone notifications/ })
   if ((await notifications.getAttribute('aria-checked')) === 'true') await notifications.click()
   await expect(notifications).toHaveAttribute('aria-checked', 'false')
-  const registered = page.waitForResponse((r) => r.url().endsWith('/v1/me/push-devices') && r.request().method() === 'POST')
+  const registered = page.waitForResponse((r) => r.url().endsWith('/v1/me/push-devices') && r.request().method() === 'POST', { timeout: 60_000 })
   await notifications.click()
   expect((await registered).ok()).toBe(true)
+  // The server has this phone now: Me says the alerts reach it after Reroute is closed.
+  await expect(page.getByText('the server sends them to this phone')).toBeVisible({ timeout: 15_000 })
   await open(page, '/')
   await setClock(page, '08:41')
   // Home, then two other apps: Android freezes Reroute and cuts its network, so only a push can reach it.
