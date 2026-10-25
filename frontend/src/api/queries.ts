@@ -15,6 +15,7 @@ import type {
   Job,
   OwnPlace,
   Place,
+  PlacePhoto,
   PlaceReview,
   PlanInsight,
   RaastaLegOptions,
@@ -118,6 +119,12 @@ export function useAiHelperEnabled() {
 export function useAgentEnabled() {
   return useMe().data?.features?.agent === true
 }
+
+/** Photos of a place from Wikimedia Commons, for Rico to show while he talks about it (each with its credit). */
+export function placePhotos(place: string, city?: string): Promise<PlacePhoto[]> {
+  return api.get<PlacePhoto[]>('/v1/places/photos', { query: { place, city }, timeoutMs: 12_000 })
+}
+export type { PlacePhoto }
 
 /** Talking with Rico out loud, in real time (Gemini Live): only where the server has the AI helper with a key. */
 export function useVoiceChatEnabled() {

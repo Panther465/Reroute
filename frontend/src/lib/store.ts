@@ -64,6 +64,8 @@ export interface UiState {
   pushReady: boolean
   /** Rico full screen, talking out loud (components/roo/RicoVoice.tsx): why he came, and as what. */
   ricoVoice: RicoVoiceRequest | null
+  /** Rico talking, shrunk to his bar along the bottom while he shows something on the screen. */
+  ricoVoiceMini: boolean
   /** Rico out and about along the bottom of the screens (components/roo/RicoPal.tsx). */
   ricoRoams: boolean
   /** Rico is the traveller's local guide (tourist mode): he wears his guide glasses, and his agent recommends places
@@ -111,6 +113,7 @@ function defaults(): UiState {
     pendingDelay: null,
     pushReady: false,
     ricoVoice: null,
+    ricoVoiceMini: false,
     ricoRoams: true,
     ricoGuide: false,
     ricoBubble: null,

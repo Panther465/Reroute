@@ -1,5 +1,5 @@
 """Places: search for the task form (known places first, then Nominatim), the places travellers add
-themselves, and the moderators' check before a shared one shows to everyone."""
+themselves, the moderators' check before a shared one shows to everyone, and photos of a place for Rico to show."""
 
 from __future__ import annotations
 
@@ -9,12 +9,13 @@ from typing import Annotated, Literal
 import redis
 from fastapi import APIRouter, Path, Query, Response
 
+from app.adapters import photos
 from app.cities import city as supported_city
 from app.deps import CurrentUser, Db, Moderator
 from app.errors import ApiError
 from app.models import Place
 from app.redis_client import get_redis
-from app.schemas import OwnPlaceIn, OwnPlaceOut, PlaceOut, PlaceRejectIn, PlaceReviewOut, PostBody
+from app.schemas import OwnPlaceIn, OwnPlaceOut, PlaceOut, PlacePhotoOut, PlaceRejectIn, PlaceReviewOut, PostBody
 from app.services import places
 from app.services.views import place_out
 
@@ -70,6 +71,18 @@ def _within_daily_limit(user_id: str) -> None:
     if used > ADDS_PER_DAY:
         retry = str(24 * 3600 - int(time.time()) % (24 * 3600))
         raise ApiError(429, f"You can add {ADDS_PER_DAY} places a day. Try again tomorrow.", code="RATE_LIMITED", headers={"Retry-After": retry})
+
+
+@router.get("/places/photos", response_model=list[PlacePhotoOut], response_model_by_alias=True, summary="Photos of a place, for Rico to show")
+async def place_photos(
+    user: CurrentUser,
+    place: Annotated[str, Query(min_length=2, max_length=80)],
+    city: Annotated[str | None, Query(max_length=80)] = None,
+) -> list[PlacePhotoOut]:
+    """Up to 8 photographs from Wikimedia Commons, best match first, each with its credit; none when Commons has
+    none or doesn't answer. Only the place's name (and city) goes to Commons."""
+    found = await photos.place_photos(place, city)
+    return [PlacePhotoOut(url=p.url, thumb_url=p.thumb_url, title=p.title, credit=p.credit, source_url=p.source_url) for p in found]
 
 
 @router.post("/me/places", response_model=OwnPlaceOut, response_model_by_alias=True, status_code=201, summary="Add a place of your own in a city")

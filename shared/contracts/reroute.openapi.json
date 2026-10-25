@@ -833,6 +833,88 @@
         }
       }
     },
+    "/v1/places/photos": {
+      "get": {
+        "tags": [
+          "places"
+        ],
+        "summary": "Photos of a place, for Rico to show",
+        "description": "Up to 8 photographs from Wikimedia Commons, best match first, each with its credit; none when Commons has\nnone or doesn't answer. Only the place's name (and city) goes to Commons.",
+        "operationId": "place_photos_v1_places_photos_get",
+        "parameters": [
+          {
+            "name": "place",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "maxLength": 80,
+              "title": "Place"
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 80
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "City"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PlacePhotoOut"
+                  },
+                  "title": "Response Place Photos V1 Places Photos Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/me/places": {
       "post": {
         "tags": [
@@ -6365,6 +6447,40 @@
           "lat"
         ],
         "title": "PlaceOut"
+      },
+      "PlacePhotoOut": {
+        "properties": {
+          "url": {
+            "type": "string",
+            "title": "Url"
+          },
+          "thumbUrl": {
+            "type": "string",
+            "title": "Thumburl"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "credit": {
+            "type": "string",
+            "title": "Credit"
+          },
+          "sourceUrl": {
+            "type": "string",
+            "title": "Sourceurl"
+          }
+        },
+        "type": "object",
+        "required": [
+          "url",
+          "thumbUrl",
+          "title",
+          "credit",
+          "sourceUrl"
+        ],
+        "title": "PlacePhotoOut",
+        "description": "A photograph of a place from Wikimedia Commons, for Rico to show. Show its credit with it."
       },
       "PlaceRejectIn": {
         "properties": {

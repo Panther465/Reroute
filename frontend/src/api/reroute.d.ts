@@ -225,6 +225,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/places/photos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Photos of a place, for Rico to show
+         * @description Up to 8 photographs from Wikimedia Commons, best match first, each with its credit; none when Commons has
+         *     none or doesn't answer. Only the place's name (and city) goes to Commons.
+         */
+        get: operations["place_photos_v1_places_photos_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/me/places": {
         parameters: {
             query?: never;
@@ -1851,6 +1872,22 @@ export interface components {
              */
             mine: boolean;
         };
+        /**
+         * PlacePhotoOut
+         * @description A photograph of a place from Wikimedia Commons, for Rico to show. Show its credit with it.
+         */
+        PlacePhotoOut: {
+            /** Url */
+            url: string;
+            /** Thumburl */
+            thumbUrl: string;
+            /** Title */
+            title: string;
+            /** Credit */
+            credit: string;
+            /** Sourceurl */
+            sourceUrl: string;
+        };
         /** PlaceRejectIn */
         PlaceRejectIn: {
             /** Idempotencykey */
@@ -3326,6 +3363,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PlaceOut"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    place_photos_v1_places_photos_get: {
+        parameters: {
+            query: {
+                place: string;
+                city?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlacePhotoOut"][];
                 };
             };
             /** @description Validation Error */

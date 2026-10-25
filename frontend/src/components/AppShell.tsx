@@ -118,7 +118,7 @@ function TopBar({ demo }: { demo?: ReactNode }) {
       <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-8 px-8">
         <NavLink to="/" className="flex min-h-12 items-center gap-2 rounded-control" aria-label="Reroute, Today">
           <RouteMark size={28} />
-          <span className="font-display text-[1.5rem] font-extrabold leading-none tracking-[-0.01em] text-ink [font-stretch:75%]">Reroute</span>
+          <span className="font-display text-[length:calc(1.5rem*var(--grow-display))] font-extrabold leading-none tracking-[-0.01em] text-ink [font-stretch:75%]">Reroute</span>
         </NavLink>
         <nav aria-label="Main">
           <ul className="flex gap-1">
@@ -242,6 +242,8 @@ export default function AppShell() {
   // In the Android app, leave-by alerts also come as pushes while they're on and this server sends them
   // (lib/push.ts): the phone is registered each time the app opens, which also hands the server a token Firebase
   // has since replaced, and again when the signal is back if that failed. Signed out: native/boot.ts.
+  // Rico walks along the bottom of every screen but Today: room for him under the last thing on the page.
+  const ricoRoams = useStore((s) => s.ricoRoams)
   const leaveAlerts = useStore((s) => s.leaveAlerts)
   const pushOffered = useMe().data?.features?.push
   useEffect(() => {
@@ -258,6 +260,7 @@ export default function AppShell() {
   // An account with no trip yet meets Roo, who sets the first one up (the demo account always has its own).
   if (location.pathname === '/' && me.data && !me.data.isDemo && !current.isPending && !current.isError && current.tripId === null) return <Navigate to="/welcome" replace />
   const pushed = matches.some((m) => (m.handle as { pushed?: boolean } | undefined)?.pushed)
+  const ricoRoom = ricoRoams && location.pathname !== '/'
   const group = location.pathname.split('/')[1] ?? ''
   const openLate = (delay: number | null = null, mode: 'late' | 'options' = 'late') => {
     setLateLoaded(true)
@@ -285,7 +288,17 @@ export default function AppShell() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               transition={{ duration: 0.16 }}
-              className={desktop ? '' : pushed ? 'pb-8' : 'pb-[calc(64px+env(safe-area-inset-bottom))]'}
+              className={
+                desktop
+                  ? ''
+                  : pushed
+                    ? ricoRoom
+                      ? 'pb-[calc(84px+env(safe-area-inset-bottom))]'
+                      : 'pb-8'
+                    : ricoRoom
+                      ? 'pb-[calc(144px+env(safe-area-inset-bottom))]'
+                      : 'pb-[calc(64px+env(safe-area-inset-bottom))]'
+              }
             >
               <Outlet context={{ moderator }} />
             </motion.main>
@@ -322,7 +335,12 @@ export default function AppShell() {
             )}
             {voiceLoaded && (
               <Suspense fallback={null}>
-                <RicoVoice trip={trip.data ?? undefined} />
+                <RicoVoice
+                  trip={trip.data ?? undefined}
+                  clock={clock ?? null}
+                  // Shrunk to his bar, Rico sits above the tab bar, or at the bottom of a screen without one.
+                  bottom={desktop ? '16px' : pushed ? 'calc(8px + env(safe-area-inset-bottom))' : 'calc(72px + env(safe-area-inset-bottom))'}
+                />
               </Suspense>
             )}
             <Toaster tripId={current.tripId} />

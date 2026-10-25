@@ -188,6 +188,19 @@ class PlaceOut(Api):
     mine: bool = False
 
 
+class PlacePhotoOut(Api):
+    """A photograph of a place from Wikimedia Commons, for Rico to show. Show its credit with it."""
+
+    url: str
+    #: 800 px wide, for the screen.
+    thumb_url: str
+    title: str
+    #: Who took it and its licence: "Photo: A. Kumar, CC BY-SA 4.0, Wikimedia Commons".
+    credit: str
+    #: Its page on Commons.
+    source_url: str
+
+
 class OwnPlaceIn(PostBody):
     """A place of your own, at a point in the city you're planning in."""
 
