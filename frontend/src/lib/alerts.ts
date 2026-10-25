@@ -19,6 +19,17 @@ export interface AlertSpec {
   tag?: string
 }
 
+/** The voices Roo can use, as the server lists them (`GET /v1/speech/voices`). */
+export const VOICES: { id: string; label: string }[] = [
+  { id: 'en-US-AnaNeural', label: 'Ana, Rico’s own voice' },
+  { id: 'en-IN-NeerjaNeural', label: 'Neerja, Indian English' },
+  { id: 'en-IN-PrabhatNeural', label: 'Prabhat, Indian English' },
+  { id: 'hi-IN-SwaraNeural', label: 'Swara, Hindi accent' },
+  { id: 'hi-IN-MadhurNeural', label: 'Madhur, Hindi accent' },
+  { id: 'en-GB-SoniaNeural', label: 'Sonia, British English' },
+  { id: 'en-US-AriaNeural', label: 'Aria, American English' },
+]
+
 const FIRED_KEY = 'reroute:alerts-fired'
 
 function fired(): Set<string> {

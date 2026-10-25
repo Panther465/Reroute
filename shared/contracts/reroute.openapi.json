@@ -1451,7 +1451,7 @@
         "tags": [
           "speech"
         ],
-        "summary": "Read a short alert aloud",
+        "summary": "Read a short alert aloud (MP3)",
         "operationId": "speak_v1_speech_get",
         "parameters": [
           {
@@ -1510,9 +1510,8 @@
         ],
         "responses": {
           "200": {
-            "description": "WAV in Rico's own voice, or MP3 in a Microsoft one",
+            "description": "MP3 audio",
             "content": {
-              "audio/wav": {},
               "audio/mpeg": {}
             }
           },
@@ -7827,11 +7826,6 @@
             },
             "type": "array",
             "title": "Words"
-          },
-          "paced": {
-            "type": "boolean",
-            "title": "Paced",
-            "default": true
           }
         },
         "type": "object",

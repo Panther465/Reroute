@@ -2,7 +2,7 @@ import { ChevronRight, History, Languages, LogOut, Luggage, Moon, ShieldCheck, S
 import { useId, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { api, ApiError } from '@/api/client'
-import { useAgentEnabled, useCurrentTripId, useMe, usePushEnabled, useTrip, useVoices, useWalletEnabled } from '@/api/queries'
+import { useAgentEnabled, useCurrentTripId, useMe, usePushEnabled, useTrip, useWalletEnabled } from '@/api/queries'
 import { ConnectedServices, WalletPanel } from '@/components/money/Money'
 import { HeyRicoSettings } from '@/components/roo/HeyRicoSettings'
 import { RerouteLog } from '@/components/RerouteLog'
@@ -14,7 +14,7 @@ import { Sheet } from '@/components/ui/Sheet'
 import { ErrorState, Skeleton } from '@/components/ui/States'
 import { useDocumentTitle, useOnline } from '@/lib/hooks'
 import { T, useTl } from '@/lib/i18n'
-import { chime, raise, speak } from '@/lib/alerts'
+import { chime, raise, speak, VOICES } from '@/lib/alerts'
 import { geolocationSupported, startTracking, stopTracking, useLocation } from '@/lib/location'
 import { isNative, native, settingsName } from '@/lib/platform'
 import { signOut } from '@/lib/session'
@@ -53,9 +53,6 @@ export default function Me() {
   const walletOn = useWalletEnabled()
   const alertPrefs = useStore((s) => s.alerts)
   const setAlerts = (patch: Partial<AlertPrefs>) => setState((s) => ({ alerts: { ...s.alerts, ...patch } }))
-  // Natural voices on this server: Microsoft's to choose from, or only Rico's own (Gemini's).
-  const voices = useVoices(alertPrefs.voice && me.data?.features?.voices !== false)
-  const ownVoice = voices.data?.length === 1
   const voiceSelectId = useId()
   const volumeId = useId()
   const location = useLocation()
@@ -203,33 +200,21 @@ export default function Me() {
               />
             </div>
           )}
-          <Switch
-            label="Rico’s voice"
-            description={
-              ownVoice
-                ? 'Rico reads each alert aloud in his own voice, the one he talks with you in, in English or Hindi. Without a connection, your phone’s own voice reads it.'
-                : 'Rico reads each alert aloud in a natural voice. Without a connection, your phone’s own voice reads it.'
-            }
-            checked={alertPrefs.voice}
-            onChange={(v) => setAlerts({ voice: v })}
-          />
+          <Switch label="Rico’s voice" description="Rico reads each alert aloud in a natural voice. Without a connection, your phone’s own voice reads it." checked={alertPrefs.voice} onChange={(v) => setAlerts({ voice: v })} />
           {alertPrefs.voice && (
             <div className="flex flex-col gap-4 py-4">
-              {/* With Rico's own voice there's nothing to choose: he sounds the same everywhere. */}
-              {voices.data && !ownVoice && (
-                <div>
-                  <label htmlFor={voiceSelectId} className="mb-2 block t-title text-ink">
-                    Voice
-                  </label>
-                  <select id={voiceSelectId} value={alertPrefs.voiceId} onChange={(e) => setAlerts({ voiceId: e.target.value })} className={inputClass}>
-                    {voices.data.map((v) => (
-                      <option key={v.voiceId} value={v.voiceId}>
-                        {v.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
+              <div>
+                <label htmlFor={voiceSelectId} className="mb-2 block t-title text-ink">
+                  Voice
+                </label>
+                <select id={voiceSelectId} value={alertPrefs.voiceId} onChange={(e) => setAlerts({ voiceId: e.target.value })} className={inputClass}>
+                  {VOICES.map((v) => (
+                    <option key={v.id} value={v.id}>
+                      {v.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <Segmented<VoiceRate>
                 label="Speed"
                 value={alertPrefs.voiceRate}
