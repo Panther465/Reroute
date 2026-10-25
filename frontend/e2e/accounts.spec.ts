@@ -28,6 +28,8 @@ test('create an account, meet Rico, and plan a day by chatting', async ({ page }
 
   await expect(page).toHaveURL(/\/welcome$/, { timeout: 20_000 })
   await said('Hi Asha! I’m Rico.')
+  await said(/How will you use Reroute\?/)
+  await answer(page, 'Plan my days')
   await said('Which city are you visiting?')
   await answer(page, 'Bengaluru')
   await said('When are you there?')

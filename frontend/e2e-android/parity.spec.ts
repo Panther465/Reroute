@@ -646,6 +646,8 @@ test('signs out, creates an email account, and Rico plans its first day by chatt
     await page.getByRole('group', { name: 'Places found' }).getByRole('button', { name: new RegExp(name) }).first().click()
   }
   await said('Hi Asha! I’m Rico.')
+  await said(/How will you use Reroute\?/)
+  await answer('Plan my days')
   await said('Which city are you visiting?')
   await answer('Bengaluru')
   await said('When are you there?')
