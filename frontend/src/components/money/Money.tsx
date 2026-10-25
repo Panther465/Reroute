@@ -245,7 +245,7 @@ export function WalletPanel() {
       <div className="flex flex-wrap items-end justify-between gap-3 p-4">
         <div>
           <p className="t-small text-muted">Balance (simulated money)</p>
-          <p className="font-display text-[2.25rem] font-extrabold leading-none text-ink tnum [font-stretch:87.5%]" aria-live="polite">
+          <p className="font-display text-[length:calc(2.25rem*var(--grow-display))] font-extrabold leading-none text-ink tnum [font-stretch:87.5%]" aria-live="polite">
             {wallet.data ? rupees(balance) : '…'}
           </p>
         </div>
@@ -269,7 +269,7 @@ export function WalletPanel() {
                   <span className="block truncate t-body text-ink">{e.label}</span>
                   <span className="block t-small text-muted">{KIND[e.kind]}</span>
                 </span>
-                <span className={`t-title tnum ${e.amountInr > 0 ? 'text-green-ink' : 'text-ink'}`}>
+                <span className={`shrink-0 whitespace-nowrap t-title tnum ${e.amountInr > 0 ? 'text-green-ink' : 'text-ink'}`}>
                   {e.amountInr > 0 ? '+' : '−'}
                   {rupees(Math.abs(e.amountInr))}
                 </span>
@@ -295,27 +295,26 @@ export function ConnectedServices() {
             <li key={p.id} className="flex items-center gap-3 px-4 py-3">
               <PartnerMark p={p} />
               <span className="min-w-0 flex-1">
-                <span className="flex items-center gap-2 t-title text-ink">
+                {/* The badge wraps under the name when a narrow phone has no room beside it. */}
+                <span className="flex flex-wrap items-center gap-x-2 gap-y-1 t-title text-ink">
                   {p.name}
                   <Tag tone="grey-outline">Simulated</Tag>
                 </span>
-                <span className="block t-small text-ink-2">
-                  {p.what}
-                  {on && (
-                    <span className="text-green-ink">
-                      {' '}
-                      · <Check size={14} strokeWidth={2.5} aria-hidden="true" className="inline align-[-2px]" /> Connected
-                    </span>
-                  )}
-                </span>
+                <span className="block t-small text-ink-2">{p.what}</span>
+                {/* On a line of its own: beside what the partner does, a narrow phone split it in odd places. */}
+                {on && (
+                  <span className="flex items-center gap-1 t-small text-green-ink">
+                    <Check size={14} strokeWidth={2.5} aria-hidden="true" /> Connected
+                  </span>
+                )}
               </span>
               {on ? (
-                <Button variant="tertiary" size="md" onClick={() => disconnect(p.id)}>
+                <Button variant="tertiary" size="md" className="shrink-0" onClick={() => disconnect(p.id)}>
                   Disconnect
                   <span className="sr-only"> {p.name}</span>
                 </Button>
               ) : (
-                <Button variant="secondary" size="md" icon={<ChevronRight size={18} aria-hidden="true" />} onClick={() => setConnecting(p.id)}>
+                <Button variant="secondary" size="md" className="shrink-0" icon={<ChevronRight size={18} aria-hidden="true" />} onClick={() => setConnecting(p.id)}>
                   Connect
                   <span className="sr-only"> {p.name}</span>
                 </Button>

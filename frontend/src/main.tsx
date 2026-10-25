@@ -4,8 +4,11 @@ import App from './App'
 import './index.css'
 import { isNative } from './lib/platform'
 import { handleStaleChunks } from './lib/reload'
+import { followTextZoom } from './lib/textZoom'
 
 handleStaleChunks()
+// Before the first paint, so big type is sized for the phone's text size from the start.
+followTextZoom()
 
 function render() {
   ReactDOM.createRoot(document.getElementById('root')!).render(

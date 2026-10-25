@@ -91,6 +91,19 @@
   }
 }
 
+/* How much bigger the phone's text size makes each size of type. The Android app's web view grows every font by --tz
+   (1.3 with Android's text size at 130%; lib/textZoom.ts) but not the space around it. Like Android's own non-linear
+   font scaling, body text keeps all of it, for reading, and bigger type keeps less, so headings and figures still fit
+   a narrow phone: each --grow-* divides part of --tz back out. All are 1 in a browser. */
+:root {
+  --tz: 1;
+  --grow-title: calc((1 + (var(--tz) - 1) * 0.75) / var(--tz));
+  /* Button labels sit in boxes of a fixed width, two to a row on a phone. */
+  --grow-button: calc((1 + (var(--tz) - 1) * 0.5) / var(--tz));
+  --grow-large: calc((1 + (var(--tz) - 1) * 0.5) / var(--tz));
+  --grow-display: calc((1 + (var(--tz) - 1) * 0.3) / var(--tz));
+}
+
 /* Type scale (section 6.2). rem keeps text zoom working. */
 @layer components {
   .t-display-1,
@@ -111,36 +124,41 @@
   }
   .t-display-1 {
     font-weight: 800;
-    font-size: 2rem;
-    line-height: 2.125rem;
+    font-size: calc(2rem * var(--grow-display));
+    line-height: calc(2.125rem * var(--grow-display));
   }
   .t-display-2 {
     font-weight: 800;
-    font-size: 1.625rem;
-    line-height: 1.75rem;
+    font-size: calc(1.625rem * var(--grow-display));
+    line-height: calc(1.75rem * var(--grow-display));
   }
   .t-time-lg {
     font-weight: 700;
-    font-size: 2.5rem;
-    line-height: 2.5rem;
+    font-size: calc(2.5rem * var(--grow-display));
+    line-height: calc(2.5rem * var(--grow-display));
     font-variant-numeric: tabular-nums;
   }
   .t-time {
     font-weight: 700;
-    font-size: 1.3125rem;
-    line-height: 1.5rem;
+    font-size: calc(1.3125rem * var(--grow-large));
+    line-height: calc(1.5rem * var(--grow-large));
     font-variant-numeric: tabular-nums;
   }
   .t-money {
     font-weight: 800;
-    font-size: 1.625rem;
-    line-height: 1.75rem;
+    font-size: calc(1.625rem * var(--grow-large));
+    line-height: calc(1.75rem * var(--grow-large));
     font-variant-numeric: tabular-nums;
   }
   .t-title {
     font-weight: 700;
-    font-size: 1.0625rem;
-    line-height: 1.5rem;
+    font-size: calc(1.0625rem * var(--grow-title));
+    line-height: calc(1.5rem * var(--grow-title));
+  }
+  .t-button {
+    font-weight: 700;
+    font-size: calc(1.0625rem * var(--grow-button));
+    line-height: calc(1.375rem * var(--grow-button));
   }
   .t-body {
     font-weight: 400;
@@ -162,16 +180,16 @@
   }
   @media (min-width: 1024px) {
     .t-display-1 {
-      font-size: 2.125rem;
-      line-height: 2.25rem;
+      font-size: calc(2.125rem * var(--grow-display));
+      line-height: calc(2.25rem * var(--grow-display));
     }
     .t-display-2 {
-      font-size: 1.75rem;
-      line-height: 1.875rem;
+      font-size: calc(1.75rem * var(--grow-display));
+      line-height: calc(1.875rem * var(--grow-display));
     }
     .t-time-lg {
-      font-size: 2.625rem;
-      line-height: 2.625rem;
+      font-size: calc(2.625rem * var(--grow-display));
+      line-height: calc(2.625rem * var(--grow-display));
     }
   }
   .measure {

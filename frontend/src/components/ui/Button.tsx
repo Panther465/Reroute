@@ -6,13 +6,13 @@ export type ButtonVariant = 'primary' | 'secondary' | 'tertiary' | 'destructive'
 
 // The press (scale 0.97 over 90 ms) is plain CSS, so pages with buttons don't need the animation library.
 const base =
-  'relative inline-flex items-center justify-center gap-2 select-none whitespace-normal text-center t-title transition-[color,background-color,border-color,scale] duration-[var(--dur-quick)] motion-safe:[&:active:enabled:not([aria-busy])]:scale-[0.97] motion-safe:[&:active:enabled:not([aria-busy])]:duration-[90ms] disabled:cursor-not-allowed disabled:opacity-60'
+  'relative inline-flex items-center justify-center gap-2 select-none whitespace-normal text-center t-button [text-wrap:balance] transition-[color,background-color,border-color,scale] duration-[var(--dur-quick)] motion-safe:[&:active:enabled:not([aria-busy])]:scale-[0.97] motion-safe:[&:active:enabled:not([aria-busy])]:duration-[90ms] disabled:cursor-not-allowed disabled:opacity-60'
 
 const variants: Record<ButtonVariant, string> = {
-  primary: 'bg-green text-on-green rounded-control px-5 [@media(hover:hover)]:hover:enabled:bg-green-ink',
-  secondary: 'border-2 border-ink text-ink rounded-control px-5 bg-transparent [@media(hover:hover)]:hover:enabled:bg-sunken',
+  primary: 'bg-green text-on-green rounded-control px-4 [@media(hover:hover)]:hover:enabled:bg-green-ink',
+  secondary: 'border-2 border-ink text-ink rounded-control px-4 bg-transparent [@media(hover:hover)]:hover:enabled:bg-sunken',
   tertiary: 'text-ink underline underline-offset-4 decoration-2 rounded-tag px-2 [@media(hover:hover)]:hover:enabled:bg-sunken',
-  destructive: 'border-2 border-red text-red-ink rounded-control px-5 bg-transparent [@media(hover:hover)]:hover:enabled:bg-red-tint',
+  destructive: 'border-2 border-red text-red-ink rounded-control px-4 bg-transparent [@media(hover:hover)]:hover:enabled:bg-red-tint',
 }
 
 export function buttonClass(variant: ButtonVariant = 'primary', size: 'lg' | 'md' = 'lg', full = false) {

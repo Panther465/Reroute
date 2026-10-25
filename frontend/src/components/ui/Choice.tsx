@@ -30,14 +30,16 @@ export function Segmented<T extends string>({
         value={value}
         onValueChange={(v) => v && onChange(v as T)}
         aria-labelledby={labelId}
-        className={`flex flex-wrap gap-1 rounded-control bg-sunken p-1 ${full ? 'w-full' : 'inline-flex'}`}
+        className={`flex gap-1 rounded-control bg-sunken p-1 ${full ? 'w-full' : 'inline-flex'}`}
       >
+        {/* The options stay side by side: on a narrow phone with big text, a long label wraps inside its own option
+            (an icon goes above it) rather than pushing options onto rows of their own. */}
         {options.map((o) => (
           <ToggleGroup.Item
             key={o.value}
             value={o.value}
             lang={o.lang}
-            className="flex min-h-12 flex-1 basis-0 items-center justify-center gap-2 whitespace-nowrap rounded-[11px] border-2 border-transparent px-3 t-title text-ink-2 transition-[color,background-color,border-color,scale] duration-[var(--dur-quick)] motion-safe:active:scale-[0.97] data-[state=on]:border-green data-[state=on]:bg-surface data-[state=on]:text-ink [@media(hover:hover)]:hover:data-[state=off]:bg-surface/60"
+            className="flex min-h-12 min-w-0 flex-1 basis-0 flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded-[11px] border-2 border-transparent px-2 py-1 text-center t-title text-ink-2 [text-wrap:balance] transition-[color,background-color,border-color,scale] duration-[var(--dur-quick)] motion-safe:active:scale-[0.97] data-[state=on]:border-green data-[state=on]:bg-surface data-[state=on]:text-ink [@media(hover:hover)]:hover:data-[state=off]:bg-surface/60"
           >
             {o.icon}
             {o.label}

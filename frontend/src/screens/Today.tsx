@@ -620,8 +620,9 @@ export default function Today() {
     </Button>
   )
 
+  // Two to a row on a phone: a little less padding, so "Running late" stays on one line with big text.
   const actions = !view.done && (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="grid grid-cols-2 gap-3 [&>button]:px-3">
       <Button variant="destructive" onClick={() => openLate()} disabled={!target}>
         <T k="Running late" />
       </Button>

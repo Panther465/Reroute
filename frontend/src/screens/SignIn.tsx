@@ -36,7 +36,7 @@ function Feature({ id, title, screen, children }: { id: string; title: string; s
     <article aria-labelledby={id} className="grid grid-cols-[6.5rem_1fr] items-start gap-4 md:flex md:flex-col md:gap-0">
       {screen}
       <div>
-        <h3 id={id} className="t-display-2 text-ink max-md:text-[1.125rem] max-md:leading-[1.5rem] md:mt-5">
+        <h3 id={id} className="t-display-2 text-ink max-md:text-[length:calc(1.125rem*var(--grow-title))] max-md:leading-[1.5rem] md:mt-5">
           {title}
         </h3>
         <p className="mt-1 t-body text-ink-2 max-md:text-[0.9375rem] max-md:leading-[1.375rem] md:mt-2">{children}</p>
@@ -108,13 +108,14 @@ export default function SignIn() {
         <header className="flex items-center justify-between px-5 py-3">
           <span className="flex items-center gap-2">
             <RouteMark size={32} />
-            <span className="font-display text-[1.75rem] font-extrabold leading-none text-ink [font-stretch:75%]">Reroute</span>
+            <span className="font-display text-[length:calc(1.75rem*var(--grow-display))] font-extrabold leading-none text-ink [font-stretch:75%]">Reroute</span>
           </span>
           <ThemeToggle />
         </header>
         <main className="mx-auto flex w-full max-w-[26rem] flex-1 flex-col justify-center px-5 pb-10">
-          <div className="mb-5 flex items-center gap-3">
-            <RooAvatar mood="wave" size={72} reduce={reduce} />
+          {/* Rico above his words, not beside them: side by side, a narrow phone with big text squeezes both. */}
+          <div className="mb-5 flex flex-col items-center gap-2 text-center">
+            <RooAvatar mood="wave" size={96} reduce={reduce} />
             <h1 id="hero-h" tabIndex={-1} className="t-display-2 text-ink">
               Hi, I’m Rico! Sign in and I’ll plan your day with you.
             </h1>
@@ -129,7 +130,7 @@ export default function SignIn() {
       <header className="mx-auto flex max-w-[1200px] items-center justify-between px-5 py-3 lg:px-8">
         <span className="flex items-center gap-2">
           <RouteMark size={32} />
-          <span className="font-display text-[1.75rem] font-extrabold leading-none text-ink [font-stretch:75%]">Reroute</span>
+          <span className="font-display text-[length:calc(1.75rem*var(--grow-display))] font-extrabold leading-none text-ink [font-stretch:75%]">Reroute</span>
         </span>
         <span className="flex items-center gap-1">
           <a href={SOURCE} className="inline-flex min-h-12 items-center gap-1 rounded-control px-2 t-small font-bold text-ink-2 underline decoration-line-strong decoration-2 underline-offset-4 [@media(hover:hover)]:hover:text-ink">
@@ -143,10 +144,10 @@ export default function SignIn() {
       <main className="mx-auto max-w-[1200px] px-5 lg:px-8">
         <section aria-labelledby="hero-h" className="grid items-start gap-8 pb-12 pt-2 lg:grid-cols-[1fr_26rem] lg:gap-14 lg:pb-16 lg:pt-2">
           <div className="lg:pt-10">
-            <h1 id="hero-h" tabIndex={-1} className="max-w-[12ch] font-display text-[2.75rem] font-extrabold leading-[2.875rem] text-ink [font-stretch:87.5%] [text-wrap:balance] lg:text-[4.5rem] lg:leading-[4.5rem]">
+            <h1 id="hero-h" tabIndex={-1} className="max-w-[12ch] font-display text-[length:calc(2.75rem*var(--grow-display))] font-extrabold leading-[2.875rem] text-ink [font-stretch:87.5%] [text-wrap:balance] lg:text-[length:calc(4.5rem*var(--grow-display))] lg:leading-[4.5rem]">
               Running late? We’ll reroute your day.
             </h1>
-            <p className="mt-5 max-w-[34rem] t-body text-ink-2 lg:text-[1.1875rem] lg:leading-8">
+            <p className="mt-5 max-w-[34rem] t-body text-ink-2 lg:text-[length:calc(1.1875rem*var(--grow-title))] lg:leading-8">
               Reroute plans a work day in a city you don’t know: the order, when to leave, how to get there and what it costs. When a meeting runs over, it re-plans the rest of the day.
             </p>
             <ul className="mt-6 hidden max-w-[34rem] flex-col gap-3 t-body text-ink-2 lg:flex">
@@ -165,10 +166,10 @@ export default function SignIn() {
 
         <section aria-labelledby="live-h" className="grid items-center gap-8 border-t border-line py-12 lg:grid-cols-[1fr_1.05fr] lg:gap-14 lg:py-16">
           <div>
-            <h2 id="live-h" className="t-display-1 text-ink lg:text-[2.5rem] lg:leading-[2.75rem]">
+            <h2 id="live-h" className="t-display-1 text-ink lg:text-[length:calc(2.5rem*var(--grow-display))] lg:leading-[2.75rem]">
               Run a meeting late, right here
             </h2>
-            <p className="mt-4 max-w-[34rem] t-body text-ink-2 lg:text-[1.0625rem] lg:leading-7">
+            <p className="mt-4 max-w-[34rem] t-body text-ink-2 lg:text-[length:calc(1.0625rem*var(--grow-title))] lg:leading-7">
               This is the sample day as Reroute plans it. Make the meeting 15 minutes late and the later stops simply move. Make it 40 and something has to give: you choose between a cab and keeping it cheap.
             </p>
           </div>
@@ -178,7 +179,7 @@ export default function SignIn() {
         </section>
 
         <section aria-labelledby="features-h" className="border-t border-line py-12 lg:py-16">
-          <h2 id="features-h" className="t-display-1 text-ink lg:text-[2.5rem] lg:leading-[2.75rem]">
+          <h2 id="features-h" className="t-display-1 text-ink lg:text-[length:calc(2.5rem*var(--grow-display))] lg:leading-[2.75rem]">
             From the plan to the hotel door
           </h2>
           <div className="mt-6 grid gap-6 md:mt-8 md:grid-cols-3 md:gap-8">
@@ -195,7 +196,7 @@ export default function SignIn() {
         </section>
 
         <section aria-labelledby="built-h" className="border-t border-line py-12 lg:py-16">
-          <h2 id="built-h" className="t-display-1 text-ink lg:text-[2.5rem] lg:leading-[2.75rem]">
+          <h2 id="built-h" className="t-display-1 text-ink lg:text-[length:calc(2.5rem*var(--grow-display))] lg:leading-[2.75rem]">
             Built like a product
           </h2>
           <dl className="mt-6 grid gap-x-8 gap-y-6 sm:grid-cols-2 lg:grid-cols-4">
@@ -214,7 +215,7 @@ export default function SignIn() {
         </section>
 
         <section aria-labelledby="try-h" className="flex flex-col items-center border-t border-line py-12 text-center lg:py-16">
-          <h2 id="try-h" className="t-display-1 text-ink lg:text-[2.5rem] lg:leading-[2.75rem]">
+          <h2 id="try-h" className="t-display-1 text-ink lg:text-[length:calc(2.5rem*var(--grow-display))] lg:leading-[2.75rem]">
             {demoOn ? 'Try the demo day' : 'Ready when you are'}
           </h2>
           <p className="mt-3 max-w-[34rem] t-body text-ink-2">
@@ -252,7 +253,7 @@ export default function SignIn() {
         <div className="mx-auto flex max-w-[1200px] flex-col gap-4 px-5 py-8 lg:flex-row lg:items-end lg:justify-between lg:px-8">
           <span className="flex items-center gap-3">
             <RouteMark size={32} />
-            <span className="font-display text-[1.75rem] font-extrabold leading-none text-ink [font-stretch:75%]">Reroute</span>
+            <span className="font-display text-[length:calc(1.75rem*var(--grow-display))] font-extrabold leading-none text-ink [font-stretch:75%]">Reroute</span>
           </span>
           <p className="max-w-[34rem] t-small text-muted lg:text-right">
             A work-trip planner for Indian cities. The demo uses sample places and travel times for Bengaluru; every time and fare is an estimate. <a href={SOURCE} className="font-bold text-ink-2 underline underline-offset-4">Source code</a>

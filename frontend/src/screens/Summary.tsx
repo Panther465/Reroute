@@ -15,7 +15,8 @@ import { PushedScreen } from './LegDetail'
 function MiniLine({ summary }: { summary: SummaryData }) {
   const names = summary.legs.length ? [summary.legs[0].fromName, ...summary.legs.map((l) => l.toName)] : []
   return (
-    <ol className="relative flex items-start overflow-x-auto rounded-tag pb-2" aria-label="Stops today" tabIndex={0}>
+    // On a narrow phone the line scrolls sideways; its right edge fades, so the stops further along are expected.
+    <ol className="relative flex items-start overflow-x-auto rounded-tag pb-2 [mask-image:linear-gradient(to_right,#000_calc(100%-28px),transparent)]" aria-label="Stops today" tabIndex={0}>
       {names.map((name, i) => {
         const leg = summary.legs[i]
         return (

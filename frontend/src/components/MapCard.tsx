@@ -287,6 +287,15 @@ function MapInner({
     if (!compact) {
       map.touchZoomRotate.disableRotation()
       map.addControl(new maplibregl.NavigationControl({ showCompass: false }), 'top-right')
+      // The credits start folded into their (i) button: MapLibre opens them until the first drag, and on a phone
+      // with big text they covered half of a small map.
+      const fold = () => {
+        const credits = map.getContainer().querySelector('.maplibregl-ctrl-attrib')
+        credits?.classList.remove('maplibregl-compact-show')
+        credits?.removeAttribute('open')
+      }
+      map.once('load', fold)
+      map.once('idle', fold)
     }
     const refit = () => {
       if (touched.current || !fitRef.current.length) return

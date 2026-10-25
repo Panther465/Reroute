@@ -598,13 +598,13 @@ export function BookingSheet({ trip, booking, onOpenChange }: { trip: Trip; book
             </div>
             <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-3 p-4">
               <div>
-                <p className="font-display text-[2rem] font-extrabold leading-none text-ink [font-stretch:87.5%]">{String(d.origin)}</p>
+                <p className="font-display text-[length:calc(2rem*var(--grow-display))] font-extrabold leading-none text-ink [font-stretch:87.5%]">{String(d.origin)}</p>
                 <p className="t-small text-ink-2">{String(d.originCity)}</p>
                 <p className="t-time text-ink tnum">{String(d.departs)}</p>
               </div>
               <Plane size={22} strokeWidth={1.75} aria-hidden="true" className="text-muted" />
               <div className="text-right">
-                <p className="font-display text-[2rem] font-extrabold leading-none text-ink [font-stretch:87.5%]">{String(d.destination)}</p>
+                <p className="font-display text-[length:calc(2rem*var(--grow-display))] font-extrabold leading-none text-ink [font-stretch:87.5%]">{String(d.destination)}</p>
                 <p className="t-small text-ink-2">{String(d.destinationCity)}</p>
                 <p className="t-time text-ink tnum">
                   {String(d.arrives)}

@@ -287,7 +287,7 @@ function RecordRide({ onSubmit, busy, error, onDirty }: { onSubmit: (points: Gps
     <div className="mt-4">
       <div className="rounded-card border border-line bg-surface p-6 text-center">
         <p className="t-caption text-ink-2">{phase === 'recording' ? 'Recording' : phase === 'done' ? 'Ride finished' : 'Ready'}</p>
-        <p className="mt-2 font-display text-[4rem] font-bold leading-none tracking-[-0.01em] text-ink tnum [font-stretch:75%]" role="timer" aria-live="off">
+        <p className="mt-2 font-display text-[length:calc(4rem*var(--grow-display))] font-bold leading-none tracking-[-0.01em] text-ink tnum [font-stretch:75%]" role="timer" aria-live="off">
           {mmss(secs)}
         </p>
         <p className="mt-2 t-body text-ink-2 tnum">About {km.toFixed(1)} km</p>
