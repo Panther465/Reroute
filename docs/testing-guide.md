@@ -81,6 +81,7 @@ The quickest way through everything that matters, on the phone (or a phone-sized
 5. **Running late**: Today, **Running late**, 30 minutes. The rest of the day re-plans, a fixed meeting keeps its time, and Rico offers to tell them.
 6. **Google Calendar** (with Google set up, below): Plan, **Import from Google Calendar**. Your appointments on the trip's days come in ticked; one whose place didn't match asks where it is.
 7. **Directions**: open the next ride, **Start directions**, and **Open in Google Maps**.
+8. **Google Maps** (with `GOOGLE_MAPS_API_KEY`, README "Google Maps"): every map is Google's in the app's own colours, light and dark, with "Google Maps" and Google's copyright line on it; searching a place ("MTR Lalbagh Road") finds Google's; Rico's place cards show Google's rating, open now, today's hours and a Google photo. Moving (or **Simulate**'s ride), your position is an arrow pointing the way you go.
 
 ## Before each session
 
