@@ -1,6 +1,6 @@
 // The signed-in session. The access token lives in memory; the refresh cookie restores it on load.
 import { useEffect, useSyncExternalStore } from 'react'
-import { api, apiBase, cookie, isSignedOutError, onAuthChange, refreshSession, setAccessToken, setForcedOffline } from '@/api/client'
+import { api, apiBase, cookie, holdsSession, isSignedOutError, onAuthChange, refreshSession, setAccessToken, setForcedOffline } from '@/api/client'
 import { keys, queryClient } from '@/api/queries'
 import type { Token, User } from '@/api/types'
 import { cancelPendingCheckins } from './actions'
@@ -59,15 +59,16 @@ onAuthChange((signedIn) => {
 })
 
 /**
- * Restore the session from the refresh cookie. Only a refused cookie signs out: if the server
- * can't be reached (no signal, or a weak one) and this phone has the traveller's saved session,
- * the app opens in offline mode with the saved plan.
+ * Restore the session from the refresh cookie (the Android app: the token it keeps). Only a refused one signs
+ * out: if the server can't be reached (no signal, a weak one, or the server down) while this phone still has the
+ * traveller's saved account or the session itself, the app opens in offline mode with the saved plan, and the
+ * refresh is tried again: within seconds, then on a new connection or back on screen (api/client.ts).
  */
 export async function restoreSession() {
   const result = await refreshSession()
   if (result === 'ok') return set('signedIn')
-  const cachedUser = queryClient.getQueryData<User>(keys.me)
-  set(result === 'unreachable' && cachedUser ? 'signedIn' : 'signedOut')
+  const kept = result === 'unreachable' && (queryClient.getQueryData<User>(keys.me) !== undefined || (await holdsSession()))
+  set(kept ? 'signedIn' : 'signedOut')
 }
 
 let started = false

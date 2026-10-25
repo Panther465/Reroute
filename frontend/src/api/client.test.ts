@@ -167,6 +167,69 @@ describe('in the Android app', () => {
     expect(kept).toBe('app-refresh-0000000000000001')
   })
 
+  it('refreshes again within seconds when the answer is lost, with the same token, inside the server’s 30 s grace', async () => {
+    // The server may have rotated the token before the answer was lost; presented again more than 30 s after that,
+    // it would end the whole session as stolen.
+    vi.useFakeTimers()
+    try {
+      const sent: { at: number; token: string }[] = []
+      vi.stubGlobal(
+        'fetch',
+        vi.fn((_url: string, init: RequestInit) => {
+          sent.push({ at: Date.now(), token: JSON.parse(String(init.body)).refreshToken })
+          if (sent.length === 1) return new Promise((_resolve, reject) => init.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError'))))
+          return Promise.resolve(json(200, { accessToken: 'new-access', refreshToken: 'app-refresh-0000000000000002' }))
+        }),
+      )
+      const first = refreshSession()
+      await vi.advanceTimersByTimeAsync(6000)
+      expect(await first).toBe('unreachable')
+      await vi.advanceTimersByTimeAsync(5000)
+      expect(sent.map((s) => s.token)).toEqual(['app-refresh-0000000000000001', 'app-refresh-0000000000000001'])
+      expect(sent[1].at - sent[0].at).toBeLessThan(20_000)
+      expect(getAccessToken()).toBe('new-access')
+      expect(kept).toBe('app-refresh-0000000000000002')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps trying for 20 s only, then again on a new connection or back on screen', async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchSpy = vi.fn(async () => Promise.reject(new TypeError('Failed to fetch')))
+      vi.stubGlobal('fetch', fetchSpy)
+      expect(await refreshSession()).toBe('unreachable')
+      await vi.advanceTimersByTimeAsync(60_000)
+      const tries = fetchSpy.mock.calls.length
+      expect(tries).toBeGreaterThan(2)
+      expect(tries).toBeLessThanOrEqual(8)
+      await vi.advanceTimersByTimeAsync(60_000)
+      expect(fetchSpy).toHaveBeenCalledTimes(tries)
+
+      vi.stubGlobal('fetch', vi.fn(async () => json(200, { accessToken: 'back', refreshToken: 'app-refresh-0000000000000003' })))
+      window.dispatchEvent(new Event('online'))
+      await vi.advanceTimersByTimeAsync(0)
+      expect(getAccessToken()).toBe('back')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('a refresh that answers settles it: nothing goes again', async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchSpy = vi.fn(async () => json(401, { error: { code: 'UNAUTHENTICATED', message: 'Your session ended. Sign in again.', traceId: 't' } }))
+      vi.stubGlobal('fetch', fetchSpy)
+      expect(await refreshSession()).toBe('rejected')
+      window.dispatchEvent(new Event('online'))
+      await vi.advanceTimersByTimeAsync(30_000)
+      expect(fetchSpy).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('says it is the app only when signing in, so other calls stay simple for CORS', async () => {
     responses.push(() => json(200, { accessToken: 'a', refreshToken: 'app-refresh-0000000000000003' }))
     responses.push(() => json(200, { userId: 'u1' }))
