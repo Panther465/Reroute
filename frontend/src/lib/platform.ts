@@ -36,9 +36,7 @@ export interface NativeHooks {
     popUp: (on: boolean) => Promise<{ asked: boolean }>
     pause: () => Promise<void>
     resume: () => Promise<void>
-    /** Rico over other apps (bar mode): his window over the whole screen; as tall as the page's bar; gone; or on to
-     *  the app itself. */
-    barFull: () => Promise<void>
+    /** Rico over other apps (bar mode): his window as tall as the page's sheet; gone; or on to the app itself. */
     barHeight: (height: number) => Promise<void>
     leaveBar: () => Promise<void>
     openApp: (path: string, said: string) => Promise<void>

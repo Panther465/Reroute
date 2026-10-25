@@ -130,6 +130,8 @@ let sounding: Promise<void> = Promise.resolve()
 
 // ---------- The alert ----------
 export function raise(spec: AlertSpec, opts: { force?: boolean } = {}) {
+  // Rico's sheet over other apps is only him: the day's alerts are the app's, and come when it's opened.
+  if (getState().ricoBar) return
   if (!opts.force) {
     if (fired().has(spec.key)) return
     remember(spec.key)
@@ -142,6 +144,8 @@ export function raise(spec: AlertSpec, opts: { force?: boolean } = {}) {
   // The chime first, then Roo's voice, after any alert still sounding.
   sounding = sounding.then(async () => {
     try {
+      // While Rico talks out loud he's the only voice: the alert shows and buzzes, but no chime or second voice.
+      if (getState().ricoVoice) return
       if (prefs.sound) await chime(tone, prefs.chime, prefs.volume)
       if (prefs.voice) await speak(spec.speech ?? spec.title, prefs)
     } catch {
