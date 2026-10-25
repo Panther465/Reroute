@@ -177,6 +177,15 @@ def tile_session(dark: bool, client: httpx.Client | None = None) -> TileSession:
 # ---------- places ----------
 
 
+def _places(res: httpx.Response) -> list[dict[str, Any]]:
+    """The places in a Places API answer; an answer that isn't one counts as no answer at all."""
+    try:
+        places = res.json().get("places") or []
+    except (ValueError, AttributeError) as exc:
+        raise GoogleUnavailable("Places: an answer that isn't one") from exc
+    return [p for p in places if isinstance(p, dict)] if isinstance(places, list) else []
+
+
 def _area(place: dict[str, Any], city: str) -> str:
     """The neighbourhood a place is in, as Google names it ("Koramangala"), else the start of its short address."""
     for kind in ("sublocality_level_1", "sublocality", "neighborhood", "locality"):
@@ -213,10 +222,10 @@ def search_places(query: str, where: City, client: httpx.Client | None = None) -
     if res.status_code != 200:
         raise _refused(res, "Places search")
     found = []
-    for p in res.json().get("places", []):
+    for p in _places(res):
         at = p.get("location") or {}
         name = (p.get("displayName") or {}).get("text") or ""
-        if not name or "latitude" not in at:
+        if not p.get("id") or not name or "latitude" not in at or "longitude" not in at:
             continue
         found.append(
             FoundPlace(place_id=PREFIX + p["id"], name=name, area=_area(p, where.name), lng=float(at["longitude"]), lat=float(at["latitude"]), osm_id=None)
@@ -288,12 +297,17 @@ async def place_details(
         res = await http.post(f"{PLACES}/places:searchText", json=body, headers=headers)
         if res.status_code != 200:
             raise _refused(res, "Places details")
-        places = res.json().get("places") or []
-        if not places:
+        places = _places(res)
+        if not places or not places[0].get("id"):
             raise GoogleUnavailable(f"Google has no place for {name}")
         p = places[0]
         at = p.get("location") or {}
-        if near is not None and "latitude" in at and metres((near[1], near[0]), (at["longitude"], at["latitude"])) > 5000:
+        if "latitude" not in at or "longitude" not in at:
+            # No point from Google: where the travel guide put it, else not this place.
+            if near is None:
+                raise GoogleUnavailable(f"Google gives no point for {name}")
+            at = {"latitude": near[0], "longitude": near[1]}
+        if near is not None and metres((near[1], near[0]), (at["longitude"], at["latitude"])) > 5000:
             # Another place with the same name: not this one.
             raise GoogleUnavailable(f"Google's {name} is somewhere else")
         photo = (p.get("photos") or [None])[0]
@@ -310,8 +324,8 @@ async def place_details(
         return GooglePlace(
             place_id=p["id"],
             name=(p.get("displayName") or {}).get("text") or name,
-            lat=float(at.get("latitude", near[0] if near else 0.0)),
-            lng=float(at.get("longitude", near[1] if near else 0.0)),
+            lat=float(at["latitude"]),
+            lng=float(at["longitude"]),
             what=(p.get("primaryTypeDisplayName") or {}).get("text"),
             rating=p.get("rating"),
             ratings=p.get("userRatingCount"),
@@ -365,10 +379,10 @@ async def places_nearby(lat: float, lng: float, kind: str, client: httpx.AsyncCl
     if res.status_code != 200:
         raise _refused(res, "Places nearby")
     found = []
-    for p in res.json().get("places", []):
+    for p in _places(res):
         at = p.get("location") or {}
         name = (p.get("displayName") or {}).get("text") or ""
-        if not name or "latitude" not in at:
+        if not p.get("id") or not name or "latitude" not in at or "longitude" not in at:
             continue
         found.append(
             NearbyPlace(

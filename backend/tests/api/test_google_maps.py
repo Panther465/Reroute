@@ -150,6 +150,21 @@ def test_place_search_asks_google_inside_the_city_and_names_each_places_area(key
     assert body["locationRestriction"] == {"rectangle": {"low": {"latitude": south, "longitude": west}, "high": {"latitude": north, "longitude": east}}}
 
 
+def test_a_place_without_an_id_name_or_point_is_skipped_and_a_garbled_answer_is_no_answer(keyed):
+    where = supported_city("bengaluru")
+    odd = {
+        "places": [
+            {"displayName": {"text": "No ID"}, "location": {"latitude": 12.9, "longitude": 77.6}},
+            "not a place",
+            {"id": "ChIJx", "location": {"latitude": 12.9}},
+        ]
+    }
+    with httpx.Client(transport=_google(lambda r: httpx.Response(200, json=odd), [])) as client:
+        assert google_maps.search_places("x", where, client) == []
+    with httpx.Client(transport=_google(lambda r: httpx.Response(200, text="<html>busy</html>"), [])) as client, pytest.raises(google_maps.GoogleUnavailable):
+        google_maps.search_places("x", where, client)
+
+
 def test_place_search_uses_google_with_a_key_and_openstreetmap_without_or_when_google_fails(monkeypatch):
     asked: list[str] = []
 
@@ -292,6 +307,18 @@ def test_a_google_place_somewhere_else_with_the_same_name_isnt_taken(keyed, monk
     monkeypatch.setattr(google_maps.httpx, "AsyncClient", lambda *a, **kw: real(transport=_google(lambda r: httpx.Response(200, json={"places": [far]}), [])))
     with pytest.raises(google_maps.GoogleUnavailable):
         asyncio.run(google_maps.place_details("Lalbagh Botanical Garden", "Bengaluru", (12.9507, 77.5848)))
+
+
+def test_a_google_place_with_no_point_is_put_where_the_guide_put_it_or_not_taken(keyed, monkeypatch):
+    pointless = {k: v for k, v in LALBAGH.items() if k not in ("location", "photos")}
+    real = httpx.AsyncClient
+    monkeypatch.setattr(
+        google_maps.httpx, "AsyncClient", lambda *a, **kw: real(transport=_google(lambda r: httpx.Response(200, json={"places": [pointless]}), []))
+    )
+    found = asyncio.run(google_maps.place_details("Lalbagh Botanical Garden", "Bengaluru", (12.9507, 77.5848)))
+    assert (found.lat, found.lng, found.rating) == (12.9507, 77.5848, 4.5)
+    with pytest.raises(google_maps.GoogleUnavailable):
+        asyncio.run(google_maps.place_details("Lalbagh Botanical Garden", "Bengaluru", None))
 
 
 def test_without_a_key_rico_shows_places_as_before(monkeypatch):
