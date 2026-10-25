@@ -106,22 +106,33 @@ export default function SignIn() {
   if (import.meta.env.MODE === 'android')
     return (
       <div className="flex min-h-dvh flex-col bg-ground text-ink">
-        <header className="flex items-center justify-between px-5 py-3">
+        <header className="flex h-12 shrink-0 items-center justify-between px-5">
           <span className="flex items-center gap-2">
-            <RouteMark size={32} />
-            <span className="font-display text-[length:calc(1.75rem*var(--grow-display))] font-extrabold leading-none text-ink [font-stretch:75%]">Reroute</span>
+            <RouteMark size={28} />
+            <span className="font-display text-[length:calc(1.5rem*var(--grow-display))] font-extrabold leading-none text-ink [font-stretch:75%]">Reroute</span>
           </span>
           <ThemeToggle />
         </header>
-        <main className="mx-auto flex w-full max-w-[26rem] flex-1 flex-col justify-center px-5 pb-10">
-          {/* Rico above his words, not beside them: side by side, a narrow phone with big text squeezes both. */}
-          <div className="mb-5 flex flex-col items-center gap-2 text-center">
-            <RooAvatar mood="wave" size={96} reduce={reduce} />
-            <h1 id="hero-h" tabIndex={-1} className="t-display-2 text-ink">
-              Hi, I’m Rico! Sign in and I’ll plan your day with you.
+        {/* One phone screen, big text and all, with nothing to scroll: Rico waving beside his hello, then the form
+            without a card round it. */}
+        <main className="mx-auto flex w-full max-w-[26rem] flex-1 flex-col justify-center px-5 pb-1">
+          <div className="mb-2 flex items-center gap-3">
+            <span className="shrink-0">
+              <RooAvatar mood="wave" size={52} reduce={reduce} />
+            </span>
+            <h1 id="hero-h" tabIndex={-1} className="min-w-0 t-display-2 text-ink">
+              Hi, I’m Rico!
             </h1>
           </div>
-          {account}
+          <AuthCard
+            compact
+            onLoading={() => {
+              setArriving(true)
+              preload()
+            }}
+            onSignedIn={signedIn}
+          />
+          <p className="mt-2 text-center t-caption font-normal text-muted">Nothing real is booked or charged here.</p>
         </main>
       </div>
     )

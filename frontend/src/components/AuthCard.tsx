@@ -29,9 +29,11 @@ export function GoogleG() {
 
 /**
  * Create an account, or sign in: email and password, Google, or the demo day. The card grows and shrinks
- * with its fields (a layout animation), and Roo pops up to say hello once you're in.
+ * with its fields (a layout animation), and Roo pops up to say hello once you're in. `compact` (the Android app's
+ * own sign-in) fits one phone screen with big text: no card around it, tighter spacing, and no Google button
+ * until Google sign-in is set up.
  */
-export function AuthCard({ onSignedIn, onLoading }: { onSignedIn: (how: 'created' | 'signedIn' | 'demo') => void; onLoading?: () => void }) {
+export function AuthCard({ onSignedIn, onLoading, compact = false }: { onSignedIn: (how: 'created' | 'signedIn' | 'demo') => void; onLoading?: () => void; compact?: boolean }) {
   const reduce = !!useReducedMotion()
   const [mode, setMode] = useState<Mode>('create')
   const [name, setName] = useState('')
@@ -43,7 +45,10 @@ export function AuthCard({ onSignedIn, onLoading }: { onSignedIn: (how: 'created
   const [busy, setBusy] = useState<Busy>(null)
   // The demo account exists only where the server switches it on (DEMO_LOGIN=true).
   const [demoAvailable, setDemoAvailable] = useState(true)
-  const demoOn = useAuthOptions().data?.demoLogin === true && demoAvailable
+  const options = useAuthOptions().data
+  const demoOn = options?.demoLogin === true && demoAvailable
+  // Google needs both ends: this app built with Google's client, and the server able to take its code.
+  const googleOn = googleEnabled && options?.google === true
   const [welcome, setWelcome] = useState<string | null>(null)
 
   const creating = mode === 'create'
@@ -101,20 +106,26 @@ export function AuthCard({ onSignedIn, onLoading }: { onSignedIn: (how: 'created
     setProblem(null)
   }
 
+  const demoButton = (
+    <Button variant="tertiary" size="md" loading={busy === 'demo'} loadingLabel="Signing in…" disabled={busy !== null && busy !== 'demo'} onClick={() => void other('demo')}>
+      Use the demo account
+    </Button>
+  )
+
   return (
     <motion.div
       layout={!reduce}
       transition={{ layout: { duration: 0.28, ease: EASE_OUT } }}
       initial={reduce ? { opacity: 0 } : { opacity: 0, transform: 'translateY(12px)' }}
       animate={{ opacity: 1, transform: 'translateY(0px)', transition: { duration: 0.4, ease: EASE_OUT, delay: 0.1 } }}
-      className="relative w-full max-w-[26rem] overflow-hidden rounded-card border border-line bg-surface p-5 shadow-[var(--shadow-toast)]"
+      className={compact ? 'relative w-full' : 'relative w-full max-w-[26rem] overflow-hidden rounded-card border border-line bg-surface p-5 shadow-[var(--shadow-toast)]'}
     >
       <AnimatePresence>
         {welcome !== null && (
           <motion.div
             key="hello"
             role="status"
-            className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-surface text-center"
+            className={`absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 text-center ${compact ? 'bg-ground' : 'bg-surface'}`}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1, transition: { duration: 0.18 } }}
           >
@@ -137,13 +148,14 @@ export function AuthCard({ onSignedIn, onLoading }: { onSignedIn: (how: 'created
           value={mode}
           onChange={switchTo}
           options={[
-            { value: 'create', label: 'Create account' },
+            // Short enough for one line beside "Sign in" on a narrow phone with big text.
+            { value: 'create', label: 'Sign up' },
             { value: 'signin', label: 'Sign in' },
           ]}
         />
       </motion.div>
 
-      <form onSubmit={submit} noValidate className="mt-4 flex flex-col gap-4">
+      <form onSubmit={submit} noValidate className={`flex flex-col ${compact ? 'mt-3 gap-2.5' : 'mt-4 gap-4'}`}>
         <AnimatePresence initial={false} mode="popLayout">
           {creating && (
             <motion.div
@@ -157,13 +169,14 @@ export function AuthCard({ onSignedIn, onLoading }: { onSignedIn: (how: 'created
             </motion.div>
           )}
         </AnimatePresence>
-        <motion.div layout={reduce ? false : 'position'} className="flex flex-col gap-4">
+        <motion.div layout={reduce ? false : 'position'} className={`flex flex-col ${compact ? 'gap-2.5' : 'gap-4'}`}>
           <Field label="Email" type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} error={errors.email} maxLength={320} />
           <Field
             label="Password"
             type={show ? 'text' : 'password'}
             autoComplete={creating ? 'new-password' : 'current-password'}
             hint={creating ? 'At least 8 characters.' : undefined}
+            inlineHint={compact}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             error={errors.password}
@@ -199,36 +212,40 @@ export function AuthCard({ onSignedIn, onLoading }: { onSignedIn: (how: 'created
         </motion.div>
       </form>
 
-      <motion.div layout={reduce ? false : 'position'}>
-        <div className="my-4 flex items-center gap-3 t-small text-muted" aria-hidden="true">
-          <span className="h-px flex-1 bg-line" />
-          or
-          <span className="h-px flex-1 bg-line" />
-        </div>
-        <div className="flex flex-col gap-3">
-          <button
-            type="button"
-            onClick={() => void other('google')}
-            disabled={!googleEnabled || busy !== null}
-            aria-describedby={googleEnabled ? undefined : 'google-off'}
-            className="flex min-h-[52px] items-center justify-center gap-[10px] rounded-control border-2 border-[var(--google-border)] bg-[var(--google-bg)] px-3 text-[var(--google-text)] transition-[scale] duration-[var(--dur-quick)] motion-safe:active:enabled:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
-            style={{ fontFamily: "'Roboto', 'Atkinson Hyperlegible', sans-serif", fontWeight: 500, fontSize: 14, lineHeight: '20px' }}
-          >
-            <GoogleG />
-            {busy === 'google' ? 'Signing in…' : 'Continue with Google'}
-          </button>
-          {!googleEnabled && (
-            <p id="google-off" className="-mt-1 text-center t-small text-muted">
-              Google sign-in isn’t set up on this server yet.
-            </p>
-          )}
-          {demoOn && (
-            <Button variant="tertiary" size="md" className="self-center" loading={busy === 'demo'} loadingLabel="Signing in…" disabled={busy !== null && busy !== 'demo'} onClick={() => void other('demo')}>
-              Use the demo account
-            </Button>
-          )}
-        </div>
-      </motion.div>
+      {compact && !googleOn ? (
+        demoOn && (
+          <motion.div layout={reduce ? false : 'position'} className="mt-1 flex justify-center">
+            {demoButton}
+          </motion.div>
+        )
+      ) : (
+        <motion.div layout={reduce ? false : 'position'}>
+          <div className={`flex items-center gap-3 t-small text-muted ${compact ? 'my-3' : 'my-4'}`} aria-hidden="true">
+            <span className="h-px flex-1 bg-line" />
+            or
+            <span className="h-px flex-1 bg-line" />
+          </div>
+          <div className={`flex flex-col ${compact ? 'gap-2' : 'gap-3'}`}>
+            <button
+              type="button"
+              onClick={() => void other('google')}
+              disabled={!googleOn || busy !== null}
+              aria-describedby={googleOn ? undefined : 'google-off'}
+              className="flex min-h-[52px] items-center justify-center gap-[10px] rounded-control border-2 border-[var(--google-border)] bg-[var(--google-bg)] px-3 text-[var(--google-text)] transition-[scale] duration-[var(--dur-quick)] motion-safe:active:enabled:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ fontFamily: "'Roboto', 'Atkinson Hyperlegible', sans-serif", fontWeight: 500, fontSize: 14, lineHeight: '20px' }}
+            >
+              <GoogleG />
+              {busy === 'google' ? 'Signing in…' : 'Continue with Google'}
+            </button>
+            {!googleOn && (
+              <p id="google-off" className="-mt-1 text-center t-small text-muted">
+                Google sign-in isn’t set up on this server yet.
+              </p>
+            )}
+            {demoOn && <div className="flex justify-center">{demoButton}</div>}
+          </div>
+        </motion.div>
+      )}
     </motion.div>
   )
 }

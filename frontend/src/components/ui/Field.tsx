@@ -18,24 +18,40 @@ interface FieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'id'> {
   /** "hi" when the label is a Hindi string. */
   labelLang?: string
   hint?: string
+  /** The hint on the label's line, where a short one fits (a form that has to fit one phone screen). */
+  inlineHint?: boolean
   error?: string
   trailing?: ReactNode
 }
 
-export function Field({ label, labelLang, hint, error, trailing, className = '', ...rest }: FieldProps) {
+export function Field({ label, labelLang, hint, inlineHint, error, trailing, className = '', ...rest }: FieldProps) {
   const id = useId()
   const hintId = `${id}-hint`
   const errId = `${id}-err`
   const described = [hint ? hintId : '', error ? errId : ''].filter(Boolean).join(' ') || undefined
+  const labelEl = (
+    <label htmlFor={id} lang={labelLang} className={`${inlineHint && hint ? '' : 'mb-2 '}block t-title text-ink`}>
+      {label}
+    </label>
+  )
   return (
     <div className={className}>
-      <label htmlFor={id} lang={labelLang} className="mb-2 block t-title text-ink">
-        {label}
-      </label>
-      {hint && (
-        <p id={hintId} className="-mt-1 mb-2 t-small text-muted">
-          {hint}
-        </p>
+      {inlineHint && hint ? (
+        <div className="mb-2 flex flex-wrap items-baseline justify-between gap-x-3">
+          {labelEl}
+          <p id={hintId} className="t-small text-muted">
+            {hint}
+          </p>
+        </div>
+      ) : (
+        <>
+          {labelEl}
+          {hint && (
+            <p id={hintId} className="-mt-1 mb-2 t-small text-muted">
+              {hint}
+            </p>
+          )}
+        </>
       )}
       <div className="relative">
         <input id={id} className={inputClass + (trailing ? ' pr-14' : '')} aria-invalid={error ? true : undefined} aria-describedby={described} {...rest} />

@@ -42,7 +42,7 @@ describe('starting the app', () => {
     setState({ ricoVoice: null })
   })
 
-  it('in Rico’s bar over other apps, shows only him; from the bar, opens the app on what he showed, him carrying on', async () => {
+  it('over other apps, shows only him, big; from there, opens the app on what he showed, him carrying on', async () => {
     bar.on = true
     try {
       await boot()
@@ -50,8 +50,9 @@ describe('starting the app', () => {
       expect(document.documentElement.hasAttribute('data-rico-bar')).toBe(true)
       const onWake = started.wake.mock.calls.at(-1)![0] as (from?: { path?: string; said?: string }) => void
       resetSession('signedIn')
+      // "Hey Rico" with Reroute closed: Rico big with his glow, not a bar.
       onWake()
-      expect(getState()).toMatchObject({ ricoVoice: { from: 'wake' }, ricoVoiceMini: true })
+      expect(getState()).toMatchObject({ ricoVoice: { from: 'wake' }, ricoVoiceMini: false })
       onWake({ path: '/leg/2', said: 'Traveller: show me the way' })
       expect(getState()).toMatchObject({ ricoVoice: { from: 'tap', carriedOn: 'Traveller: show me the way' }, ricoVoiceMini: true })
       expect(location.pathname).toBe('/leg/2')
