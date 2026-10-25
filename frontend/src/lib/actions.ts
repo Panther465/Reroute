@@ -1,10 +1,11 @@
 // What the traveller does, end to end: call the API, refresh the trip, run the choreography, toast.
-import { api, ApiError, newKey } from '@/api/client'
+import { api, ApiError, getAccessToken, newKey, onAnswered } from '@/api/client'
 import { keys, queryClient, waitForJob } from '@/api/queries'
 import type { AcceptIn, Body, CheckinResult, JobAccepted, Plan, TaskAdded, TaskEdit, TaskIn, TaskPatch, Trip } from '@/api/types'
 import { hhmm } from './format'
 import { enqueue, flush, queued, type QueuedCheckin } from './offlineQueue'
 import { announce, dismissToast, getState, playChange, setState, showToast } from './store'
+import { keyIsSpent } from './submitKey'
 import { buildDay, type DayView } from './timeline'
 
 /** Fetch the trip now and put it in the cache. */
@@ -113,12 +114,14 @@ export async function commitCheckin(key: string) {
       undoVersion: shifted ? undoVersionOf(trip) : null,
     })
   } catch (err) {
-    if (err instanceof ApiError && err.offline) {
-      // The queue keeps the station filled from here, across reloads too.
+    // No answer, or none the server kept (a 5xx, a rate limit, the first try still being processed): it goes out
+    // later with its key, as the queue's own retries do. The queue keeps the station filled from here, across reloads too.
+    if (!keyIsSpent(err)) {
       enqueue(item)
       dropOptimistic([item.taskId])
-      showToast({ title: `Marked done. It syncs when you're back online.` })
-      announce(`${title} marked done. It syncs when you're back online.`)
+      const when = err instanceof ApiError && err.offline ? "when you're back online" : 'as soon as Reroute answers'
+      showToast({ title: `Marked done. It syncs ${when}.` })
+      announce(`${title} marked done. It syncs ${when}.`)
       return
     }
     dropOptimistic([item.taskId])
@@ -126,8 +129,24 @@ export async function commitCheckin(key: string) {
   }
 }
 
-/** Send check-ins saved while offline. */
-export async function flushQueue(tripId: string | null) {
+let flushing: Promise<void> | null = null
+
+/** Send check-ins saved while offline. Calls that overlap share one send, and its toast. */
+export function flushQueue(tripId: string | null): Promise<void> {
+  flushing ??= sendQueued(tripId).finally(() => {
+    flushing = null
+  })
+  return flushing
+}
+
+// A check-in that timed out is queued while the phone still counts as online, so no change of connection would send
+// it: the queue also goes out after any request the server answers (the trip's own refresh comes every minute).
+onAnswered(() => {
+  const first = queued()[0]
+  if (first && getAccessToken()) void flushQueue(first.tripId)
+})
+
+async function sendQueued(tripId: string | null) {
   // Keep the stations filled while the queue empties and the trip reloads.
   const waiting = queued().map((q) => q.taskId)
   if (!waiting.length) return

@@ -86,6 +86,15 @@ export function onReachableChange(listener: () => void) {
   }
 }
 
+const answerListeners = new Set<() => void>()
+/** Calls `listener` after each request the server answers with success, reachable or not before. */
+export function onAnswered(listener: () => void) {
+  answerListeners.add(listener)
+  return () => {
+    answerListeners.delete(listener)
+  }
+}
+
 export function setAccessToken(token: string | null) {
   accessToken = token
   // A new token, or the session ending, settles a refresh still owed.
@@ -303,6 +312,7 @@ export async function request<T>(method: string, path: string, opts: RequestOpti
     else if (refreshed === 'unreachable') throw new ApiError(0, 'OFFLINE', OFFLINE_MESSAGE)
   }
   if (!res.ok) throw await parseError(res)
+  answerListeners.forEach((l) => l())
   if (opts.raw) return res as unknown as T
   if (res.status === 204) return undefined as T
   return (await res.json()) as T
