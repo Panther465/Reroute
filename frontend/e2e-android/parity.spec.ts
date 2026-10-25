@@ -560,7 +560,7 @@ test("talking to Rico goes to Android's speech recognizer", async ({ app }) => {
   await open(page, '/')
   await page.getByRole('button', { name: 'Rico, your travel companion. Chat with Rico' }).click()
   const chat = page.getByRole('dialog', { name: 'Rico' })
-  await chat.getByRole('button', { name: 'Talk to Rico' }).click()
+  await chat.getByRole('button', { name: 'Say your message' }).click()
   // Android's recognizer listens, then Rico says it heard nothing: the emulator hears silence, and Google's
   // recognizer there sometimes can't reach its servers instead (the web's message for that, too).
   const couldNot = /didn’t hear anything|didn’t catch that|can’t listen|couldn’t listen|Listening needs a connection/
