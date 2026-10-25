@@ -6,6 +6,7 @@ Needs PostgreSQL with PostGIS: TEST_DATABASE_URL. Jobs run inline; Raasta answer
 from __future__ import annotations
 
 import base64
+import threading
 from datetime import date
 
 import pytest
@@ -367,6 +368,42 @@ def test_book_entry_tickets_to_a_sight(client):
     # Cancelled before the visit, everything comes back.
     cancelled = client.post(f"/v1/trips/trip-001/bookings/{tickets['bookingId']}/cancel", json={"idempotencyKey": key()}).json()
     assert cancelled["status"] == "cancelled" and cancelled["details"]["refundInr"] == tickets["fareInr"]
+
+
+def test_two_cancels_at_once_refund_once(client, monkeypatch):
+    from app.services import wallet
+
+    body = {"kind": "ticket", "placeId": "jayanagar-office", "visitDate": "2026-10-15", "optionId": "entry", "visitors": 2, "idempotencyKey": key()}
+    tickets = client.post("/v1/trips/trip-001/bookings", json=body).json()
+    balance = client.get("/v1/wallet").json()["balanceInr"]
+    # The first cancel to reach its refund waits there, before its commit, while a second cancel comes in.
+    refund, inside, let_go = wallet.refund, threading.Event(), threading.Event()
+
+    def held(*args, **kwargs):
+        if not inside.is_set():
+            inside.set()
+            let_go.wait(5)
+        return refund(*args, **kwargs)
+
+    monkeypatch.setattr(wallet, "refund", held)
+    other = TestClient(app, base_url="https://testserver", headers={"Authorization": client.headers["Authorization"]})
+    answers: list = []
+
+    def cancel(c):
+        answers.append(c.post(f"/v1/trips/trip-001/bookings/{tickets['bookingId']}/cancel", json={"idempotencyKey": key()}))
+
+    first, second = threading.Thread(target=cancel, args=(client,)), threading.Thread(target=cancel, args=(other,))
+    first.start()
+    assert inside.wait(5)
+    second.start()
+    second.join(1)  # it may wait for the first to commit
+    let_go.set()
+    first.join()
+    second.join()
+    assert [(a.status_code, a.json()["status"]) for a in answers] == [(200, "cancelled"), (200, "cancelled")]
+    entries = client.get("/v1/wallet").json()["entries"]
+    assert [e["kind"] for e in entries].count("refund") == 1
+    assert client.get("/v1/wallet").json()["balanceInr"] == balance + tickets["fareInr"]
 
 
 def test_speech_reads_an_alert_and_caches_it(client, monkeypatch):

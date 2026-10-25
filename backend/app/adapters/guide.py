@@ -307,10 +307,14 @@ async def city_guide(city: str, client: httpx.AsyncClient | None = None) -> City
     if not url or not name:
         return None
     key = "guide:city:" + name.lower()
+    # A title is case-sensitive after its first letter, so no guide for "new delhi" says nothing about "New Delhi":
+    # a miss is kept apart, under the title as Wikivoyage reads it.
+    miss = "guide:city:none:" + name[:1].upper() + name[1:]
     cached = _cached(key)
-    if cached is not None:
-        data = json.loads(cached)
-        return _guide_from(data) if data else None
+    if cached is not None and (data := json.loads(cached)):
+        return _guide_from(data)
+    if _cached(miss) is not None:
+        return None
     params = {**_QUERY, "titles": name, "prop": "extracts|revisions", "exintro": "1", "explaintext": "1", "rvprop": "content", "rvslots": "main"}
     res = await _call("Wikivoyage", "GET", url, WIKIVOYAGE_TIMEOUT, client, params=params)
     if res is None:
@@ -318,14 +322,14 @@ async def city_guide(city: str, client: httpx.AsyncClient | None = None) -> City
     try:
         page = res.json()["query"]["pages"][0]
         if page.get("missing") or page.get("invalid"):
-            _keep(key, "null", NO_GUIDE_SECONDS)
+            _keep(miss, "1", NO_GUIDE_SECONDS)
             return None
         title, wikitext, extract = page["title"], page["revisions"][0]["slots"]["main"]["content"], page.get("extract") or ""
     except (ValueError, LookupError, TypeError) as exc:
         log.warning("Wikivoyage sent something unexpected (%s)", type(exc).__name__)
         return None
     if _DISAMBIGUATION.search(wikitext):
-        _keep(key, "null", NO_GUIDE_SECONDS)
+        _keep(miss, "1", NO_GUIDE_SECONDS)
         return None
     sections = _sections(wikitext)
     pages = {kind: [_listings(sections.get(heading, ""))] for kind, heading in SECTIONS.items()}
