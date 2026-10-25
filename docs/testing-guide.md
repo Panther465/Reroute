@@ -103,6 +103,8 @@ Each row says which account to use (**D** for demo, **R** for real, **Both**).
 | **Plan my day** | Both | "Planning your day…", then Today with the route. On the demo day: leave 08:50, meeting 10:00, bank 12:25, office 15:40, back 16:50 |
 | A task that can't fit (two fixed times too close) | Both | Today lists it under "isn't in today's plan" with the reason, and offers **Move to Thursday** |
 | **Plan → Your trips** | Both | Switch between trips |
+| **Start a new trip** → city: scroll to **Or choose from the list** | R | Every city on the list, by state; picking one (Pune, say) goes straight on, with no wait for a lookup |
+| Place search: **Not here? Add it as your own place** | Both | **Add a place** opens: a name, a kind, a note and a pin; saved, it's picked at once and comes first in your searches, marked as yours |
 
 ### Today
 
@@ -117,6 +119,7 @@ Each row says which account to use (**D** for demo, **R** for real, **Both**).
 | **Simulate → Simulate the ride to the meeting** | D | A dot moves along the road on the map, then "You've arrived" |
 | Today's map after planning | Both | Each leg runs along real roads, and the metro along its line with a dot at each station. While the worker is still drawing, a leg is a straight dashed line with the note "Dashed: approximate route" |
 | **Turn by turn** on the leave card, then **Follow my location** (or Simulate the ride) | Both | The next instruction, large, with the distance to it. Every step is listed, and the current one is highlighted. The map follows you. **Speak turns** reads them out in the phone's voice. **Open in Google Maps** opens the same leg in Google Maps |
+| Press and hold a leg's map (right-click with a mouse), or the round add button under the zoom | Both | **Add a place** with the pin where you pressed; once saved it's a blue pin, and tapping it says who sees it, with Delete |
 | **Book a cab** (next leg), Rico's **Book my ticket** for the train | Both (demo server) | Simulated booking sheets; a ride with a driver and OTP, a ticket with a PNR. Nothing is charged |
 
 ### Running late (the core)
@@ -156,8 +159,11 @@ Each row says which account to use (**D** for demo, **R** for real, **Both**).
 | "hey i wanna re plan" | Both | "What’s changed?" with answers; A task changed, then which, then what (time, length, move, skip), ending in a card |
 | "create an entire new plan" | Both | "Are you sure?" Adjust this plan, Start a new trip (Rico sets it up), or Never mind |
 | "what's my balance?", "add 1000 to my wallet", "book a flight to Delhi" | Both (demo server) | The balance; a card to add the money; the flight sheet with Delhi chosen |
-| The speaker button in the chat header | Both | Rico stops (or starts) reading its replies aloud |
-| The mic button (Chrome or Edge), say "what's next" | Both | Rico listens, answers on screen and out loud |
+| The mic button (Chrome or Edge), say "what's next" | Both | Rico listens and answers on screen. The chat never reads aloud: that's **Talk** |
+| **Talk** in the chat header (the AI helper and the key) | Both | Rico pops up full screen with a sound; ask "when do I leave?" and he answers out loud in a second or two, his mouth moving, with captions; talk over him and he stops. **Mute**, **Type instead** and **Open the chat** work; asking him to change the day brings up his card, and nothing changes until **Do all** |
+| The glasses button in the chat header (the AI helper and the key) | Both | Rico puts on his guide glasses, here and everywhere he shows, and asks "Shall I recommend places to see, eat and do, or do you have some in mind?". **Recommend places** gets real ones (he says he read the Wikivoyage guide and looked on the map); "plan my whole day, tickets and all" puts the visits and entry tickets on one card. After **Do all** the tickets are under **Plan → Bookings**: open one for the ticket, with **Cancel the tickets**. Tap the glasses again and he takes them off |
+| Plan, Raasta or Me | Both | A small Rico wanders along the bottom, naps after a while, giggles when tapped and asks "Hi! Need me?". **Me → Rico walks with you** turns him off |
+| In the Android app: **Me → "Hey Rico"** (it downloads Rico's ear once), then say "Hey Rico" | Both | Rico pops up talking. With **Even when Reroute is closed** on, a "Rico is listening" notification stays while you use other apps, and saying his name shows "I'm here! Tap to talk.", which opens him talking |
 | With the AI helper on: "can the bank wait till Thursday?" | Both | Rico understands free wording and still asks before changing anything |
 | With the AI helper and the key: "skip the university office, book a cab to the bank and go dark" | Both | Rico says what it looked at, then shows one card: *Rico will do 3 things*. Nothing changes until **Do all**. Then each step gets a tick, the ride is booked, dark mode comes on, and **Undo** puts it all back |
 

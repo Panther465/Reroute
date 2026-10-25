@@ -166,6 +166,21 @@ async function activityState(device: AndroidDevice): Promise<string> {
   return new RegExp(`${PKG.replace(/\./g, '\\.')}/\\.MainActivity[\\s\\S]*?\\bstate=(\\w+)`).exec(out)?.[1] ?? ''
 }
 
+/** Where the app's web view starts on the screen, in device pixels, from Android's own layout dump (below the
+ *  status bar). */
+async function webViewOrigin(device: AndroidDevice): Promise<{ x: number; y: number }> {
+  for (let i = 0; i < 3; i++) {
+    await device.shell('uiautomator dump /sdcard/reroute-ui.xml')
+    const xml = (await device.shell('cat /sdcard/reroute-ui.xml')).toString()
+    const found = /class="android\.webkit\.WebView"[^>]*?bounds="\[(\d+),(\d+)\]/.exec(xml)
+    if (found) {
+      await device.shell('rm /sdcard/reroute-ui.xml')
+      return { x: Number(found[1]), y: Number(found[2]) }
+    }
+  }
+  throw new Error('Android showed no web view')
+}
+
 /** What Android shows on top, e.g. the share sheet or the Maps app. */
 async function foreground(device: AndroidDevice): Promise<string> {
   const out = (await device.shell('dumpsys activity activities')).toString()
@@ -284,6 +299,41 @@ test('a leg: real-road map, Google Maps hand-off and turn by turn with the phone
   await app.device.shell('cmd location set-location-enabled true')
   await open(app.page, '/leg/1/navigate')
   await expect(app.page.getByRole('main')).toContainText(/Turn|Head|Walk|Leave|arrived|m\b/, { timeout: 30_000 })
+})
+
+test('press and hold on a leg’s map adds a place of your own there, once', async ({ app }) => {
+  const page = app.page
+  await planFreshDay(app)
+  await open(page, '/leg/1')
+  const canvas = page.locator('canvas.maplibregl-canvas').first()
+  await expect(canvas).toBeVisible({ timeout: 30_000 })
+  await page.waitForTimeout(1500)
+  // A real press and hold, through Android's own input: the web view also reports it as a right-click.
+  await canvas.scrollIntoViewIfNeeded()
+  await page.waitForTimeout(500)
+  const box = (await canvas.boundingBox())!
+  const dpr = await page.evaluate(() => devicePixelRatio)
+  const web = await webViewOrigin(app.device)
+  const [x, y] = [Math.round(web.x + (box.x + box.width / 2) * dpr), Math.round(web.y + (box.y + box.height / 2) * dpr)]
+  await app.device.shell(`input swipe ${x} ${y} ${x} ${y} 1200`)
+  const sheet = page.getByRole('dialog', { name: 'Add a place' })
+  await expect(sheet).toBeVisible({ timeout: 10_000 })
+  await expect(page.getByRole('dialog')).toHaveCount(1)
+  await sheet.getByLabel('Name').fill('Chai stall by the gate')
+  await sheet.getByRole('radio', { name: 'Food' }).focus()
+  await page.keyboard.press('Space')
+  await sheet.getByRole('button', { name: 'Save the place' }).click()
+  const toasts = page.getByRole('region', { name: /Notifications/ })
+  await expect(toasts.getByRole('listitem').filter({ hasText: 'Saved Chai stall by the gate to your places.' })).toBeVisible({ timeout: 15_000 })
+  // Tidy up: the place goes, so the next run starts without it.
+  const api = await request.newContext({ baseURL: apiFromComputer(), ignoreHTTPSErrors: true })
+  const login = await api.post('/v1/auth/demo', { data: { as: 'traveller' } })
+  const headers = { Authorization: `Bearer ${((await login.json()) as { accessToken: string }).accessToken}` }
+  const mine = (await (await api.get('/v1/me/places', { headers })).json()) as { placeId: string; name: string }[]
+  const added = mine.filter((p) => p.name === 'Chai stall by the gate')
+  expect(added).toHaveLength(1)
+  for (const p of added) expect((await api.delete(`/v1/me/places/${p.placeId}`, { headers })).status()).toBe(204)
+  await api.dispose()
 })
 
 test('Rico: chat, and the back button closes it', async ({ app }) => {
@@ -480,6 +530,23 @@ test('“Hey Rico” wakes Rico, on screen or in the background, and nothing els
   await app.reattach()
   await expect(app.page.getByRole('dialog', { name: 'Rico' })).toBeVisible({ timeout: 20_000 })
   await app.page.keyboard.press('Escape')
+  // Rico's ear runs in a process of its own: if it dies (the speech library can abort), Reroute carries on, and
+  // opening Reroute again starts the ear again.
+  const earPid = async () => (await app.device.shell(`pidof ${PKG}:ear`)).toString().trim()
+  const ear = await earPid()
+  expect(ear).toMatch(/^\d+$/)
+  await app.device.shell(`run-as ${PKG} kill -9 ${ear}`)
+  await expect.poll(earPid, { timeout: 10_000 }).not.toBe(ear)
+  await expect.poll(async () => (await notices()).includes('Rico is listening'), { timeout: 10_000 }).toBe(false)
+  await expect(app.page.getByRole('heading', { level: 1 })).toBeVisible()
+  await app.detach()
+  await app.device.shell('input keyevent KEYCODE_HOME')
+  await expect.poll(() => activityState(app.device), { timeout: 10_000 }).toMatch(/^(PAUSED|STOPPING|STOPPED)$/)
+  await app.device.shell(`am start -n ${PKG}/.MainActivity`)
+  await expect.poll(() => foreground(app.device), { timeout: 10_000 }).toContain(PKG)
+  await app.reattach()
+  await expect.poll(async () => (await notices()).includes('Rico is listening'), { timeout: 20_000 }).toBe(true)
+  expect(await earPid()).toMatch(/^\d+$/)
   // Off again, so the other journeys run as before.
   await open(app.page, '/me')
   const off = app.page.getByRole('switch', { name: /Hey Rico/ })
