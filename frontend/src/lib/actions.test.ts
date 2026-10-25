@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { api, ApiError, isReachable, setAccessToken } from '@/api/client'
+import { keys, queryClient } from '@/api/queries'
 import { goldenTrip } from '@/test/fixtures'
-import { CHECKIN_UNDO_MS, checkIn } from './actions'
+import { CHECKIN_UNDO_MS, checkIn, editTask, restorePlan, skipTask, undo } from './actions'
 import { queued, resetQueue } from './offlineQueue'
 import { getState, getToasts, setState, settleToast } from './store'
 import { buildDay } from './timeline'
@@ -136,5 +137,44 @@ describe('check in with Undo', () => {
     await vi.advanceTimersByTimeAsync(0)
     expect(queued().map((q) => [q.taskId, q.kind])).toEqual([['task-meet', 'done']])
     expect(getState().optimisticDone).toEqual([])
+  })
+})
+
+describe('a change the server saved', () => {
+  const offline = new ApiError(0, 'OFFLINE', "You're offline. Try again when you have signal.")
+
+  it('stands when the day can’t be loaded after it: saved, not failed', async () => {
+    const trip = goldenTrip('10:55')
+    vi.spyOn(api, 'post').mockResolvedValue({ result: 'shifted' })
+    vi.spyOn(api, 'get').mockRejectedValue(offline)
+    await expect(skipTask(trip.tripId, 'task-bank', buildDay(trip))).resolves.toBe('saved')
+    vi.spyOn(api, 'patch').mockResolvedValue({ jobId: 'job-1' })
+    await expect(editTask(trip.tripId, 'task-bank', { durationMin: 90 }, buildDay(trip))).resolves.toBe('saved')
+  })
+
+  it('a re-plan the server says failed still fails, in its own words', async () => {
+    const trip = goldenTrip('10:55')
+    vi.spyOn(api, 'patch').mockResolvedValue({ jobId: 'job-1' })
+    vi.spyOn(api, 'get').mockResolvedValue({ jobId: 'job-1', status: 'failed', error: 'Your tasks don’t fit in one day.' })
+    await expect(editTask(trip.tripId, 'task-bank', { durationMin: 600 }, buildDay(trip))).rejects.toMatchObject({ code: 'REPLAN_FAILED' })
+  })
+})
+
+describe('undo', () => {
+  const trip = goldenTrip('10:55')
+  beforeEach(() => queryClient.setQueryData(keys.trip(trip.tripId), trip))
+
+  it('says when the server didn’t bring the earlier plan back', async () => {
+    vi.spyOn(api, 'post').mockRejectedValue(new ApiError(409, 'CONFLICT', 'That plan can’t come back any more.'))
+    expect(await undo(trip.tripId, 1)).toBe(false)
+    expect(lastToast().title).toBe('That plan can’t come back any more.')
+    await expect(restorePlan(trip.tripId, 1)).rejects.toMatchObject({ code: 'CONFLICT' })
+  })
+
+  it('is undone once the server has it back, even if the day can’t be loaded after it', async () => {
+    vi.spyOn(api, 'post').mockResolvedValue({})
+    vi.spyOn(api, 'get').mockRejectedValue(new ApiError(0, 'OFFLINE', "You're offline. Try again when you have signal."))
+    expect(await undo(trip.tripId, 1)).toBe(true)
+    expect(lastToast().title).toBe('Change undone. Your timeline updates when your plan loads again.')
   })
 })
