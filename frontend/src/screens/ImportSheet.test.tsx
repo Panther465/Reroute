@@ -8,7 +8,7 @@ import { goldenTrip, places } from '@/test/fixtures'
 
 const google = vi.hoisted(() => ({ requestGoogleCode: vi.fn(async () => '4/code') }))
 vi.mock('@/lib/google', async (real) => ({ ...(await real<object>()), ...google, googleEnabled: true }))
-const actions = vi.hoisted(() => ({ addTask: vi.fn(async () => ({ outcome: 'saved' })) }))
+const actions = vi.hoisted(() => ({ addTask: vi.fn(async (..._args: unknown[]) => ({ outcome: 'saved' })) }))
 vi.mock('@/lib/actions', async (real) => ({ ...(await real<object>()), ...actions }))
 vi.mock('@/components/LazyMap', () => ({ LazyMap: () => <div>Map</div>, MapUnavailable: () => null }))
 
