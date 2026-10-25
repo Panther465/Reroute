@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MapTiles } from '@/api/types'
-import { googleStyle, googleTiles, refusedByGoogle, viewportUrl } from './mapTiles'
+import { googleStyle, googleTiles, refusedByGoogle, viewKey, viewportUrl } from './mapTiles'
 
 const GOOGLE: MapTiles = {
   provider: 'google',
@@ -34,6 +34,16 @@ describe('Google’s map under the app’s maps', () => {
     expect(wide.searchParams.get('session')).toBe('D')
     expect([wide.searchParams.get('north'), wide.searchParams.get('south')]).toEqual(['89.999999', '-89.999999'])
     expect([wide.searchParams.get('east'), wide.searchParams.get('west')]).toEqual(['-170', '160'])
+  })
+})
+
+describe('asking Google for the copyright line', () => {
+  it('asks again only when the view is really another one, not for every step a following map takes', () => {
+    const view = { north: 12.991, south: 12.951, east: 77.621, west: 77.581 }
+    const step = { north: 12.9912, south: 12.9512, east: 77.6212, west: 77.5812 }
+    expect(viewKey(15.2, view)).toBe(viewKey(14.8, step))
+    expect(viewKey(16, view)).not.toBe(viewKey(15, view))
+    expect(viewKey(15, view)).not.toBe(viewKey(15, { ...view, north: 13.01, south: 12.97 }))
   })
 })
 

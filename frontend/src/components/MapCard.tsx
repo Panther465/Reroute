@@ -10,7 +10,7 @@ import type { MapTiles } from '@/api/types'
 import { useMapTiles } from '@/api/queries'
 import { MapUnavailable } from '@/components/LazyMap'
 import { useOnline } from '@/lib/hooks'
-import { googleStyle, googleTiles, REFUSALS_BEFORE_FREE_MAP, refusedByGoogle, viewportUrl } from '@/lib/mapTiles'
+import { googleStyle, googleTiles, REFUSALS_BEFORE_FREE_MAP, refusedByGoogle, viewKey, viewportUrl } from '@/lib/mapTiles'
 import type { LngLat, MapLine } from '@/lib/geo'
 import type { Fix } from '@/lib/location'
 import { longPress } from '@/lib/longPress'
@@ -603,11 +603,16 @@ function MapInner({
     if (!map || !ready || !google) return
     let alive = true
     let timer = 0
+    let asked = ''
     const ask = () => {
       window.clearTimeout(timer)
       timer = window.setTimeout(async () => {
         const b = map.getBounds()
-        const url = viewportUrl(google, theme, map.getZoom(), { north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() })
+        const view = { north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() }
+        const key = viewKey(map.getZoom(), view)
+        if (key === asked) return
+        asked = key
+        const url = viewportUrl(google, theme, map.getZoom(), view)
         if (!url) return
         try {
           const res = await fetch(url)
