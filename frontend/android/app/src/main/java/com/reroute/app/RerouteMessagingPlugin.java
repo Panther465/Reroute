@@ -61,15 +61,23 @@ public class RerouteMessagingPlugin extends Plugin {
         Intent intent = getActivity() != null ? getActivity().getIntent() : null;
         JSObject out = new JSObject();
         JSObject alert = intent != null ? takeAlert(intent) : null;
+        if (alert == null) alert = pendingAlert;
+        pendingAlert = null;
         if (alert != null) out.put("alert", alert);
         call.resolve(out);
     }
+
+    /** A tapped alert that opened a starting Reroute, before the page could take it (Capacitor hands the launch to the
+     *  plugins before the page exists): kept for launchAlert. */
+    private static JSObject pendingAlert = null;
 
     @Override
     protected void handleOnNewIntent(Intent intent) {
         super.handleOnNewIntent(intent);
         JSObject alert = takeAlert(intent);
-        if (alert != null) notifyListeners("alert", alert);
+        if (alert == null) return;
+        if (!hasListeners("alert")) pendingAlert = alert;
+        else notifyListeners("alert", alert);
     }
 
     /** The alert on a tap from its notification, removed from the intent so it's handed over once. */

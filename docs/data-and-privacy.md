@@ -49,6 +49,7 @@ Reroute uses free public services. Each sees only what it needs, and none gets y
 | Google Gemini | The text you type in "Describe your day"; and a message to Rico that the phone couldn't understand by itself, with the last few messages and your trip's task titles, areas, times and today's plan. With Rico's agent, also what it looks up to answer: place names and areas, ride options and fares, your bookings and wallet balance, and what it read in a city's guide. Never your name, email or location | Only if the AI helper is turned on (off by default). Rico answers most messages on the phone, sending nothing |
 | Google Search, through Gemini | The question Rico asks the web, such as "When is Lalbagh Botanical Garden open?" (Rico is told never to put your name or where you stay in it) | Only with the AI helper and a Gemini key, when Rico looks something up (at most 3 a message) |
 | Wikivoyage (the Wikimedia Foundation) | The name of the city (or the place) Rico reads a guide for | Only with Rico's agent, when it reads a city's guide |
+| Wikimedia Commons (the Wikimedia Foundation) | The name of a place (and its city) that Rico shows photos of; your phone then loads the photos from Wikimedia's servers, which see its address as any website does | Only while you talk with Rico out loud, when he shows photos |
 | OpenStreetMap's Overpass server | The area Rico looks around: a point rounded to about a kilometre, never the exact place you stay or your position | Only with Rico's agent, when it looks for places to see, eat or do |
 
 ## Live location on the map
