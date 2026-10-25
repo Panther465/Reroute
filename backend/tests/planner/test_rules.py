@@ -49,6 +49,22 @@ def task(task_id, place, duration=30, fixed=None, window=None, priority=2, **kw)
     )
 
 
+# ---------- the end of the day ----------
+
+
+def test_planned_late_at_night_what_cant_finish_by_midnight_waits_named():
+    snap = grid_snapshot(["home", "a", "b"], minutes=20)
+    late = Start(place_id="home", ready_at=t(23, 30))
+    first = Objective(allow_unplace=True)
+    plan = plan_day(make([task("a", "a", duration=30)], snap, start=late, objective=first))
+    # 23:50 there and half an hour of it would run past midnight: left out, and why.
+    assert plan.feasible and not [leg for leg in plan.legs if leg.task_id]
+    assert [(m.task_id, m.kind, m.reason) for m in plan.moved] == [("a", "unplaced", "The a doesn't fit in the rest of today")]
+    # A fixed time keeps its time, past midnight or not; the ride back may run later too.
+    plan = plan_day(make([task("b", "b", duration=60, fixed=t(23, 59))], snap, start=Start(place_id="home", ready_at=t(23)), objective=first))
+    assert [leg.task_id for leg in plan.legs] == ["b", None] and hhmm(plan.legs[0].task_end) == hhmm(t(24, 59))
+
+
 # ---------- fixed times and the 10-minute buffer ----------
 
 

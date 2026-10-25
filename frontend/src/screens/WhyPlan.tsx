@@ -8,7 +8,7 @@ import { RoughTag, Tag } from '@/components/ui/Tag'
 import { ApiError } from '@/api/client'
 import { duration, hhmm, lowerFirst, rupees, unbroken } from '@/lib/format'
 import { useDocumentTitle, useOnline } from '@/lib/hooks'
-import { localMinutes, weekday } from '@/lib/timeline'
+import { localMinutes, onDay, todayOf, weekday } from '@/lib/timeline'
 import { PushedScreen } from './LegDetail'
 
 const listJoin = (items: string[]) => (items.length <= 1 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`)
@@ -149,7 +149,12 @@ function Constraints({ trip }: { trip: Trip }) {
     return []
   })
   if (!facts.length) return null
-  return <p className="mt-2 t-body text-ink-2">Today, {listJoin(facts)}.</p>
+  const when = onDay(trip.day, todayOf(trip.day, localMinutes(trip.now, trip.day, trip.utcOffset)))
+  return (
+    <p className="mt-2 t-body text-ink-2">
+      {when[0].toUpperCase() + when.slice(1)}, {listJoin(facts)}.
+    </p>
+  )
 }
 
 function Body({ insight, trip }: { insight: PlanInsight; trip: Trip }) {

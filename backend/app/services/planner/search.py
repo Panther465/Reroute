@@ -356,7 +356,8 @@ def _why_not(ctx: _Ctx, t: PlanTask) -> str:
         x.model_copy(update={"window": x.window.model_copy(update={"closes": 48 * 60})}) if x.task_id == t.task_id and x.window else x for x in inp.tasks
     )
     objective = inp.objective.model_copy(update={"allow_unplace": True, "min_left_out": 0, "max_left_out": None, "must_include": frozenset({t.task_id})})
-    relaxed = inp.model_copy(update={"tasks": relaxed_tasks, "objective": objective})
+    # Its hours, and the day's end, as late as can be: where it would land then says why it doesn't fit now.
+    relaxed = inp.model_copy(update={"tasks": relaxed_tasks, "objective": objective, "rule": inp.rule.model_copy(update={"day_end": 48 * 60})})
     rctx = _build_ctx(relaxed)
     steps = _exact(rctx) if len(rctx.tasks) <= inp.rule.exact_search_max_tasks else _insertion(rctx)
     title = lower_first(t.title)
@@ -417,6 +418,10 @@ def _blocked(ctx: _Ctx) -> Blocked:
 #: On a first plan, leaving a task out costs more than any day could: a task is "unplaced" only when it
 #: can't fit, never because going there costs more than the ordinary penalty (a long cab ride does).
 UNPLACED_WEIGHT = 1_000_000
+#: A first plan going anyway (a fixed time that can't be kept): each minute later than it must be for someone
+#: else's fixed time weighs a quarter of leaving a task out. A flexible task waits, named as unplaced, rather than
+#: a meeting starting 5 minutes or more later than it had to: the bank isn't kept by making a client wait 50.
+LATE_OVER_LEFT_OUT = UNPLACED_WEIGHT // 4
 
 
 def _first_plan(inp: PlannerInput) -> bool:
@@ -424,10 +429,18 @@ def _first_plan(inp: PlannerInput) -> bool:
     return o.allow_unplace and not o.allow_move and not o.allow_skip
 
 
+def _late_minutes(inp: PlannerInput, result: PlanResult) -> int:
+    """Minutes after their start the plan reaches fixed tasks the traveller goes to anyway."""
+    late = {t.task_id: t.fixed_start for t in inp.tasks if t.late_ok and t.fixed_start is not None}
+    return sum(max(0, leg.arrive_at - late[leg.task_id]) for leg in result.legs if leg.task_id in late)  # type: ignore[operator]
+
+
 def plan_day(inp: PlannerInput) -> PlanResult:
     """Plan the rest of a day. Pure and deterministic: the same input gives the same plan and hash."""
     first = _first_plan(inp) and inp.rule.weight_moved_task < UNPLACED_WEIGHT
-    run = inp.model_copy(update={"rule": inp.rule.model_copy(update={"weight_moved_task": UNPLACED_WEIGHT})}) if first else inp
+    going = first and any(t.late_ok and t.fixed_start is not None for t in inp.tasks)
+    heavier = {"weight_moved_task": UNPLACED_WEIGHT} | ({"weight_late": max(inp.rule.weight_late, LATE_OVER_LEFT_OUT)} if going else {})
+    run = inp.model_copy(update={"rule": inp.rule.model_copy(update=heavier)}) if first else inp
     ctx = _build_ctx(run)
     approximate = len(ctx.tasks) > inp.rule.exact_search_max_tasks
     steps = _insertion(ctx) if approximate else _exact(ctx)
@@ -445,6 +458,8 @@ def plan_day(inp: PlannerInput) -> PlanResult:
         return result
     # The plan reports its cost on the ordinary scale, and the hash of what it was asked.
     extra = inp.rule.fare_divisor * (UNPLACED_WEIGHT - inp.rule.weight_moved_task) * len(result.moved)
+    if going:
+        extra += inp.rule.fare_divisor * (run.rule.weight_late - inp.rule.weight_late) * _late_minutes(inp, result)
     return result.model_copy(update={"cost_scaled": result.cost_scaled - extra, "inputs_hash": inputs_hash(inp)})
 
 

@@ -10,6 +10,7 @@ import redis
 from fastapi import APIRouter, Path, Query, Response
 
 from app.adapters import photos
+from app.adapters.places import SearchBusy
 from app.cities import city as supported_city
 from app.deps import CurrentUser, Db, Moderator
 from app.errors import ApiError
@@ -36,7 +37,12 @@ def search(
 ) -> list[PlaceOut]:
     if supported_city(city) is None:
         raise ApiError(422, "Reroute doesn't cover that city yet.", code="VALIDATION_ERROR")
-    return [place_out(p, user.user_id) for p in places.find_places(db, q, city, user_id=user.user_id)]
+    try:
+        found = places.find_places(db, q, city, user_id=user.user_id, say_busy=True)
+    except SearchBusy:
+        # OpenStreetMap's search allows one request a second; the app asks again by itself.
+        raise ApiError(503, "Place search is busy for a moment. Try again.", code="UNAVAILABLE", headers={"Retry-After": "1"}) from None
+    return [place_out(p, user.user_id) for p in found]
 
 
 # ---------- your own places ----------

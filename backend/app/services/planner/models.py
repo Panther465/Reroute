@@ -130,6 +130,9 @@ class RuleSettings(Frozen):
     weight_moved_task: int = 120
     exact_search_max_tasks: int = 8
     day_earliest_departure: int = 7 * 60
+    #: A day's plan ends with the day: a task with no fixed time is over by midnight (a fixed time keeps its time,
+    #: and the ride back may run later). Planned late at night, what doesn't fit waits, named, for another day.
+    day_end: int = 24 * 60
     next_day_default_start: int = 10 * 60
 
 

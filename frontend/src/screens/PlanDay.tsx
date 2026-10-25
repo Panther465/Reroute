@@ -23,7 +23,7 @@ import { useDocumentTitle, useOnline } from '@/lib/hooks'
 import { T } from '@/lib/i18n'
 import { StopIcon } from '@/lib/stopIcon'
 import { nextToken, setState, showToast } from '@/lib/store'
-import { addDays, buildDay, dayLabel, localMinutes, weekday } from '@/lib/timeline'
+import { addDays, buildDay, dayLabel, localMinutes, todayOf, weekday } from '@/lib/timeline'
 import { AiPlannerSheet } from './AiPlannerSheet'
 import { TaskFormSheet, tripDays } from './TaskForm'
 
@@ -432,6 +432,8 @@ export default function PlanDay() {
   }
 
   const today = trip.tasks.filter((x) => x.day === trip.day)
+  // The traveller's own today: the night before a trip, its first day is tomorrow.
+  const nowDay = todayOf(trip.day, localMinutes(trip.now, trip.day, trip.utcOffset))
   // When each of today's tasks is planned, from the active plan.
   const planned = new Map<string, { start: number; end: number }>()
   if (trip.activePlan) {
@@ -595,7 +597,8 @@ export default function PlanDay() {
                     <h3 id={headingId} className="t-title text-ink">
                       {dayLabel(day)}
                     </h3>
-                    {day === trip.day && <Tag tone="green">Today</Tag>}
+                    {day === nowDay && <Tag tone="green">Today</Tag>}
+                    {day === addDays(nowDay, 1) && <Tag tone="grey-outline">Tomorrow</Tag>}
                     <span className="ml-auto whitespace-nowrap t-small text-muted">{openTasks.length === 0 ? 'Nothing to do' : `${openTasks.length} to do`}</span>
                   </div>
                   {openTasks.length > 0 ? (

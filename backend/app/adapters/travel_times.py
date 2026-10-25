@@ -2,9 +2,9 @@
 
 Two implementations share one interface:
 - SampleSnapshotAdapter reads examples/<city>/travel-times.json (the Bengaluru demo). For a place the
-  file doesn't know (any place found by search), it adds rough cab and walk estimates from the
-  straight-line distance, flagged `rough` so every screen can say so. In a city with no sample file,
-  the estimates use real road distances (one table from the routing server per plan) when it answers.
+  file doesn't know (any place found by search), and in a city with no sample file, it adds rough cab
+  and walk estimates, flagged `rough` so every screen can say so: from real road distances (one table
+  from the routing server per plan) when it answers, else from the straight line.
 - OsrmSnapshotAdapter asks OSRM for road times (car and foot), prices cabs from the city fare table,
   adds metro options from the timetable file, and caches every pair in Redis for 24 hours.
 Both enrich Raasta legs through the transit adapter, so a route's live status and first and last
@@ -147,10 +147,12 @@ class SampleSnapshotAdapter:
         status, service = _enrich(data, self.transit)
         snap = parse_snapshot(data, raasta_status=status, raasta_service=service)
         # Only places the file doesn't know get estimates: the file's own gaps between its places stay
-        # gaps, so the sample day plans exactly as the brief's golden test says.
+        # gaps, so the sample day plans exactly as the brief's golden test says. The estimates use road
+        # distances, as in a city without a file, whenever the routing server answers.
         fares = cab_fares(self.examples_dir, city_slug)
+        road_km = self._road_km(places) if wanted - known else {}
         rough = tuple(
-            PairOptions(from_place=a.place_id, to_place=b.place_id, options=rough_options(a, b, fares))
+            PairOptions(from_place=a.place_id, to_place=b.place_id, options=rough_options(a, b, fares, road_km.get((a.place_id, b.place_id))))
             for a in places
             for b in places
             if a.place_id != b.place_id and (a.place_id not in known or b.place_id not in known)

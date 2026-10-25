@@ -4,7 +4,8 @@
   arrives 10 minutes early.
 - A fixed task the traveller goes to anyway (late_ok) that can't be reached in time: leave as soon
   as possible; it starts on arrival. Arriving after it would have ended is still a failure.
-- A window task starts on arrival, never before it opens, and must finish by closing time.
+- A window task starts on arrival, never before it opens, and must finish by closing time; any other
+  task without a fixed time must finish by the end of the day (midnight).
 - Never depart outside a route's or the metro's service hours.
 - The first leg from the place of stay leaves as late as the first task allows, so the
   traveller never waits at a closed door.
@@ -81,6 +82,8 @@ def time_leg(rule: RuleSettings, ready: int, from_stay: bool, task: PlanTask | N
         if end > task.window.closes:
             return LegTiming(ok=False, failure="window")
         return LegTiming(True, leave, arrive, start, end, wait)
+    if start + task.duration_min > rule.day_end:
+        return LegTiming(ok=False, failure="window")
     return LegTiming(True, leave, arrive, start, start + task.duration_min, wait)
 
 

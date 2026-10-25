@@ -97,7 +97,7 @@ export function PlacePicker({
             <ul aria-label="Places found" aria-busy={search.isFetching} className="mt-2 divide-y divide-line overflow-hidden rounded-control border border-line bg-surface">
               {search.isPending && <li className="px-4 py-3 t-small text-ink-2">Searching…</li>}
               {search.isError && <li className="px-4 py-3 t-small text-ink-2">{placeSearchError(search.error)}</li>}
-              {search.data?.length === 0 && <li className="px-4 py-3 t-small text-ink-2">No places match. Try the area name, like Koramangala.</li>}
+              {search.data?.length === 0 && <li className="px-4 py-3 t-small text-ink-2">No places match. Try the area name{city === 'bengaluru' ? ', like Koramangala' : ''}.</li>}
               {mine.length > 0 && (
                 <li aria-hidden="true" className="bg-sunken px-4 py-1.5 t-caption text-ink-2">
                   Your places

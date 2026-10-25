@@ -3,7 +3,7 @@ import { isReachable, onReachableChange } from '@/api/client'
 import type { Trip } from '@/api/types'
 import { hhmm } from './format'
 import { useStore } from './store'
-import { lastReroute, type DayView } from './timeline'
+import { lastReroute, onDay, todayOf, type DayView } from './timeline'
 
 export function useMediaQuery(q: string) {
   return useSyncExternalStore(
@@ -68,6 +68,8 @@ export function useStatus(trip: Trip | undefined, view: DayView | null, clock: n
   if (!online) return { kind: 'offline', text: 'Offline' }
   if (trip?.openOptions) return { kind: 'blocked', text: 'Choose a new plan' }
   if (pending) return { kind: 'behind', text: `Behind by ${pending} min` }
+  // The night before (the trip clock is negative): nothing to be on time for yet.
+  if (trip && clock !== null && clock < 0) return { kind: 'on_time', text: `Starts ${onDay(trip.day, todayOf(trip.day, clock))}` }
   const leave = view?.nextLeg ? view.nextLeg.leaveMin : null
   const behind = clock !== null && leave !== null && view?.stops[view.nowIndex]?.kind === 'task' ? clock - leave : 0
   if (behind > 5) return { kind: 'behind', text: `Behind by ${behind} min` }

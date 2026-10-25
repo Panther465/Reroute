@@ -148,6 +148,21 @@ def test_sample_snapshot_estimates_places_it_does_not_know():
     assert far[0].rough and far[0].travel_min == 16 + 5 and far[0].fare_inr == 191
 
 
+def test_a_searched_place_in_bengaluru_is_estimated_from_road_distances_too(fake_redis, monkeypatch):
+    seen: list[httpx.Request] = []
+    table = {"code": "Ok", "distances": [[0, 3000, 2500], [3000, 0, 9000], [2500, 9000, 0]]}
+    router = _router(fake_redis, monkeypatch, lambda r: httpx.Response(200, json=table), seen)
+    pairs = SampleSnapshotAdapter(StaticTransitAdapter({}), router=router).snapshot("bengaluru", [KOR, JAY, CAFE], DAY).lookup()
+    # 9 km of road at 18 km/h is 30 minutes, plus the pickup, where the straight line said 16.
+    (far,) = pairs[(JAY.place_id, CAFE.place_id)]
+    assert far.rough and far.travel_min == 30 + 5
+    # Pairs the file has stay as the file says, and a day of places the file knows asks the router nothing.
+    assert not any(o.rough for o in pairs[(KOR.place_id, JAY.place_id)])
+    seen.clear()
+    SampleSnapshotAdapter(StaticTransitAdapter({}), router=router).snapshot("bengaluru", [KOR, JAY], DAY)
+    assert seen == []
+
+
 def test_gaps_between_known_places_stay_gaps():
     # The file has Whitefield to Koramangala but not back: no estimate fills it, so the demo day is unchanged.
     pairs = SampleSnapshotAdapter(StaticTransitAdapter({})).snapshot("bengaluru", [KOR, WF], DAY).lookup()

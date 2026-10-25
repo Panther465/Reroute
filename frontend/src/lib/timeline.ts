@@ -369,3 +369,14 @@ export function dayLabel(day: string) {
 export function weekday(day: string) {
   return new Date(`${day}T00:00:00Z`).toLocaleDateString('en-GB', { weekday: 'long', timeZone: 'UTC' })
 }
+
+/** The traveller's own today, from the trip clock (minutes since the trip day's midnight, negative before it):
+ *  the night before a trip, its first day is tomorrow. */
+export function todayOf(tripDay: string, clock: number | null): string {
+  return clock == null ? tripDay : addDays(tripDay, Math.floor(clock / 1440))
+}
+
+/** `day` as the traveller would say it on `today`: "today", "tomorrow" or "on Monday". */
+export function onDay(day: string, today: string): string {
+  return day === today ? 'today' : day === addDays(today, 1) ? 'tomorrow' : `on ${weekday(day)}`
+}

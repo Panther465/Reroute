@@ -110,7 +110,7 @@ export default function RaastaHome() {
     try {
       const [a, b] = await resolveEnds()
       if (!a || !b) {
-        setError(`We couldn't find ${!a ? from : to} in ${cityName}. Try an area name, like Koramangala.`)
+        setError(`We couldn't find ${!a ? from : to} in ${cityName}. Try an area name${city === 'bengaluru' ? ', like Koramangala' : ''}.`)
         return
       }
       // "Last one has gone" follows the trip clock (the demo clock too), not the phone's.
@@ -183,8 +183,8 @@ export default function RaastaHome() {
 
       <form className="mt-6 rounded-card border border-line bg-surface p-5" role="search" onSubmit={find}>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label={tl('Where from?').text} labelLang={tl('Where from?').lang} value={from} onChange={(e) => setFrom(e.target.value)} autoComplete="off" hint="A stand or area, like Koramangala" />
-          <Field label={tl('Where to?').text} labelLang={tl('Where to?').lang} value={to} onChange={(e) => setTo(e.target.value)} autoComplete="off" hint="Like Jayanagar" />
+          <Field label={tl('Where from?').text} labelLang={tl('Where from?').lang} value={from} onChange={(e) => setFrom(e.target.value)} autoComplete="off" hint={city === 'bengaluru' ? 'A stand or area, like Koramangala' : 'A stand or an area'} />
+          <Field label={tl('Where to?').text} labelLang={tl('Where to?').lang} value={to} onChange={(e) => setTo(e.target.value)} autoComplete="off" hint={city === 'bengaluru' ? 'Like Jayanagar' : undefined} />
         </div>
         {error && <FieldError id="raasta-err">{error}</FieldError>}
         <Button type="submit" className="mt-4" loading={searching} loadingLabel="Finding routes…" icon={<Search size={20} strokeWidth={1.75} aria-hidden="true" />} disabled={!online}>

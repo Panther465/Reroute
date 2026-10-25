@@ -11,7 +11,7 @@ from geoalchemy2.elements import WKTElement
 from sqlalchemy import ColumnElement, and_, case, exists, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.adapters.places import FoundPlace, NominatimSearch
+from app.adapters.places import FoundPlace, NominatimSearch, SearchBusy
 from app.cities import City
 from app.cities import city as supported_city
 from app.errors import ApiError
@@ -46,8 +46,9 @@ def _rank(place: Place, text: str) -> int:
     return 0 if name == t else 1 if name.startswith(t) else 2 if t in name else 3
 
 
-def find_places(db: Session, q: str, city_slug: str, limit: int = 8, user_id: str | None = None) -> list[Place]:
-    """Places in the city matching the text, the traveller's own first."""
+def find_places(db: Session, q: str, city_slug: str, limit: int = 8, user_id: str | None = None, say_busy: bool = False) -> list[Place]:
+    """Places in the city matching the text, the traveller's own first, each place once. With `say_busy`, when
+    nothing here matches and OpenStreetMap's search had no turn free, SearchBusy: "nothing found" would be wrong."""
     where = supported_city(city_slug)
     text = q.strip()
     if where is None or len(text) < 2:
@@ -58,14 +59,32 @@ def find_places(db: Session, q: str, city_slug: str, limit: int = 8, user_id: st
     query = select(Place).where(Place.city_slug == city_slug, matching, visible(user_id))
     known = list(db.scalars(query.order_by(*own_first, Place.sample.desc(), Place.name).limit(20)))
     if len(known) < 3:
-        for found in NominatimSearch(get_redis()).search(text, where):
+        try:
+            from_osm = NominatimSearch(get_redis()).search(text, where)
+        except SearchBusy:
+            if say_busy and not known:
+                raise
+            from_osm = []
+        for found in from_osm:
             if not where.contains(found.lng, found.lat):
                 continue
             place = _saved(db, found, city_slug)
             if not any(p.place_id == place.place_id for p in known):
                 known.append(place)
         db.commit()
-    return sorted(known, key=lambda p: (p.owner_id is None or p.owner_id != user_id, _rank(p, text)))[:limit]
+    return _once(sorted(known, key=lambda p: (p.owner_id is None or p.owner_id != user_id, _rank(p, text))))[:limit]
+
+
+def _once(places: list[Place]) -> list[Place]:
+    """One of each place, the first kept: OpenStreetMap often has a neighbourhood twice (a point and an outline),
+    the same name and area a little apart, which read as the same choice twice."""
+    out: list[Place] = []
+    for p in places:
+        same = (p.name.strip().lower(), (p.area or "").strip().lower())
+        if any((o.name.strip().lower(), (o.area or "").strip().lower()) == same and abs(o.lng - p.lng) < 0.02 and abs(o.lat - p.lat) < 0.02 for o in out):
+            continue
+        out.append(p)
+    return out
 
 
 def _saved(db: Session, found: FoundPlace, city_slug: str) -> Place:

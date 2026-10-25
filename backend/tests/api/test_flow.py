@@ -487,6 +487,51 @@ def test_place_search_puts_the_exact_name_first(client, monkeypatch):
     assert names[0] == "Koramangala" and "Bank, 80 Feet Road" in names
 
 
+class BusyNominatim:
+    """OpenStreetMap's search with no turn free (one request a second for everyone)."""
+
+    def __init__(self, *_):
+        pass
+
+    def search(self, query, where):
+        from app.adapters.places import SearchBusy
+
+        raise SearchBusy()
+
+
+def test_place_search_says_busy_rather_than_nothing_found(client, monkeypatch):
+    monkeypatch.setattr("app.services.places.NominatimSearch", BusyNominatim)
+    # Nothing known matches: the app is told to ask again, not that the place doesn't exist.
+    res = client.get("/v1/places", params={"q": "Bagmane Tech Park"})
+    assert res.status_code == 503 and res.json()["error"]["code"] == "UNAVAILABLE"
+    assert res.headers["Retry-After"] == "1"
+    # Places Reroute knows still come back while OpenStreetMap is busy.
+    res = client.get("/v1/places", params={"q": "Majestic"})
+    assert res.status_code == 200 and any("Majestic" in p["name"] for p in res.json())
+
+
+class TwiceNominatim:
+    """OpenStreetMap with a neighbourhood twice over, as a point and as an outline."""
+
+    def __init__(self, *_):
+        pass
+
+    def search(self, query, where):
+        from app.adapters.places import FoundPlace
+
+        return [
+            FoundPlace("osm-n1", "Indiranagar", "Indiranagar", 77.6408, 12.9719, "n1"),
+            FoundPlace("osm-r2", "Indiranagar", "Indiranagar", 77.6387, 12.9784, "r2"),
+            FoundPlace("osm-n3", "Indiranagar Metro", "Indiranagar", 77.6408, 12.9783, "n3"),
+        ]
+
+
+def test_place_search_shows_each_place_once(client, monkeypatch):
+    monkeypatch.setattr("app.services.places.NominatimSearch", TwiceNominatim)
+    names = [p["name"] for p in client.get("/v1/places", params={"q": "Indiranagar"}).json()]
+    assert names.count("Indiranagar") == 1 and "Indiranagar Metro" in names
+
+
 def test_described_tasks_match_any_place_and_say_which(client, monkeypatch):
     from app.config import get_settings
 

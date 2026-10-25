@@ -624,7 +624,7 @@ export default function Today() {
 
   // Two to a row on a phone: a little less padding, so "Running late" stays on one line with big text, and on
   // the narrowest phones no icons, so "Mark done" does too.
-  const actions = !view.done && (
+  const actions = !view.done && clock >= 0 && (
     <div className="@container grid grid-cols-2 gap-3 [&>button]:px-3 @max-[300px]:[&>button>svg:not(.animate-spin)]:hidden">
       <Button variant="destructive" onClick={() => openLate()} disabled={!target}>
         <T k="Running late" />

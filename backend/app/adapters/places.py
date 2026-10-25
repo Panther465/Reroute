@@ -42,6 +42,10 @@ class FoundCity:
 SETTLEMENTS = ("city", "town", "municipality", "village")
 
 
+class SearchBusy(Exception):
+    """Nominatim had no turn free in time: nothing was asked, so nothing is known to be missing."""
+
+
 class PlaceSearch(Protocol):
     def search(self, query: str, where: City) -> list[FoundPlace]: ...
 
@@ -56,7 +60,8 @@ class NominatimSearch:
     def _throttle(self) -> bool:
         """One request a second across every API copy: a Redis lock that expires after a second.
 
-        Returns False when no slot came free within 3 s; the caller then skips Nominatim.
+        Returns False when no slot came free within 3 s: a place search then says it's busy (SearchBusy) rather
+        than that nothing was found; a city search skips Nominatim.
         """
         for _ in range(30):
             if self.redis.set("nominatim:throttle", "1", nx=True, px=1000):
@@ -80,7 +85,7 @@ class NominatimSearch:
         if cached is not None:
             return [FoundPlace(**x) for x in json.loads(cached)]
         if not self._throttle():
-            return []
+            raise SearchBusy()
         try:
             west, south, east, north = where.bbox
             params = {
