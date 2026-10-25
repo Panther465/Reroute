@@ -387,19 +387,20 @@ html[data-rico-bar] body > :not([data-rico-bar-keep]) {
   border-left: 6px dashed currentColor;
 }
 
-/* MapLibre's own controls take the app's surfaces, so they don't glare white on the night map. */
-.maplibregl-ctrl-attrib {
+/* MapLibre's own controls take the app's surfaces, so they don't glare white on the night map. Scoped to the map:
+   MapLibre's stylesheet loads with the map, after this one, and would win a tie. */
+.maplibregl-map .maplibregl-ctrl-attrib {
   font-size: 0.8125rem;
 }
-.maplibregl-ctrl.maplibregl-ctrl-attrib,
-.maplibregl-ctrl-group {
+.maplibregl-map .maplibregl-ctrl.maplibregl-ctrl-attrib,
+.maplibregl-map .maplibregl-ctrl-group {
   background: var(--surface);
   color: var(--ink-2);
 }
-.maplibregl-ctrl-attrib a {
+.maplibregl-map .maplibregl-ctrl-attrib a {
   color: var(--ink-2);
 }
-.maplibregl-ctrl-group button + button {
+.maplibregl-map .maplibregl-ctrl-group button + button {
   border-top-color: var(--line);
 }
 :root[data-theme='dark'] .maplibregl-ctrl-group .maplibregl-ctrl-icon,

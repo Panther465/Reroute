@@ -309,7 +309,7 @@ export default function Me() {
           <div className="rounded-card border border-line bg-surface px-4">
             <Switch
               label="Show me on the map"
-              description="Follows you while Reroute is open, to show where you are on the route and say when you're nearly there. Your position is never sent to Reroute; the map pictures around you come from OpenFreeMap."
+              description="Follows you while Reroute is open, to show where you are on the route and say when you're nearly there. Your position is never sent to Reroute; the map pictures around you come from the map's maker (Google Maps, or OpenFreeMap)."
               checked={location.tracking && !location.simulated}
               onChange={async (v) => {
                 if (!v) return stopTracking()

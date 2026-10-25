@@ -10,6 +10,7 @@ OpenStreetMap's.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import re
@@ -37,21 +38,53 @@ SESSION_MARGIN_S = 24 * 3600
 #: The ID Reroute gives a place Google found: "gpl-" and Google's own place ID.
 PREFIX = "gpl-"
 
-#: Google's map at night, in Reroute's dark colours: label text always with both fill and stroke, as Google asks.
+#: Google's map in Reroute's own colours (frontend/src/styles/tokens.css), so it looks like the rest of the app: the
+#: page's pale sage for land, white roads edged like its cards, its green for parks, a soft blue for water, its
+#: ink for labels; no shops (the routes and Rico's places are what matter). Label text always has both a fill and a
+#: stroke, as Google asks.
+LIGHT_STYLE: list[dict[str, Any]] = [
+    {"elementType": "geometry", "stylers": [{"color": "#eef1ec"}]},
+    {"elementType": "labels.text.fill", "stylers": [{"color": "#3d4757"}]},
+    {"elementType": "labels.text.stroke", "stylers": [{"color": "#ffffff"}]},
+    {"featureType": "administrative.locality", "elementType": "labels.text.fill", "stylers": [{"color": "#1a2230"}]},
+    {"featureType": "administrative.neighborhood", "elementType": "labels.text.fill", "stylers": [{"color": "#566173"}]},
+    {"featureType": "landscape.man_made", "elementType": "geometry", "stylers": [{"color": "#e6eae4"}]},
+    {"featureType": "poi", "elementType": "geometry", "stylers": [{"color": "#e3e8e1"}]},
+    {"featureType": "poi", "elementType": "labels.icon", "stylers": [{"saturation": -35}]},
+    {"featureType": "poi.business", "stylers": [{"visibility": "off"}]},
+    {"featureType": "poi.park", "elementType": "geometry", "stylers": [{"color": "#cfe8d6"}]},
+    {"featureType": "poi.park", "elementType": "labels.text.fill", "stylers": [{"color": "#0a5c39"}]},
+    {"featureType": "road", "elementType": "geometry.fill", "stylers": [{"color": "#ffffff"}]},
+    {"featureType": "road", "elementType": "geometry.stroke", "stylers": [{"color": "#d5dbd3"}]},
+    {"featureType": "road.highway", "elementType": "geometry.fill", "stylers": [{"color": "#f8ecc4"}]},
+    {"featureType": "road.highway", "elementType": "geometry.stroke", "stylers": [{"color": "#e2cf8f"}]},
+    {"featureType": "transit", "elementType": "geometry", "stylers": [{"color": "#cdd5cc"}]},
+    {"featureType": "water", "elementType": "geometry", "stylers": [{"color": "#c4d5ef"}]},
+    {"featureType": "water", "elementType": "labels.text.fill", "stylers": [{"color": "#36589c"}]},
+    {"featureType": "water", "elementType": "labels.text.stroke", "stylers": [{"color": "#ffffff"}]},
+]
+
+#: The same at night, in Reroute's dark colours: its blue-black page, dark green parks, navy water.
 DARK_STYLE: list[dict[str, Any]] = [
-    {"elementType": "geometry", "stylers": [{"color": "#1c2624"}]},
-    {"elementType": "labels.text.fill", "stylers": [{"color": "#a3b5b0"}]},
-    {"elementType": "labels.text.stroke", "stylers": [{"color": "#141c1b"}]},
-    {"featureType": "administrative", "elementType": "geometry", "stylers": [{"color": "#3b4a47"}]},
-    {"featureType": "poi", "elementType": "geometry", "stylers": [{"color": "#212d2b"}]},
-    {"featureType": "poi.park", "elementType": "geometry", "stylers": [{"color": "#1d3328"}]},
-    {"featureType": "road", "elementType": "geometry.fill", "stylers": [{"color": "#33423f"}]},
-    {"featureType": "road", "elementType": "geometry.stroke", "stylers": [{"color": "#1a2422"}]},
-    {"featureType": "road.highway", "elementType": "geometry.fill", "stylers": [{"color": "#4b5c58"}]},
-    {"featureType": "transit", "elementType": "geometry", "stylers": [{"color": "#2b3836"}]},
-    {"featureType": "water", "elementType": "geometry", "stylers": [{"color": "#0f2430"}]},
-    {"featureType": "water", "elementType": "labels.text.fill", "stylers": [{"color": "#6f8c99"}]},
-    {"featureType": "water", "elementType": "labels.text.stroke", "stylers": [{"color": "#0f2430"}]},
+    {"elementType": "geometry", "stylers": [{"color": "#141b25"}]},
+    {"elementType": "labels.text.fill", "stylers": [{"color": "#9aa5b3"}]},
+    {"elementType": "labels.text.stroke", "stylers": [{"color": "#10161f"}]},
+    {"featureType": "administrative.locality", "elementType": "labels.text.fill", "stylers": [{"color": "#c3cbd5"}]},
+    {"featureType": "administrative.neighborhood", "elementType": "labels.text.fill", "stylers": [{"color": "#7f8a99"}]},
+    {"featureType": "landscape.man_made", "elementType": "geometry", "stylers": [{"color": "#18202b"}]},
+    {"featureType": "poi", "elementType": "geometry", "stylers": [{"color": "#18202b"}]},
+    {"featureType": "poi", "elementType": "labels.icon", "stylers": [{"saturation": -55}, {"lightness": -15}]},
+    {"featureType": "poi.business", "stylers": [{"visibility": "off"}]},
+    {"featureType": "poi.park", "elementType": "geometry", "stylers": [{"color": "#143127"}]},
+    {"featureType": "poi.park", "elementType": "labels.text.fill", "stylers": [{"color": "#6fcf9f"}]},
+    {"featureType": "road", "elementType": "geometry.fill", "stylers": [{"color": "#283342"}]},
+    {"featureType": "road", "elementType": "geometry.stroke", "stylers": [{"color": "#10161f"}]},
+    {"featureType": "road.highway", "elementType": "geometry.fill", "stylers": [{"color": "#3b4757"}]},
+    {"featureType": "road.highway", "elementType": "geometry.stroke", "stylers": [{"color": "#10161f"}]},
+    {"featureType": "transit", "elementType": "geometry", "stylers": [{"color": "#222b37"}]},
+    {"featureType": "water", "elementType": "geometry", "stylers": [{"color": "#0d1e33"}]},
+    {"featureType": "water", "elementType": "labels.text.fill", "stylers": [{"color": "#7096ff"}]},
+    {"featureType": "water", "elementType": "labels.text.stroke", "stylers": [{"color": "#0d1e33"}]},
 ]
 
 #: Google's place types for what Rico looks for nearby: sights, things to do, places to eat.
@@ -99,18 +132,30 @@ class TileSession:
     expires_at: int
 
 
+def session_body(dark: bool) -> dict[str, Any]:
+    """What a tiles session is asked for: Google's roadmap in Reroute's colours (dark: its night ones), English labels
+    (Google adds the local script's names where it has them), at twice the pixels for phones."""
+    return {
+        "mapType": "roadmap",
+        "language": "en",
+        "region": "IN",
+        "scale": "scaleFactor2x",
+        "highDpi": True,
+        "styles": DARK_STYLE if dark else LIGHT_STYLE,
+    }
+
+
 def tile_session(dark: bool, client: httpx.Client | None = None) -> TileSession:
-    """A Map Tiles API session for Google's roadmap (dark: in Reroute's night colours), reused until a day before it
-    expires: the same session serves every traveller, as Google allows."""
-    cache = f"gmaps:tiles:{'dark' if dark else 'light'}"
+    """A Map Tiles API session for Google's roadmap in Reroute's colours (dark: its night ones), reused until a day
+    before it expires: the same session serves every traveller, as Google allows. A changed style is a new session."""
+    body = session_body(dark)
+    look = hashlib.sha256(json.dumps(body, sort_keys=True).encode()).hexdigest()[:10]
+    cache = f"gmaps:tiles:{'dark' if dark else 'light'}:{look}"
     r = get_redis()
     kept = r.get(cache)
     if kept:
         found = json.loads(kept)
         return TileSession(found["session"], int(found["expires_at"]))
-    body: dict[str, Any] = {"mapType": "roadmap", "language": "en-IN", "region": "IN", "scale": "scaleFactor2x", "highDpi": True}
-    if dark:
-        body["styles"] = DARK_STYLE
     try:
         if client is None:
             with httpx.Client(timeout=TIMEOUT) as own:

@@ -657,10 +657,16 @@ function MapInner({
       {pins.map(({ key, host, Icon }) => createPortal(<Icon size={compact ? 14 : 20} strokeWidth={2} aria-hidden="true" />, host, key))}
       {google && (
         // Google's map is credited on it, as Google asks: "Google Maps", then its copyright line, clear of the buttons.
-        <p className="pointer-events-none absolute bottom-1 left-2 z-10 max-w-[78%] text-[11px] leading-4 text-ink [text-shadow:0_0_3px_var(--surface),0_0_3px_var(--surface)]">
-          <span className="font-bold">Google Maps</span>
-          {copyright ? ` ${copyright}` : ''}
-        </p>
+        // A small map has no (i) for the routes' own credit, so theirs goes just above.
+        <div
+          className={`pointer-events-none absolute bottom-1 left-2 z-10 text-ink [text-shadow:0_0_3px_var(--surface),0_0_3px_var(--surface)] ${compact ? 'max-w-[calc(100%-1rem)] text-[10px] leading-[13px]' : 'max-w-[78%] text-[11px] leading-4'}`}
+        >
+          {compact && <p className="text-ink-2">Routes © OpenStreetMap, FOSSGIS</p>}
+          <p>
+            <span className="font-bold">Google Maps</span>
+            {copyright ? ` ${copyright}` : ''}
+          </p>
+        </div>
       )}
       {eta && !compact && (
         <div className="pointer-events-none absolute left-3 top-3 z-10 flex items-center gap-3 rounded-card border border-line bg-surface px-4 py-2.5 shadow-[var(--shadow-toast)]">
@@ -671,7 +677,7 @@ function MapInner({
           </div>
         </div>
       )}
-      {compact && (
+      {compact && !google && (
         <span aria-hidden="true" className="absolute bottom-1 right-1.5 rounded bg-surface/90 px-1.5 text-[11px] leading-5 text-ink-2">
           © OpenStreetMap, OpenFreeMap, FOSSGIS
         </span>

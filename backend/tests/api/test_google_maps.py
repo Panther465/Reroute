@@ -76,20 +76,27 @@ def test_a_tile_session_is_made_once_and_kept_till_a_day_before_it_ends(keyed, f
     (request,) = seen
     assert str(request.url) == "https://tile.googleapis.com/v1/createSession?key=test-maps-key"
     body = json.loads(request.content)
-    assert body == {"mapType": "roadmap", "language": "en-IN", "region": "IN", "scale": "scaleFactor2x", "highDpi": True}
-    assert 12 * 24 * 3600 < fake_redis.ttl("gmaps:tiles:light") <= 13 * 24 * 3600
+    assert body == {"mapType": "roadmap", "language": "en", "region": "IN", "scale": "scaleFactor2x", "highDpi": True, "styles": google_maps.LIGHT_STYLE}
+    (kept,) = fake_redis.keys("gmaps:tiles:light:*")
+    assert 12 * 24 * 3600 < fake_redis.ttl(kept) <= 13 * 24 * 3600
 
 
-def test_the_dark_map_is_googles_roadmap_in_reroutes_night_colours(keyed):
+def test_the_map_is_in_reroutes_own_colours_and_a_new_look_is_a_new_session(keyed, fake_redis, monkeypatch):
     seen: list[httpx.Request] = []
-    transport = _google(lambda r: httpx.Response(200, json={"session": "S-dark", "expiry": str(int(time.time()) + 3600 * 48)}), seen)
+    transport = _google(lambda r: httpx.Response(200, json={"session": f"S{len(seen)}", "expiry": str(int(time.time()) + 3600 * 48)}), seen)
     with httpx.Client(transport=transport) as client:
-        assert google_maps.tile_session(True, client).session == "S-dark"
-    styles = json.loads(seen[0].content)["styles"]
-    assert styles == google_maps.DARK_STYLE
-    # Label text always gets both a fill and a stroke, as Google asks.
-    texts = {(s.get("featureType", "all"), s["elementType"]) for s in styles if s.get("elementType", "").startswith("labels.text")}
-    assert ("all", "labels.text.fill") in texts and ("all", "labels.text.stroke") in texts
+        assert google_maps.tile_session(True, client).session == "S1"
+        assert json.loads(seen[0].content)["styles"] == google_maps.DARK_STYLE
+        # The page's own colours: its pale sage for land in light, its blue-black at night.
+        assert google_maps.LIGHT_STYLE[0] == {"elementType": "geometry", "stylers": [{"color": "#eef1ec"}]}
+        assert google_maps.DARK_STYLE[0] == {"elementType": "geometry", "stylers": [{"color": "#141b25"}]}
+        # Label text always gets both a fill and a stroke, as Google asks.
+        for style in (google_maps.LIGHT_STYLE, google_maps.DARK_STYLE):
+            texts = {s["elementType"] for s in style if "featureType" not in s and s.get("elementType", "").startswith("labels.text")}
+            assert texts == {"labels.text.fill", "labels.text.stroke"}
+        # A changed style is asked for afresh, not served from the old session.
+        monkeypatch.setattr(google_maps, "DARK_STYLE", [*google_maps.DARK_STYLE, {"featureType": "transit", "stylers": [{"visibility": "off"}]}])
+        assert google_maps.tile_session(True, client).session == "S2" and len(seen) == 2
 
 
 def test_without_a_key_or_when_google_says_no_there_is_no_google_map(monkeypatch, fake_redis):
@@ -101,7 +108,7 @@ def test_without_a_key_or_when_google_says_no_there_is_no_google_map(monkeypatch
     refused = _google(lambda r: httpx.Response(403, json={"error": {"status": "PERMISSION_DENIED"}}), [])
     with httpx.Client(transport=refused) as client, pytest.raises(google_maps.GoogleUnavailable):
         google_maps.tile_session(False, client)
-    assert fake_redis.get("gmaps:tiles:light") is None
+    assert fake_redis.keys("gmaps:tiles:*") == []
 
 
 # ---------- place search ----------
@@ -260,7 +267,7 @@ def test_places_rico_shows_get_googles_rating_hours_photo_and_page(keyed, monkey
         "url": "https://lh3.googleusercontent.com/p/abc=w800",
         "thumb_url": "https://lh3.googleusercontent.com/p/abc=w800",
         "title": "Lalbagh Botanical Garden",
-        "credit": "Photo: Asha R, Google Maps",
+        "credit": "Google Maps, photo by Asha R",
         "source_url": "https://maps.google.com/maps/contrib/1",
     }
     assert (card["source"], card["maps_url"], card["google_place_id"], card["what"]) == (
