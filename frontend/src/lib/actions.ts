@@ -1,10 +1,11 @@
 // What the traveller does, end to end: call the API, refresh the trip, run the choreography, toast.
-import { api, ApiError, newKey } from '@/api/client'
+import { api, ApiError, getAccessToken, newKey, onAnswered } from '@/api/client'
 import { keys, queryClient, waitForJob } from '@/api/queries'
 import type { AcceptIn, Body, CheckinResult, JobAccepted, Plan, TaskAdded, TaskEdit, TaskIn, TaskPatch, Trip } from '@/api/types'
 import { hhmm } from './format'
 import { enqueue, flush, queued, type QueuedCheckin } from './offlineQueue'
 import { announce, dismissToast, getState, playChange, setState, showToast } from './store'
+import { keyIsSpent } from './submitKey'
 import { buildDay, type DayView } from './timeline'
 
 /** Fetch the trip now and put it in the cache. */
@@ -113,12 +114,14 @@ export async function commitCheckin(key: string) {
       undoVersion: shifted ? undoVersionOf(trip) : null,
     })
   } catch (err) {
-    if (err instanceof ApiError && err.offline) {
-      // The queue keeps the station filled from here, across reloads too.
+    // No answer, or none the server kept (a 5xx, a rate limit, the first try still being processed): it goes out
+    // later with its key, as the queue's own retries do. The queue keeps the station filled from here, across reloads too.
+    if (!keyIsSpent(err)) {
       enqueue(item)
       dropOptimistic([item.taskId])
-      showToast({ title: `Marked done. It syncs when you're back online.` })
-      announce(`${title} marked done. It syncs when you're back online.`)
+      const when = err instanceof ApiError && err.offline ? "when you're back online" : 'as soon as Reroute answers'
+      showToast({ title: `Marked done. It syncs ${when}.` })
+      announce(`${title} marked done. It syncs ${when}.`)
       return
     }
     dropOptimistic([item.taskId])
@@ -126,8 +129,24 @@ export async function commitCheckin(key: string) {
   }
 }
 
-/** Send check-ins saved while offline. */
-export async function flushQueue(tripId: string | null) {
+let flushing: Promise<void> | null = null
+
+/** Send check-ins saved while offline. Calls that overlap share one send, and its toast. */
+export function flushQueue(tripId: string | null): Promise<void> {
+  flushing ??= sendQueued(tripId).finally(() => {
+    flushing = null
+  })
+  return flushing
+}
+
+// A check-in that timed out is queued while the phone still counts as online, so no change of connection would send
+// it: the queue also goes out after any request the server answers (the trip's own refresh comes every minute).
+onAnswered(() => {
+  const first = queued()[0]
+  if (first && getAccessToken()) void flushQueue(first.tripId)
+})
+
+async function sendQueued(tripId: string | null) {
   // Keep the stations filled while the queue empties and the trip reloads.
   const waiting = queued().map((q) => q.taskId)
   if (!waiting.length) return
@@ -150,9 +169,28 @@ export function sendSkip(tripId: string, taskId: string, idempotencyKey = newKey
 
 export const SKIP_TOAST = 'Day rerouted. Later stops moved up.'
 
-export async function skipTask(tripId: string, taskId: string, before: DayView | null) {
+/**
+ * Whether a change the server saved was shown: 'saved' when the trip, or the progress of the re-plan it started,
+ * couldn't be loaded after it. The change stands either way, and the timeline catches up when the trip next loads.
+ */
+export type Shown = 'shown' | 'saved'
+
+/** After the server saved a change: play it. A failure from here on (no signal, say) isn't the change failing. */
+export async function playSaved(tripId: string, play: () => Promise<unknown>): Promise<Shown> {
+  try {
+    await play()
+    return 'shown'
+  } catch (err) {
+    // The server's own word that the re-plan failed is an answer (the change is saved, the plan stays): it stands.
+    if (err instanceof ApiError && err.code === 'REPLAN_FAILED') throw err
+    void queryClient.invalidateQueries({ queryKey: keys.trip(tripId) })
+    return 'saved'
+  }
+}
+
+export async function skipTask(tripId: string, taskId: string, before: DayView | null): Promise<Shown> {
   await sendSkip(tripId, taskId)
-  await applyServerChange(tripId, before, { kind: 'reroute', toast: SKIP_TOAST, undo: true })
+  return playSaved(tripId, () => applyServerChange(tripId, before, { kind: 'reroute', toast: SKIP_TOAST, undo: true }))
 }
 
 /** Report a delay. The sheet decides what to show from the result. */
@@ -216,21 +254,20 @@ export async function addTask(tripId: string, body: Body<TaskIn>, idempotencyKey
 }
 
 /** Move a task to another day of the trip; today re-plans without it, and the change plays. */
-export async function moveTaskToDay(tripId: string, taskId: string, day: string, before: DayView | null) {
-  await editTask(tripId, taskId, { day }, before)
+export function moveTaskToDay(tripId: string, taskId: string, day: string, before: DayView | null): Promise<Shown> {
+  return editTask(tripId, taskId, { day }, before)
 }
 
 /** Change part of a task (its length, its start time, its day), wait for the re-plan, and play the change. */
-export async function editTask(tripId: string, taskId: string, patch: TaskPatch, before: DayView | null) {
+export async function editTask(tripId: string, taskId: string, patch: TaskPatch, before: DayView | null): Promise<Shown> {
   const res = await api.patch<TaskEdit>(`/v1/trips/${tripId}/tasks/${taskId}`, patch)
-  const outcome: EditOutcome = res.jobId ? await waitReplan(tripId, res.jobId) : 'saved'
-  await playTaskEdit(tripId, before, outcome)
+  return playSaved(tripId, async () => playTaskEdit(tripId, before, res.jobId ? await waitReplan(tripId, res.jobId) : 'saved'))
 }
 
 /** Plan today again from where the traveller is, and play the change on the timeline. */
-export async function replanDay(tripId: string, before: DayView | null) {
+export async function replanDay(tripId: string, before: DayView | null): Promise<Shown> {
   const job = await api.post<JobAccepted>(`/v1/trips/${tripId}/plans`, {}, { idempotencyKey: newKey('plan') })
-  await playTaskEdit(tripId, before, await waitReplan(tripId, job.jobId))
+  return playSaved(tripId, async () => playTaskEdit(tripId, before, await waitReplan(tripId, job.jobId)))
 }
 
 async function waitReplan(tripId: string, jobId: string): Promise<EditOutcome> {
@@ -264,14 +301,22 @@ export function playLater(run: () => Promise<unknown>) {
   void run().catch(() => showToast({ title: "Couldn't load your new plan. Check your connection and try again." }))
 }
 
-export async function undo(tripId: string, version: number) {
+/** Bring back an earlier plan and play it. Throws when the server didn't bring it back (the day is as it was). */
+export async function restorePlan(tripId: string, version: number): Promise<Shown> {
   const before = buildDay(queryClient.getQueryData<Trip>(keys.trip(tripId))!)
   setState({ autoBanner: null })
+  await api.post<Plan>(`/v1/trips/${tripId}/plans/${version}/activate`, {}, { idempotencyKey: newKey('undo') })
+  return playSaved(tripId, () => applyServerChange(tripId, before, { kind: 'undo', toast: 'Change undone. Your earlier plan is back.' }))
+}
+
+/** Undo from a toast, the banner or the day's log. A failure shows as a toast; resolves with whether it was undone. */
+export async function undo(tripId: string, version: number): Promise<boolean> {
   try {
-    await api.post<Plan>(`/v1/trips/${tripId}/plans/${version}/activate`, {}, { idempotencyKey: newKey('undo') })
-    await applyServerChange(tripId, before, { kind: 'undo', toast: 'Change undone. Your earlier plan is back.' })
+    if ((await restorePlan(tripId, version)) === 'saved') showToast({ title: 'Change undone. Your timeline updates when your plan loads again.' })
+    return true
   } catch (err) {
     showToast({ title: err instanceof ApiError ? err.message : "Couldn't undo. Try again." })
+    return false
   }
 }
 

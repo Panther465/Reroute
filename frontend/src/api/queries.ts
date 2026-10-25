@@ -1,5 +1,5 @@
 // TanStack Query hooks for both APIs. The query cache is persisted, so the active plan still renders offline.
-import { QueryClient, useQuery } from '@tanstack/react-query'
+import { QueryClient, useQuery, type Query } from '@tanstack/react-query'
 import { useMemo } from 'react'
 import { useQueued } from '@/lib/offlineQueue'
 import { useStore } from '@/lib/store'
@@ -69,6 +69,15 @@ export const keys = {
 /** Which queries survive a reload (the rest are cheap to refetch). */
 export function persistable(key: readonly unknown[]) {
   return ['me', 'trips', 'trip', 'summary', 'raasta', 'paths', 'bookings', 'own-places'].includes(String(key[0]))
+}
+
+/**
+ * What the phone keeps for the next launch: every persistable query with data, its last refetch failed or not. A
+ * failed refetch marks a query 'error' but keeps its data; keeping only 'success' lost the saved account to one
+ * refetch while the server was down, and the next launch out of reach then signed the traveller out.
+ */
+export function shouldPersist(query: Query) {
+  return query.state.data !== undefined && persistable(query.queryKey)
 }
 
 /**

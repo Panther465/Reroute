@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { api, refreshSession, setAccessToken, setForcedOffline } from '@/api/client'
+import { api, getAccessToken, refreshSession, setAccessToken, setForcedOffline } from '@/api/client'
 import { keys, queryClient } from '@/api/queries'
 import type { User } from '@/api/types'
 import { native } from './platform'
@@ -95,10 +95,51 @@ describe('restoring the session', () => {
     expect(getSessionStatus()).toBe('signedOut')
   })
 
-  it('signs out when out of reach with nothing saved', async () => {
-    stubFetch(async () => Promise.reject(new TypeError('Failed to fetch')))
+  it('stays signed in when out of reach while the browser holds the session, even with no saved account', async () => {
+    // A refetch that failed while the server was down used to drop the saved account from the cache: the next
+    // launch out of reach then signed the traveller out.
+    stubFetch(async () => json(502, {}))
+    await restoreSession()
+    expect(getSessionStatus()).toBe('signedIn')
+  })
+
+  it('signs out when out of reach with nothing on this phone: no saved account and no session', async () => {
+    document.cookie = 'rr_csrf=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT'
+    setForcedOffline(true)
     await restoreSession()
     expect(getSessionStatus()).toBe('signedOut')
+  })
+
+  it('opened out of reach, it refreshes again on a new connection or back on screen, and carries on', async () => {
+    stubFetch(async () => Promise.reject(new TypeError('Failed to fetch')))
+    await restoreSession()
+    expect(getSessionStatus()).toBe('signedIn')
+    const refresh = vi.fn(async () => json(200, { accessToken: 'tok' }))
+    stubFetch(refresh)
+    window.dispatchEvent(new Event('online'))
+    await vi.waitFor(() => expect(getAccessToken()).toBe('tok'))
+    expect(refresh).toHaveBeenCalledTimes(1)
+    expect(getSessionStatus()).toBe('signedIn')
+
+    // Back on screen does the same.
+    setAccessToken(null)
+    resetSession('loading')
+    stubFetch(async () => Promise.reject(new TypeError('Failed to fetch')))
+    await restoreSession()
+    stubFetch(async () => json(200, { accessToken: 'tok-2' }))
+    document.dispatchEvent(new Event('visibilitychange'))
+    await vi.waitFor(() => expect(getAccessToken()).toBe('tok-2'))
+  })
+
+  it('opened out of reach, it signs out once the server refuses the session', async () => {
+    queryClient.setQueryData(keys.me, user)
+    stubFetch(async () => Promise.reject(new TypeError('Failed to fetch')))
+    await restoreSession()
+    expect(getSessionStatus()).toBe('signedIn')
+    stubFetch(async () => json(401, { error: { code: 'UNAUTHENTICATED', message: 'Your session ended. Sign in again.' } }))
+    window.dispatchEvent(new Event('online'))
+    await vi.waitFor(() => expect(getSessionStatus()).toBe('signedOut'))
+    expect(queryClient.getQueryData(keys.me)).toBeUndefined()
   })
 
   it('moves to signed out when a later refresh is refused (the session ran out)', async () => {
@@ -171,6 +212,20 @@ describe('in the Android app', () => {
     await restoreSession()
     expect(getSessionStatus()).toBe('signedIn')
     expect(kept).toBe('app-refresh-000000000000000a')
+  })
+
+  it('opens offline with the kept token when the server is out of reach, even with no saved account', async () => {
+    kept = 'app-refresh-0000000000000009'
+    stubFetch(async () => Promise.reject(new TypeError('Failed to fetch')))
+    await restoreSession()
+    expect(getSessionStatus()).toBe('signedIn')
+    expect(kept).toBe('app-refresh-0000000000000009')
+  })
+
+  it('signs out when out of reach with no token kept and nothing saved', async () => {
+    setForcedOffline(true)
+    await restoreSession()
+    expect(getSessionStatus()).toBe('signedOut')
   })
 
   it('signs out with its token in the body and forgets it', async () => {

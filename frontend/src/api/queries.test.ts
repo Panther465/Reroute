@@ -1,11 +1,12 @@
-import { QueryClient, QueryObserver } from '@tanstack/react-query'
+import { dehydrate, QueryClient, QueryObserver } from '@tanstack/react-query'
 import { act, renderHook } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { enqueue, resetQueue } from '@/lib/offlineQueue'
 import { resetSession } from '@/lib/session'
 import { setState } from '@/lib/store'
 import { goldenTrip } from '@/test/fixtures'
-import { useDay, whileSignedIn } from './queries'
+import { ApiError } from './client'
+import { keys, shouldPersist, useDay, whileSignedIn } from './queries'
 
 beforeEach(() => {
   resetQueue()
@@ -82,5 +83,23 @@ describe('queries that need the session', () => {
 
   it('stay off while the screen is signed out', () => {
     expect(whileSignedIn(false)).toBe(false)
+  })
+})
+
+describe('the cache the phone keeps for the next launch', () => {
+  it('keeps the account and the trip after their refetch failed, as when the server is down', async () => {
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+    const down = () => Promise.reject(new ApiError(502, 'HTTP_502', 'Something went wrong. Try again.'))
+    client.setQueryData(keys.me, { userId: 'u1' })
+    client.setQueryData(keys.trip('trip-001'), goldenTrip())
+    await client.fetchQuery({ queryKey: keys.me, queryFn: down }).catch(() => undefined)
+    await client.fetchQuery({ queryKey: keys.trip('trip-001'), queryFn: down }).catch(() => undefined)
+    // TanStack marks a failed refetch 'error' but keeps the data: that data is what the next launch needs.
+    expect(client.getQueryState(keys.me)).toMatchObject({ status: 'error', data: { userId: 'u1' } })
+    // Never loaded, or not kept across a reload: left out.
+    await client.fetchQuery({ queryKey: keys.trips, queryFn: down }).catch(() => undefined)
+    client.setQueryData(keys.wallet, { balanceInr: 500 })
+    const kept = dehydrate(client, { shouldDehydrateQuery: shouldPersist }).queries.map((q) => q.queryKey)
+    expect(kept).toEqual([keys.me, keys.trip('trip-001')])
   })
 })

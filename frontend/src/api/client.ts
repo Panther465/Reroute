@@ -39,6 +39,17 @@ export type RefreshResult = 'ok' | 'rejected' | 'unreachable'
 let refreshing: Promise<RefreshResult> | null = null
 /** How long a refresh may take before the app treats the server as out of reach (a weak signal, not a sign-out). */
 const REFRESH_TIMEOUT_MS = 6000
+/**
+ * A refresh with no answer may still have gone through: the server then holds a new token this phone never got,
+ * and takes the old one back for 30 seconds only, after which it ends the whole session as stolen
+ * (backend/app/security.py). So it goes again every few seconds for 20 seconds after it was sent, then on a new
+ * connection or when the app is back on screen.
+ */
+const REFRESH_RETRY_MS = 3000
+const REFRESH_RETRY_FOR_MS = 20_000
+/** When the refresh that got no answer was sent (null: none is owed). */
+let owedSince: number | null = null
+let retryTimer: ReturnType<typeof setTimeout> | undefined
 const authListeners = new Set<(signedIn: boolean) => void>()
 
 /**
@@ -54,8 +65,17 @@ function setReachable(value: boolean) {
   reachListeners.forEach((l) => l())
 }
 // A new connection gets a fresh chance at once, and the next request that fails takes it away again. Without
-// this, check-ins saved offline waited for some other request to get through first, up to a minute later.
-if (typeof window !== 'undefined') window.addEventListener('online', () => setReachable(true))
+// this, check-ins saved offline waited for some other request to get through first, up to a minute later. A
+// refresh still owed goes again then, and when the app is back on screen.
+if (typeof window !== 'undefined') {
+  window.addEventListener('online', () => {
+    setReachable(true)
+    refreshOwed()
+  })
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') refreshOwed()
+  })
+}
 export function isReachable() {
   return reachable
 }
@@ -66,8 +86,21 @@ export function onReachableChange(listener: () => void) {
   }
 }
 
+const answerListeners = new Set<() => void>()
+/** Calls `listener` after each request the server answers with success, reachable or not before. */
+export function onAnswered(listener: () => void) {
+  answerListeners.add(listener)
+  return () => {
+    answerListeners.delete(listener)
+  }
+}
+
 export function setAccessToken(token: string | null) {
   accessToken = token
+  // A new token, or the session ending, settles a refresh still owed.
+  owedSince = null
+  clearTimeout(retryTimer)
+  retryTimer = undefined
   authListeners.forEach((l) => l(token !== null))
 }
 
@@ -111,8 +144,9 @@ async function parseError(res: Response): Promise<ApiError> {
 /**
  * Ask for a new access token with the refresh cookie. Concurrent callers share one attempt.
  * - 'ok': a new token is in place.
- * - 'rejected': the server refused the cookie; the session is over and the traveller signs in again.
- * - 'unreachable': no answer within 6 s, a rate limit or a server error. The session may still be fine.
+ * - 'rejected': the server refused the cookie, or this phone holds no session; the traveller signs in again.
+ * - 'unreachable': no answer within 6 s, a rate limit or a server error. The session may still be fine, and the
+ *   refresh goes again by itself (REFRESH_RETRY_MS).
  */
 export function refreshSession(): Promise<RefreshResult> {
   if (refreshing) return refreshing
@@ -126,14 +160,44 @@ export function refreshSession(): Promise<RefreshResult> {
   return attempt
 }
 
+/**
+ * Whether this phone still holds a session to refresh: the token the Android app keeps, or in a browser the CSRF
+ * cookie, which comes and goes with the refresh cookie (it can't be read when the API is on another origin).
+ */
+export async function holdsSession(): Promise<boolean> {
+  return native.session ? !!(await native.session.load()) : !!cookie('rr_csrf')
+}
+
+/** No answer, or none that settles it (a 5xx, a rate limit): the refresh is owed, and goes again within seconds. */
+function unanswered(sentAt: number): RefreshResult {
+  owedSince ??= sentAt
+  if (retryTimer === undefined && Date.now() + REFRESH_RETRY_MS <= owedSince + REFRESH_RETRY_FOR_MS) {
+    retryTimer = setTimeout(() => {
+      retryTimer = undefined
+      void refreshSession()
+    }, REFRESH_RETRY_MS)
+  }
+  return 'unreachable'
+}
+
+/** A refresh still owed, on a new connection or back on screen: it starts its own 20 seconds if unanswered too. */
+function refreshOwed() {
+  if (owedSince === null) return
+  owedSince = null
+  void refreshSession()
+}
+
 async function attemptRefresh(): Promise<RefreshResult> {
   if (forcedOffline) return 'unreachable'
-  // The Android app's own refresh token; with none kept, it was never signed in on this phone.
+  // The Android app's own refresh token; with none kept, it was never signed in on this phone (or no longer is).
   const kept = native.session ? await native.session.load() : null
-  if (native.session && !kept) return 'rejected'
-  // No CSRF cookie on the same origin means there was never a session here (a first visit): skip a
+  // No CSRF cookie on the same origin means there's no session here (a first visit, or it ran out): skip a
   // request that could only be refused. (On another API origin the cookie isn't readable.)
-  if (!native.session && !BASE && !cookie('rr_csrf')) return 'rejected'
+  if ((native.session && !kept) || (!native.session && !BASE && !cookie('rr_csrf'))) {
+    setAccessToken(null)
+    return 'rejected'
+  }
+  const sentAt = Date.now()
   const ctrl = new AbortController()
   const timer = setTimeout(() => ctrl.abort(), REFRESH_TIMEOUT_MS)
   try {
@@ -161,7 +225,7 @@ async function attemptRefresh(): Promise<RefreshResult> {
       setAccessToken(null)
       return 'rejected'
     }
-    if (!res.ok) return 'unreachable'
+    if (!res.ok) return unanswered(sentAt)
     const body = (await res.json()) as { accessToken: string; refreshToken?: string | null }
     // The token was just rotated: keep the new one, or the next launch would present a used one.
     if (kept && body.refreshToken) await native.session?.save(body.refreshToken).catch(() => {})
@@ -169,7 +233,7 @@ async function attemptRefresh(): Promise<RefreshResult> {
     return 'ok'
   } catch {
     setReachable(false)
-    return 'unreachable'
+    return unanswered(sentAt)
   } finally {
     clearTimeout(timer)
   }
@@ -248,6 +312,7 @@ export async function request<T>(method: string, path: string, opts: RequestOpti
     else if (refreshed === 'unreachable') throw new ApiError(0, 'OFFLINE', OFFLINE_MESSAGE)
   }
   if (!res.ok) throw await parseError(res)
+  answerListeners.forEach((l) => l())
   if (opts.raw) return res as unknown as T
   if (res.status === 204) return undefined as T
   return (await res.json()) as T
