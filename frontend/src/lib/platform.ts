@@ -36,6 +36,10 @@ export interface NativeHooks {
     popUp: (on: boolean) => Promise<{ asked: boolean }>
     pause: () => Promise<void>
     resume: () => Promise<void>
+    /** Rico's bar over other apps (bar mode): as tall as the page's bar; gone; or on to the app itself. */
+    barHeight: (height: number) => Promise<void>
+    leaveBar: () => Promise<void>
+    openApp: (path: string, said: string) => Promise<void>
   }
   /** The status and navigation bars follow the light or dark theme (a browser has theme-color). */
   systemBars: (dark: boolean) => void

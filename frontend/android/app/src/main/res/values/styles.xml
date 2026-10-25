@@ -17,6 +17,14 @@
         <item name="android:windowBackground">@color/reroute_ground</item>
     </style>
 
+    <!-- Rico's bar over other apps (RicoBarActivity): see-through, with nothing behind it dimmed and no splash. -->
+    <style name="AppTheme.RicoBar" parent="AppTheme.NoActionBar">
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@android:style/Animation.Translucent</item>
+    </style>
+
     <!-- The splash screen, like Chrome's for the installed web app: the page's ground colour with the icon. -->
     <style name="AppTheme.NoActionBarLaunch" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/reroute_ground</item>

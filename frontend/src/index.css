@@ -104,6 +104,16 @@
   --grow-display: calc((1 + (var(--tz) - 1) * 0.3) / var(--tz));
 }
 
+/* Rico's bar over other apps (Android, "Hey Rico" with Reroute not on screen): the page is see-through and shows
+   nothing but his bar, which carries data-rico-bar-keep (RicoVoice); the rest of the app is there, hidden. */
+html[data-rico-bar],
+html[data-rico-bar] body {
+  background: transparent;
+}
+html[data-rico-bar] body > :not([data-rico-bar-keep]) {
+  display: none !important;
+}
+
 /* Type scale (section 6.2). rem keeps text zoom working. */
 @layer components {
   .t-display-1,

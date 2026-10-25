@@ -66,6 +66,8 @@ export interface UiState {
   ricoVoice: RicoVoiceRequest | null
   /** Rico talking, shrunk to his bar along the bottom while he shows something on the screen. */
   ricoVoiceMini: boolean
+  /** This page is Rico's bar over other apps (Android, "Hey Rico" with Reroute not on screen): only he shows. */
+  ricoBar: boolean
   /** Rico out and about along the bottom of the screens (components/roo/RicoPal.tsx). */
   ricoRoams: boolean
   /** Rico is the traveller's local guide (tourist mode): he wears his guide glasses, and his agent recommends places
@@ -92,6 +94,8 @@ export interface RicoVoiceRequest {
   mode?: 'tourist'
   /** Something for Rico to start with (a nudge's words). */
   say?: string
+  /** What was said in his bar over other apps, before it opened the app on what he's showing: he carries on. */
+  carriedOn?: string
 }
 
 const KEY = 'reroute:prefs:v2'
@@ -114,6 +118,7 @@ function defaults(): UiState {
     pushReady: false,
     ricoVoice: null,
     ricoVoiceMini: false,
+    ricoBar: false,
     ricoRoams: true,
     ricoGuide: false,
     ricoBubble: null,

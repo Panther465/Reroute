@@ -8,7 +8,8 @@ vi.mock('./session', () => ({ session: { load: vi.fn(), save: vi.fn(), clear: vi
 vi.mock('./google', () => ({ googleCode: vi.fn() }))
 vi.mock('./share', () => ({ shareText: vi.fn(), saveText: vi.fn() }))
 vi.mock('./speech', () => ({ listenOnce: vi.fn(), phoneSay: vi.fn() }))
-vi.mock('./wake', () => ({ wake: { status: vi.fn() }, startWake: started.wake }))
+const bar = vi.hoisted(() => ({ on: false }))
+vi.mock('./wake', () => ({ wake: { status: vi.fn(), openApp: vi.fn() }, startWake: started.wake, inBar: vi.fn(async () => bar.on) }))
 
 import { native } from '@/lib/platform'
 import { resetSession } from '@/lib/session'
@@ -39,6 +40,29 @@ describe('starting the app', () => {
     onWake()
     expect(getState().ricoVoice).toEqual({ from: 'wake' })
     setState({ ricoVoice: null })
+  })
+
+  it('in Rico’s bar over other apps, shows only him; from the bar, opens the app on what he showed, him carrying on', async () => {
+    bar.on = true
+    try {
+      await boot()
+      expect(getState().ricoBar).toBe(true)
+      expect(document.documentElement.hasAttribute('data-rico-bar')).toBe(true)
+      const onWake = started.wake.mock.calls.at(-1)![0] as (from?: { path?: string; said?: string }) => void
+      resetSession('signedIn')
+      onWake()
+      expect(getState()).toMatchObject({ ricoVoice: { from: 'wake' }, ricoVoiceMini: true })
+      onWake({ path: '/leg/2', said: 'Traveller: show me the way' })
+      expect(getState()).toMatchObject({ ricoVoice: { from: 'tap', carriedOn: 'Traveller: show me the way' }, ricoVoiceMini: true })
+      expect(location.pathname).toBe('/leg/2')
+      onWake({ path: 'rico', said: '' })
+      expect(getState().ricoVoiceMini).toBe(false)
+    } finally {
+      bar.on = false
+      document.documentElement.removeAttribute('data-rico-bar')
+      setState({ ricoBar: false, ricoVoice: null, ricoVoiceMini: false })
+      history.replaceState(null, '', '/')
+    }
   })
 
   it('still starts when one piece fails', async () => {
