@@ -84,7 +84,7 @@ def test_a_city_guide_is_a_short_summary_and_a_few_named_places_kept_a_week(sour
 
     assert found == again and len(seen) == 1
     (request,) = seen
-    assert request.headers["user-agent"] == "Reroute/1.0 (travel planner)"
+    assert request.headers["user-agent"] == "Reroute/1.0 (https://github.com/Panther465/Reroute; travel planner)"
     asked = request.url.params
     assert (asked["titles"], asked["redirects"], asked["prop"], asked["exintro"]) == ("Mysore", "1", "extracts|revisions", "1")
     assert found.title == "Mysuru"
@@ -263,7 +263,7 @@ def test_places_near_asks_overpass_for_the_area_and_keeps_named_places_nearest_f
     found = asyncio.run(guide.places_near(LAT, LNG, "see", client=client))
 
     (request,) = seen
-    assert request.method == "POST" and request.headers["user-agent"] == "Reroute/1.0 (travel planner)"
+    assert request.method == "POST" and request.headers["user-agent"] == "Reroute/1.0 (https://github.com/Panther465/Reroute; travel planner)"
     query = parse_qs(request.content.decode())["data"][0]
     # Only the area goes out: the point rounded to about a kilometre, looked around that much further.
     assert query == (

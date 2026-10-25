@@ -35,8 +35,9 @@ from app.redis_client import get_redis
 
 log = logging.getLogger("reroute.guide")
 
-#: Wikimedia and Overpass ask every caller to say who it is.
-USER_AGENT = "Reroute/1.0 (travel planner)"
+#: Wikimedia and Overpass ask every caller to say who it is and how to reach them: Wikimedia refuses (403) one
+#: without a way to get in touch, so it names the project's page.
+USER_AGENT = "Reroute/1.0 (https://github.com/Panther465/Reroute; travel planner)"
 #: Each source gets this long; Rico's whole message has about 30 seconds.
 WIKIVOYAGE_TIMEOUT = httpx.Timeout(8.0, connect=4.0)
 OVERPASS_TIMEOUT = httpx.Timeout(10.0, connect=4.0)
