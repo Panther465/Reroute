@@ -85,6 +85,22 @@ def test_15_minute_delay_shifts_without_asking(client):
     assert [hm(leg["leaveBy"]) for leg in body["plan"]["doneLegs"]] == ["08:50"]
 
 
+def test_a_new_versions_legs_are_numbered_after_the_legs_travelled(client):
+    plan_v1(client)
+    clock(client, "10:55")
+    res = client.post("/v1/trips/trip-001/checkins", json={"taskId": "task-meet", "kind": "delay", "delayMin": 15, "idempotencyKey": key()})
+    plan = res.json()["plan"]
+    # One number per leg of the day, its place on the timeline: the leg to the meeting keeps 1 and the rest follow.
+    assert [leg["taskId"] for leg in plan["doneLegs"] + plan["legs"]] == ["task-meet", "task-bank", "task-office", None]
+    assert [leg["seq"] for leg in plan["doneLegs"] + plan["legs"]] == [1, 2, 3, 4]
+    with engine().connect() as conn:
+        rows = conn.execute(text("SELECT seq FROM plan_legs WHERE plan_id = :p ORDER BY seq"), {"p": plan["planId"]}).scalars().all()
+    assert rows == [2, 3, 4]
+    # The map draws each leg once, under its own number.
+    paths = client.get("/v1/trips/trip-001/plans/2/paths").json()
+    assert [leg["seq"] for leg in paths["legs"]] == [1, 2, 3, 4]
+
+
 def test_40_minute_delay_offers_options_then_accept_and_undo(client):
     plan_v1(client)
     clock(client, "10:55")
@@ -204,6 +220,8 @@ def test_skipping_after_check_ins_plans_from_the_last_place_reached(client):
     assert {t["taskId"]: t["state"] for t in trip["tasks"]}["task-office"] == "skipped"
     plan = trip["activePlan"]
     assert [leg["taskId"] for leg in plan["doneLegs"]] == ["task-meet", "task-bank"]
+    # The way home is the day's third leg, after the two travelled.
+    assert [leg["seq"] for leg in plan["doneLegs"] + plan["legs"]] == [1, 2, 3]
     home = plan["legs"][0]
     assert home["taskId"] is None and home["fromPlaceId"] == "koramangala-bank"
     assert hm(home["leaveBy"]) >= "13:00"
