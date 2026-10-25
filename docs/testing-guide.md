@@ -25,7 +25,8 @@ A real Bengaluru day was tried end to end through the API: a trip for today stay
    - **OAuth consent screen**: External, in Testing, and add your Gmail address (and your evaluators') as **test users**.
    - **Credentials → Create credentials → OAuth client ID → Web application**. Under **Authorized JavaScript origins** add `https://localhost` and `http://localhost:5173`. No redirect URI is needed: sign-in uses a pop-up.
    - For Calendar import, also enable the **Google Calendar API**.
-2. Add these two lines to the `.env` file at the repository root:
+2. Add these two lines to the `.env` file at the repository root, with your own values in place of the words in
+   `< >` (the brackets go too: `GOOGLE_CLIENT_SECRET=GOCSPX-…`):
 
    ```
    GOOGLE_CLIENT_ID=<your client ID>

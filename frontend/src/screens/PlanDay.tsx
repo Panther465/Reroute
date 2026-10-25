@@ -17,7 +17,7 @@ import { Sheet } from '@/components/ui/Sheet'
 import { Banner, ErrorState, LoadingRegion, Skeleton } from '@/components/ui/States'
 import { DurationTag, FixedTag, HoursTag, PriorityTag, Tag } from '@/components/ui/Tag'
 import { addTask, moveTaskToDay, saveTaskEdit, type EditOutcome } from '@/lib/actions'
-import { duration, hhmm } from '@/lib/format'
+import { duration, hhmm, lowerFirst } from '@/lib/format'
 import { CALENDAR_SCOPE, googleEnabled, requestGoogleCode } from '@/lib/google'
 import { useDocumentTitle, useOnline } from '@/lib/hooks'
 import { T } from '@/lib/i18n'
@@ -246,14 +246,19 @@ function StartForm({ onCreated }: { onCreated: (trip: Trip, text: string) => voi
   )
 }
 
-function ImportSheet({ trip, open, onOpenChange, onAdded }: { trip: Trip; open: boolean; onOpenChange: (o: boolean) => void; onAdded: (n: number) => void }) {
+/** Google Calendar's appointments on the trip's days, as tasks: a place chosen for any whose place didn't match. */
+export function ImportSheet({ trip, open, onOpenChange, onAdded }: { trip: Trip; open: boolean; onOpenChange: (o: boolean) => void; onAdded: (n: number) => void }) {
   const [drafts, setDrafts] = useState<TaskDraft[] | null>(null)
   const [picked, setPicked] = useState<number[]>([])
+  // Places chosen here for appointments whose calendar place didn't match one, by the appointment's index.
+  const [chosen, setChosen] = useState<Record<number, Place>>({})
   const [error, setError] = useState<string>()
   const [busy, setBusy] = useState(false)
   // One key per read and one per appointment, kept while the sheet lives, so a retry never adds a task twice.
   const [readKey, setReadKey] = useState(() => newKey('cal'))
   const [draftKeys, setDraftKeys] = useState<string[]>([])
+  const placeOf = (i: number): Place | null => chosen[i] ?? drafts?.[i]?.place ?? null
+  const manyDays = trip.startDate !== trip.endDate
 
   const read = async () => {
     setBusy(true)
@@ -264,6 +269,9 @@ function ImportSheet({ trip, open, onOpenChange, onAdded }: { trip: Trip; open: 
       setDraftKeys(found.map(() => newKey('imp')))
       setReadKey(newKey('cal'))
       setDrafts(found)
+      setChosen({})
+      // Those with a place are ticked: most of a work trip's appointments are meant to be on it.
+      setPicked(found.flatMap((d, i) => (d.place ? [i] : [])))
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn't read your calendar.")
     } finally {
@@ -275,21 +283,32 @@ function ImportSheet({ trip, open, onOpenChange, onAdded }: { trip: Trip; open: 
     if (!drafts) return
     setBusy(true)
     try {
-      const chosen = picked.filter((i) => drafts[i].placeId)
+      const adding = picked.filter((i) => placeOf(i))
       // The day re-plans once, after the last appointment.
-      for (const [n, i] of chosen.entries()) {
+      for (const [n, i] of adding.entries()) {
         const d = drafts[i]
         const day = d.fixedStart ? d.fixedStart.slice(0, 10) : trip.day
-        await addTask(trip.tripId, { title: d.title, placeId: d.placeId!, durationMin: d.durationMin, fixedStart: d.fixedStart, priority: d.priority, hoursUnknown: false, day }, draftKeys[i], { replan: n === chosen.length - 1 })
+        await addTask(trip.tripId, { title: d.title, placeId: placeOf(i)!.placeId, durationMin: d.durationMin, fixedStart: d.fixedStart, priority: d.priority, hoursUnknown: false, day }, draftKeys[i], { replan: n === adding.length - 1 })
       }
-      onAdded(chosen.length)
+      onAdded(adding.length)
       setDrafts(null)
       setPicked([])
+      setChosen({})
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Couldn't add those tasks.")
     } finally {
       setBusy(false)
     }
+  }
+  const choose = (i: number, place: Place | null) => {
+    setChosen((all) => {
+      const next = { ...all }
+      if (place) next[i] = place
+      else delete next[i]
+      return next
+    })
+    // Choosing a place means adding it; clearing it, not.
+    setPicked((p) => (place ? (p.includes(i) ? p : [...p, i]) : p.filter((x) => x !== i)))
   }
 
   return (
@@ -316,18 +335,50 @@ function ImportSheet({ trip, open, onOpenChange, onAdded }: { trip: Trip; open: 
         <ul className="divide-y divide-line rounded-card border border-line">
           {drafts.map((d, i) => {
             const id = `ev-${i}`
-            const disabled = !d.placeId
+            const place = placeOf(i)
+            const day = d.fixedStart ? d.fixedStart.slice(0, 10) : trip.day
+            const at = d.fixedStart ? hhmm(localMinutes(d.fixedStart, day, trip.utcOffset)) : ''
             return (
-              <li key={id} className="flex items-start gap-3 px-4 py-3">
-                <input id={id} type="checkbox" disabled={disabled} checked={picked.includes(i)} onChange={(e) => setPicked((p) => (e.target.checked ? [...p, i] : p.filter((x) => x !== i)))} className="mt-1 size-6 shrink-0 accent-[var(--green)]" />
-                <label htmlFor={id} className={`min-w-0 flex-1 ${disabled ? 'cursor-default' : ''}`}>
-                  <span className="block t-title text-ink">{d.title}</span>
-                  <span className="block t-small text-ink-2 tnum">
-                    {d.fixedStart ? hhmm(localMinutes(d.fixedStart, d.fixedStart.slice(0, 10), trip.utcOffset)) : ''}, {duration(d.durationMin)}
-                    {d.placeText ? `, ${d.placeText}` : ''}
-                  </span>
-                  {disabled && <span className="mt-1 block t-small text-muted">We couldn't match the place. Add it by hand.</span>}
-                </label>
+              <li key={id} className="px-4 py-3">
+                <div className="flex items-start gap-3">
+                  <input
+                    id={id}
+                    type="checkbox"
+                    disabled={!place}
+                    checked={picked.includes(i)}
+                    onChange={(e) => setPicked((p) => (e.target.checked ? [...p, i] : p.filter((x) => x !== i)))}
+                    className="mt-1 size-6 shrink-0 accent-[var(--green)]"
+                  />
+                  <label htmlFor={id} className={`min-w-0 flex-1 ${place ? '' : 'cursor-default'}`}>
+                    <span className="block t-title text-ink">{d.title}</span>
+                    <span className="block t-small text-ink-2 tnum">
+                      {[manyDays ? weekday(day) : '', at, duration(d.durationMin)].filter(Boolean).join(', ')}
+                    </span>
+                    {/* Where the calendar says, and the place it matched. */}
+                    {d.placeText && <span className="block t-small text-ink-2">{d.placeText}</span>}
+                    {d.place && (
+                      <span className="mt-0.5 flex items-center gap-1 t-small text-green-ink">
+                        <MapPin size={14} strokeWidth={2} aria-hidden="true" className="shrink-0" />
+                        <span className="min-w-0">
+                          {d.place.name}, {d.place.area}
+                        </span>
+                      </span>
+                    )}
+                  </label>
+                </div>
+                {!d.place && (
+                  <div className="mt-3 pl-9">
+                    <PlacePicker
+                      label={`Where is the ${lowerFirst(d.title)}?`}
+                      city={trip.citySlug}
+                      cityName={trip.cityName}
+                      near={[trip.stayPlace.lng, trip.stayPlace.lat]}
+                      value={chosen[i] ?? null}
+                      onChange={(p) => choose(i, p)}
+                      hint={d.placeText ? `Your calendar says “${d.placeText}”. Search for the building or area.` : 'Your calendar has no place for it. Search for the building or area.'}
+                    />
+                  </div>
+                )}
               </li>
             )
           })}
