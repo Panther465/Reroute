@@ -1,4 +1,4 @@
-import { Ban, Clock, Hourglass, Navigation, TriangleAlert, type LucideIcon } from 'lucide-react'
+import { Ban, ChevronRight, Clock, Hourglass, Navigation, TriangleAlert, type LucideIcon } from 'lucide-react'
 import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'motion/react'
 import { Fragment, useId, type ReactNode } from 'react'
 import { MODE_META, ModeIcon } from '@/components/icons'
@@ -25,24 +25,73 @@ function dashClass(mode: Mode) {
   return `rr-dashed ${tone === 'blue' ? 'text-blue' : tone === 'green' ? 'text-green' : 'text-ink'}`
 }
 
-function Segments({ segments, dashed }: { segments: Segment[]; dashed?: boolean }) {
+/**
+ * A leg's line. Each way of travelling is drawn in its colour, as long as it lasts; what's already been travelled
+ * (`travelled`, a fraction of the leg) is a thin grey line, so the day reads as done above and ahead below.
+ */
+function Segments({ segments, dashed, travelled = 0 }: { segments: Segment[]; dashed?: boolean; travelled?: number }) {
+  const total = segments.reduce((n, x) => n + x.minutes, 0) || 1
+  const cut = Math.min(1, Math.max(0, travelled)) * total
+  let at = 0
+  const ahead = segments
+    .map((x) => {
+      const start = at
+      at += x.minutes
+      return { mode: x.mode, minutes: Math.max(0, at - Math.max(start, cut)) }
+    })
+    .filter((x) => x.minutes > 0)
   return (
-    <div className="absolute inset-y-0 left-1/2 flex w-1.5 -translate-x-1/2 flex-col">
-      {segments.map((s, i) => (
-        <div key={i} style={{ flexGrow: s.minutes }} className={`${dashed ? dashClass(s.mode) : segClass(s.mode)} min-h-2 w-1.5`} />
+    <div className="absolute inset-y-0 left-1/2 flex w-1.5 -translate-x-1/2 flex-col items-center">
+      {cut > 0 && <div style={{ flexGrow: cut }} className="min-h-2 w-1 bg-line-strong" />}
+      {ahead.map((x, i) => (
+        <div key={i} style={{ flexGrow: x.minutes }} className={`${dashed ? dashClass(x.mode) : segClass(x.mode)} min-h-2 w-1.5`} />
       ))}
     </div>
   )
 }
 
+/** The badge's look for a way of travelling: the same colour (or dots, for walking) as its stretch of the line. */
+function pillTone(mode: Mode) {
+  const tone = MODE_META[mode].tone
+  if (tone === 'walk') return 'border-2 border-dotted border-ink text-ink'
+  return tone === 'blue' ? 'bg-blue text-on-blue' : tone === 'green' ? 'bg-green text-on-green' : 'bg-ink text-on-ink'
+}
+
+/** Each way of travelling on a leg, in order, named beside the line in the line's own colour: no legend needed. */
+function SegmentPills({ segments }: { segments: Segment[] }) {
+  // Back-to-back stretches the same way are one.
+  const merged = segments.reduce<Segment[]>((out, x) => {
+    const last = out[out.length - 1]
+    if (last && last.mode === x.mode) out[out.length - 1] = { ...last, minutes: last.minutes + x.minutes }
+    else out.push({ ...x })
+    return out
+  }, [])
+  return (
+    <span className="flex flex-wrap items-center gap-x-1 gap-y-1.5">
+      {merged.map((x, i) => (
+        <Fragment key={i}>
+          {i > 0 && <ChevronRight size={14} strokeWidth={2} className="shrink-0 text-muted" />}
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border border-line bg-surface py-0.5 pl-0.5 pr-2.5 t-small font-bold text-ink">
+            <span className={`flex size-6 shrink-0 items-center justify-center rounded-full ${pillTone(x.mode)}`}>
+              <ModeIcon mode={x.mode} size={14} />
+            </span>
+            {MODE_META[x.mode].label}
+            <span className="font-normal text-ink-2 tnum">{unbroken(duration(x.minutes))}</span>
+          </span>
+        </Fragment>
+      ))}
+    </span>
+  )
+}
+
 /** A leg's line, with the reroute redraw (section 9: 160–360 ms fade/dash, 300–900 ms draw). */
-function LegLine({ leg, old, change, reduce }: { leg: LegView; old?: LegView; change: Change | null; reduce: boolean }) {
+function LegLine({ leg, old, change, reduce, travelled = 0 }: { leg: LegView; old?: LegView; change: Change | null; reduce: boolean; travelled?: number }) {
   const changed = !!change && change.changedLegs.includes(leg.seq) && change.kind !== 'checkin'
-  if (!changed || reduce) return <Segments segments={leg.segments} />
+  if (!changed || reduce) return <Segments segments={leg.segments} travelled={travelled} />
   if (change.kind === 'undo') {
     return (
       <motion.div key={change.token} className="absolute inset-0" initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.3, ease: EASE_OUT }}>
-        <Segments segments={leg.segments} />
+        <Segments segments={leg.segments} travelled={travelled} />
       </motion.div>
     )
   }
@@ -59,7 +108,7 @@ function LegLine({ leg, old, change, reduce }: { leg: LegView; old?: LegView; ch
         </>
       )}
       <motion.div className="absolute inset-0 origin-top" initial={{ scaleY: 0 }} animate={{ scaleY: 1 }} transition={{ delay: 0.3, duration: 0.6, ease: EASE_OUT }}>
-        <Segments segments={leg.segments} />
+        <Segments segments={leg.segments} travelled={travelled} />
       </motion.div>
     </Fragment>
   )
@@ -209,19 +258,11 @@ export function legSpoken(leg: LegView) {
   return parts.join(', ')
 }
 
-function Connector({ segments, at, change, reduce }: { segments?: Segment[]; at: 'top' | 'bottom'; change: Change | null; reduce: boolean }) {
+/** Above and below a stop: time spent at a place, not travel, so a thin neutral line. Travel colour stays on the
+ *  legs, so the day doesn't read as one long coloured line. */
+function Connector({ segments, at }: { segments?: Segment[]; at: 'top' | 'bottom' }) {
   if (!segments?.length) return null
-  const mode = at === 'top' ? segments[segments.length - 1].mode : segments[0].mode
-  return (
-    <motion.span
-      key={change && change.kind !== 'checkin' && !reduce ? `c-${change.token}` : 'c'}
-      aria-hidden="true"
-      className={`absolute left-1/2 w-1.5 -translate-x-1/2 ${segClass(mode)} ${at === 'top' ? 'top-0 h-3' : 'bottom-0 top-3'}`}
-      initial={change && change.kind === 'reroute' && !reduce ? { opacity: 0.3 } : false}
-      animate={{ opacity: 1 }}
-      transition={{ delay: 0.6, duration: 0.3 }}
-    />
-  )
+  return <span aria-hidden="true" className={`absolute left-1/2 w-1 -translate-x-1/2 bg-line-strong ${at === 'top' ? 'top-0 h-3' : 'bottom-0 top-3'}`} />
 }
 
 export function NowBar({ clock }: { clock: number }) {
@@ -362,8 +403,8 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
                     <FlipTime value={stop.time} flipIndex={changedOrder.indexOf(stop.id)} change={change} reduce={reduce} />
                   </div>
                   <div className={`relative col-start-2 row-start-1 flex justify-center ${stop.status === 'now' ? 'row-span-2' : ''}`}>
-                    <Connector segments={inLeg?.segments} at="top" change={change?.changedLegs.includes(inLeg?.seq ?? -1) ? change : null} reduce={reduce} />
-                    <Connector segments={outLeg?.segments} at="bottom" change={change?.changedLegs.includes(outLeg?.seq ?? -1) ? change : null} reduce={reduce} />
+                    <Connector segments={inLeg?.segments} at="top" />
+                    <Connector segments={outLeg?.segments} at="bottom" />
                     <Station
                       icon={stopIcon(stop.title, stop.kind)}
                       status={stop.status}
@@ -409,15 +450,25 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
                   <motion.li layout="position" transition={layoutT} className={`${COLS} relative`}>
                     <div />
                     <div className={`relative ${outLeg.status === 'done' ? 'min-h-14' : 'min-h-28'}`}>
-                      <LegLine leg={outLeg} old={oldByTo.get(outLeg.toId)} change={change} reduce={reduce} />
+                      <LegLine
+                        leg={outLeg}
+                        old={oldByTo.get(outLeg.toId)}
+                        change={change}
+                        reduce={reduce}
+                        travelled={outLeg.status === 'done' ? 1 : riding?.seq === outLeg.seq ? (clock - outLeg.leaveMin) / Math.max(1, outLeg.arriveMin - outLeg.leaveMin) : 0}
+                      />
                       {riding?.seq === outLeg.seq && <ProgressMarker leg={outLeg} clock={clock} reduce={reduce} />}
                     </div>
                     <div className="py-2 pb-5">
                       <LegButton readOnly={readOnly} done={outLeg.status === 'done'} label={legSpoken(outLeg)} onClick={() => onLeg(outLeg)} selected={selectedSeq === outLeg.seq}>
-                        <span className="flex items-center gap-2">
-                          <ModeChain segments={outLeg.segments} size={outLeg.status === 'done' ? 16 : 20} />
-                          <span className={`t-small font-bold ${outLeg.status === 'done' ? 'text-muted' : 'text-ink'}`}>{outLeg.label}</span>
-                        </span>
+                        {outLeg.status === 'done' ? (
+                          <span className="flex items-center gap-2">
+                            <ModeChain segments={outLeg.segments} size={16} muted />
+                            <span className="t-small font-bold text-muted">{outLeg.label}</span>
+                          </span>
+                        ) : (
+                          <SegmentPills segments={outLeg.segments} />
+                        )}
                         {outLeg.status === 'done' ? (
                           <span className="mt-0.5 block t-small text-muted tnum">
                             Travelled, {outLeg.estimate ? 'about ' : ''}
@@ -425,7 +476,7 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
                           </span>
                         ) : (
                           <>
-                            <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 t-small text-ink-2 tnum">
+                            <span className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 t-small text-ink-2 tnum">
                               <span className="inline-flex items-center gap-1.5 font-bold text-ink">
                                 <Navigation size={14} strokeWidth={2} className="shrink-0" />
                                 Leave {outLeg.leaveBy}
