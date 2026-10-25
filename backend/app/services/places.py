@@ -11,6 +11,7 @@ from geoalchemy2.elements import WKTElement
 from sqlalchemy import ColumnElement, and_, case, exists, func, or_, select
 from sqlalchemy.orm import Session
 
+from app.adapters import google_maps
 from app.adapters.places import FoundPlace, NominatimSearch, SearchBusy
 from app.cities import City
 from app.cities import city as supported_city
@@ -60,7 +61,7 @@ def find_places(db: Session, q: str, city_slug: str, limit: int = 8, user_id: st
     known = list(db.scalars(query.order_by(*own_first, Place.sample.desc(), Place.name).limit(20)))
     if len(known) < 3:
         try:
-            from_osm = NominatimSearch(get_redis()).search(text, where)
+            from_osm = _search_more(text, where)
         except SearchBusy:
             if say_busy and not known:
                 raise
@@ -73,6 +74,19 @@ def find_places(db: Session, q: str, city_slug: str, limit: int = 8, user_id: st
                 known.append(place)
         db.commit()
     return _once(sorted(known, key=lambda p: (p.owner_id is None or p.owner_id != user_id, _rank(p, text))))[:limit]
+
+
+def _search_more(text: str, where: City) -> list[FoundPlace]:
+    """Places Reroute doesn't know yet: Google's, with a Google Maps key (OpenStreetMap's when Google can't answer
+    or finds nothing), else OpenStreetMap's."""
+    if google_maps.enabled():
+        try:
+            found = google_maps.search_places(text, where)
+            if found:
+                return found
+        except google_maps.GoogleUnavailable:
+            pass
+    return NominatimSearch(get_redis()).search(text, where)
 
 
 def _once(places: list[Place]) -> list[Place]:

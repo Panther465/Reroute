@@ -6,8 +6,11 @@ import { LocateFixed, MapPinPlus, Navigation, type LucideIcon } from 'lucide-rea
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { MODE_META } from '@/components/icons'
+import type { MapTiles } from '@/api/types'
+import { useMapTiles } from '@/api/queries'
 import { MapUnavailable } from '@/components/LazyMap'
 import { useOnline } from '@/lib/hooks'
+import { googleStyle, googleTiles, viewportUrl } from '@/lib/mapTiles'
 import type { LngLat, MapLine } from '@/lib/geo'
 import type { Fix } from '@/lib/location'
 import { longPress } from '@/lib/longPress'
@@ -210,8 +213,12 @@ function pinNode(p: MapPoint, compact: boolean) {
 export default function MapCard(props: MapCardProps) {
   const online = useOnline()
   const theme = useResolvedTheme()
+  const tiles = useMapTiles()
   if (!online) return <MapUnavailable className={props.className} />
-  return <MapInner key={theme} {...props} theme={theme} />
+  // Which map it is (Google's or OpenStreetMap's) is known before the map starts, so it never swaps under you.
+  if (tiles.isLoading) return <div aria-hidden="true" className={`rounded-card border border-line bg-sunken ${props.className ?? 'h-64'}`} />
+  const google = googleTiles(tiles.data)
+  return <MapInner key={`${theme}-${google ? 'google' : 'open'}`} {...props} theme={theme} google={google} />
 }
 
 function MapInner({
@@ -230,13 +237,17 @@ function MapInner({
   stations = [],
   followByDefault,
   theme,
-}: MapCardProps & { theme: 'light' | 'dark' }) {
+  google,
+}: MapCardProps & { theme: 'light' | 'dark'; google: MapTiles | null }) {
   const el = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MLMap | null>(null)
   const markers = useRef<maplibregl.Marker[]>([])
   const meMarker = useRef<maplibregl.Marker | null>(null)
   const meArrow = useRef<HTMLElement | null>(null)
+  const meDot = useRef<HTMLElement | null>(null)
   const [ready, setReady] = useState(false)
+  // Google's copyright line for what's on screen, shown with "Google Maps" under its map.
+  const [copyright, setCopyright] = useState('')
   const [failed, setFailed] = useState(false)
   const [following, setFollowing] = useState(!!followByDefault)
   const [pins, setPins] = useState<{ key: string; host: HTMLElement; Icon: LucideIcon }[]>([])
@@ -270,7 +281,7 @@ function MapInner({
     const pts = fitRef.current
     const map = new maplibregl.Map({
       container: el.current,
-      style: STYLES[theme],
+      style: google ? googleStyle(google, theme) : STYLES[theme],
       bounds: pts.length ? bounds(pts) : undefined,
       fitBoundsOptions: { padding, maxZoom: 16 },
       center: pts.length ? undefined : (center ?? [77.5946, 12.9716]),
@@ -350,7 +361,7 @@ function MapInner({
     map.on('zoomstart', byHand)
     map.on('load', () => {
       clearTimeout(timeout)
-      tune(map, theme, !!compact)
+      if (!google) tune(map, theme, !!compact)
       const surface = token('--surface')
       map.addSource('me-accuracy', { type: 'geojson', data: { type: 'FeatureCollection', features: [] } })
       map.addLayer({ id: 'me-accuracy', type: 'fill', source: 'me-accuracy', paint: { 'fill-color': token('--blue'), 'fill-opacity': 0.14 } })
@@ -554,26 +565,62 @@ function MapInner({
       node.className = 'relative flex size-12 items-center justify-center'
       node.setAttribute('role', 'img')
       node.setAttribute('aria-label', 'You are here, by your phone’s location')
+      // A blue dot while the way they face isn't known; moving, a navigation arrow lying on the map, pointing the
+      // way they go, as a satnav shows it.
       node.innerHTML = `
-        <span data-arrow class="absolute inset-0 transition-transform duration-500" style="opacity:0">
-          <span class="absolute left-1/2 top-0 h-0 w-0 -translate-x-1/2 border-x-[9px] border-b-[16px] border-x-transparent border-b-blue opacity-80"></span>
+        <span data-dot class="relative flex size-12 items-center justify-center">
+          ${reduce ? '' : '<span class="absolute inset-2.5 animate-ping rounded-full bg-blue opacity-30"></span>'}
+          <span class="relative size-5 rounded-full border-[3px] border-surface bg-blue shadow-lg"></span>
         </span>
-        ${reduce ? '' : '<span class="absolute inset-2.5 animate-ping rounded-full bg-blue opacity-30"></span>'}
-        <span class="relative size-5 rounded-full border-[3px] border-surface bg-blue shadow-lg"></span>`
+        <svg data-arrow viewBox="0 0 40 40" class="absolute size-11 drop-shadow-md" style="display:none" aria-hidden="true">
+          <path d="M20 3 L34 35 L20 27.5 L6 35 Z" style="fill: var(--blue); stroke: var(--surface)" stroke-width="3" stroke-linejoin="round" />
+        </svg>`
       meArrow.current = node.querySelector('[data-arrow]')
-      meMarker.current = new maplibregl.Marker({ element: node }).setLngLat(meLngLat).addTo(map)
+      meDot.current = node.querySelector('[data-dot]')
+      meMarker.current = new maplibregl.Marker({ element: node, rotationAlignment: 'map', pitchAlignment: 'map' }).setLngLat(meLngLat).addTo(map)
     } else meMarker.current.setLngLat(meLngLat)
-    if (meArrow.current) {
+    if (meArrow.current && meDot.current) {
       const heading = me.heading
       const known = heading != null && !Number.isNaN(heading)
-      meArrow.current.style.opacity = known ? '1' : '0'
-      if (known) meArrow.current.style.transform = `rotate(${heading}deg)`
+      meArrow.current.style.display = known ? 'block' : 'none'
+      meDot.current.style.display = known ? 'none' : 'flex'
+      meMarker.current.setRotation(known ? heading : 0)
     }
     acc?.setData(circle(meLngLat, Math.min(me.accuracy, 500)))
     if (following) map.easeTo({ center: meLngLat, zoom: Math.max(map.getZoom(), 16), pitch: compact ? 0 : 55, duration: reduce ? 0 : 900 })
     // The dot moves when the fix does.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me?.lng, me?.lat, me?.accuracy, me?.heading, ready, following])
+
+  // Under Google's map, the copyright line Google gives for what's on screen, asked again a moment after it moves.
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready || !google) return
+    let alive = true
+    let timer = 0
+    const ask = () => {
+      window.clearTimeout(timer)
+      timer = window.setTimeout(async () => {
+        const b = map.getBounds()
+        const url = viewportUrl(google, theme, map.getZoom(), { north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() })
+        if (!url) return
+        try {
+          const res = await fetch(url)
+          const said = res.ok ? ((await res.json()) as { copyright?: string }).copyright : undefined
+          if (alive && typeof said === 'string') setCopyright(said)
+        } catch {
+          /* the line stays as it was */
+        }
+      }, 500)
+    }
+    ask()
+    map.on('moveend', ask)
+    return () => {
+      alive = false
+      window.clearTimeout(timer)
+      map.off('moveend', ask)
+    }
+  }, [ready, google, theme])
 
   // Leaving follow mode settles the camera back flat.
   useEffect(() => {
@@ -608,6 +655,13 @@ function MapInner({
         <div ref={el} className="h-full w-full" aria-label={compact ? undefined : label} role={compact ? undefined : 'region'} aria-hidden={compact || undefined} />
       </div>
       {pins.map(({ key, host, Icon }) => createPortal(<Icon size={compact ? 14 : 20} strokeWidth={2} aria-hidden="true" />, host, key))}
+      {google && (
+        // Google's map is credited on it, as Google asks: "Google Maps", then its copyright line, clear of the buttons.
+        <p className="pointer-events-none absolute bottom-1 left-2 z-10 max-w-[78%] text-[11px] leading-4 text-ink [text-shadow:0_0_3px_var(--surface),0_0_3px_var(--surface)]">
+          <span className="font-bold">Google Maps</span>
+          {copyright ? ` ${copyright}` : ''}
+        </p>
+      )}
       {eta && !compact && (
         <div className="pointer-events-none absolute left-3 top-3 z-10 flex items-center gap-3 rounded-card border border-line bg-surface px-4 py-2.5 shadow-[var(--shadow-toast)]">
           <Navigation size={20} strokeWidth={1.75} aria-hidden="true" className="text-blue" />

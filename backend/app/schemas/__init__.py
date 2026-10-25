@@ -188,6 +188,20 @@ class PlaceOut(Api):
     mine: bool = False
 
 
+class MapTilesOut(Api):
+    """The map the app draws under its routes: Google's roadmap (with a Google Maps key), else OpenStreetMap's."""
+
+    provider: Literal["google", "open"]
+    #: Google's tiles, {z}/{x}/{y}, 256 px a tile at twice the pixels; the night style's for dark mode.
+    tiles_url: str | None = None
+    dark_tiles_url: str | None = None
+    #: Where the copyright line for what's on screen comes from: add zoom, north, south, east and west.
+    viewport_url: str | None = None
+    dark_viewport_url: str | None = None
+    #: Ask again after this: the tiles' session ends.
+    expires_at: datetime | None = None
+
+
 class PlacePhotoOut(Api):
     """A photograph of a place from Wikimedia Commons, for Rico to show. Show its credit with it."""
 
@@ -871,10 +885,18 @@ class RooPlaceOut(Api):
     lng: float | None = None
     #: How far it is from where they're staying, in a straight line.
     km: float | None = None
-    #: A photograph of it from Wikimedia Commons, shown with its credit.
+    #: A photograph of it from Google Maps or Wikimedia Commons, shown with its credit.
     photo: PlacePhotoOut | None = None
-    #: Where Rico read about it: "Wikivoyage", "OpenStreetMap", "Reroute" or "the web".
+    #: Where Rico read about it: "Google Maps", "Wikivoyage", "OpenStreetMap", "Reroute" or "the web".
     source: str
+    #: From Google Maps (with a Google Maps key): its rating out of 5 and how many rated it, whether it's open now,
+    #: today's opening hours, its page on Google Maps and Google's ID for it (for the way there).
+    rating: float | None = None
+    ratings: int | None = None
+    open_now: bool | None = None
+    today_hours: str | None = None
+    maps_url: str | None = None
+    google_place_id: str | None = None
 
 
 class RooPlacesOut(Api):

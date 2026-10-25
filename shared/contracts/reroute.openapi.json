@@ -1389,6 +1389,56 @@
         }
       }
     },
+    "/v1/maps/tiles": {
+      "get": {
+        "tags": [
+          "maps"
+        ],
+        "summary": "Which map the app draws: Google's, or OpenStreetMap's",
+        "description": "Google's roadmap (light and dark) with a Google Maps key, as tile addresses for the app's map and where its\ncopyright line comes from; OpenStreetMap's (OpenFreeMap) without one, or when Google can't start a session.",
+        "operationId": "map_tiles_v1_maps_tiles_get",
+        "parameters": [
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MapTilesOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/speech/voices": {
       "get": {
         "tags": [
@@ -5773,6 +5823,80 @@
         ],
         "title": "LoginIn"
       },
+      "MapTilesOut": {
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": [
+              "google",
+              "open"
+            ],
+            "title": "Provider"
+          },
+          "tilesUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tilesurl"
+          },
+          "darkTilesUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Darktilesurl"
+          },
+          "viewportUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Viewporturl"
+          },
+          "darkViewportUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Darkviewporturl"
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiresat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "provider"
+        ],
+        "title": "MapTilesOut",
+        "description": "The map the app draws under its routes: Google's roadmap (with a Google Maps key), else OpenStreetMap's."
+      },
       "MovedOut": {
         "properties": {
           "taskId": {
@@ -7471,6 +7595,72 @@
           "source": {
             "type": "string",
             "title": "Source"
+          },
+          "rating": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rating"
+          },
+          "ratings": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ratings"
+          },
+          "openNow": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Opennow"
+          },
+          "todayHours": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Todayhours"
+          },
+          "mapsUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mapsurl"
+          },
+          "googlePlaceId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Googleplaceid"
           }
         },
         "type": "object",

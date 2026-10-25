@@ -355,6 +355,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/maps/tiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Which map the app draws: Google's, or OpenStreetMap's
+         * @description Google's roadmap (light and dark) with a Google Maps key, as tile addresses for the app's map and where its
+         *     copyright line comes from; OpenStreetMap's (OpenFreeMap) without one, or when Google can't start a session.
+         */
+        get: operations["map_tiles_v1_maps_tiles_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/speech/voices": {
         parameters: {
             query?: never;
@@ -1616,6 +1637,27 @@ export interface components {
             /** Password */
             password: string;
         };
+        /**
+         * MapTilesOut
+         * @description The map the app draws under its routes: Google's roadmap (with a Google Maps key), else OpenStreetMap's.
+         */
+        MapTilesOut: {
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "google" | "open";
+            /** Tilesurl */
+            tilesUrl?: string | null;
+            /** Darktilesurl */
+            darkTilesUrl?: string | null;
+            /** Viewporturl */
+            viewportUrl?: string | null;
+            /** Darkviewporturl */
+            darkViewportUrl?: string | null;
+            /** Expiresat */
+            expiresAt?: string | null;
+        };
         /** MovedOut */
         MovedOut: {
             /** Taskid */
@@ -2225,6 +2267,18 @@ export interface components {
             photo?: components["schemas"]["PlacePhotoOut"] | null;
             /** Source */
             source: string;
+            /** Rating */
+            rating?: number | null;
+            /** Ratings */
+            ratings?: number | null;
+            /** Opennow */
+            openNow?: boolean | null;
+            /** Todayhours */
+            todayHours?: string | null;
+            /** Mapsurl */
+            mapsUrl?: string | null;
+            /** Googleplaceid */
+            googlePlaceId?: string | null;
         };
         /** RooPlacesOut */
         RooPlacesOut: {
@@ -3691,6 +3745,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RoadPathOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    map_tiles_v1_maps_tiles_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MapTilesOut"];
                 };
             };
             /** @description Validation Error */

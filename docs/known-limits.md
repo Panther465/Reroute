@@ -79,3 +79,10 @@ Honest gaps in this build. Each is a deliberate scope choice or waits on the tea
 - **When Raasta is busy or down**, Reroute plans with the last answer it got about each route (kept 24 hours) and waits out Raasta's `Retry-After`. After a day without an answer, Raasta's routes count as unverified until it's back.
 - **The k6 load test** runs on demand (`Load test` workflow) with a raised per-user rate limit, because all virtual users share the demo account.
 - **A manual NVDA screen-reader check** is required by the brief and isn't automated.
+
+## Google Maps
+
+- **Google's terms on keeping its content aren't fully met yet.** A place found with Google and added to a trip keeps its name and point in Reroute's database like any other place; Google allows keeping a place's ID, and its point for 30 days. A trip's Google places should be refreshed by their IDs (or dropped) after 30 days; that isn't done.
+- **The map's tiles are fetched by the app itself**, so the key it uses is visible to anyone signed in. Give the app its own key (`GOOGLE_MAPS_BROWSER_KEY`), restricted to the Map Tiles API and your sites; on a phone the app's origin is `https://localhost`, which anyone can claim, so that restriction is weak there.
+- **Google's map is a picture under the routes:** no 3D buildings, and labels don't turn with a tilted map. The night style is Reroute's own colours on Google's roadmap.
+- **Routes and turn-by-turn are still OpenStreetMap's** (FOSSGIS's servers), drawn on Google's map and credited as such. Google's Routes API (live traffic) isn't used yet.

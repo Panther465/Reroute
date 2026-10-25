@@ -15,6 +15,7 @@ import type {
   Job,
   OwnPlace,
   Place,
+  MapTiles,
   PlacePhoto,
   PlaceReview,
   PlanInsight,
@@ -64,6 +65,7 @@ export const keys = {
   bookings: (tripId: string) => ['bookings', tripId] as const,
   wallet: ['wallet'] as const,
   airports: ['airports'] as const,
+  mapTiles: ['map-tiles'] as const,
 }
 
 /** Which queries survive a reload (the rest are cheap to refetch). */
@@ -92,6 +94,20 @@ export function whileSignedIn(on: boolean) {
 export function useMe(enabled = true) {
   const signedIn = useSessionStatus() === 'signedIn'
   return useQuery({ queryKey: keys.me, queryFn: () => api.get<User>('/v1/me'), enabled: whileSignedIn(enabled && signedIn) })
+}
+
+/** Which map the app draws (GET /v1/maps/tiles): Google's, when the server has a Google Maps key, else
+ *  OpenStreetMap's. Signed out there's nothing to ask, and the maps are OpenStreetMap's. */
+export function useMapTiles() {
+  const signedIn = useSessionStatus() === 'signedIn'
+  return useQuery({
+    queryKey: keys.mapTiles,
+    queryFn: () => api.get<MapTiles>('/v1/maps/tiles'),
+    enabled: whileSignedIn(signedIn),
+    staleTime: 6 * 3600_000,
+    gcTime: 24 * 3600_000,
+    retry: 1,
+  })
 }
 
 /** Simulated bookings are a demo: the server says whether they're on, and only then does the app offer them. */

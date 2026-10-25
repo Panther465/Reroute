@@ -12,9 +12,12 @@ export function travelMode(modes: Mode[]): TravelMode {
   return 'driving'
 }
 
-/** Directions to a place from wherever the phone is: to its point, or to its name in the city when there's none. */
-export function directionsTo(name: string, city: string | undefined, at: { lat: number; lng: number } | null): string {
-  const params = new URLSearchParams({ api: '1', destination: at ? `${at.lat},${at.lng}` : [name, city].filter(Boolean).join(', ') })
+/** Directions to a place from wherever the phone is: to Google's own place when it's known, else its point, else
+ *  its name in the city. */
+export function directionsTo(name: string, city: string | undefined, at: { lat: number; lng: number } | null, googlePlaceId?: string | null): string {
+  const named = [name, city].filter(Boolean).join(', ')
+  const params = new URLSearchParams({ api: '1', destination: googlePlaceId ? named : at ? `${at.lat},${at.lng}` : named })
+  if (googlePlaceId) params.set('destination_place_id', googlePlaceId)
   return `https://www.google.com/maps/dir/?${params.toString()}`
 }
 
