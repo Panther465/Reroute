@@ -1,12 +1,13 @@
-import { dehydrate, QueryClient, QueryObserver } from '@tanstack/react-query'
-import { act, renderHook } from '@testing-library/react'
+import { dehydrate, QueryClient, QueryClientProvider, QueryObserver } from '@tanstack/react-query'
+import { act, renderHook, waitFor } from '@testing-library/react'
+import type { ReactNode } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { enqueue, resetQueue } from '@/lib/offlineQueue'
 import { resetSession } from '@/lib/session'
 import { setState } from '@/lib/store'
 import { goldenTrip } from '@/test/fixtures'
-import { ApiError } from './client'
-import { keys, shouldPersist, useDay, whileSignedIn } from './queries'
+import { api, ApiError } from './client'
+import { keys, shouldPersist, useBookings, useDay, whileSignedIn } from './queries'
 
 beforeEach(() => {
   resetQueue()
@@ -101,5 +102,23 @@ describe('the cache the phone keeps for the next launch', () => {
     client.setQueryData(keys.wallet, { balanceInr: 500 })
     const kept = dehydrate(client, { shouldDehydrateQuery: shouldPersist }).queries.map((q) => q.queryKey)
     expect(kept).toEqual([keys.me, keys.trip('trip-001')])
+  })
+})
+
+describe('the trip’s bookings', () => {
+  it('asks the server on every load, even with a copy saved seconds before (Rico may have just booked)', async () => {
+    resetSession('signedIn')
+    const client = new QueryClient({ defaultOptions: { queries: { staleTime: 30_000, retry: false } } })
+    // Saved a moment ago, as the app does before a reload: still fresh by the app's own measure.
+    client.setQueryData(keys.bookings('trip-001'), [])
+    const fresh = [{ bookingId: 'bk-1' }]
+    const get = vi.spyOn(api, 'get').mockResolvedValue(fresh)
+    const wrapper = ({ children }: { children: ReactNode }) => <QueryClientProvider client={client}>{children}</QueryClientProvider>
+    const { result } = renderHook(() => useBookings('trip-001'), { wrapper })
+    expect(result.current.data).toEqual([])
+    await waitFor(() => expect(result.current.data).toEqual(fresh))
+    expect(get).toHaveBeenCalledWith('/v1/trips/trip-001/bookings')
+    get.mockRestore()
+    resetSession()
   })
 })

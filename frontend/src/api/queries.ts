@@ -179,7 +179,14 @@ export function useCurrentTripId(): { tripId: string | null; isPending: boolean;
 /** The trip's simulated tickets and rides (kept on the phone, so a ticket shows offline). */
 export function useBookings(tripId: string | null | undefined) {
   const signedIn = useSessionStatus() === 'signedIn'
-  return useQuery({ queryKey: keys.bookings(tripId ?? 'none'), queryFn: () => api.get<Booking[]>(`/v1/trips/${tripId}/bookings`), enabled: whileSignedIn(!!tripId && signedIn) })
+  return useQuery({
+    queryKey: keys.bookings(tripId ?? 'none'),
+    queryFn: () => api.get<Booking[]>(`/v1/trips/${tripId}/bookings`),
+    enabled: whileSignedIn(!!tripId && signedIn),
+    // As the trip: the saved copy shows at once, and every load asks the server. Bookings change there too (Rico's
+    // card, his sheet over other apps), and a copy saved seconds before a reload hid a ticket he had just booked.
+    refetchOnMount: 'always',
+  })
 }
 
 export function useTrip(tripId: string | null) {
