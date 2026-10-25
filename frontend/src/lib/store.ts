@@ -77,7 +77,8 @@ export interface UiState {
 
 export interface RicoBubble {
   text: string
-  replies: { label: string; then: 'voice' | 'chat'; say?: string }[]
+  /** Each answer brings Rico up talking or in the chat, or sets "Hey Rico" up in Me (his offer). */
+  replies: { label: string; then: 'voice' | 'chat' | 'hey-rico'; say?: string }[]
   /** When it came up: a bubble left alone goes after a while. */
   at: number
 }
