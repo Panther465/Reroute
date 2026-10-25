@@ -2146,6 +2146,11 @@ export interface components {
              * Format: date-time
              */
             expiresAt: string;
+            /**
+             * Pitch
+             * @default 0
+             */
+            pitch: number;
         };
         /** RooOut */
         RooOut: {

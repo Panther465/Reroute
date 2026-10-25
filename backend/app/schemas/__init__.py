@@ -767,6 +767,8 @@ class RooLiveOut(Api):
     url: str
     model: str
     expires_at: datetime
+    #: Semitones the app raises Rico's voice by, so a grown-up Google voice sounds like a child's (like Ana's).
+    pitch: float = 0
 
 
 class RooIn(PostBody):

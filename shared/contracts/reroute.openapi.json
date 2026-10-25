@@ -7208,6 +7208,11 @@
             "type": "string",
             "format": "date-time",
             "title": "Expiresat"
+          },
+          "pitch": {
+            "type": "number",
+            "title": "Pitch",
+            "default": 0
           }
         },
         "type": "object",
