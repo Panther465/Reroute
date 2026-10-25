@@ -1060,7 +1060,7 @@
                   "value": "application/json"
                 }
               ],
-              "body": "{\n  \"planId\": \"plan-002\",\n  \"version\": 2,\n  \"status\": \"active\",\n  \"trigger\": \"late\",\n  \"ruleVersion\": \"1.0\",\n  \"legs\": [\n    {\n      \"seq\": 1,\n      \"taskId\": \"task-bank\",\n      \"mode\": \"cab\",\n      \"leaveBy\": \"2026-10-14T11:45:00+05:30\",\n      \"arriveAt\": \"2026-10-14T12:35:00+05:30\",\n      \"travelMin\": 50,\n      \"fareInr\": 430\n    }\n  ],\n  \"reasonCodes\": [\n    \"FASTER_MODE\"\n  ],\n  \"explanation\": \"A cab keeps all three tasks today for ₹350 more.\"\n}"
+              "body": "{\n  \"planId\": \"plan-002\",\n  \"version\": 2,\n  \"status\": \"active\",\n  \"trigger\": \"late\",\n  \"ruleVersion\": \"1.0\",\n  \"legs\": [\n    {\n      \"seq\": 2,\n      \"taskId\": \"task-bank\",\n      \"mode\": \"cab\",\n      \"leaveBy\": \"2026-10-14T11:45:00+05:30\",\n      \"arriveAt\": \"2026-10-14T12:35:00+05:30\",\n      \"travelMin\": 50,\n      \"fareInr\": 430\n    }\n  ],\n  \"reasonCodes\": [\n    \"FASTER_MODE\"\n  ],\n  \"explanation\": \"A cab keeps all three tasks today for ₹350 more.\"\n}"
             }
           ]
         },

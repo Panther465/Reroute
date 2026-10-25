@@ -75,6 +75,10 @@ def new_plan_row(
 ) -> tuple[Plan, list[PlanLeg]]:
     """`carried_moved`: entries of the previous version to keep, such as tasks still unplaced after a re-plan."""
     tz = tz_for(trip.utc_offset)
+    # One number per leg of the day, its place on the timeline: the legs travelled first, then this version's (the
+    # planner numbers from 1). Paths, alerts and the app find a leg by its number.
+    done_legs = [{**leg, "seq": i} for i, leg in enumerate(done_legs, start=1)]
+    result = result.model_copy(update={"legs": tuple(leg.model_copy(update={"seq": len(done_legs) + leg.seq}) for leg in result.legs)})
     legs = [leg_out(leg, day, tz) for leg in result.legs]
     moved = [
         MovedOut(

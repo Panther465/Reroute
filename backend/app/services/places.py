@@ -11,7 +11,7 @@ from geoalchemy2.elements import WKTElement
 from sqlalchemy import ColumnElement, and_, case, exists, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.adapters.places import NominatimSearch
+from app.adapters.places import FoundPlace, NominatimSearch
 from app.cities import City
 from app.cities import city as supported_city
 from app.errors import ApiError
@@ -59,24 +59,37 @@ def find_places(db: Session, q: str, city_slug: str, limit: int = 8, user_id: st
     known = list(db.scalars(query.order_by(*own_first, Place.sample.desc(), Place.name).limit(20)))
     if len(known) < 3:
         for found in NominatimSearch(get_redis()).search(text, where):
-            if any(p.place_id == found.place_id for p in known) or not where.contains(found.lng, found.lat):
+            if not where.contains(found.lng, found.lat):
                 continue
-            place = db.get(Place, found.place_id)
-            if place is None:
-                place = Place(
-                    place_id=found.place_id,
-                    city_slug=city_slug,
-                    name=found.name[:200],
-                    area=found.area[:120],
-                    lng=found.lng,
-                    lat=found.lat,
-                    osm_id=found.osm_id,
-                    location=WKTElement(f"POINT({found.lng} {found.lat})", srid=4326),
-                )
-                db.add(place)
-            known.append(place)
+            place = _saved(db, found, city_slug)
+            if not any(p.place_id == place.place_id for p in known):
+                known.append(place)
         db.commit()
     return sorted(known, key=lambda p: (p.owner_id is None or p.owner_id != user_id, _rank(p, text)))[:limit]
+
+
+def _saved(db: Session, found: FoundPlace, city_slug: str) -> Place:
+    """A place OpenStreetMap found, saved for this city. Neighbouring cities' areas overlap (Delhi's and Gurugram's
+    do), and a trip plans only with places of its own city, so a place already saved for another one is saved again
+    for this one, under its own ID."""
+    place_id = found.place_id
+    place = db.get(Place, place_id)
+    if place is not None and place.city_slug != city_slug:
+        place_id = f"{found.place_id}@{city_slug}"
+        place = db.get(Place, place_id)
+    if place is None:
+        place = Place(
+            place_id=place_id,
+            city_slug=city_slug,
+            name=found.name[:200],
+            area=found.area[:120],
+            lng=found.lng,
+            lat=found.lat,
+            osm_id=found.osm_id,
+            location=WKTElement(f"POINT({found.lng} {found.lat})", srid=4326),
+        )
+        db.add(place)
+    return place
 
 
 def best_place(db: Session, place_text: str, city_slug: str, user_id: str | None = None) -> Place | None:

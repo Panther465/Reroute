@@ -6,6 +6,7 @@ Needs PostgreSQL with PostGIS: TEST_DATABASE_URL. Jobs run inline; Raasta answer
 from __future__ import annotations
 
 import base64
+import threading
 from datetime import date
 
 import pytest
@@ -83,6 +84,22 @@ def test_15_minute_delay_shifts_without_asking(client):
     assert [hm(leg["taskStart"]) for leg in body["plan"]["legs"]] == ["12:40", "15:55", "17:05"]
     assert body["plan"]["version"] == 2
     assert [hm(leg["leaveBy"]) for leg in body["plan"]["doneLegs"]] == ["08:50"]
+
+
+def test_a_new_versions_legs_are_numbered_after_the_legs_travelled(client):
+    plan_v1(client)
+    clock(client, "10:55")
+    res = client.post("/v1/trips/trip-001/checkins", json={"taskId": "task-meet", "kind": "delay", "delayMin": 15, "idempotencyKey": key()})
+    plan = res.json()["plan"]
+    # One number per leg of the day, its place on the timeline: the leg to the meeting keeps 1 and the rest follow.
+    assert [leg["taskId"] for leg in plan["doneLegs"] + plan["legs"]] == ["task-meet", "task-bank", "task-office", None]
+    assert [leg["seq"] for leg in plan["doneLegs"] + plan["legs"]] == [1, 2, 3, 4]
+    with engine().connect() as conn:
+        rows = conn.execute(text("SELECT seq FROM plan_legs WHERE plan_id = :p ORDER BY seq"), {"p": plan["planId"]}).scalars().all()
+    assert rows == [2, 3, 4]
+    # The map draws each leg once, under its own number.
+    paths = client.get("/v1/trips/trip-001/plans/2/paths").json()
+    assert [leg["seq"] for leg in paths["legs"]] == [1, 2, 3, 4]
 
 
 def test_40_minute_delay_offers_options_then_accept_and_undo(client):
@@ -204,6 +221,8 @@ def test_skipping_after_check_ins_plans_from_the_last_place_reached(client):
     assert {t["taskId"]: t["state"] for t in trip["tasks"]}["task-office"] == "skipped"
     plan = trip["activePlan"]
     assert [leg["taskId"] for leg in plan["doneLegs"]] == ["task-meet", "task-bank"]
+    # The way home is the day's third leg, after the two travelled.
+    assert [leg["seq"] for leg in plan["doneLegs"] + plan["legs"]] == [1, 2, 3]
     home = plan["legs"][0]
     assert home["taskId"] is None and home["fromPlaceId"] == "koramangala-bank"
     assert hm(home["leaveBy"]) >= "13:00"
@@ -349,6 +368,42 @@ def test_book_entry_tickets_to_a_sight(client):
     # Cancelled before the visit, everything comes back.
     cancelled = client.post(f"/v1/trips/trip-001/bookings/{tickets['bookingId']}/cancel", json={"idempotencyKey": key()}).json()
     assert cancelled["status"] == "cancelled" and cancelled["details"]["refundInr"] == tickets["fareInr"]
+
+
+def test_two_cancels_at_once_refund_once(client, monkeypatch):
+    from app.services import wallet
+
+    body = {"kind": "ticket", "placeId": "jayanagar-office", "visitDate": "2026-10-15", "optionId": "entry", "visitors": 2, "idempotencyKey": key()}
+    tickets = client.post("/v1/trips/trip-001/bookings", json=body).json()
+    balance = client.get("/v1/wallet").json()["balanceInr"]
+    # The first cancel to reach its refund waits there, before its commit, while a second cancel comes in.
+    refund, inside, let_go = wallet.refund, threading.Event(), threading.Event()
+
+    def held(*args, **kwargs):
+        if not inside.is_set():
+            inside.set()
+            let_go.wait(5)
+        return refund(*args, **kwargs)
+
+    monkeypatch.setattr(wallet, "refund", held)
+    other = TestClient(app, base_url="https://testserver", headers={"Authorization": client.headers["Authorization"]})
+    answers: list = []
+
+    def cancel(c):
+        answers.append(c.post(f"/v1/trips/trip-001/bookings/{tickets['bookingId']}/cancel", json={"idempotencyKey": key()}))
+
+    first, second = threading.Thread(target=cancel, args=(client,)), threading.Thread(target=cancel, args=(other,))
+    first.start()
+    assert inside.wait(5)
+    second.start()
+    second.join(1)  # it may wait for the first to commit
+    let_go.set()
+    first.join()
+    second.join()
+    assert [(a.status_code, a.json()["status"]) for a in answers] == [(200, "cancelled"), (200, "cancelled")]
+    entries = client.get("/v1/wallet").json()["entries"]
+    assert [e["kind"] for e in entries].count("refund") == 1
+    assert client.get("/v1/wallet").json()["balanceInr"] == balance + tickets["fareInr"]
 
 
 def test_speech_reads_an_alert_and_caches_it(client, monkeypatch):

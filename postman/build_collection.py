@@ -155,7 +155,7 @@ reroute = [
         "/v1/trips/trip-001/options/opt-1/accept",
         data={"idempotencyKey": KEY},
         tests=["const p = pm.response.json(); pm.test('version 2', () => { pm.expect(p.version).to.eql(2); pm.expect(p.trigger).to.eql('late'); });"],
-        example={"planId": "plan-002", "version": 2, "status": "active", "trigger": "late", "ruleVersion": "1.0", "legs": [{"seq": 1, "taskId": "task-bank", "mode": "cab", "leaveBy": "2026-10-14T11:45:00+05:30", "arriveAt": "2026-10-14T12:35:00+05:30", "travelMin": 50, "fareInr": 430}], "reasonCodes": ["FASTER_MODE"], "explanation": "A cab keeps all three tasks today for ₹350 more."},
+        example={"planId": "plan-002", "version": 2, "status": "active", "trigger": "late", "ruleVersion": "1.0", "legs": [{"seq": 2, "taskId": "task-bank", "mode": "cab", "leaveBy": "2026-10-14T11:45:00+05:30", "arriveAt": "2026-10-14T12:35:00+05:30", "travelMin": 50, "fareInr": 430}], "reasonCodes": ["FASTER_MODE"], "explanation": "A cab keeps all three tasks today for ₹350 more."},
     ),
     req(
         "Day summary",

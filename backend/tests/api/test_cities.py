@@ -144,6 +144,33 @@ def test_find_a_city_then_plan_a_trip_there(client, osm):
     assert osm.calls == []  # its area is on file: OpenStreetMap was never asked about the city
 
 
+#: Cyber Hub, inside Gurugram's area and Delhi's too: neighbouring cities' areas overlap.
+CYBER_HUB = (77.0888, 28.4950)
+
+
+@pytest.mark.db
+def test_a_place_saved_for_a_neighbouring_city_is_saved_again_for_this_one(client, monkeypatch):
+    class Overlap:
+        def __init__(self, *_):
+            pass
+
+        def search(self, query, where):
+            return [FoundPlace("osm-w77", "Cyber Hub", "DLF Phase 2", *CYBER_HUB, "w77")]
+
+    monkeypatch.setattr("app.services.places.NominatimSearch", Overlap)
+    assert city("delhi").contains(*CYBER_HUB) and city("gurugram").contains(*CYBER_HUB)
+    # Found first from Delhi, so saved for Delhi.
+    assert [p["placeId"] for p in client.get("/v1/places", params={"q": "Cyber Hub", "city": "delhi"}).json()] == ["osm-w77"]
+    # Found again from Gurugram: a place a Gurugram trip can stay at.
+    (hub,) = client.get("/v1/places", params={"q": "Cyber Hub", "city": "gurugram"}).json()
+    trip = {"citySlug": "gurugram", "cityName": "Gurugram", "startDate": "2026-10-22", "endDate": "2026-10-22", "stayLabel": "Near Cyber Hub"}
+    res = client.post("/v1/trips", json={**trip, "stayPlaceId": hub["placeId"], "idempotencyKey": key()})
+    assert res.status_code == 201, res.text
+    # Each city keeps its own.
+    assert [p["placeId"] for p in client.get("/v1/places", params={"q": "Cyber Hub", "city": "delhi"}).json()] == ["osm-w77"]
+    assert [p["placeId"] for p in client.get("/v1/places", params={"q": "Cyber Hub", "city": "gurugram"}).json()] == [hub["placeId"]]
+
+
 @pytest.mark.db
 def test_every_city_on_the_list_to_choose_from(client, osm):
     every = client.get("/v1/cities").json()

@@ -287,7 +287,8 @@ def _label(b: Booking) -> str:
 
 @router.post("/trips/{trip_id}/bookings/{booking_id}/cancel", response_model=BookingOut, response_model_by_alias=True, summary="Cancel a simulated booking")
 def cancel_booking(booking_id: str, body: PostBody, trip: OwnedTrip, db: Db) -> BookingOut:
-    booking = db.get(Booking, booking_id)
+    # Locked until the commit: of two cancels at once, the second waits and finds it cancelled, so it refunds once.
+    booking = db.get(Booking, booking_id, with_for_update=True)
     if booking is None or booking.trip_id != trip.trip_id:
         raise ApiError(404, "Booking not found.")
     if booking.status != "cancelled":

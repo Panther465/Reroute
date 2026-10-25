@@ -443,11 +443,17 @@ def accept(db: Session, trip: Trip, option_id: str, now: datetime, option_set_id
 
 
 def undo_to(db: Session, trip: Trip, version: int, now: datetime) -> Plan:
-    """Make an earlier version active again; the current one becomes superseded."""
+    """Make an earlier version active again; the current one becomes superseded. Options waiting and reported delays
+    go either way."""
     lock_trip(db, trip.trip_id)
     target = plan_store.get_version(db, trip.trip_id, version)
     current = plan_store.active_plan(db, trip.trip_id)
     if current is not None and current.plan_id == target.plan_id:
+        # Already in use: back to it still means without the fixes on offer and the delay they came from (a delay
+        # that brought options, or found no plan, made no version to undo).
+        _close_options(db, trip.trip_id, open_options(db, trip.trip_id))
+        db.commit()
+        forget_reported_delays(trip.trip_id)
         return target
     if target.status != "superseded":
         raise ApiError(409, "Only an earlier version can be made active again.")

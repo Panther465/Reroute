@@ -163,7 +163,7 @@ def test_no_guide_for_a_missing_page_and_nothing_kept_when_wikivoyage_fails(sour
     missing = _client(lambda r: httpx.Response(200, json=_wikivoyage({"ns": 0, "title": "Nowhereabad", "missing": True})), seen)
     assert asyncio.run(guide.city_guide("Nowhereabad", client=missing)) is None
     assert asyncio.run(guide.city_guide("Nowhereabad", client=missing)) is None
-    assert len(seen) == 1 and 0 < fake_redis.ttl("guide:city:nowhereabad") <= 24 * 3600
+    assert len(seen) == 1 and 0 < fake_redis.ttl("guide:city:none:Nowhereabad") <= 24 * 3600
     # A page listing the places of that name isn't a guide.
     several = _client(lambda r: httpx.Response(200, json=_wikivoyage(_page("Aurangabad", "{{disamb}}\n'''Aurangabad''' may be:"))), seen)
     assert asyncio.run(guide.city_guide("Aurangabad", client=several)) is None
@@ -187,6 +187,24 @@ def test_no_guide_for_a_missing_page_and_nothing_kept_when_wikivoyage_fails(sour
     monkeypatch.setattr(get_settings(), "wikivoyage_url", "")
     seen.clear()
     assert asyncio.run(guide.city_guide("Mysuru", client=_client(lambda r: httpx.Response(200), seen))) is None and seen == []
+
+
+def test_no_guide_under_one_spelling_keeps_none_from_another(sources, fake_redis):
+    # Wikivoyage's titles are case-sensitive after the first letter: "new delhi" is the page "New delhi", which has
+    # no guide, while "New Delhi" has one.
+    seen: list[httpx.Request] = []
+
+    def answer(request: httpx.Request) -> httpx.Response:
+        title = request.url.params["titles"]
+        if title == "New Delhi":
+            return httpx.Response(200, json=_wikivoyage(_page("New Delhi", "'''New Delhi''' is the capital of India.\n==See==\n")))
+        return httpx.Response(200, json=_wikivoyage({"ns": 0, "title": title[:1].upper() + title[1:], "missing": True}))
+
+    client = _client(answer, seen)
+    assert asyncio.run(guide.city_guide("new delhi", client=client)) is None
+    assert asyncio.run(guide.city_guide("New delhi", client=client)) is None  # the same page to Wikivoyage: not asked again
+    assert asyncio.run(guide.city_guide("New Delhi", client=client)).title == "New Delhi"
+    assert [r.url.params["titles"] for r in seen] == ["new delhi", "New Delhi"]
 
 
 def test_a_guide_answers_without_redis_too(sources, monkeypatch):
