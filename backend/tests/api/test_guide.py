@@ -92,7 +92,9 @@ def test_a_city_guide_is_a_short_summary_and_a_few_named_places_kept_a_week(sour
     assert found.summary == "Mysuru is the cultural capital of Karnataka. Its palace is lit every Sunday."
     # The better known (with a Wikidata entry) first, then the rest in the guide's order.
     assert [x.name for x in found.see] == ["Mysore Palace", "Chamundi Hill", "Rail Museum", "St. Philomena's Church"]
-    assert found.see[0] == guide.Listing("Mysore Palace", "The seat of the Wodeyars, lit by 97,000 bulbs on Sunday evenings.", "10AM-5:30PM", "₹100", True)
+    # Where it is, when the listing says.
+    palace = guide.Listing("Mysore Palace", "The seat of the Wodeyars, lit by 97,000 bulbs on Sunday evenings.", "10AM-5:30PM", "₹100", True, 12.305, 76.655)
+    assert found.see[0] == palace
     assert found.see[2] == guide.Listing("Rail Museum") and found.see[3].about == "Neo-Gothic spires."
     assert [x.name for x in found.do] == ["Brindavan Gardens"] and found.eat == (guide.Listing("Mylari", "Famous for its soft dosa.", "", "₹60"),)
     assert (found.lat, found.lng) == (12.30, 76.65)

@@ -2137,6 +2137,12 @@ export interface components {
             reads: string[];
             ask?: components["schemas"]["RooAskOut"] | null;
             proposal?: components["schemas"]["RooProposalOut"] | null;
+            places?: components["schemas"]["RooPlacesOut"] | null;
+            /**
+             * Sources
+             * @default []
+             */
+            sources: components["schemas"]["RooSourceOut"][];
         };
         /** RooAskOut */
         RooAskOut: {
@@ -2195,6 +2201,41 @@ export interface components {
             reply: string;
             action?: components["schemas"]["RooActionOut"] | null;
         };
+        /**
+         * RooPlaceOut
+         * @description A place Rico shows as the traveller's guide: why go, a photo, and where it is.
+         */
+        RooPlaceOut: {
+            /** Name */
+            name: string;
+            /** Why */
+            why: string;
+            /** What */
+            what?: string | null;
+            /** Hours */
+            hours?: string | null;
+            /** Price */
+            price?: string | null;
+            /** Lat */
+            lat?: number | null;
+            /** Lng */
+            lng?: number | null;
+            /** Km */
+            km?: number | null;
+            photo?: components["schemas"]["PlacePhotoOut"] | null;
+            /** Source */
+            source: string;
+        };
+        /** RooPlacesOut */
+        RooPlacesOut: {
+            /**
+             * Route
+             * @default false
+             */
+            route: boolean;
+            /** Places */
+            places: components["schemas"]["RooPlaceOut"][];
+        };
         /** RooProposalOut */
         RooProposalOut: {
             /** Proposalid */
@@ -2241,6 +2282,16 @@ export interface components {
              * @default false
              */
             canUndo: boolean;
+        };
+        /**
+         * RooSourceOut
+         * @description A web page Rico read to answer.
+         */
+        RooSourceOut: {
+            /** Title */
+            title: string;
+            /** Url */
+            url: string;
         };
         /**
          * RooStepOut

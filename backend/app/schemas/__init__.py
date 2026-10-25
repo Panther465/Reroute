@@ -856,6 +856,40 @@ class RooAskOut(Api):
     options: list[str]
 
 
+class RooPlaceOut(Api):
+    """A place Rico shows as the traveller's guide: why go, a photo, and where it is."""
+
+    name: str
+    #: Rico's line on why to go.
+    why: str
+    #: What it is, from OpenStreetMap ("museum", "restaurant, south indian").
+    what: str | None = None
+    #: Opening hours and entry price, as the city's travel guide gives them.
+    hours: str | None = None
+    price: str | None = None
+    lat: float | None = None
+    lng: float | None = None
+    #: How far it is from where they're staying, in a straight line.
+    km: float | None = None
+    #: A photograph of it from Wikimedia Commons, shown with its credit.
+    photo: PlacePhotoOut | None = None
+    #: Where Rico read about it: "Wikivoyage", "OpenStreetMap", "Reroute" or "the web".
+    source: str
+
+
+class RooPlacesOut(Api):
+    #: A route to follow in this order (first this, then that), or ideas to choose from.
+    route: bool = False
+    places: list[RooPlaceOut]
+
+
+class RooSourceOut(Api):
+    """A web page Rico read to answer."""
+
+    title: str
+    url: str
+
+
 class RooAgentOut(Api):
     reply: str
     #: What Roo looked at to answer, in words ("Read your day").
@@ -864,6 +898,10 @@ class RooAgentOut(Api):
     ask: RooAskOut | None = None
     #: The changes Roo proposes, all on one card. Nothing has changed yet.
     proposal: RooProposalOut | None = None
+    #: Places Rico shows as cards with photos, as the traveller's guide.
+    places: RooPlacesOut | None = None
+    #: The web pages Rico read to answer.
+    sources: list[RooSourceOut] = []
 
 
 class RooStepResultOut(Api):

@@ -7206,6 +7206,24 @@
                 "type": "null"
               }
             ]
+          },
+          "places": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RooPlacesOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/RooSourceOut"
+            },
+            "type": "array",
+            "title": "Sources",
+            "default": []
           }
         },
         "type": "object",
@@ -7364,6 +7382,127 @@
         ],
         "title": "RooOut"
       },
+      "RooPlaceOut": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why"
+          },
+          "what": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "What"
+          },
+          "hours": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hours"
+          },
+          "price": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price"
+          },
+          "lat": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lat"
+          },
+          "lng": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Lng"
+          },
+          "km": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Km"
+          },
+          "photo": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PlacePhotoOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "why",
+          "source"
+        ],
+        "title": "RooPlaceOut",
+        "description": "A place Rico shows as the traveller's guide: why go, a photo, and where it is."
+      },
+      "RooPlacesOut": {
+        "properties": {
+          "route": {
+            "type": "boolean",
+            "title": "Route",
+            "default": false
+          },
+          "places": {
+            "items": {
+              "$ref": "#/components/schemas/RooPlaceOut"
+            },
+            "type": "array",
+            "title": "Places"
+          }
+        },
+        "type": "object",
+        "required": [
+          "places"
+        ],
+        "title": "RooPlacesOut"
+      },
       "RooProposalOut": {
         "properties": {
           "proposalId": {
@@ -7477,6 +7616,25 @@
           "summary"
         ],
         "title": "RooRunOut"
+      },
+      "RooSourceOut": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "url": {
+            "type": "string",
+            "title": "Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "url"
+        ],
+        "title": "RooSourceOut",
+        "description": "A web page Rico read to answer."
       },
       "RooStepOut": {
         "properties": {

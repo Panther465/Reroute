@@ -66,6 +66,9 @@ class Listing:
     price: str = ""
     #: It has a Wikidata entry: better known.
     notable: bool = False
+    #: Where it is, when the guide's listing says.
+    lat: float | None = None
+    lng: float | None = None
 
 
 @dataclass(frozen=True)
@@ -254,6 +257,7 @@ def _listings(wikitext: str) -> list[Listing]:
         name = _plain(fields.get("name", ""))
         if not name:
             continue
+        lat, lng = _point(fields.get("lat", ""), fields.get("long", ""))
         out.append(
             Listing(
                 name=_clip(name, 100),
@@ -261,9 +265,20 @@ def _listings(wikitext: str) -> list[Listing]:
                 hours=_clip(_plain(fields.get("hours", "")), 60),
                 price=_clip(_plain(fields.get("price", "")), 60),
                 notable=bool(re.fullmatch(r"\s*Q\d+\s*", fields.get("wikidata", ""))),
+                lat=lat,
+                lng=lng,
             )
         )
     return out
+
+
+def _point(lat: str, lng: str) -> tuple[float | None, float | None]:
+    """A listing's lat and long, when both are there and make a point."""
+    try:
+        y, x = float(lat.strip()), float(lng.strip())
+    except ValueError:
+        return None, None
+    return (y, x) if -90 <= y <= 90 and -180 <= x <= 180 and (y, x) != (0.0, 0.0) else (None, None)
 
 
 def _pick(pages: list[list[Listing]]) -> tuple[Listing, ...]:
