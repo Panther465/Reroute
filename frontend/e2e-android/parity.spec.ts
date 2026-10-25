@@ -484,7 +484,7 @@ test('a leave-by alert reaches a frozen Reroute as a push', async ({ app }) => {
 // recordings played into it in place of the microphone (debug builds only: DebugWakeReceiver). The recordings are
 // Gemini's text-to-speech in three voices: three that should wake Rico and three that shouldn't. A server without
 // Rico's voice (no Gemini key, like the CI stack) opens the chat instead of the voice screen. Run with WAKE_E2E=1.
-test('“Hey Rico” wakes Rico, on screen or in the background, and nothing else does', async ({ app }) => {
+test('“Hey Rico” wakes Rico, on screen, in the background or popping up over other apps, and nothing else does', async ({ app }) => {
   test.skip(!process.env.WAKE_E2E, 'Downloads Rico’s ear (38 MB): WAKE_E2E=1')
   test.setTimeout(300_000)
   const page = app.page
@@ -530,6 +530,27 @@ test('“Hey Rico” wakes Rico, on screen or in the background, and nothing els
   await app.reattach()
   await expect(app.page.getByRole('dialog', { name: 'Rico' })).toBeVisible({ timeout: 20_000 })
   await app.page.keyboard.press('Escape')
+  // With "Pop up over other apps" on (and Android's "Display over other apps" allowed), he pops up over whatever is
+  // on screen and Reroute opens on him: no notification to tap.
+  await app.device.shell(`appops set ${PKG} SYSTEM_ALERT_WINDOW allow`)
+  await open(app.page, '/me')
+  const popUp = app.page.getByRole('switch', { name: /Pop up over other apps/ })
+  await popUp.click()
+  await expect(popUp).toHaveAttribute('aria-checked', 'true')
+  await app.detach()
+  await app.device.shell('input keyevent KEYCODE_HOME')
+  await expect.poll(() => activityState(app.device), { timeout: 10_000 }).toMatch(/^(PAUSED|STOPPING|STOPPED)$/)
+  await new Promise((r) => setTimeout(r, 2000))
+  const windows = async () => (await app.device.shell('dumpsys window windows')).toString()
+  await play('wake-hi-rico-puck')
+  await expect.poll(async () => (await windows()).includes('RicoPopUp'), { timeout: 15_000, intervals: [100] }).toBe(true)
+  await expect.poll(() => foreground(app.device), { timeout: 15_000 }).toContain(PKG)
+  await app.reattach()
+  await expect(app.page.getByRole('dialog', { name: 'Rico' })).toBeVisible({ timeout: 20_000 })
+  // Gone once Reroute is on screen.
+  await expect.poll(async () => (await windows()).includes('RicoPopUp'), { timeout: 10_000 }).toBe(false)
+  await app.page.keyboard.press('Escape')
+  await app.device.shell(`appops set ${PKG} SYSTEM_ALERT_WINDOW default`)
   // Rico's ear runs in a process of its own: if it dies (the speech library can abort), Reroute carries on, and
   // opening Reroute again starts the ear again.
   const earPid = async () => (await app.device.shell(`pidof ${PKG}:ear`)).toString().trim()

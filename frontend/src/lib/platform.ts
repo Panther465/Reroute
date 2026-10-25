@@ -28,10 +28,12 @@ export interface NativeHooks {
   push: { token: () => Promise<string | null>; forget: () => Promise<boolean> }
   /** "Hey Rico": Rico's ear on the phone itself (src/native/wake.ts); a browser has none. */
   wake: {
-    status: () => Promise<{ modelReady: boolean; enabled: boolean; background: boolean; listening: boolean; microphone: boolean }>
+    status: () => Promise<{ modelReady: boolean; enabled: boolean; background: boolean; listening: boolean; microphone: boolean; popUp: boolean; overlay: boolean }>
     download: (onProgress: (percent: number) => void) => Promise<void>
     start: (background: boolean) => Promise<void>
     stop: () => Promise<void>
+    /** Rico pops up over other apps on "Hey Rico"; `asked` when Android's "Display over other apps" page opened. */
+    popUp: (on: boolean) => Promise<{ asked: boolean }>
     pause: () => Promise<void>
     resume: () => Promise<void>
   }
