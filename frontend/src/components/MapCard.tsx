@@ -10,7 +10,7 @@ import type { MapTiles } from '@/api/types'
 import { useMapTiles } from '@/api/queries'
 import { MapUnavailable } from '@/components/LazyMap'
 import { useOnline } from '@/lib/hooks'
-import { googleStyle, googleTiles, viewportUrl } from '@/lib/mapTiles'
+import { googleStyle, googleTiles, REFUSALS_BEFORE_FREE_MAP, refusedByGoogle, viewportUrl } from '@/lib/mapTiles'
 import type { LngLat, MapLine } from '@/lib/geo'
 import type { Fix } from '@/lib/location'
 import { longPress } from '@/lib/longPress'
@@ -214,11 +214,13 @@ export default function MapCard(props: MapCardProps) {
   const online = useOnline()
   const theme = useResolvedTheme()
   const tiles = useMapTiles()
+  // Google stopped giving this map its tiles: it's OpenStreetMap's from then on.
+  const [googleLost, setGoogleLost] = useState(false)
   if (!online) return <MapUnavailable className={props.className} />
   // Which map it is (Google's or OpenStreetMap's) is known before the map starts, so it never swaps under you.
   if (tiles.isLoading) return <div aria-hidden="true" className={`rounded-card border border-line bg-sunken ${props.className ?? 'h-64'}`} />
-  const google = googleTiles(tiles.data)
-  return <MapInner key={`${theme}-${google ? 'google' : 'open'}`} {...props} theme={theme} google={google} />
+  const google = googleLost ? null : googleTiles(tiles.data)
+  return <MapInner key={`${theme}-${google ? 'google' : 'open'}`} {...props} theme={theme} google={google} onGoogleLost={() => setGoogleLost(true)} />
 }
 
 function MapInner({
@@ -238,7 +240,8 @@ function MapInner({
   followByDefault,
   theme,
   google,
-}: MapCardProps & { theme: 'light' | 'dark'; google: MapTiles | null }) {
+  onGoogleLost,
+}: MapCardProps & { theme: 'light' | 'dark'; google: MapTiles | null; onGoogleLost: () => void }) {
   const el = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MLMap | null>(null)
   const markers = useRef<maplibregl.Marker[]>([])
@@ -328,8 +331,10 @@ function MapInner({
     const onVisibility = () => kickFlow.current()
     document.addEventListener('visibilitychange', onVisibility)
     const timeout = setTimeout(() => !map.loaded() && setFailed(true), 12000)
-    map.on('error', (e: { error?: { message?: string } }) => {
+    let refusals = 0
+    map.on('error', (e: { error?: { message?: string; status?: number }; sourceId?: string }) => {
       if (String(e.error?.message ?? '').includes('style')) setFailed(true)
+      if (google && refusedByGoogle(e) && ++refusals === REFUSALS_BEFORE_FREE_MAP) onGoogleLost()
     })
     map.on('click', (e: { lngLat: { lng: number; lat: number } }) => clickRef.current?.([e.lngLat.lng, e.lngLat.lat]))
     // Press and hold adds a place where the finger is. Android also reports a long press as a right-click,

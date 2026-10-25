@@ -11,6 +11,15 @@ export function googleTiles(tiles: MapTiles | undefined, now = Date.now()): MapT
   return tiles
 }
 
+/** Google refusing its map's tiles: the key's quota used up, the Map Tiles API switched off, or the session ended. A
+ *  map seeing a few of these goes back to OpenStreetMap's rather than staying blank under the routes. */
+export function refusedByGoogle(e: { sourceId?: string; error?: { status?: number } }): boolean {
+  return e.sourceId === 'google' && [400, 401, 403, 429].includes(e.error?.status ?? 0)
+}
+
+/** Tiles Google refuses before a map gives up on Google's and draws OpenStreetMap's. */
+export const REFUSALS_BEFORE_FREE_MAP = 3
+
 /** Google's roadmap as the map's style: one layer of 256 px tiles (at twice the pixels); its night colours in dark mode. */
 export function googleStyle(tiles: MapTiles, theme: 'light' | 'dark'): StyleSpecification {
   const url = (theme === 'dark' && tiles.darkTilesUrl) || tiles.tilesUrl || ''

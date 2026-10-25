@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { MapTiles } from '@/api/types'
-import { googleStyle, googleTiles, viewportUrl } from './mapTiles'
+import { googleStyle, googleTiles, refusedByGoogle, viewportUrl } from './mapTiles'
 
 const GOOGLE: MapTiles = {
   provider: 'google',
@@ -34,5 +34,15 @@ describe('Google’s map under the app’s maps', () => {
     expect(wide.searchParams.get('session')).toBe('D')
     expect([wide.searchParams.get('north'), wide.searchParams.get('south')]).toEqual(['89.999999', '-89.999999'])
     expect([wide.searchParams.get('east'), wide.searchParams.get('west')]).toEqual(['-170', '160'])
+  })
+})
+
+describe('when Google stops giving the map its tiles', () => {
+  it('counts Google refusing them (quota, the API off, an ended session), not other sources or other errors', () => {
+    expect(refusedByGoogle({ sourceId: 'google', error: { status: 403 } })).toBe(true)
+    expect(refusedByGoogle({ sourceId: 'google', error: { status: 429 } })).toBe(true)
+    expect(refusedByGoogle({ sourceId: 'google', error: { status: 404 } })).toBe(false)
+    expect(refusedByGoogle({ sourceId: 'route', error: { status: 403 } })).toBe(false)
+    expect(refusedByGoogle({ error: { status: 403 } })).toBe(false)
   })
 })
