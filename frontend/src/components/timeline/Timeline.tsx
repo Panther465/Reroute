@@ -3,7 +3,7 @@ import { AnimatePresence, LayoutGroup, motion, useReducedMotion } from 'motion/r
 import { Fragment, useId, type ReactNode } from 'react'
 import { MODE_META, ModeIcon } from '@/components/icons'
 import { FixedTag, HoursTag, HoursUnknownTag, RoughTag, RouteCheckTag, Tag } from '@/components/ui/Tag'
-import { duration, hhmm, rupees, spokenDuration } from '@/lib/format'
+import { duration, hhmm, rupees, spokenDuration, unbroken } from '@/lib/format'
 import { T, useTl } from '@/lib/i18n'
 import { setRooAnchor } from '@/lib/rooAnchor'
 import { StopIcon, stopIcon } from '@/lib/stopIcon'
@@ -421,7 +421,7 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
                         {outLeg.status === 'done' ? (
                           <span className="mt-0.5 block t-small text-muted tnum">
                             Travelled, {outLeg.estimate ? 'about ' : ''}
-                            {duration(outLeg.travelMin)}, {outLeg.fareInr ? rupees(outLeg.fareInr) : 'free'}
+                            {unbroken(duration(outLeg.travelMin))}, {outLeg.fareInr ? rupees(outLeg.fareInr) : 'free'}
                           </span>
                         ) : (
                           <>
@@ -433,13 +433,13 @@ export function Timeline({ view, clock, change, reveal, onLeg, onStop, selectedS
                               <span className="inline-flex items-center gap-1.5">
                                 <Clock size={14} strokeWidth={2} className="shrink-0 text-muted" />
                                 {outLeg.estimate ? 'About ' : ''}
-                                {duration(outLeg.travelMin)}, {outLeg.fareInr ? rupees(outLeg.fareInr) : 'free'}
+                                {unbroken(duration(outLeg.travelMin))}, {outLeg.fareInr ? rupees(outLeg.fareInr) : 'free'}
                               </span>
                             </span>
                             {outLeg.waitMin >= 10 && (
                               <span className="mt-1 flex items-center gap-1.5 t-small text-muted tnum">
                                 <Hourglass size={14} strokeWidth={2} className="shrink-0" />
-                                Arrive {outLeg.arriveAt}, {duration(outLeg.waitMin)} early
+                                Arrive {outLeg.arriveAt}, {unbroken(duration(outLeg.waitMin))} early
                               </span>
                             )}
                           </>

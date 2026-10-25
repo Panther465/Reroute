@@ -95,9 +95,13 @@ export function DemoPanel({ trip, onLate, inTopBar = false }: { trip: Trip | und
 
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
-      {/* data-demo-bar: product screenshots leave the demo chrome out. */}
-      <div data-demo-bar="" className={inTopBar ? 'ml-auto flex items-center gap-2' : 'flex min-h-12 items-center justify-between gap-3 border-b border-line bg-sunken px-5'}>
-        <p className="t-small text-ink-2 tnum">
+      {/* data-demo-bar: product screenshots leave the demo chrome out. On a phone it spans the screen, its words in
+          line with the page's column (560 px wide, 20 px in) on a tablet. */}
+      <div
+        data-demo-bar=""
+        className={inTopBar ? 'ml-auto flex items-center gap-2' : 'flex min-h-12 items-center justify-between gap-3 border-b border-line bg-sunken px-[max(1.25rem,calc((100%_-_520px)/2))]'}
+      >
+        <p className="whitespace-nowrap t-small text-ink-2 tnum">
           <span className="font-bold text-ink">Demo</span> time {hhmm(clock)}
         </p>
         <Popover.Trigger asChild>
@@ -106,7 +110,8 @@ export function DemoPanel({ trip, onLate, inTopBar = false }: { trip: Trip | und
             className="-mr-2 inline-flex min-h-12 items-center gap-2 rounded-control px-3 t-small font-bold text-ink transition-colors duration-[var(--dur-quick)] [@media(hover:hover)]:hover:bg-surface active:bg-surface"
           >
             <SlidersHorizontal size={18} strokeWidth={1.75} aria-hidden="true" />
-            Simulate
+            {/* In a laptop's top bar the icon alone, until there's room for the word. */}
+            <span className={inTopBar ? 'sr-only xl:not-sr-only' : undefined}>Simulate</span>
           </button>
         </Popover.Trigger>
       </div>

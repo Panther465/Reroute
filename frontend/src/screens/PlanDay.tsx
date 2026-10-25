@@ -554,7 +554,7 @@ export default function PlanDay() {
           <h2 id="tasks-h" className="t-display-2 text-ink">
             <T k="Your tasks" />
           </h2>
-          {trip.tasks.length > 0 && <span className="t-small text-muted">{open.length} to do</span>}
+          {trip.tasks.length > 0 && <span className="whitespace-nowrap t-small text-muted">{open.length} to do</span>}
         </div>
         {trip.tasks.length === 0 ? (
           <div className="mt-4 flex flex-col gap-4">
@@ -590,12 +590,13 @@ export default function PlanDay() {
               const headingId = `day-${day}`
               return (
                 <section key={day} aria-labelledby={headingId}>
-                  <div className="mb-2 flex items-center gap-2">
+                  {/* On a narrow phone the count goes under the date, whole, rather than "2 to" and "do". */}
+                  <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1">
                     <h3 id={headingId} className="t-title text-ink">
                       {dayLabel(day)}
                     </h3>
                     {day === trip.day && <Tag tone="green">Today</Tag>}
-                    <span className="ml-auto t-small text-muted">{openTasks.length === 0 ? 'Nothing to do' : `${openTasks.length} to do`}</span>
+                    <span className="ml-auto whitespace-nowrap t-small text-muted">{openTasks.length === 0 ? 'Nothing to do' : `${openTasks.length} to do`}</span>
                   </div>
                   {openTasks.length > 0 ? (
                     <ul className="divide-y divide-line overflow-hidden rounded-card border border-line bg-surface">

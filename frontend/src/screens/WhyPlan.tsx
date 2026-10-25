@@ -6,7 +6,7 @@ import { ButtonLink } from '@/components/ui/Button'
 import { EmptyState, ErrorState, LoadingRegion, Skeleton } from '@/components/ui/States'
 import { RoughTag, Tag } from '@/components/ui/Tag'
 import { ApiError } from '@/api/client'
-import { duration, hhmm, lowerFirst, rupees } from '@/lib/format'
+import { duration, hhmm, lowerFirst, rupees, unbroken } from '@/lib/format'
 import { useDocumentTitle, useOnline } from '@/lib/hooks'
 import { localMinutes, weekday } from '@/lib/timeline'
 import { PushedScreen } from './LegDetail'
@@ -62,7 +62,8 @@ function DayRow({ day, trip, maxFare, maxTravel, index }: { day: DayAlternative;
       </div>
       {day.feasible ? (
         <>
-          <dl className="mt-2 grid grid-cols-3 gap-3 tnum">
+          {/* Time travelling is the longest figure ("3 h 20 min"): its column is a little wider, so it stays whole. */}
+          <dl className="mt-2 grid grid-cols-[1fr_1fr_1.35fr] gap-3 tnum">
             <div>
               <dt className="t-small text-muted">Back at</dt>
               <dd className="t-title text-ink">{end !== null ? hhmm(end) : '—'}</dd>
@@ -73,7 +74,7 @@ function DayRow({ day, trip, maxFare, maxTravel, index }: { day: DayAlternative;
             </div>
             <div>
               <dt className="t-small text-muted">Travelling</dt>
-              <dd className="t-title text-ink">{duration(day.travelMin)}</dd>
+              <dd className="t-title text-ink">{unbroken(duration(day.travelMin))}</dd>
             </div>
           </dl>
           {/* The same two measures as bars, so the trade-off reads at a glance. They draw in from the left
@@ -230,7 +231,7 @@ export default function WhyPlan() {
         </h1>
         {trip.data?.activePlan && (
           <p className="mt-1 t-body text-ink-2">
-            {weekday(trip.data.activePlan.day)} in {trip.data.cityName}, version {trip.data.activePlan.version}
+            {weekday(trip.data.activePlan.day)} in {trip.data.cityName}, <span className="whitespace-nowrap">version {trip.data.activePlan.version}</span>
           </p>
         )}
       </div>

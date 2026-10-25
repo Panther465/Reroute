@@ -39,7 +39,7 @@ import { distanceLabel } from '@/lib/progress'
 import { phoneSay } from '@/lib/speech/phoneVoice'
 import { getState, setState, showToast, useStore } from '@/lib/store'
 import { localMinutes, samePlace } from '@/lib/timeline'
-import type { TurnIcon } from '@/lib/turns'
+import { spoken, type TurnIcon } from '@/lib/turns'
 import { PushedScreen } from './LegDetail'
 
 const ICONS: Record<TurnIcon, LucideIcon> = {
@@ -118,7 +118,7 @@ export default function Navigate() {
     if (!speak || !next || !where || said.current === where.next) return
     if (c?.walking && where.toNextM > SAY_WITHIN_M) return
     said.current = where.next
-    phoneSay(where.toNextM > 30 ? `In ${distanceLabel(where.toNextM)}, ${lowerFirst(next.text)}` : next.text, getState().alerts)
+    phoneSay(where.toNextM > 30 ? `In ${distanceLabel(where.toNextM)}, ${lowerFirst(spoken(next))}` : spoken(next), getState().alerts)
   }, [speak, next, where, c])
 
   if (tripQ.isPending) {
@@ -188,6 +188,7 @@ export default function Navigate() {
                 <div className="min-w-0">
                   {where && where.toNextM > 30 && <p className="t-title text-blue tnum">In {distanceLabel(where.toNextM)}</p>}
                   <p className="t-display-2 text-ink">{next.text}</p>
+                  {next.note && <p className="mt-1 t-body text-ink-2">{next.note}</p>}
                   {where && (
                     <p className="mt-1 t-small text-ink-2 tnum">
                       {distanceLabel(where.remainingM)} left{here?.etaMin ? `, about ${duration(here.etaMin)}` : ''}
@@ -199,7 +200,7 @@ export default function Navigate() {
               <p className="t-body text-ink-2">Drawing this leg along the roads… The steps appear in a moment.</p>
             )}
             <p aria-live="polite" className="sr-only">
-              {arrived ? `You've arrived at ${toName}.` : next ? next.text : ''}
+              {arrived ? `You've arrived at ${toName}.` : next ? spoken(next) : ''}
             </p>
           </section>
 
@@ -264,6 +265,7 @@ export default function Navigate() {
                       <span className="t-body">
                         {done && <span className="sr-only">Done: </span>}
                         {step.text}
+                        {step.note && <span className="block t-small text-muted">{step.note}</span>}
                       </span>
                     </li>
                   )

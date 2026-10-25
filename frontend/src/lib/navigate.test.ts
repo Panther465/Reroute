@@ -4,7 +4,7 @@ import type { LngLat } from './geo'
 import { googleMapsUrl, travelMode } from './gmaps'
 import { course, follow, START } from './navigate'
 import { legCoords, pathLines } from './paths'
-import { instruction, legSummary } from './turns'
+import { instruction, legSummary, spoken } from './turns'
 
 const step = (s: Partial<PathStep> & Pick<PathStep, 'kind'>): PathStep => ({ modifier: '', name: '', exit: null, distanceM: 0, durationS: 0, at: 0, line: null, towards: null, stops: null, ...s })
 const seg = (s: Partial<PathSegment> & Pick<PathSegment, 'mode' | 'source' | 'coords'>): PathSegment => ({ stops: [], line: null, distanceM: 0, durationS: 0, steps: [], ...s })
@@ -70,8 +70,12 @@ describe('navigate', () => {
       'Turn left onto Tank Bund Road',
       'Take the Purple Line from Majestic towards Whitefield (Kadugodi), 2 stops',
       'Get off at Vidhana Soudha',
-      'Make your way to the meeting, about 340 m. There are no street directions for this stretch.',
+      'Make your way to the meeting, about 340 m',
     ])
+    // A stretch with no road known says so under its instruction, and out loud.
+    expect(c.steps[4].note).toBe('There are no street directions for this stretch.')
+    expect(spoken(c.steps[4])).toBe('Make your way to the meeting, about 340 m. There are no street directions for this stretch.')
+    expect(spoken(c.steps[3])).toBe('Get off at Vidhana Soudha')
     expect(c.steps.map((s) => s.atM)).toEqual([...c.steps.map((s) => s.atM)].sort((a, b) => a - b))
     expect(c.walking).toBe(false)
   })

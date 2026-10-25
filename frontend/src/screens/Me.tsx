@@ -1,5 +1,5 @@
 import { ChevronRight, History, Languages, LogOut, Luggage, Moon, ShieldCheck, Sun, SunMoon, Volume2 } from 'lucide-react'
-import { useId, useState } from 'react'
+import { Fragment, useId, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { api, ApiError } from '@/api/client'
 import { useAgentEnabled, useCurrentTripId, useMe, usePushEnabled, useTrip, useWalletEnabled } from '@/api/queries'
@@ -129,7 +129,15 @@ export default function Me() {
               </span>
               <div className="min-w-0">
                 <p className="t-title text-ink">{user.name}</p>
-                <p className="truncate t-small text-ink-2">{user.email}</p>
+                <p className="t-small text-ink-2 [overflow-wrap:anywhere]">
+                  {/* Whole, wrapping before an @ or a dot when it must, not cut off. */}
+                  {user.email.split(/(?=[@.])/).map((part, i) => (
+                    <Fragment key={i}>
+                      {i > 0 && <wbr />}
+                      {part}
+                    </Fragment>
+                  ))}
+                </p>
                 {user.isDemo && <p className="t-small text-muted">Demo account</p>}
               </div>
             </div>

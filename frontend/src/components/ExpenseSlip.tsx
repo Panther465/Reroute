@@ -3,7 +3,7 @@ import type { Summary } from '@/api/types'
 import { MODE_META } from '@/components/icons'
 import { ModeChain } from '@/components/timeline/ModeChain'
 import { Button } from '@/components/ui/Button'
-import { duration, hhmm, rupees } from '@/lib/format'
+import { duration, hhmm, rupees, unbroken } from '@/lib/format'
 import { native } from '@/lib/platform'
 import { showToast } from '@/lib/store'
 import { dayLabel, localMinutes } from '@/lib/timeline'
@@ -87,7 +87,7 @@ export function ExpenseSlip({ summary, offset }: { summary: Summary; offset: str
             <th scope="row" className="pt-3 text-left align-top font-normal">
               <span className="block t-title text-ink">Total</span>
               <span className="block t-small text-muted">
-                {duration(summary.totals.travelMin)} travelling
+                {unbroken(duration(summary.totals.travelMin))} travelling
                 {reroutes.length ? `, rerouted ${reroutes.length === 1 ? 'once' : `${reroutes.length} times`} at ${reroutes.join(', ')}` : ''}
               </span>
             </th>

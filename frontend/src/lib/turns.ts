@@ -8,8 +8,13 @@ export type TurnIcon = 'depart' | 'straight' | 'left' | 'right' | 'slight-left' 
 
 export interface Instruction {
   text: string
+  /** A second sentence about the step, set smaller under it: "There are no street directions for this stretch." */
+  note?: string
   icon: TurnIcon
 }
+
+/** The step in full, for saying out loud or for a screen reader. */
+export const spoken = (step: Instruction) => (step.note ? `${step.text}. ${step.note}` : step.text)
 
 const VEHICLE: Record<string, string> = { shared_auto: 'shared auto', e_rickshaw: 'e-rickshaw', tempo: 'tempo', cab: 'cab', metro: 'metro', walk: 'walk' }
 
@@ -92,8 +97,8 @@ export function instruction(step: PathStep, segment: PathSegment, to: string): I
 export function roughInstruction(segment: PathSegment, to: string): Instruction {
   const far = distanceLabel(segment.distanceM)
   return segment.mode === 'walk'
-    ? { text: `Make your way to ${to}, about ${far}. There are no street directions for this stretch.`, icon: 'straight' }
-    : { text: `Get to ${to}, about ${far}. There are no road directions for this stretch.`, icon: 'straight' }
+    ? { text: `Make your way to ${to}, about ${far}`, note: 'There are no street directions for this stretch.', icon: 'straight' }
+    : { text: `Get to ${to}, about ${far}`, note: 'There are no road directions for this stretch.', icon: 'straight' }
 }
 
 /** Each stretch of a leg in a sentence (not every turn), for its written directions. */

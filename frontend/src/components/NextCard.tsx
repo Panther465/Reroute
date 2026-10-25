@@ -2,7 +2,7 @@ import { CircleCheck, Navigation, Route, Ruler } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { ModeChain } from '@/components/timeline/ModeChain'
 import { ButtonLink } from '@/components/ui/Button'
-import { duration, lowerFirst, rupees } from '@/lib/format'
+import { duration, lowerFirst, rupees, unbroken } from '@/lib/format'
 import type { LegGuide } from '@/lib/guide'
 import { T } from '@/lib/i18n'
 import { distanceLabel } from '@/lib/progress'
@@ -38,7 +38,7 @@ export function NextCard({ view, clock, guide, miniMap }: { view: DayView; clock
           <span className="sr-only">{riding ? 'Arrive around ' : soon ? 'Leave now, by ' : 'Leave by '}</span>
           {riding ? leg.arriveAt : leg.leaveBy}
         </span>
-        {!riding && leg.leaveMin - clock > 0 && leg.leaveMin - clock <= 90 && <span className="t-title text-ink-2 tnum">in {duration(Math.round(leg.leaveMin - clock))}</span>}
+        {!riding && leg.leaveMin - clock > 0 && leg.leaveMin - clock <= 90 && <span className="t-title text-ink-2 tnum">in {unbroken(duration(Math.round(leg.leaveMin - clock)))}</span>}
       </p>
       <h2 id="next-title" className="mt-3 t-title text-ink">
         {riding ? `On the way to ${where}` : `Leave for ${where}`}
@@ -48,7 +48,7 @@ export function NextCard({ view, clock, guide, miniMap }: { view: DayView; clock
         // moments that matter (nearly there, arrived) are announced by the alerts.
         <p className="mt-2 flex items-center gap-2 t-title text-blue tnum">
           <Navigation size={18} strokeWidth={1.75} aria-hidden="true" />
-          {guide.arrived ? 'You’re here' : `${distanceLabel(guide.remainingM!)} to go, about ${duration(guide.etaMin!)}`}
+          {guide.arrived ? 'You’re here' : `${unbroken(distanceLabel(guide.remainingM!))} to go, about ${unbroken(duration(guide.etaMin!))}`}
         </p>
       )}
       {samePlace(leg) ? (
@@ -59,7 +59,7 @@ export function NextCard({ view, clock, guide, miniMap }: { view: DayView; clock
           <ModeChain segments={leg.segments} />
           <span className="font-bold text-ink">{leg.label}</span>
         </span>
-        <span>About {duration(leg.travelMin)}</span>
+        <span>About {unbroken(duration(leg.travelMin))}</span>
         <span>{leg.fareInr ? `About ${rupees(leg.fareInr)}` : 'Free'}</span>
         {!riding && <span>Arrive around {leg.arriveAt}</span>}
       </p>

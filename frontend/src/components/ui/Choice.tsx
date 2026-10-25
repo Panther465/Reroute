@@ -1,5 +1,16 @@
 import * as ToggleGroup from '@radix-ui/react-toggle-group'
-import { useId, type ReactNode } from 'react'
+import { Fragment, useId, type ReactNode } from 'react'
+
+/** Words wrap at their spaces only, never at a hyphen: "E-rickshaw" stays whole. */
+function whole(label: ReactNode): ReactNode {
+  if (typeof label !== 'string' || !label.includes('-')) return label
+  return label.split(' ').map((word, i) => (
+    <Fragment key={i}>
+      {i > 0 && ' '}
+      <span className="whitespace-nowrap">{word}</span>
+    </Fragment>
+  ))
+}
 
 /** Segmented control on Radix Toggle Group. Always keeps one value selected. */
 export function Segmented<T extends string>({
@@ -32,17 +43,22 @@ export function Segmented<T extends string>({
         aria-labelledby={labelId}
         className={`flex gap-1 rounded-control bg-sunken p-1 ${full ? 'w-full' : 'inline-flex'}`}
       >
-        {/* The options stay side by side: on a narrow phone with big text, a long label wraps inside its own option
-            (an icon goes above it) rather than pushing options onto rows of their own. */}
+        {/* The options stay side by side, all the same width: on a narrow phone with big text, a long label wraps
+            inside its own option rather than pushing options onto rows of their own. Each option measures itself
+            (a container, its padding inside the box it measures): too narrow for an icon beside its words, every
+            option puts its icon above them, so they match; narrower still, the words go a size down and the padding
+            tightens, so "On time" stays on one line. */}
         {options.map((o) => (
           <ToggleGroup.Item
             key={o.value}
             value={o.value}
             lang={o.lang}
-            className="flex min-h-12 min-w-0 flex-1 basis-0 flex-wrap items-center justify-center gap-x-2 gap-y-0.5 rounded-[11px] border-2 border-transparent px-2 py-1 text-center t-title text-ink-2 [text-wrap:balance] transition-[color,background-color,border-color,scale] duration-[var(--dur-quick)] motion-safe:active:scale-[0.97] data-[state=on]:border-green data-[state=on]:bg-surface data-[state=on]:text-ink [@media(hover:hover)]:hover:data-[state=off]:bg-surface/60"
+            className={`${full ? '@container ' : ''}flex min-h-12 min-w-0 flex-1 basis-0 items-center justify-center rounded-[11px] border-2 border-transparent text-center t-title text-ink-2 transition-[color,background-color,border-color,scale] duration-[var(--dur-quick)] motion-safe:active:scale-[0.97] data-[state=on]:border-green data-[state=on]:bg-surface data-[state=on]:text-ink [@media(hover:hover)]:hover:data-[state=off]:bg-surface/60`}
           >
-            {o.icon}
-            {o.label}
+            <span className="flex min-w-0 flex-wrap items-center justify-center gap-x-2 gap-y-0.5 px-2 py-1 [text-wrap:balance] @max-[156px]:flex-col @max-[156px]:flex-nowrap @max-[104px]:px-1 @max-[104px]:text-[length:calc(0.9375rem*var(--grow-title))] @max-[104px]:leading-[calc(1.25rem*var(--grow-title))]">
+              {o.icon}
+              <span className="min-w-0">{whole(o.label)}</span>
+            </span>
           </ToggleGroup.Item>
         ))}
       </ToggleGroup.Root>

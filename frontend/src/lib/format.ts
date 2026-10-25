@@ -9,6 +9,10 @@ export function hhmm(min: number): string {
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 }
 
+/** A value kept on one line wherever the words around it wrap: "1 h 20 min", never "1 h 20" and "min". For the
+ *  screen only: speech (forSpeech) reads the plain spaces. */
+export const unbroken = (text: string) => text.replace(/ /g, '\u00a0')
+
 export function duration(min: number): string {
   const m = Math.round(min)
   if (m < 60) return `${m} min`

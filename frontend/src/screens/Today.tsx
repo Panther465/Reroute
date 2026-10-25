@@ -73,48 +73,50 @@ export function TodayHeader({
   const day = `${dayLabel(trip.day)}, day ${trip.dayIndex} of ${trip.dayCount}`
   const desktop = useIsDesktop()
   return (
-    <header className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2">
-          <h1 tabIndex={-1} className="t-display-1 text-ink">
+    <header>
+      {/* Only the title shares its row with the buttons; the date and the status below get the whole width. */}
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          <h1 tabIndex={-1} className="min-w-0 break-words t-display-1 text-ink">
             {trip.cityName}
           </h1>
           {/* The demo bar above says "Demo"; the trip only says what it is. */}
           {trip.sample && <Tag tone="grey-outline">Sample trip</Tag>}
         </div>
-        {onTrips ? (
-          <button type="button" onClick={onTrips} className="-mx-1 mt-0.5 block min-h-12 rounded-control px-1 py-1 text-left t-body text-ink-2 [@media(hover:hover)]:hover:bg-sunken">
-            {`${dayLabel(trip.day)}, `}
-            {/* "day 1 of 2" and the chevron wrap together, never split across lines. */}
-            <span className="whitespace-nowrap">
-              day {trip.dayIndex} of {trip.dayCount}
-              <ChevronDown size={18} strokeWidth={1.75} aria-hidden="true" className="ml-1 inline-block align-[-3px]" />
-            </span>
-            <span className="sr-only">. Your trips</span>
-          </button>
-        ) : (
-          <p className="mt-1 t-body text-ink-2">{day}</p>
-        )}
-        <div className="mt-3 flex flex-wrap items-center gap-x-4">
-          <StatusPill live={status} onOpen={onLog} />
-          {trip.activePlan && (
-            <Link to="/why" className="inline-flex min-h-12 items-center gap-1.5 rounded-control t-small font-bold text-ink-2 underline decoration-line-strong decoration-2 underline-offset-4 [@media(hover:hover)]:hover:text-ink">
-              <Scale size={16} strokeWidth={2} aria-hidden="true" />
-              Why this plan?
-            </Link>
+        <div className="-mr-2 flex shrink-0 items-center">
+          {onAdd && (
+            <IconButton label="Add to today" onClick={onAdd}>
+              <Plus size={24} strokeWidth={1.75} aria-hidden="true" />
+            </IconButton>
           )}
+          <IconButton label="Share live trip" onClick={onShare}>
+            <Share2 size={24} strokeWidth={1.75} aria-hidden="true" />
+          </IconButton>
+          {/* Under 360 px "Bengaluru" needs its room: the theme is in Me too. */}
+          {!desktop && <ThemeToggle className="text-ink max-[359px]:hidden" />}
         </div>
       </div>
-      <div className="-mr-2 flex shrink-0 items-center">
-        {onAdd && (
-          <IconButton label="Add to today" onClick={onAdd}>
-            <Plus size={24} strokeWidth={1.75} aria-hidden="true" />
-          </IconButton>
+      {onTrips ? (
+        <button type="button" onClick={onTrips} className="-mx-1 mt-0.5 block min-h-12 rounded-control px-1 py-1 text-left t-body text-ink-2 [@media(hover:hover)]:hover:bg-sunken">
+          {`${dayLabel(trip.day)}, `}
+          {/* "day 1 of 2" and the chevron wrap together, never split across lines. */}
+          <span className="whitespace-nowrap">
+            day {trip.dayIndex} of {trip.dayCount}
+            <ChevronDown size={18} strokeWidth={1.75} aria-hidden="true" className="ml-1 inline-block align-[-3px]" />
+          </span>
+          <span className="sr-only">. Your trips</span>
+        </button>
+      ) : (
+        <p className="mt-1 t-body text-ink-2">{day}</p>
+      )}
+      <div className="mt-3 flex flex-wrap items-center gap-x-4">
+        <StatusPill live={status} onOpen={onLog} />
+        {trip.activePlan && (
+          <Link to="/why" className="inline-flex min-h-12 items-center gap-1.5 rounded-control t-small font-bold text-ink-2 underline decoration-line-strong decoration-2 underline-offset-4 [@media(hover:hover)]:hover:text-ink">
+            <Scale size={16} strokeWidth={2} aria-hidden="true" />
+            Why this plan?
+          </Link>
         )}
-        <IconButton label="Share live trip" onClick={onShare}>
-          <Share2 size={24} strokeWidth={1.75} aria-hidden="true" />
-        </IconButton>
-        {!desktop && <ThemeToggle className="text-ink" />}
       </div>
     </header>
   )
@@ -620,9 +622,10 @@ export default function Today() {
     </Button>
   )
 
-  // Two to a row on a phone: a little less padding, so "Running late" stays on one line with big text.
+  // Two to a row on a phone: a little less padding, so "Running late" stays on one line with big text, and on
+  // the narrowest phones no icons, so "Mark done" does too.
   const actions = !view.done && (
-    <div className="grid grid-cols-2 gap-3 [&>button]:px-3">
+    <div className="@container grid grid-cols-2 gap-3 [&>button]:px-3 @max-[300px]:[&>button>svg:not(.animate-spin)]:hidden">
       <Button variant="destructive" onClick={() => openLate()} disabled={!target}>
         <T k="Running late" />
       </Button>

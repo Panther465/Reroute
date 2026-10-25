@@ -32,8 +32,9 @@ function Screen({ name, alt }: { name: string; alt: string }) {
 /** One claim and its proof: the app's own screen, and what it does in a few lines. */
 function Feature({ id, title, screen, children }: { id: string; title: string; screen: ReactNode; children: ReactNode }) {
   return (
-    // On a phone, a small screen beside the words; from a tablet up, the screen above them.
-    <article aria-labelledby={id} className="grid grid-cols-[6.5rem_1fr] items-start gap-4 md:flex md:flex-col md:gap-0">
+    // On a phone, a small screen beside the words (smaller still on the narrowest, so the words keep a readable
+    // line); from a tablet up, the screen above them.
+    <article aria-labelledby={id} className="grid grid-cols-[5rem_1fr] items-start gap-3 min-[360px]:grid-cols-[6.5rem_1fr] min-[360px]:gap-4 md:flex md:flex-col md:gap-0">
       {screen}
       <div>
         <h3 id={id} className="t-display-2 text-ink max-md:text-[length:calc(1.125rem*var(--grow-title))] max-md:leading-[1.5rem] md:mt-5">
@@ -133,7 +134,8 @@ export default function SignIn() {
           <span className="font-display text-[length:calc(1.75rem*var(--grow-display))] font-extrabold leading-none text-ink [font-stretch:75%]">Reroute</span>
         </span>
         <span className="flex items-center gap-1">
-          <a href={SOURCE} className="inline-flex min-h-12 items-center gap-1 rounded-control px-2 t-small font-bold text-ink-2 underline decoration-line-strong decoration-2 underline-offset-4 [@media(hover:hover)]:hover:text-ink">
+          {/* Not on the narrowest phones, where it can't fit beside the name: the footer links it too. */}
+          <a href={SOURCE} className="hidden min-h-12 items-center gap-1 whitespace-nowrap rounded-control px-2 t-small font-bold text-ink-2 underline decoration-line-strong decoration-2 underline-offset-4 min-[360px]:inline-flex [@media(hover:hover)]:hover:text-ink">
             Source code
             <ArrowUpRight size={16} strokeWidth={2} aria-hidden="true" />
           </a>

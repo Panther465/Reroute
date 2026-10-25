@@ -115,7 +115,8 @@ function TopBar({ demo }: { demo?: ReactNode }) {
       >
         <T k="Skip to content" />
       </a>
-      <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-8 px-8">
+      {/* A laptop at 1024 px fits the tabs, the demo clock and Ask Rico only with tighter spacing; roomier from 1280. */}
+      <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-4 px-6 xl:gap-8 xl:px-8">
         <NavLink to="/" className="flex min-h-12 items-center gap-2 rounded-control" aria-label="Reroute, Today">
           <RouteMark size={28} />
           <span className="font-display text-[length:calc(1.5rem*var(--grow-display))] font-extrabold leading-none tracking-[-0.01em] text-ink [font-stretch:75%]">Reroute</span>
@@ -128,7 +129,7 @@ function TopBar({ demo }: { demo?: ReactNode }) {
                   to={to}
                   end={end}
                   className={({ isActive }) =>
-                    `relative flex h-16 items-center gap-2 px-4 t-title transition-colors duration-[var(--dur-quick)] [@media(hover:hover)]:hover:bg-sunken ${isActive ? 'text-green' : 'text-ink-2'}`
+                    `relative flex h-16 items-center gap-2 whitespace-nowrap px-3 t-title transition-colors xl:px-4 duration-[var(--dur-quick)] [@media(hover:hover)]:hover:bg-sunken ${isActive ? 'text-green' : 'text-ink-2'}`
                   }
                 >
                   {({ isActive }) => (
@@ -163,7 +164,7 @@ function AskRoo() {
       onClick={() => setState({ rooChat: !getState().rooChat })}
       aria-expanded={open}
       aria-haspopup="dialog"
-      className={`flex min-h-12 shrink-0 items-center gap-2 rounded-full border pl-1.5 pr-4 t-title transition-colors duration-[var(--dur-quick)] ${open ? 'border-green bg-green-tint text-ink' : 'border-line text-ink [@media(hover:hover)]:hover:bg-sunken'}`}
+      className={`flex min-h-12 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border pl-1.5 pr-4 t-title transition-colors duration-[var(--dur-quick)] ${open ? 'border-green bg-green-tint text-ink' : 'border-line text-ink [@media(hover:hover)]:hover:bg-sunken'}`}
     >
       <span className="flex size-9 items-end justify-center" aria-hidden="true">
         <RooAvatar mood="happy" size={30} reduce={reduce} quiet />
