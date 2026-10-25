@@ -70,6 +70,18 @@ Adding a city needs:
 
 Until then a city simply isn't offered.
 
+## Ten minutes, start to end
+
+The quickest way through everything that matters, on the phone (or a phone-sized browser). First `scripts/check.sh` for the automated checks (README, "Tests").
+
+1. **Sign in** (demo, or your account). Today shows the day as a timeline: done rides grey, the next one in its colours, each ride's ways as pills.
+2. **Rico's chat, as a guide**: tap Rico (away from Today, then Chat), then his glasses in the chat's header. Say "Recommend three places to see near my hotel": cards with photos, why to go, how far, hours and price come up in about 20 seconds. Tap **Add to my day** on one: a card of changes, then **Do all**, and the day re-plans.
+3. **Talking**: on Plan or Me, tap Rico, then Talk; in the chat, the round button beside the empty message box does the same. Ask "What's next?", then "Open the map to the bank" (or any stop of your day): a live map comes up beside him, your dot on it. Only his green glow moves round him, with no ring.
+4. **"Hey Rico" with Reroute closed** (Android, "Display over other apps" allowed; after installing an update, open Reroute once so his ear listens again): swipe Reroute away, say "Hey Rico". A sheet comes up at the bottom, voice only, over the app you were in. Ask for the map there too; End takes you back.
+5. **Running late**: Today, **Running late**, 30 minutes. The rest of the day re-plans, a fixed meeting keeps its time, and Rico offers to tell them.
+6. **Google Calendar** (with Google set up, below): Plan, **Import from Google Calendar**. Your appointments on the trip's days come in ticked; one whose place didn't match asks where it is.
+7. **Directions**: open the next ride, **Start directions**, and **Open in Google Maps**.
+
 ## Before each session
 
 - The demo account is off unless you switch it on: add `DEMO_LOGIN=true` to the `.env` file at the repository root and run `docker compose up -d`. Without it the home page offers only Create account, Sign in and Google.
