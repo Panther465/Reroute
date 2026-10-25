@@ -995,11 +995,14 @@ class SpeechWordOut(Api):
 class SpeechTimedOut(Api):
     """A clip and its word timings together, so Rico's mouth can follow the words."""
 
-    #: The MP3, base64-encoded.
+    #: The audio, base64-encoded: a WAV in Rico's own voice, or an MP3 in a Microsoft one.
     audio: str
     mime: str = "audio/mpeg"
     duration_ms: int
+    #: Empty for Rico's own voice: the app spreads the words over the clip.
     words: list[SpeechWordOut]
+    #: The speed asked for is in the audio already; otherwise the app plays it at that speed.
+    paced: bool = True
 
 
 class RoadPathOut(Api):

@@ -375,7 +375,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read a short alert aloud (MP3) */
+        /** Read a short alert aloud */
         get: operations["speak_v1_speech_get"];
         put?: never;
         post?: never;
@@ -2403,6 +2403,11 @@ export interface components {
             durationMs: number;
             /** Words */
             words: components["schemas"]["SpeechWordOut"][];
+            /**
+             * Paced
+             * @default true
+             */
+            paced: boolean;
         };
         /**
          * SpeechWordOut
@@ -3658,12 +3663,13 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description MP3 audio */
+            /** @description WAV in Rico's own voice, or MP3 in a Microsoft one */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
+                    "audio/wav": unknown;
                     "audio/mpeg": unknown;
                 };
             };

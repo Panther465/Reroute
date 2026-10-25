@@ -25,6 +25,7 @@ import type {
   Trip,
   TripsPage,
   User,
+  Voice,
   Wallet,
 } from './types'
 import { getSessionStatus, useSessionStatus } from '@/lib/session'
@@ -63,6 +64,7 @@ export const keys = {
   bookings: (tripId: string) => ['bookings', tripId] as const,
   wallet: ['wallet'] as const,
   airports: ['airports'] as const,
+  voices: ['voices'] as const,
 }
 
 /** Which queries survive a reload (the rest are cheap to refetch). */
@@ -117,6 +119,13 @@ export function useAiHelperEnabled() {
 /** Roo as an agent (the AI helper with a Gemini key): it reads the trip and proposes changes on one card. */
 export function useAgentEnabled() {
   return useMe().data?.features?.agent === true
+}
+
+/** The voices Rico reads alerts in, as the server lists them: only his own (the one he talks with) where it has a
+ *  Gemini key, otherwise Microsoft's to choose from. */
+export function useVoices(enabled = true) {
+  const signedIn = useSessionStatus() === 'signedIn'
+  return useQuery({ queryKey: keys.voices, queryFn: () => api.get<Voice[]>('/v1/speech/voices'), enabled: whileSignedIn(enabled && signedIn), staleTime: 60 * 60_000 })
 }
 
 /** Talking with Rico out loud, in real time (Gemini Live): only where the server has the AI helper with a key. */
