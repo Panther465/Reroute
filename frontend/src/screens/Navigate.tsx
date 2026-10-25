@@ -1,30 +1,11 @@
-import {
-  ArrowUp,
-  ArrowUpLeft,
-  ArrowUpRight,
-  CornerLeftDown,
-  CornerRightDown,
-  CornerUpLeft,
-  CornerUpRight,
-  ExternalLink,
-  LocateFixed,
-  LogIn,
-  LogOut,
-  MapPin,
-  Navigation,
-  RotateCw,
-  TrainFront,
-  Undo2,
-  Volume2,
-  VolumeX,
-  type LucideIcon,
-} from 'lucide-react'
+import { ExternalLink, LocateFixed, MapPin, Navigation, Volume2, VolumeX } from 'lucide-react'
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router'
 import { useCurrentTripId, useTrip } from '@/api/queries'
 import { BackButton, useBack } from '@/components/BackButton'
 import { LazyMap } from '@/components/LazyMap'
 import type { MapPoint } from '@/components/MapCard'
+import { StepIcon } from '@/components/TurnIcon'
 import { Button, ButtonLink, buttonClass } from '@/components/ui/Button'
 import { Banner, EmptyState, LoadingRegion, Skeleton } from '@/components/ui/States'
 import { useDayGuide } from '@/lib/dayAlerts'
@@ -33,39 +14,17 @@ import { googleMapsUrl, travelMode } from '@/lib/gmaps'
 import { destName } from '@/lib/guide'
 import { useDocumentTitle, useTripClock } from '@/lib/hooks'
 import { geolocationSupported, startTracking } from '@/lib/location'
-import { course, follow, START, type NavStep, type Tracker, type Where } from '@/lib/navigate'
+import { course, follow, START, type Tracker, type Where } from '@/lib/navigate'
 import { pathLines, stationDots } from '@/lib/paths'
 import { distanceLabel } from '@/lib/progress'
 import { phoneSay } from '@/lib/speech/phoneVoice'
 import { getState, setState, showToast, useStore } from '@/lib/store'
 import { localMinutes, samePlace } from '@/lib/timeline'
-import { spoken, type TurnIcon } from '@/lib/turns'
+import { spoken } from '@/lib/turns'
 import { PushedScreen } from './LegDetail'
-
-const ICONS: Record<TurnIcon, LucideIcon> = {
-  depart: Navigation,
-  straight: ArrowUp,
-  left: CornerUpLeft,
-  right: CornerUpRight,
-  'slight-left': ArrowUpLeft,
-  'slight-right': ArrowUpRight,
-  'sharp-left': CornerLeftDown,
-  'sharp-right': CornerRightDown,
-  uturn: Undo2,
-  // India drives on the left: roundabouts go clockwise.
-  roundabout: RotateCw,
-  arrive: MapPin,
-  board: LogIn,
-  alight: LogOut,
-}
 
 /** Say an instruction this far ahead of it on foot (on a ride, as soon as it's the next one). */
 const SAY_WITHIN_M = 150
-
-function StepIcon({ step, size = 20 }: { step: NavStep; size?: number }) {
-  const Icon = step.icon === 'board' && /\bLine\b/.test(step.text) ? TrainFront : ICONS[step.icon]
-  return <Icon size={size} strokeWidth={2} aria-hidden="true" />
-}
 
 /**
  * Turn by turn for one leg: the next instruction large, every step in order, the map following you, and
