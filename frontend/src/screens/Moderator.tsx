@@ -355,16 +355,17 @@ function FareReports() {
 }
 
 export default function Moderator() {
-  const { moderator } = useOutletContext<{ moderator: boolean }>()
+  const { moderator } = useOutletContext<{ moderator: boolean | null }>()
   const desktop = useIsDesktop()
   const back = useBack('/me')
   const [filter, setFilter] = useState<Filter>('waiting')
   const [selected, setSelected] = useState<string | null>(null)
   const apiStatus = filter === 'stale' ? 'waiting' : filter
-  const q = useQueue(apiStatus, moderator)
-  const verified = useQueue('merged', moderator && filter === 'verified')
+  const q = useQueue(apiStatus, moderator === true)
+  const verified = useQueue('merged', moderator === true && filter === 'verified')
   useDocumentTitle('Moderation')
-  if (!moderator) return <Navigate to="/me" replace />
+  // Away only once the profile says they aren't one; until it loads, the queue shows as loading.
+  if (moderator === false) return <Navigate to="/me" replace />
   const all = [...(q.data?.items ?? []), ...(filter === 'verified' ? (verified.data?.items ?? []) : [])]
   const rows = all.filter((c) => (filter === 'stale' ? c.kind === 'freshness_check' : filter === 'waiting' ? c.kind !== 'freshness_check' : true))
   const sel = rows.find((c) => c.contributionId === selected) ?? null

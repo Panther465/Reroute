@@ -267,7 +267,8 @@ export default function AppShell() {
     setLateLoaded(true)
     setLate({ open: true, delay, mode })
   }
-  const moderator = me.data?.role === 'moderator' || me.data?.role === 'admin'
+  // Not known (null) until the profile loads: a moderator opening /moderator directly isn't sent away before then.
+  const moderator = me.data ? me.data.role === 'moderator' || me.data.role === 'admin' : me.isError ? false : null
   const demoBar = demoEnabled && trip.data && (
     <Suspense fallback={null}>
       <DemoPanel trip={trip.data} onLate={openLate} inTopBar={desktop} />
