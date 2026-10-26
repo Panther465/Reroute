@@ -7,3 +7,4 @@
 *.pbf binary
 *.bat text eol=crlf
 *.jar binary
+frontend/rico/rico.pack binary

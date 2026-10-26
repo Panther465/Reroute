@@ -104,6 +104,11 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      # Rico's art is locked in the repository (frontend/rico/): opened with the RICO_KEY secret, or without it (a
+      # fork) the app is built with a plain stand-in and the checks of his art skip.
+      - run: node rico/lock.mjs unlock
+        env:
+          RICO_KEY: ${{ secrets.RICO_KEY }}
       - run: pnpm typecheck
       - run: pnpm test
       - run: pnpm build
@@ -114,6 +119,11 @@ jobs:
     needs: [backend, raasta, frontend]
     steps:
       - uses: actions/checkout@v5
+      - name: Unlock Rico's art (a plain stand-in without the RICO_KEY secret)
+        working-directory: frontend
+        env:
+          RICO_KEY: ${{ secrets.RICO_KEY }}
+        run: node rico/lock.mjs unlock
       - name: Start everything with one command
         # Every browser test signs in as the one demo user from one IP, so the per-user and sign-in
         # limits are raised for this run only.

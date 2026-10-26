@@ -1,0 +1,16 @@
+# Rico's art, kept in rico.pack (encrypted) and never in git as it is. Paths from frontend/; `*` matches within one
+# folder. After changing any of them (render_roo.py, roo3d/stills.mjs), lock them again: node rico/lock.mjs lock
+
+# His 3D model in Blender, and the scripts that build it and render its pieces
+roo3d/roo.blend
+roo3d/build_roo.py
+roo3d/render_roo.py
+
+# The sheets of his rendered pieces, which the app moves in 3D
+src/components/roo3d/assets/roo-*.webp
+
+# His stills, in every mood, small and large, with and without his guide glasses
+src/components/roo3d/stills/*.webp
+
+# His picture in the Android app's "Hey Rico" pop-up
+android/app/src/main/res/drawable-nodpi/rico_wave.webp

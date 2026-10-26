@@ -44,3 +44,11 @@ google-services.json
 *.jks
 *.keystore
 keystore.properties
+
+# Rico's art: only in frontend/rico/rico.pack, encrypted (frontend/rico/files.txt lists it; node rico/lock.mjs)
+frontend/roo3d/roo.blend
+frontend/roo3d/build_roo.py
+frontend/roo3d/render_roo.py
+frontend/src/components/roo3d/assets/roo-*.webp
+frontend/src/components/roo3d/stills/*.webp
+frontend/android/app/src/main/res/drawable-nodpi/rico_wave.webp

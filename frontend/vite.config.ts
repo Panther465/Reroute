@@ -119,7 +119,7 @@ export default defineConfig(({ mode }) => ({
   test: {
     environment: 'jsdom',
     pool: 'threads',
-    include: ['src/**/*.test.{ts,tsx}'],
+    include: ['src/**/*.test.{ts,tsx}', 'rico/**/*.test.mjs'],
     setupFiles: ['src/test/setup.ts'],
   },
 }))

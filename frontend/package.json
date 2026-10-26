@@ -4,15 +4,17 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
+    "dev": "node rico/lock.mjs unlock --quiet && vite",
+    "build": "node rico/lock.mjs unlock --quiet && tsc -b && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "test": "vitest run",
     "e2e": "playwright test",
     "gen:api": "openapi-typescript ../shared/contracts/reroute.openapi.json -o src/api/reroute.d.ts && openapi-typescript ../shared/contracts/raasta.openapi.json -o src/api/raasta.d.ts",
-    "build:android": "tsc -b && vite build --mode android && cap sync android",
+    "build:android": "node rico/lock.mjs unlock --quiet && tsc -b && vite build --mode android && cap sync android",
     "android:open": "cap open android",
+    "rico:unlock": "node rico/lock.mjs unlock",
+    "rico:lock": "node rico/lock.mjs lock",
     "format": "oxfmt"
   },
   "dependencies": {
