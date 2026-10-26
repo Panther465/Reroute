@@ -5,6 +5,7 @@ travellers add themselves: theirs alone, unless they share one and a moderator a
 from __future__ import annotations
 
 import math
+import re
 from datetime import UTC, datetime
 
 from geoalchemy2.elements import WKTElement
@@ -26,6 +27,25 @@ MAX_OWN = 200
 #: A place a traveller adds takes its area's name from the nearest place Reroute knows within this many
 #: degrees (about 3 km), else the city's.
 NEAR = 0.03
+#: Places found with the same name this close (in degrees, about 1.2 km) are one place, whatever area each is in.
+SAME_PLACE = 0.011
+#: Cities' old names, still in many places' names, as their new ones.
+OLD_NAMES = {
+    "bangalore": "bengaluru",
+    "bombay": "mumbai",
+    "madras": "chennai",
+    "calcutta": "kolkata",
+    "gurgaon": "gurugram",
+    "mysore": "mysuru",
+    "mangalore": "mangaluru",
+    "trivandrum": "thiruvananthapuram",
+    "cochin": "kochi",
+    "calicut": "kozhikode",
+    "poona": "pune",
+    "baroda": "vadodara",
+    "pondicherry": "puducherry",
+}
+OLD_NAME = re.compile(r"\b(" + "|".join(OLD_NAMES) + r")\b")
 #: A place its owner asked to share is in one of these, and a moderator can move it between them.
 SHARED = ("pending", "approved", "rejected")
 
@@ -73,7 +93,14 @@ def find_places(db: Session, q: str, city_slug: str, limit: int = 8, user_id: st
             if not any(p.place_id == place.place_id for p in known):
                 known.append(place)
         db.commit()
-    return _once(sorted(known, key=lambda p: (p.owner_id is None or p.owner_id != user_id, _rank(p, text))))[:limit]
+
+    def order(p: Place) -> tuple[bool, int]:
+        return (p.owner_id is None or p.owner_id != user_id, _rank(p, text))
+
+    groups = _grouped(sorted(known, key=order))
+    # Of two places with the same name, the one several finds agree on (a big park at several points) goes first.
+    groups.sort(key=lambda g: (*order(g[0]), -len(g)))
+    return [g[0] for g in groups][:limit]
 
 
 def _search_more(text: str, where: City) -> list[FoundPlace]:
@@ -89,16 +116,34 @@ def _search_more(text: str, where: City) -> list[FoundPlace]:
     return NominatimSearch(get_redis()).search(text, where)
 
 
-def _once(places: list[Place]) -> list[Place]:
-    """One of each place, the first kept: OpenStreetMap often has a neighbourhood twice (a point and an outline),
-    the same name and area a little apart, which read as the same choice twice."""
-    out: list[Place] = []
+def _grouped(places: list[Place]) -> list[list[Place]]:
+    """The places found, one group per place, its first find first: each shows once. OpenStreetMap often has a
+    neighbourhood twice (a point and an outline), the same name and area a little apart; Google and OpenStreetMap
+    know a big park at several of its points, each filed under the area it falls in, and a place by the city's old
+    name or new one. Each reads as the same choice twice. The same name further away in another area is another
+    place (a branch across town)."""
+    groups: list[list[Place]] = []
     for p in places:
-        same = (p.name.strip().lower(), (p.area or "").strip().lower())
-        if any((o.name.strip().lower(), (o.area or "").strip().lower()) == same and abs(o.lng - p.lng) < 0.02 and abs(o.lat - p.lat) < 0.02 for o in out):
-            continue
-        out.append(p)
-    return out
+        name, area = _name(p.name), (p.area or "").strip().lower()
+        for g in groups:
+            o = g[0]
+            if _name(o.name) == name and _close(o, p, 0.02 if (o.area or "").strip().lower() == area else SAME_PLACE):
+                g.append(p)
+                break
+        else:
+            groups.append([p])
+    return groups
+
+
+def _name(name: str) -> str:
+    """A place's name as it tells one place from another: without case, spaces or dots ("V. V. Puram", "VV Puram"),
+    and with a city's old name as its new one ("Bangalore Palace", "Bengaluru Palace")."""
+    renamed = OLD_NAME.sub(lambda m: OLD_NAMES[m.group(0)], name.lower())
+    return re.sub(r"[\W_]+", "", renamed)
+
+
+def _close(a: Place, b: Place, degrees: float) -> bool:
+    return abs(a.lng - b.lng) < degrees and abs(a.lat - b.lat) < degrees
 
 
 def _saved(db: Session, found: FoundPlace, city_slug: str) -> Place:

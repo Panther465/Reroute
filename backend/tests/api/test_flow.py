@@ -532,6 +532,57 @@ def test_place_search_shows_each_place_once(client, monkeypatch):
     assert names.count("Indiranagar") == 1 and "Indiranagar Metro" in names
 
 
+class ParkNominatim:
+    """A place of the same name across town, found first, then a big park found at several of its points, each filed
+    under the area it falls in (Google and OpenStreetMap both do this)."""
+
+    def __init__(self, *_):
+        pass
+
+    def search(self, query, where):
+        from app.adapters.places import FoundPlace
+
+        return [
+            FoundPlace("osm-n14", "Cubbon Park", "Whitefield", 77.7500, 12.9698, "n14"),
+            FoundPlace("osm-n11", "Cubbon Park", "Vasanth Nagar", 77.5976, 12.9809, "n11"),
+            FoundPlace("osm-w12", "Cubbon Park", "Sampangirama Nagar", 77.5922, 12.9743, "w12"),
+            FoundPlace("osm-n13", "Cubbon Park", "Ashok Nagar", 77.5940, 12.9711, "n13"),
+            FoundPlace("osm-n15", "Cubbon Park Gate 1", "Nunegundlapalli", 77.5888, 12.9683, "n15"),
+        ]
+
+
+def test_place_search_shows_a_big_park_once_whatever_area_each_point_is_in(client, monkeypatch):
+    monkeypatch.setattr("app.services.places.NominatimSearch", ParkNominatim)
+    found = [(p["name"], p["area"]) for p in client.get("/v1/places", params={"q": "Cubbon Park"}).json()]
+    # One Cubbon Park in the middle of town, first as three finds agree on it, then the one across town, and the
+    # gate, a place of its own.
+    assert [area for name, area in found if name == "Cubbon Park"] == ["Vasanth Nagar", "Whitefield"]
+    assert ("Cubbon Park Gate 1", "Nunegundlapalli") in found
+
+
+class RenamedNominatim:
+    """The same places under a city's old and new names, and with and without the dots in their names."""
+
+    def __init__(self, *_):
+        pass
+
+    def search(self, query, where):
+        from app.adapters.places import FoundPlace
+
+        return [
+            FoundPlace("osm-w21", "Bangalore Palace", "Rajamahal", 77.5920, 12.9986, "w21"),
+            FoundPlace("gpl-22", "Bengaluru Palace", "Bengaluru", 77.5891, 13.0035, None),
+            FoundPlace("osm-n23", "V. V. Puram Food Street", "Basavanagudi", 77.5737, 12.9488, "n23"),
+            FoundPlace("gpl-24", "VV Puram Food Street", "Visvesvarapura", 77.5741, 12.9492, None),
+        ]
+
+
+def test_place_search_shows_a_place_once_whichever_name_it_goes_by(client, monkeypatch):
+    monkeypatch.setattr("app.services.places.NominatimSearch", RenamedNominatim)
+    names = [p["name"] for p in client.get("/v1/places", params={"q": "Palace Street"}).json()]
+    assert names == ["Bangalore Palace", "V. V. Puram Food Street"]
+
+
 def test_described_tasks_match_any_place_and_say_which(client, monkeypatch):
     from app.config import get_settings
 
