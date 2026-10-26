@@ -1,6 +1,6 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { MapTiles } from '@/api/types'
-import { googleStyle, googleTiles, refusedByGoogle, viewKey, viewportUrl } from './mapTiles'
+import { askAsItMoves, googleStyle, googleTiles, refusedByGoogle, viewKey, viewportUrl } from './mapTiles'
 
 const GOOGLE: MapTiles = {
   provider: 'google',
@@ -44,6 +44,32 @@ describe('asking Google for the copyright line', () => {
     expect(viewKey(15.2, view)).toBe(viewKey(14.8, step))
     expect(viewKey(16, view)).not.toBe(viewKey(15, view))
     expect(viewKey(15, view)).not.toBe(viewKey(15, { ...view, north: 13.01, south: 12.97 }))
+  })
+
+  it('asks while a map following the traveller keeps moving, once per moment, and once more after it stops', () => {
+    vi.useFakeTimers()
+    try {
+      const ask = vi.fn()
+      const { moved, stop } = askAsItMoves(ask, 500)
+      // The follow camera moves every 400 ms for 3 s: asked every moment, not never.
+      for (let t = 0; t < 3000; t += 400) {
+        moved()
+        vi.advanceTimersByTime(400)
+      }
+      expect(ask.mock.calls.length).toBeGreaterThanOrEqual(3)
+      // It stops: one last ask reads where it stopped, then nothing.
+      const before = ask.mock.calls.length
+      moved()
+      vi.advanceTimersByTime(2000)
+      expect(ask).toHaveBeenCalledTimes(before + 1)
+      // Gone from the screen: nothing more.
+      moved()
+      stop()
+      vi.advanceTimersByTime(2000)
+      expect(ask).toHaveBeenCalledTimes(before + 1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })
 

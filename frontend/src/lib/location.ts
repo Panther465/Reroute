@@ -49,6 +49,14 @@ function bearing(a: LngLat, b: LngLat) {
   return (Math.atan2(y, x) / toRad + 360) % 360
 }
 
+/** How long the map takes to move on to a new fix: the time since the one before (`sincePrevious`, ms), so the
+ *  arrow and the camera following it arrive together as the next one comes and glide on, instead of the arrow
+ *  jumping ahead and the camera chasing it off the map (a demo ride crosses the map between two fixes). From a
+ *  quarter of a second to a second and a half; the first fix takes no time. */
+export function glideMs(sincePrevious: number | null): number {
+  return sincePrevious === null ? 0 : Math.min(1500, Math.max(250, sincePrevious))
+}
+
 export const geolocationSupported = typeof navigator !== 'undefined' && 'geolocation' in navigator
 
 /** Start following the traveller. Resolves false when location is off or refused. */

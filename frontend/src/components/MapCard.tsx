@@ -10,9 +10,9 @@ import type { MapTiles } from '@/api/types'
 import { useMapTiles } from '@/api/queries'
 import { MapUnavailable } from '@/components/LazyMap'
 import { useOnline } from '@/lib/hooks'
-import { googleStyle, googleTiles, REFUSALS_BEFORE_FREE_MAP, refusedByGoogle, viewKey, viewportUrl } from '@/lib/mapTiles'
+import { askAsItMoves, googleStyle, googleTiles, REFUSALS_BEFORE_FREE_MAP, refusedByGoogle, viewKey, viewportUrl } from '@/lib/mapTiles'
 import type { LngLat, MapLine } from '@/lib/geo'
-import type { Fix } from '@/lib/location'
+import { glideMs, type Fix } from '@/lib/location'
 import { longPress } from '@/lib/longPress'
 import type { StationDot } from '@/lib/paths'
 import { useResolvedTheme } from '@/lib/theme'
@@ -248,6 +248,10 @@ function MapInner({
   const meMarker = useRef<maplibregl.Marker | null>(null)
   const meArrow = useRef<HTMLElement | null>(null)
   const meDot = useRef<HTMLElement | null>(null)
+  // The last fix and when it came, the arrow's glide to the next one, and whether the camera has flown in to follow.
+  const lastFix = useRef<{ lngLat: LngLat; at: number } | null>(null)
+  const meGlide = useRef(0)
+  const flownIn = useRef(false)
   const [ready, setReady] = useState(false)
   // Google's copyright line for what's on screen, shown with "Google Maps" under its map.
   const [copyright, setCopyright] = useState('')
@@ -465,6 +469,7 @@ function MapInner({
       kickFlow.current = () => {}
       cancelAnimationFrame(frame.current)
       cancelAnimationFrame(flowFrame.current)
+      cancelAnimationFrame(meGlide.current)
       flowFrame.current = 0
       markers.current.forEach((m) => m.remove())
       meMarker.current?.remove()
@@ -560,11 +565,18 @@ function MapInner({
     if (!map || !ready) return
     const acc = map.getSource('me-accuracy') as GeoJSONSource | undefined
     if (!meLngLat || !me) {
+      cancelAnimationFrame(meGlide.current)
       meMarker.current?.remove()
       meMarker.current = null
+      lastFix.current = null
       acc?.setData({ type: 'FeatureCollection', features: [] })
       return
     }
+    // A new fix: the arrow and the camera glide to it over the time since the last one, together (glideMs).
+    const now = performance.now()
+    const moved = !lastFix.current || lastFix.current.lngLat[0] !== meLngLat[0] || lastFix.current.lngLat[1] !== meLngLat[1]
+    const glide = reduce || !moved ? 0 : glideMs(lastFix.current ? now - lastFix.current.at : null)
+    if (moved) lastFix.current = { lngLat: meLngLat, at: now }
     if (!meMarker.current) {
       const node = document.createElement('span')
       node.className = 'relative flex size-12 items-center justify-center'
@@ -583,7 +595,17 @@ function MapInner({
       meArrow.current = node.querySelector('[data-arrow]')
       meDot.current = node.querySelector('[data-dot]')
       meMarker.current = new maplibregl.Marker({ element: node, rotationAlignment: 'map', pitchAlignment: 'map' }).setLngLat(meLngLat).addTo(map)
-    } else meMarker.current.setLngLat(meLngLat)
+    } else if (moved) {
+      const from = meMarker.current.getLngLat()
+      const to = meLngLat
+      cancelAnimationFrame(meGlide.current)
+      const step = () => {
+        const t = glide ? Math.min(1, (performance.now() - now) / glide) : 1
+        meMarker.current?.setLngLat([from.lng + (to[0] - from.lng) * t, from.lat + (to[1] - from.lat) * t])
+        if (t < 1) meGlide.current = requestAnimationFrame(step)
+      }
+      step()
+    }
     if (meArrow.current && meDot.current) {
       const heading = me.heading
       const known = heading != null && !Number.isNaN(heading)
@@ -592,43 +614,47 @@ function MapInner({
       meMarker.current.setRotation(known ? heading : 0)
     }
     acc?.setData(circle(meLngLat, Math.min(me.accuracy, 500)))
-    if (following) map.easeTo({ center: meLngLat, zoom: Math.max(map.getZoom(), 16), pitch: compact ? 0 : 55, duration: reduce ? 0 : 900 })
+    if (following) {
+      // Flying in to follow eases in and out; from there the camera glides along with the arrow, at an even pace.
+      const flying = !flownIn.current
+      flownIn.current = true
+      const view = { center: meLngLat, zoom: Math.max(map.getZoom(), 16), pitch: compact ? 0 : 55 }
+      if (flying) map.easeTo({ ...view, duration: reduce ? 0 : 900 })
+      else if (moved) map.easeTo({ ...view, duration: glide, easing: (t) => t })
+    } else flownIn.current = false
     // The dot moves when the fix does.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [me?.lng, me?.lat, me?.accuracy, me?.heading, ready, following])
 
-  // Under Google's map, the copyright line Google gives for what's on screen, asked again a moment after it moves.
+  // Under Google's map, the copyright line Google gives for what's on screen, asked again as it moves (following the
+  // traveller, it never stops).
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready || !google) return
     let alive = true
-    let timer = 0
     let asked = ''
-    const ask = () => {
-      window.clearTimeout(timer)
-      timer = window.setTimeout(async () => {
-        const b = map.getBounds()
-        const view = { north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() }
-        const key = viewKey(map.getZoom(), view)
-        if (key === asked) return
-        asked = key
-        const url = viewportUrl(google, theme, map.getZoom(), view)
-        if (!url) return
-        try {
-          const res = await fetch(url)
-          const said = res.ok ? ((await res.json()) as { copyright?: string }).copyright : undefined
-          if (alive && typeof said === 'string') setCopyright(said)
-        } catch {
-          /* the line stays as it was */
-        }
-      }, 500)
-    }
-    ask()
-    map.on('moveend', ask)
+    const asker = askAsItMoves(async () => {
+      const b = map.getBounds()
+      const view = { north: b.getNorth(), south: b.getSouth(), east: b.getEast(), west: b.getWest() }
+      const key = viewKey(map.getZoom(), view)
+      if (key === asked) return
+      asked = key
+      const url = viewportUrl(google, theme, map.getZoom(), view)
+      if (!url) return
+      try {
+        const res = await fetch(url)
+        const said = res.ok ? ((await res.json()) as { copyright?: string }).copyright : undefined
+        if (alive && typeof said === 'string') setCopyright(said)
+      } catch {
+        /* the line stays as it was */
+      }
+    })
+    asker.moved()
+    map.on('move', asker.moved)
     return () => {
       alive = false
-      window.clearTimeout(timer)
-      map.off('moveend', ask)
+      asker.stop()
+      map.off('move', asker.moved)
     }
   }, [ready, google, theme])
 
@@ -666,10 +692,11 @@ function MapInner({
       </div>
       {pins.map(({ key, host, Icon }) => createPortal(<Icon size={compact ? 14 : 20} strokeWidth={2} aria-hidden="true" />, host, key))}
       {google && (
-        // Google's map is credited on it, as Google asks: "Google Maps", then its copyright line, clear of the buttons.
+        // Google's map is credited on it, as Google asks: "Google Maps", then its copyright line, clear of the buttons,
+        // on a pale backing that keeps it readable over the map's own labels (and theirs under it) at any text size.
         // A small map has no (i) for the routes' own credit, so theirs goes just above.
         <div
-          className={`pointer-events-none absolute bottom-1 left-2 z-10 text-ink [text-shadow:0_0_3px_var(--surface),0_0_3px_var(--surface)] ${compact ? 'max-w-[calc(100%-1rem)] text-[10px] leading-[13px]' : 'max-w-[78%] text-[11px] leading-4'}`}
+          className={`pointer-events-none absolute bottom-1 left-1.5 z-10 rounded bg-surface/85 px-1.5 text-ink ${compact ? 'max-w-[calc(100%-0.75rem)] text-[10px] leading-[13px]' : 'max-w-[calc(100%-3.5rem)] text-[11px] leading-4'}`}
         >
           {compact && <p className="text-ink-2">Routes © OpenStreetMap, FOSSGIS</p>}
           <p>

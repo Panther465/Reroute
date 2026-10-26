@@ -35,6 +35,26 @@ const round = (n: number) => String(Math.round(n * 1e6) / 1e6)
 const lng = (x: number) => Math.min(179.999999, Math.max(-179.999999, ((((x + 180) % 360) + 360) % 360) - 180))
 const lat = (y: number) => Math.min(89.999999, Math.max(-89.999999, y))
 
+/** Calls `ask` a moment (`ms`) after the map moves, once per moment however often it moves, reading the view then.
+ *  A map following the traveller moves every half second: a wait that started over at each move would never end,
+ *  and Google's copyright line would never come. */
+export function askAsItMoves(ask: () => void, ms = 500): { moved: () => void; stop: () => void } {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  return {
+    moved: () => {
+      if (timer !== undefined) return
+      timer = setTimeout(() => {
+        timer = undefined
+        ask()
+      }, ms)
+    },
+    stop: () => {
+      clearTimeout(timer)
+      timer = undefined
+    },
+  }
+}
+
 /** A view as Google's copyright line sees it: its whole zoom and its edges to about a kilometre. A map following the
  *  traveller moves every second; it asks again only once the view is really another one. */
 export function viewKey(zoom: number, view: { north: number; south: number; east: number; west: number }): string {
