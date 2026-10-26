@@ -1,0 +1,28 @@
+# Reroute's Azure server (infra/azure/README.md), on top of the production settings:
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml -f infra/azure/docker-compose.azure.yml up -d --build
+# deploy.sh runs exactly this on the server.
+#
+# - The simulated bookings, wallet and connected partners stay on: the public site is the owner's demo, and every
+#   price in them is marked as simulated money (nothing real is booked or charged).
+# - NGINX serves the server's Let's Encrypt certificate, which certbot renews through
+#   /.well-known/acme-challenge/ (see infra/nginx/nginx.conf): both folders live on the server, outside git.
+
+x-azure-env: &azure-env
+  SIMULATED_SERVICES: "true"
+
+services:
+  api-1:
+    environment: *azure-env
+  api-2:
+    environment: *azure-env
+  worker:
+    environment: *azure-env
+  scheduler:
+    environment: *azure-env
+
+  nginx:
+    volumes:
+      # The certificate (localhost.crt and .key, the names infra/nginx/nginx.conf uses), copied in by certbot's
+      # deploy hook. Until the first one is issued, start.sh puts a self-signed one here.
+      - /opt/reroute/certs:/etc/nginx/certs
+      - /opt/reroute/acme:/var/www/acme:ro

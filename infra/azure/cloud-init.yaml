@@ -1,0 +1,37 @@
+#cloud-config
+# Reroute's Azure server, set up on its first boot (provision.sh passes this file): Docker from Docker's own
+# repository, certbot and git, 4 GB of swap for the builds, the folders deploy.sh uses, and the hook that hands each
+# new certificate to NGINX. The repository itself is cloned by deploy.sh.
+
+package_update: true
+package_upgrade: true
+packages:
+  - ca-certificates
+  - curl
+  - git
+  - certbot
+
+write_files:
+  - path: /etc/letsencrypt/renewal-hooks/deploy/reroute.sh
+    permissions: "0755"
+    content: |
+      #!/bin/sh
+      # After certbot issues or renews Reroute's certificate: put it where NGINX reads it, and reload NGINX.
+      set -eu
+      install -m 644 "$RENEWED_LINEAGE/fullchain.pem" /opt/reroute/certs/localhost.crt
+      install -m 600 "$RENEWED_LINEAGE/privkey.pem" /opt/reroute/certs/localhost.key
+      docker exec reroute-nginx-1 nginx -s reload || true
+
+runcmd:
+  - install -m 0755 -d /etc/apt/keyrings
+  - curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+  - chmod a+r /etc/apt/keyrings/docker.asc
+  - sh -c 'echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo $VERSION_CODENAME) stable" > /etc/apt/sources.list.d/docker.list'
+  - apt-get update
+  - apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+  - usermod -aG docker reroute
+  - fallocate -l 4G /swapfile && chmod 600 /swapfile && mkswap /swapfile && swapon /swapfile && echo '/swapfile none swap sw 0 0' >> /etc/fstab
+  - mkdir -p /opt/reroute/certs /opt/reroute/acme /opt/reroute/secrets
+  - chown -R reroute:reroute /opt/reroute
+  - chmod 700 /opt/reroute/secrets
+  - touch /var/lib/cloud/instance/reroute-ready
