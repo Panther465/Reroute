@@ -1,0 +1,2954 @@
+{
+	"info": {
+		"_postman_id": "a870e95a-8911-5c25-b7fe-9f51caef4e58",
+		"name": "Reroute API",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Reroute",
+			"item": [
+				{
+					"name": "Auth",
+					"item": [
+						{
+							"name": "Auth options",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/auth/options",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"auth",
+										"options"
+									]
+								},
+								"auth": {
+									"type": "noauth"
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Sign up",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "X-Reroute-Client",
+										"value": "android"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/auth/signup",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"auth",
+										"signup"
+									]
+								},
+								"auth": {
+									"type": "noauth"
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"{{name}}\",\n    \"email\": \"{{email}}\",\n    \"password\": \"{{password}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Login",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "X-Reroute-Client",
+										"value": "android"
+									},
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/auth/login",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"auth",
+										"login"
+									]
+								},
+								"auth": {
+									"type": "noauth"
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"email\": \"{{email}}\",\n    \"password\": \"{{password}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Google login",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/auth/google",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"auth",
+										"google"
+									]
+								},
+								"auth": {
+									"type": "noauth"
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"code\": \"{{googleCode}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Refresh token",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/auth/refresh",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"auth",
+										"refresh"
+									]
+								},
+								"auth": {
+									"type": "noauth"
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"refreshToken\": \"{{refreshToken}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Logout",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/auth/logout",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"auth",
+										"logout"
+									]
+								},
+								"auth": {
+									"type": "noauth"
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"refreshToken\": \"{{refreshToken}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Me",
+					"item": [
+						{
+							"name": "Get profile",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/me",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"me"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Register push device",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/me/push-devices",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"me",
+										"push-devices"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\",\n    \"token\": \"{{fcmToken}}\",\n    \"platform\": \"android\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Remove push device",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/me/push-devices/:device_id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"me",
+										"push-devices",
+										":device_id"
+									],
+									"variable": [
+										{
+											"key": "device_id",
+											"value": "{{deviceId}}"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete location history",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/me/location-history",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"me",
+										"location-history"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Trips",
+					"item": [
+						{
+							"name": "List trips",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips?limit=20",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips"
+									],
+									"query": [
+										{
+											"key": "limit",
+											"value": "20"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get trip",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Search hotels",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/places?q=hotel&city={{citySlug}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"places"
+									],
+									"query": [
+										{
+											"key": "q",
+											"value": "hotel"
+										},
+										{
+											"key": "city",
+											"value": "{{citySlug}}"
+										}
+									]
+								}
+							},
+							"response": [],
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"const places = pm.response.json();",
+											"if (places.length) pm.collectionVariables.set('stayPlaceId', places[0].placeId);"
+										]
+									}
+								}
+							]
+						},
+						{
+							"name": "Create trip",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\",\n    \"citySlug\": \"{{citySlug}}\",\n    \"cityName\": \"{{cityName}}\",\n    \"startDate\": \"{{today}}\",\n    \"endDate\": \"{{tomorrow}}\",\n    \"stayPlaceId\": \"{{stayPlaceId}}\",\n    \"stayLabel\": \"Hotel\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Search task place",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/places?q=Cubbon Park&city={{citySlug}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"places"
+									],
+									"query": [
+										{
+											"key": "q",
+											"value": "Cubbon Park"
+										},
+										{
+											"key": "city",
+											"value": "{{citySlug}}"
+										}
+									]
+								}
+							},
+							"response": [],
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"const places = pm.response.json();",
+											"if (places.length) pm.collectionVariables.set('taskPlaceId', places[0].placeId);"
+										]
+									}
+								}
+							]
+						},
+						{
+							"name": "Add task",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/tasks",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"tasks"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\",\n    \"title\": \"Walk in Cubbon Park\",\n    \"placeId\": \"{{taskPlaceId}}\",\n    \"durationMin\": 60,\n    \"priority\": 2\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Plan day",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/plans",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"plans"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Job status",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/jobs/:job_id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"jobs",
+										":job_id"
+									],
+									"variable": [
+										{
+											"key": "job_id",
+											"value": "{{jobId}}"
+										}
+									]
+								}
+							},
+							"response": [],
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"const job = pm.response.json();",
+											"if (job.status === 'queued' || job.status === 'started') {",
+											"    setTimeout(() => {}, 1500);",
+											"    postman.setNextRequest(pm.info.requestName);",
+											"}"
+										]
+									}
+								}
+							]
+						},
+						{
+							"name": "Get plan",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/plans/:version",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"plans",
+										":version"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										},
+										{
+											"key": "version",
+											"value": "{{planVersion}}"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Plan insight",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/plans/:version/insight",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"plans",
+										":version",
+										"insight"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										},
+										{
+											"key": "version",
+											"value": "{{planVersion}}"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Plan paths",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/plans/:version/paths",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"plans",
+										":version",
+										"paths"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										},
+										{
+											"key": "version",
+											"value": "{{planVersion}}"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Check in (running late)",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/checkins",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"checkins"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\",\n    \"taskId\": \"{{taskId}}\",\n    \"kind\": \"delay\",\n    \"delayMin\": 20\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Accept option",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/options/:option_id/accept",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"options",
+										":option_id",
+										"accept"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										},
+										{
+											"key": "option_id",
+											"value": "{{optionId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\",\n    \"optionSetId\": \"{{optionSetId}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Undo plan",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/plans/:version/activate",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"plans",
+										":version",
+										"activate"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										},
+										{
+											"key": "version",
+											"value": "1"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Trip summary",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/summary?day={{today}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"summary"
+									],
+									"query": [
+										{
+											"key": "day",
+											"value": "{{today}}"
+										}
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update task",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/tasks/:task_id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"tasks",
+										":task_id"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										},
+										{
+											"key": "task_id",
+											"value": "{{taskId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"durationMin\": 45,\n    \"priority\": 1\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete task",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/tasks/:task_id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"tasks",
+										":task_id"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										},
+										{
+											"key": "task_id",
+											"value": "{{taskId}}"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "AI task drafts",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/task-drafts",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"task-drafts"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\",\n    \"text\": \"Client meeting near MG Road at 11, the bank before 4, then dinner somewhere nice.\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Import calendar",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/calendar-import",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"calendar-import"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\",\n    \"code\": \"{{googleCode}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Rico message",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/roo",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"roo"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\",\n    \"message\": \"I'm running 20 minutes late\",\n    \"history\": []\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Places",
+					"item": [
+						{
+							"name": "Search cities",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/cities?q=Bengaluru",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"cities"
+									],
+									"query": [
+										{
+											"key": "q",
+											"value": "Bengaluru"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Search places",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/places?q=MG Road&city={{citySlug}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"places"
+									],
+									"query": [
+										{
+											"key": "q",
+											"value": "MG Road"
+										},
+										{
+											"key": "city",
+											"value": "{{citySlug}}"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Place photos",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/places/photos?place={{placeId}}&city={{citySlug}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"places",
+										"photos"
+									],
+									"query": [
+										{
+											"key": "place",
+											"value": "{{placeId}}"
+										},
+										{
+											"key": "city",
+											"value": "{{citySlug}}"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Add my place",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/me/places",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"me",
+										"places"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\",\n    \"name\": \"Chai stall near the gate\",\n    \"category\": \"food\",\n    \"note\": \"Ginger chai\",\n    \"lng\": 77.6195,\n    \"lat\": 12.9352,\n    \"citySlug\": \"{{citySlug}}\",\n    \"share\": false\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "My places",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/me/places?city={{citySlug}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"me",
+										"places"
+									],
+									"query": [
+										{
+											"key": "city",
+											"value": "{{citySlug}}"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete my place",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/me/places/:place_id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"me",
+										"places",
+										":place_id"
+									],
+									"variable": [
+										{
+											"key": "place_id",
+											"value": "{{placeId}}"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Places to review",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/places/review?status=waiting",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"places",
+										"review"
+									],
+									"query": [
+										{
+											"key": "status",
+											"value": "waiting"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Approve place",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/places/:place_id/approve",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"places",
+										":place_id",
+										"approve"
+									],
+									"variable": [
+										{
+											"key": "place_id",
+											"value": "{{placeId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Reject place",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/places/:place_id/reject",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"places",
+										":place_id",
+										"reject"
+									],
+									"variable": [
+										{
+											"key": "place_id",
+											"value": "{{placeId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\",\n    \"reason\": \"Not a public place\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Bookings",
+					"item": [
+						{
+							"name": "List bookings",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/bookings",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"bookings"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Cab options",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/cab-options?toId={{taskId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"cab-options"
+									],
+									"query": [
+										{
+											"key": "toId",
+											"value": "{{taskId}}"
+										}
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										}
+									]
+								}
+							},
+							"response": [],
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"const options = pm.response.json();",
+											"if (options.length) pm.collectionVariables.set('cabOptionId', options[0].optionId);"
+										]
+									}
+								}
+							]
+						},
+						{
+							"name": "Book cab",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/bookings",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"bookings"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\",\n    \"kind\": \"cab\",\n    \"toId\": \"{{taskId}}\",\n    \"optionId\": \"{{cabOptionId}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Airports",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/airports",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"airports"
+									]
+								},
+								"auth": {
+									"type": "noauth"
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Flight options",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/flight-options?from=DEL&to=BLR&date={{tomorrow}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"flight-options"
+									],
+									"query": [
+										{
+											"key": "from",
+											"value": "DEL"
+										},
+										{
+											"key": "to",
+											"value": "BLR"
+										},
+										{
+											"key": "date",
+											"value": "{{tomorrow}}"
+										}
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										}
+									]
+								}
+							},
+							"response": [],
+							"event": [
+								{
+									"listen": "test",
+									"script": {
+										"type": "text/javascript",
+										"exec": [
+											"const flights = pm.response.json();",
+											"if (flights.length) pm.collectionVariables.set('flightNo', flights[0].flightNo);"
+										]
+									}
+								}
+							]
+						},
+						{
+							"name": "Book flight",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/bookings",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"bookings"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\",\n    \"kind\": \"flight\",\n    \"origin\": \"DEL\",\n    \"flightTo\": \"BLR\",\n    \"flightDate\": \"{{tomorrow}}\",\n    \"flightNo\": \"{{flightNo}}\",\n    \"cabin\": \"economy\",\n    \"passengers\": [\n        {\n            \"name\": \"{{name}}\",\n            \"age\": 21\n        }\n    ]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Train options",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/train-options?taskId={{taskId}}&to=Mumbai",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"train-options"
+									],
+									"query": [
+										{
+											"key": "taskId",
+											"value": "{{taskId}}"
+										},
+										{
+											"key": "to",
+											"value": "Mumbai"
+										}
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Cancel booking",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/bookings/:booking_id/cancel",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"bookings",
+										":booking_id",
+										"cancel"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										},
+										{
+											"key": "booking_id",
+											"value": "{{bookingId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Wallet",
+					"item": [
+						{
+							"name": "Get wallet",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/wallet",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"wallet"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Top up wallet",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/wallet/topups",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"wallet",
+										"topups"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\",\n    \"amountInr\": 1000\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Rico",
+					"item": [
+						{
+							"name": "Ask Rico",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/roo/turns",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"roo",
+										"turns"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\",\n    \"message\": \"What's next today, and how much will today cost?\",\n    \"tripId\": \"{{tripId}}\",\n    \"history\": []\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Ask Rico to make changes",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/roo/turns",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"roo",
+										"turns"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\",\n    \"message\": \"Skip my last stop today and switch the app to the dark theme.\",\n    \"tripId\": \"{{tripId}}\",\n    \"history\": []\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get proposal",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/roo/proposals/:proposal_id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"roo",
+										"proposals",
+										":proposal_id"
+									],
+									"variable": [
+										{
+											"key": "proposal_id",
+											"value": "{{proposalId}}"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Execute proposal",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/roo/proposals/:proposal_id/execute",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"roo",
+										"proposals",
+										":proposal_id",
+										"execute"
+									],
+									"variable": [
+										{
+											"key": "proposal_id",
+											"value": "{{proposalId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Undo proposal",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/roo/proposals/:proposal_id/undo",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"roo",
+										"proposals",
+										":proposal_id",
+										"undo"
+									],
+									"variable": [
+										{
+											"key": "proposal_id",
+											"value": "{{proposalId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Rico live session",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/roo/live",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"roo",
+										"live"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\",\n    \"tripId\": \"{{tripId}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Sharing",
+					"item": [
+						{
+							"name": "Create share link",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/share-links",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"share-links"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "List share links",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/share-links",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"share-links"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Shared trip (family view)",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/shared/:token",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"shared",
+										":token"
+									],
+									"variable": [
+										{
+											"key": "token",
+											"value": "{{shareToken}}"
+										}
+									]
+								},
+								"auth": {
+									"type": "noauth"
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Revoke share link",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/share-links/:share_id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"share-links",
+										":share_id"
+									],
+									"variable": [
+										{
+											"key": "share_id",
+											"value": "{{shareId}}"
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Maps",
+					"item": [
+						{
+							"name": "Road path",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/road-path?from=77.6195,12.9352&to=77.5838,12.9255&profile=driving",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"road-path"
+									],
+									"query": [
+										{
+											"key": "from",
+											"value": "77.6195,12.9352"
+										},
+										{
+											"key": "to",
+											"value": "77.5838,12.9255"
+										},
+										{
+											"key": "profile",
+											"value": "driving"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Map tiles",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/maps/tiles",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"maps",
+										"tiles"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Speech",
+					"item": [
+						{
+							"name": "List voices",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/speech/voices",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"speech",
+										"voices"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Speech with word timings",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/speech/timed?text=Leave in ten minutes for the bank.",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"speech",
+										"timed"
+									],
+									"query": [
+										{
+											"key": "text",
+											"value": "Leave in ten minutes for the bank."
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Speech MP3",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/speech?text=Leave now, your cab is waiting.",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"speech"
+									],
+									"query": [
+										{
+											"key": "text",
+											"value": "Leave now, your cab is waiting."
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Live",
+					"item": [
+						{
+							"name": "Live events (SSE)",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/live",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"live"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Demo",
+					"item": [
+						{
+							"name": "Demo login",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/auth/demo",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"auth",
+										"demo"
+									]
+								},
+								"auth": {
+									"type": "noauth"
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"as\": \"traveller\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Set demo clock",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/demo/clock",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"demo",
+										"clock"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\",\n    \"now\": \"2026-10-14T10:55:00+05:30\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Run 5-minute check",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/demo/check",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"demo",
+										"check"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Reset demo trip",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/:trip_id/demo/reset",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										":trip_id",
+										"demo",
+										"reset"
+									],
+									"variable": [
+										{
+											"key": "trip_id",
+											"value": "{{tripId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		},
+		{
+			"name": "Raasta",
+			"item": [
+				{
+					"name": "Health",
+					"item": [
+						{
+							"name": "Health",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/raasta/healthz",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"raasta",
+										"healthz"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Ready",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/raasta/readyz",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"raasta",
+										"readyz"
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Routes",
+					"item": [
+						{
+							"name": "Find routes",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/raasta/routes?from=77.6195,12.9352&to=77.5838,12.9255&at={{today}}T15:00:00%2B05:30",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"raasta",
+										"routes"
+									],
+									"query": [
+										{
+											"key": "from",
+											"value": "77.6195,12.9352"
+										},
+										{
+											"key": "to",
+											"value": "77.5838,12.9255"
+										},
+										{
+											"key": "at",
+											"value": "{{today}}T15:00:00%2B05:30"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get route",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/raasta/routes/:route_id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"raasta",
+										"routes",
+										":route_id"
+									],
+									"variable": [
+										{
+											"key": "route_id",
+											"value": "{{routeId}}"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Stands nearby",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/raasta/stands?near=77.6195,12.9352&radius=800",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"raasta",
+										"stands"
+									],
+									"query": [
+										{
+											"key": "near",
+											"value": "77.6195,12.9352"
+										},
+										{
+											"key": "radius",
+											"value": "800"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "GTFS export",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/raasta/cities/:slug/gtfs.zip",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"raasta",
+										"cities",
+										":slug",
+										"gtfs.zip"
+									],
+									"variable": [
+										{
+											"key": "slug",
+											"value": "{{citySlug}}"
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
+					"name": "Contributions",
+					"item": [
+						{
+							"name": "Add contribution",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/raasta/contributions",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"raasta",
+										"contributions"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\",\n    \"citySlug\": \"{{citySlug}}\",\n    \"kind\": \"stands_tapped\",\n    \"vehicleType\": \"shared_auto\",\n    \"fareInr\": 20,\n    \"frequencyMin\": 10,\n    \"firstTrip\": \"07:00\",\n    \"lastTrip\": \"21:30\",\n    \"stands\": [\n        {\n            \"name\": \"Koramangala 5th Block stand\",\n            \"location\": {\n                \"lat\": 12.934,\n                \"lng\": 77.6185\n            }\n        },\n        {\n            \"name\": \"Jayanagar 4th Block stand\",\n            \"location\": {\n                \"lat\": 12.9255,\n                \"lng\": 77.5838\n            }\n        }\n    ]\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Moderation queue",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/raasta/contributions?status=waiting",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"raasta",
+										"contributions"
+									],
+									"query": [
+										{
+											"key": "status",
+											"value": "waiting"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Review contribution",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/raasta/contributions/:contribution_id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"raasta",
+										"contributions",
+										":contribution_id"
+									],
+									"variable": [
+										{
+											"key": "contribution_id",
+											"value": "{{contributionId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"action\": \"approve\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Confirm route",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/raasta/routes/:route_id/confirmations",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"raasta",
+										"routes",
+										":route_id",
+										"confirmations"
+									],
+									"variable": [
+										{
+											"key": "route_id",
+											"value": "{{routeId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Report fare",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/raasta/routes/:route_id/fare-reports",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"raasta",
+										"routes",
+										":route_id",
+										"fare-reports"
+									],
+									"variable": [
+										{
+											"key": "route_id",
+											"value": "{{routeId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\",\n    \"fareInr\": 25\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Fare reports",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/raasta/fare-reports?status=waiting",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"raasta",
+										"fare-reports"
+									],
+									"query": [
+										{
+											"key": "status",
+											"value": "waiting"
+										}
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Review fare report",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/raasta/fare-reports/:fare_report_id",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"raasta",
+										"fare-reports",
+										":fare_report_id"
+									],
+									"variable": [
+										{
+											"key": "fare_report_id",
+											"value": "{{fareReportId}}"
+										}
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"action\": \"accept\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						}
+					]
+				}
+			]
+		}
+	],
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{accessToken}}",
+				"type": "string"
+			}
+		]
+	},
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"const now = new Date(Date.now() + 330 * 60000);",
+					"pm.variables.set('today', now.toISOString().slice(0, 10));",
+					"pm.variables.set('tomorrow', new Date(now.getTime() + 86400000).toISOString().slice(0, 10));"
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					"if (pm.response.code < 300 && (pm.response.headers.get('Content-Type') || '').includes('json')) {",
+					"    const res = pm.response.json();",
+					"    const first = Array.isArray(res) ? res[0] : (res.items ? res.items[0] : res);",
+					"    const ids = ['tripId', 'taskId', 'jobId', 'bookingId', 'shareId', 'placeId', 'routeId', 'contributionId', 'fareReportId', 'deviceId', 'optionSetId'];",
+					"    if (first) ids.forEach(k => { if (typeof first[k] === 'string') pm.collectionVariables.set(k, first[k]); });",
+					"    if (res.accessToken) pm.collectionVariables.set('accessToken', res.accessToken);",
+					"    if (res.refreshToken) pm.collectionVariables.set('refreshToken', res.refreshToken);",
+					"    if (res.shareId && res.token) pm.collectionVariables.set('shareToken', res.token);",
+					"    if (Number.isInteger(res.planVersion)) pm.collectionVariables.set('planVersion', res.planVersion);",
+					"    if (res.planId && Number.isInteger(res.version)) pm.collectionVariables.set('planVersion', res.version);",
+					"    if (res.activePlan) pm.collectionVariables.set('planVersion', res.activePlan.version);",
+					"    if (res.tasks && res.tasks.length) pm.collectionVariables.set('taskId', res.tasks[0].taskId);",
+					"    if (res.options && res.options.length) pm.collectionVariables.set('optionId', res.options[0].optionId);",
+					"    if (res.proposal) pm.collectionVariables.set('proposalId', res.proposal.proposalId);",
+					"}"
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "baseUrl",
+			"value": "https://reroute-app.centralindia.cloudapp.azure.com"
+		},
+		{
+			"key": "email",
+			"value": ""
+		},
+		{
+			"key": "password",
+			"value": ""
+		},
+		{
+			"key": "name",
+			"value": "Ankit"
+		},
+		{
+			"key": "accessToken",
+			"value": ""
+		},
+		{
+			"key": "refreshToken",
+			"value": ""
+		},
+		{
+			"key": "citySlug",
+			"value": "bengaluru"
+		},
+		{
+			"key": "cityName",
+			"value": "Bengaluru"
+		},
+		{
+			"key": "tripId",
+			"value": ""
+		},
+		{
+			"key": "taskId",
+			"value": ""
+		},
+		{
+			"key": "stayPlaceId",
+			"value": ""
+		},
+		{
+			"key": "taskPlaceId",
+			"value": ""
+		},
+		{
+			"key": "placeId",
+			"value": ""
+		},
+		{
+			"key": "planVersion",
+			"value": "1"
+		},
+		{
+			"key": "jobId",
+			"value": ""
+		},
+		{
+			"key": "optionId",
+			"value": ""
+		},
+		{
+			"key": "optionSetId",
+			"value": ""
+		},
+		{
+			"key": "proposalId",
+			"value": ""
+		},
+		{
+			"key": "bookingId",
+			"value": ""
+		},
+		{
+			"key": "cabOptionId",
+			"value": ""
+		},
+		{
+			"key": "flightNo",
+			"value": ""
+		},
+		{
+			"key": "shareId",
+			"value": ""
+		},
+		{
+			"key": "shareToken",
+			"value": ""
+		},
+		{
+			"key": "deviceId",
+			"value": ""
+		},
+		{
+			"key": "routeId",
+			"value": "sample-kor-jay"
+		},
+		{
+			"key": "contributionId",
+			"value": ""
+		},
+		{
+			"key": "fareReportId",
+			"value": ""
+		},
+		{
+			"key": "googleCode",
+			"value": ""
+		},
+		{
+			"key": "fcmToken",
+			"value": ""
+		}
+	]
+}
