@@ -24,7 +24,11 @@ fi
 
 ssh_ "REPO='$REPO' HOST='$HOST' CERT_EMAIL='$CERT_EMAIL' bash -s" <<'ON_SERVER'
 set -euo pipefail
-chmod 600 /opt/reroute/secrets/*
+chmod 700 /opt/reroute/secrets
+chmod 600 /opt/reroute/secrets/reroute.env
+# The worker reads Firebase's key as its own user (Docker hands it the file as it is here), so the file is readable;
+# the folder around it is this login's alone.
+[ ! -f /opt/reroute/secrets/fcm-service-account.json ] || chmod 644 /opt/reroute/secrets/fcm-service-account.json
 [ -d /opt/reroute/app/.git ] || git clone --quiet "$REPO" /opt/reroute/app
 cd /opt/reroute/app
 git fetch --quiet origin main
