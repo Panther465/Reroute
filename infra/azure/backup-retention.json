@@ -1,0 +1,13 @@
+{
+  "rules": [
+    {
+      "enabled": true,
+      "name": "backups-for-30-days",
+      "type": "Lifecycle",
+      "definition": {
+        "actions": { "baseBlob": { "delete": { "daysAfterModificationGreaterThan": 30 } } },
+        "filters": { "blobTypes": ["blockBlob"], "prefixMatch": ["backups/"] }
+      }
+    }
+  ]
+}

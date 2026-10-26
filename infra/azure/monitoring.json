@@ -1,0 +1,102 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+  "contentVersion": "1.0.0.0",
+  "metadata": {
+    "description": "Reroute's site-down alert (infra/azure/README.md): Azure checks siteUrl every 5 minutes from Singapore and Hong Kong, and emails alertEmail when both checks fail, and again when the site is back."
+  },
+  "parameters": {
+    "siteUrl": { "type": "string" },
+    "alertEmail": { "type": "string" },
+    "location": { "type": "string", "defaultValue": "[resourceGroup().location]" }
+  },
+  "variables": {
+    "workspace": "reroute-logs",
+    "insights": "reroute-insights",
+    "test": "reroute-site-up",
+    "actionGroup": "reroute-alerts",
+    "alert": "reroute-site-down"
+  },
+  "resources": [
+    {
+      "type": "Microsoft.OperationalInsights/workspaces",
+      "apiVersion": "2022-10-01",
+      "name": "[variables('workspace')]",
+      "location": "[parameters('location')]",
+      "properties": { "sku": { "name": "PerGB2018" }, "retentionInDays": 30 }
+    },
+    {
+      "type": "Microsoft.Insights/components",
+      "apiVersion": "2020-02-02",
+      "name": "[variables('insights')]",
+      "location": "[parameters('location')]",
+      "kind": "web",
+      "dependsOn": ["[resourceId('Microsoft.OperationalInsights/workspaces', variables('workspace'))]"],
+      "properties": {
+        "Application_Type": "web",
+        "WorkspaceResourceId": "[resourceId('Microsoft.OperationalInsights/workspaces', variables('workspace'))]",
+        "IngestionMode": "LogAnalytics"
+      }
+    },
+    {
+      "type": "Microsoft.Insights/webtests",
+      "apiVersion": "2022-06-15",
+      "name": "[variables('test')]",
+      "location": "[parameters('location')]",
+      "dependsOn": ["[resourceId('Microsoft.Insights/components', variables('insights'))]"],
+      "tags": { "[concat('hidden-link:', resourceId('Microsoft.Insights/components', variables('insights')))]": "Resource" },
+      "properties": {
+        "SyntheticMonitorId": "[variables('test')]",
+        "Name": "Reroute is up",
+        "Description": "GET /v1/healthz answers 200 over a valid certificate.",
+        "Enabled": true,
+        "Frequency": 300,
+        "Timeout": 30,
+        "Kind": "standard",
+        "RetryEnabled": true,
+        "Locations": [{ "Id": "apac-sg-sin-azr" }, { "Id": "apac-hk-hkn-azr" }],
+        "Request": { "RequestUrl": "[parameters('siteUrl')]", "HttpVerb": "GET", "ParseDependentRequests": false },
+        "ValidationRules": { "ExpectedHttpStatusCode": 200, "SSLCheck": true, "SSLCertRemainingLifetimeCheck": 7 }
+      }
+    },
+    {
+      "type": "Microsoft.Insights/actionGroups",
+      "apiVersion": "2023-01-01",
+      "name": "[variables('actionGroup')]",
+      "location": "Global",
+      "properties": {
+        "groupShortName": "Reroute",
+        "enabled": true,
+        "emailReceivers": [{ "name": "Owner", "emailAddress": "[parameters('alertEmail')]", "useCommonAlertSchema": true }]
+      }
+    },
+    {
+      "type": "Microsoft.Insights/metricAlerts",
+      "apiVersion": "2018-03-01",
+      "name": "[variables('alert')]",
+      "location": "global",
+      "dependsOn": [
+        "[resourceId('Microsoft.Insights/webtests', variables('test'))]",
+        "[resourceId('Microsoft.Insights/actionGroups', variables('actionGroup'))]"
+      ],
+      "properties": {
+        "description": "Reroute's site stopped answering from both check locations.",
+        "severity": 1,
+        "enabled": true,
+        "scopes": [
+          "[resourceId('Microsoft.Insights/webtests', variables('test'))]",
+          "[resourceId('Microsoft.Insights/components', variables('insights'))]"
+        ],
+        "evaluationFrequency": "PT1M",
+        "windowSize": "PT5M",
+        "autoMitigate": true,
+        "criteria": {
+          "odata.type": "Microsoft.Azure.Monitor.WebtestLocationAvailabilityCriteria",
+          "webTestId": "[resourceId('Microsoft.Insights/webtests', variables('test'))]",
+          "componentId": "[resourceId('Microsoft.Insights/components', variables('insights'))]",
+          "failedLocationCount": 2
+        },
+        "actions": [{ "actionGroupId": "[resourceId('Microsoft.Insights/actionGroups', variables('actionGroup'))]" }]
+      }
+    }
+  ]
+}

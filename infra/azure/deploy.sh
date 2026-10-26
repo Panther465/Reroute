@@ -42,6 +42,14 @@ compose() { docker compose -p reroute -f docker-compose.yml -f docker-compose.pr
 compose up -d --build --remove-orphans --wait --wait-timeout 900
 docker image prune -f >/dev/null
 
+# The nightly backup (backup.sh, reroute-backup.timer), once the server knows where to send it: BACKUP_STORAGE_ACCOUNT,
+# from setup-backups-and-alerts.sh.
+if grep -q '^BACKUP_STORAGE_ACCOUNT=.' .env; then
+  sudo install -m 644 infra/azure/reroute-backup.service infra/azure/reroute-backup.timer /etc/systemd/system/
+  sudo systemctl daemon-reload
+  sudo systemctl enable --quiet --now reroute-backup.timer
+fi
+
 # The certificate: issued the first time, then renewed by certbot's own timer; its hook hands each one to NGINX.
 sudo install -D -m 755 infra/azure/cert-hook.sh /etc/letsencrypt/renewal-hooks/deploy/reroute.sh
 if [ ! -d "/etc/letsencrypt/live/$HOST" ]; then

@@ -8,7 +8,7 @@ the owner's PC (`D:\reroute-secrets`) and on the server, never in git.
 |---|---|
 | Server | `reroute-vm`, Ubuntu 24.04, Standard_B2as_v2 (2 vCPUs, 8 GB) with 4 GB swap, Central India, in resource group `reroute-rg`. (Standard_B2ms, the first choice, had no capacity in Central India.) |
 | Address | https://reroute-app.centralindia.cloudapp.azure.com (Azure's DNS name; Let's Encrypt certificate, renewed automatically) |
-| Cost | About $45 a month: the VM $0.0492 an hour (about $36), its 64 GB SSD about $5, the public address about $4. Stop or delete it in the Azure portal to stop paying |
+| Cost | About $55 a month: the VM $0.0492 an hour (about $36), its 64 GB SSD about $5, the public address about $4, the site checks about $10 (two places every 5 minutes at $0.000585 a check), and backup storage about a cent. Stop or delete them in the Azure portal to stop paying |
 | Open ports | 80 and 443 for everyone; 22 for SSH by key only (`~/.ssh/reroute_azure` on the owner's PC) |
 
 The public site keeps the simulated bookings, wallet and connected partners on (`docker-compose.azure.yml`): it's the
@@ -24,8 +24,28 @@ refuse it, so people create an account or use Google sign-in.
    passwords and secrets for the server. Push notifications use `D:/reroute-secrets/fcm-service-account.json`.
 4. Deploy: `CERT_EMAIL=you@example.com bash infra/azure/deploy.sh`. The first run also gets the certificate, which
    means accepting Let's Encrypt's subscriber agreement.
-5. In Google Cloud, add the address to the OAuth web client's **Authorized JavaScript origins** and **Authorized
-   redirect URIs**, or Google sign-in fails there.
+5. In Google Cloud, add the address, exactly `https://reroute-app.centralindia.cloudapp.azure.com`, to the OAuth web
+   client's **Authorized JavaScript origins**. Without it, Google's window says "Access blocked: Authorization Error …
+   Error 400: origin_mismatch". No redirect URI is needed: Google's pop-up hands its code back to the page.
+
+## Backups and the site-down alert
+
+Set up once with `ALERT_EMAIL=you@example.com bash infra/azure/setup-backups-and-alerts.sh`. Add the
+`BACKUP_STORAGE_ACCOUNT=…` line it prints to `D:/reroute-secrets/azure.env`, then deploy.
+
+- **Backups:** every night at 02:30 India time, `backup.sh` saves both databases: PostgreSQL with every database
+  and role (`pg_dumpall`), and MongoDB (`mongodump`). It sends them to the private `backups` container of that
+  storage account. Azure keeps each copy for 30 days, and the server keeps its last 7 in `/opt/reroute/backups`.
+  The server signs in to storage with its own managed identity, so no storage key exists anywhere. Run one now with
+  `sudo systemctl start reroute-backup`, and see the last run with `journalctl -u reroute-backup`.
+- **Restoring PostgreSQL:** download a `postgres-….sql.gz` (from the Azure portal: Storage accounts → reroutebk… →
+  Containers → backups). Start an empty database (the postgres volume removed, or a new server), then run
+  `gunzip -c postgres-….sql.gz | docker compose -p reroute -f docker-compose.yml -f docker-compose.prod.yml -f infra/azure/docker-compose.azure.yml exec -T postgres psql -U postgres`.
+- **Restoring MongoDB:** `docker compose … exec -T mongo mongorestore --archive --gzip < mongo-….archive.gz`.
+- **Site-down alert:** Azure Monitor asks `https://…/v1/healthz` every 5 minutes, from Singapore and Hong Kong. The
+  answer must be 200, over a certificate valid for at least 7 more days. When both places fail, Azure emails
+  `ALERT_EMAIL`, and it emails again when the site is back. It's in the portal under Application Insights →
+  reroute-insights → Availability.
 
 ## Updating
 
