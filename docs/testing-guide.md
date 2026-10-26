@@ -41,6 +41,8 @@ A real Bengaluru day was tried end to end through the API: a trip for today stay
 
 4. Open https://localhost: **Continue with Google** on the home page now works. Without the client ID it stays greyed out, with "Google sign-in isn't set up on this server yet."
 
+   If Google's window says **"The OAuth client was not found" (`invalid_client`)**, the web app was built before the client ID was set: rebuild (step 3). If it says **"Access blocked … register the JavaScript origin"**, add the address you opened, port included, to **Authorized JavaScript origins** (a second stack on port 8443 needs `https://localhost:8443` too).
+
 ### Optional: the AI helper
 
 `GEMINI_API_KEY` is already set in `.env`, but the helper is off. Add `AI_HELPER_ENABLED=true` to `.env` and run `docker compose up -d`. That turns on **Describe your day**. With the key it also turns on Rico's agent: Rico answers what its built-in rules can't understand, and can do several things from one message, on one card you confirm.
