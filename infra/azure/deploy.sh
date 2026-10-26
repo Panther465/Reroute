@@ -52,7 +52,8 @@ fi
 
 # The certificate: issued the first time, then renewed by certbot's own timer; its hook hands each one to NGINX.
 sudo install -D -m 755 infra/azure/cert-hook.sh /etc/letsencrypt/renewal-hooks/deploy/reroute.sh
-if [ ! -d "/etc/letsencrypt/live/$HOST" ]; then
+# (Only root can see into /etc/letsencrypt/live, so the check runs as root.)
+if ! sudo test -d "/etc/letsencrypt/live/$HOST"; then
   sudo certbot certonly --non-interactive --agree-tos --email "$CERT_EMAIL" --webroot -w /opt/reroute/acme -d "$HOST"
   sudo env RENEWED_LINEAGE="/etc/letsencrypt/live/$HOST" /etc/letsencrypt/renewal-hooks/deploy/reroute.sh
 fi

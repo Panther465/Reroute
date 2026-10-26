@@ -15,10 +15,11 @@ compose() { docker compose -p reroute -f "$APP/docker-compose.yml" -f "$APP/dock
 mkdir -p "$LOCAL"
 compose exec -T postgres pg_dumpall -U postgres | gzip -9 > "$LOCAL/postgres-$STAMP.sql.gz"
 compose exec -T mongo mongodump --quiet --archive --gzip > "$LOCAL/mongo-$STAMP.archive.gz"
-# A dump that came out empty is a failure, not a backup.
-for f in "$LOCAL/postgres-$STAMP.sql.gz" "$LOCAL/mongo-$STAMP.archive.gz"; do
-  [ "$(stat -c %s "$f")" -gt 1000 ] || { echo "Backup $f is too small" >&2; exit 1; }
-done
+# A dump cut off partway is a failure, not a backup: both must be whole gzip files, and PostgreSQL's must end with
+# pg_dumpall's own last line. (Size says little: a new server's MongoDB holds only its system data, a few hundred bytes.)
+gzip -t "$LOCAL/postgres-$STAMP.sql.gz" "$LOCAL/mongo-$STAMP.archive.gz"
+LAST=$(gunzip -c "$LOCAL/postgres-$STAMP.sql.gz" | tail -n 5)
+[[ $LAST == *"PostgreSQL database cluster dump complete"* ]] || { echo "The PostgreSQL dump is incomplete" >&2; exit 1; }
 
 # The managed identity's token for Azure Storage, from the VM's metadata service.
 TOKEN=$(curl -sf -H Metadata:true "http://169.254.169.254/metadata/identity/oauth2/token?api-version=2018-02-01&resource=https://storage.azure.com/" | python3 -c 'import json, sys; print(json.load(sys.stdin)["access_token"])')
