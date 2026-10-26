@@ -37,7 +37,7 @@ don't change under it. To change a setting, edit `D:/reroute-secrets/azure.env` 
 
 `ssh -i ~/.ssh/reroute_azure reroute@reroute-app.centralindia.cloudapp.azure.com`, then in `/opt/reroute/app`:
 
-- `docker compose -f docker-compose.yml -f docker-compose.prod.yml -f infra/azure/docker-compose.azure.yml ps` (or `logs -f api-1`).
+- `docker compose -p reroute -f docker-compose.yml -f docker-compose.prod.yml -f infra/azure/docker-compose.azure.yml ps` (or `logs -f api-1`).
 - Data lives in Docker volumes on the server's disk. Back the database up with
   `docker compose ... exec postgres pg_dump -U postgres reroute > backup.sql`, and copy the file off the server.
 

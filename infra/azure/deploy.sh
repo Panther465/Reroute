@@ -34,11 +34,12 @@ install -m 600 /opt/reroute/secrets/reroute.env .env
 # Rico's art is in git only encrypted: open it with RICO_KEY (from .env) before the web image is built.
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/app -w /app/frontend node:22-alpine node rico/lock.mjs unlock --quiet
 
-compose() { docker compose -f docker-compose.yml -f docker-compose.prod.yml -f infra/azure/docker-compose.azure.yml "$@"; }
+compose() { docker compose -p reroute -f docker-compose.yml -f docker-compose.prod.yml -f infra/azure/docker-compose.azure.yml "$@"; }
 compose up -d --build --remove-orphans --wait --wait-timeout 900
 docker image prune -f >/dev/null
 
-# The certificate: issued the first time, then renewed by certbot's own timer (cloud-init.yaml's hook reloads NGINX).
+# The certificate: issued the first time, then renewed by certbot's own timer; its hook hands each one to NGINX.
+sudo install -D -m 755 infra/azure/cert-hook.sh /etc/letsencrypt/renewal-hooks/deploy/reroute.sh
 if [ ! -d "/etc/letsencrypt/live/$HOST" ]; then
   sudo certbot certonly --non-interactive --agree-tos --email "$CERT_EMAIL" --webroot -w /opt/reroute/acme -d "$HOST"
   sudo env RENEWED_LINEAGE="/etc/letsencrypt/live/$HOST" /etc/letsencrypt/renewal-hooks/deploy/reroute.sh

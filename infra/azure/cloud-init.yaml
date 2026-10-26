@@ -1,7 +1,7 @@
 #cloud-config
 # Reroute's Azure server, set up on its first boot (provision.sh passes this file): Docker from Docker's own
-# repository, certbot and git, 4 GB of swap for the builds, the folders deploy.sh uses, and the hook that hands each
-# new certificate to NGINX. The repository itself is cloned by deploy.sh.
+# repository, certbot and git, 4 GB of swap for the builds, and the folders deploy.sh uses. The repository itself,
+# and certbot's hook for NGINX (cert-hook.sh), come with each deploy.
 
 package_update: true
 package_upgrade: true
@@ -10,17 +10,6 @@ packages:
   - curl
   - git
   - certbot
-
-write_files:
-  - path: /etc/letsencrypt/renewal-hooks/deploy/reroute.sh
-    permissions: "0755"
-    content: |
-      #!/bin/sh
-      # After certbot issues or renews Reroute's certificate: put it where NGINX reads it, and reload NGINX.
-      set -eu
-      install -m 644 "$RENEWED_LINEAGE/fullchain.pem" /opt/reroute/certs/localhost.crt
-      install -m 600 "$RENEWED_LINEAGE/privkey.pem" /opt/reroute/certs/localhost.key
-      docker exec reroute-nginx-1 nginx -s reload || true
 
 runcmd:
   - install -m 0755 -d /etc/apt/keyrings
