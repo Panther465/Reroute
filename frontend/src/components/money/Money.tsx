@@ -266,7 +266,7 @@ export function WalletPanel() {
                 className="flex items-center justify-between gap-3 px-4 py-3"
               >
                 <span className="min-w-0">
-                  <span className="block truncate t-body text-ink">{e.label}</span>
+                  <span className="block break-words t-body text-ink">{e.label}</span>
                   <span className="block t-small text-muted">{KIND[e.kind]}</span>
                 </span>
                 <span className={`shrink-0 whitespace-nowrap t-title tnum ${e.amountInr > 0 ? 'text-green-ink' : 'text-ink'}`}>

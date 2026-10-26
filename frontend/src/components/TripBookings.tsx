@@ -59,7 +59,7 @@ export function TripBookings({ trip, className = '' }: { trip: Trip; className?:
                   <KindIcon b={b} />
                 </span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate t-title text-ink">{title(b)}</span>
+                  <span className="block break-words t-title text-ink">{title(b)}</span>
                   <span className="block t-small text-ink-2 tnum">
                     {{ cab: 'Ride', ticket: 'Ticket', train: 'PNR', flight: 'PNR' }[b.kind]} {b.reference}, {rupees(b.fareInr)}
                   </span>
