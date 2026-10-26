@@ -43,6 +43,8 @@ A real Bengaluru day was tried end to end through the API: a trip for today stay
 
    If Google's window says **"The OAuth client was not found" (`invalid_client`)**, the web app was built before the client ID was set: rebuild (step 3). If it says **"Access blocked … register the JavaScript origin"**, add the address you opened, port included, to **Authorized JavaScript origins** (a second stack on port 8443 needs `https://localhost:8443` too).
 
+   In the Android app, sign-in also needs the Android client (README, "The Android app"). If the app says "Google didn't finish signing in." and Logcat's `GoogleProvider` lines say **`[16] Account reauth failed`** with the right package and SHA-1, Google refused that account on that phone: open the phone's **Settings → Accounts → Google**, sign the account in again if it asks, and with the consent screen in Testing make sure that address is a **test user**; then try again (or pick another account).
+
 ### Optional: the AI helper
 
 `GEMINI_API_KEY` is already set in `.env`, but the helper is off. Add `AI_HELPER_ENABLED=true` to `.env` and run `docker compose up -d`. That turns on **Describe your day**. With the key it also turns on Rico's agent: Rico answers what its built-in rules can't understand, and can do several things from one message, on one card you confirm.
