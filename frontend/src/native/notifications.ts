@@ -30,12 +30,41 @@ export async function startNotifications() {
   ])
 }
 
+/** How often the permission is checked while Android is asked, and for how long at most. */
+const ASK_CHECK_MS = 1000
+const ASK_GIVE_UP_MS = 60_000
+
+/**
+ * Android's answer to the permission request, or the permission seen allowed: on a phone the request was left
+ * unanswered (the switch in Me waited forever, and push never registered), so the permission is also checked every
+ * second while it's asked, and the request is given up on after a minute.
+ */
+function asked(): Promise<boolean> {
+  return new Promise((resolve) => {
+    let done = false
+    const finish = (allowed: boolean) => {
+      if (done) return
+      done = true
+      clearInterval(check)
+      clearTimeout(giveUp)
+      resolve(allowed)
+    }
+    const check = setInterval(() => {
+      void LocalNotifications.checkPermissions().then((p) => p.display === 'granted' && finish(true), () => {})
+    }, ASK_CHECK_MS)
+    const giveUp = setTimeout(() => finish(false), ASK_GIVE_UP_MS)
+    LocalNotifications.requestPermissions().then((p) => finish(p.display === 'granted'), () => finish(false))
+  })
+}
+
 export const notifications = {
   granted: () => granted,
   /** Turned on or off in Android's settings while the app was away. */
   refresh: () => refresh().catch(() => {}),
   async request(): Promise<boolean> {
-    granted = (await LocalNotifications.requestPermissions()).display === 'granted'
+    // Already allowed: nothing to ask Android.
+    await refresh().catch(() => {})
+    if (!granted) granted = await asked()
     return granted
   },
   /**

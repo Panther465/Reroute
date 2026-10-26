@@ -68,4 +68,37 @@ describe('phone notifications in the app', () => {
     await expect(notifications.request()).resolves.toBe(true)
     expect(notifications.granted()).toBe(true)
   })
+
+  it('doesn’t ask Android again when notifications are already allowed', async () => {
+    plugin.requestPermissions.mockReturnValue(new Promise(() => {}))
+    await expect(notifications.request()).resolves.toBe(true)
+    expect(plugin.requestPermissions).not.toHaveBeenCalled()
+  })
+
+  it('turns on once the permission shows as allowed, even when Android leaves the request unanswered', async () => {
+    vi.useFakeTimers()
+    try {
+      plugin.checkPermissions.mockResolvedValueOnce({ display: 'prompt' }).mockResolvedValue({ display: 'granted' })
+      plugin.requestPermissions.mockReturnValue(new Promise(() => {}))
+      const asking = notifications.request()
+      await vi.advanceTimersByTimeAsync(1000)
+      await expect(asking).resolves.toBe(true)
+      expect(notifications.granted()).toBe(true)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('gives up after a minute when nothing answers, rather than waiting forever', async () => {
+    vi.useFakeTimers()
+    try {
+      plugin.checkPermissions.mockResolvedValue({ display: 'prompt' })
+      plugin.requestPermissions.mockReturnValue(new Promise(() => {}))
+      const asking = notifications.request()
+      await vi.advanceTimersByTimeAsync(60_000)
+      await expect(asking).resolves.toBe(false)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })
