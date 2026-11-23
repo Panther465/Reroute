@@ -1,4 +1,4 @@
-# Reroute
+# Reroute:MANAGE YOUR TRAVEL
 
 [![CI](https://github.com/Panther465/Reroute/actions/workflows/ci.yml/badge.svg)](https://github.com/Panther465/Reroute/actions/workflows/ci.yml)
 
