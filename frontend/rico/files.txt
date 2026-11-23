@@ -39,6 +39,7 @@ src/native/speech.test.ts
 src/native/wake.ts
 src/native/wake.test.ts
 src/native/ricoBoot.ts
+src/native/ricoBoot.test.ts
 src/screens/Welcome.tsx
 public/audio/rico-mic.js
 roo3d/stills.html

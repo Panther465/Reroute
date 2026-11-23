@@ -72,6 +72,7 @@ frontend/src/native/speech.test.ts
 frontend/src/native/wake.ts
 frontend/src/native/wake.test.ts
 frontend/src/native/ricoBoot.ts
+frontend/src/native/ricoBoot.test.ts
 frontend/src/screens/Welcome.tsx
 frontend/public/audio/rico-mic.js
 frontend/roo3d/stills.html
