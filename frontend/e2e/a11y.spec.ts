@@ -1,5 +1,6 @@
 import AxeBuilder from '@axe-core/playwright'
 import { expect, test, type Page } from '@playwright/test'
+import { ricoHere, ricoLocked } from './rico'
 
 // Needs the full stack with DEMO_LOGIN=true. Skipped when E2E_BASE_URL is unset.
 test.skip(!process.env.E2E_BASE_URL, 'Set E2E_BASE_URL to run against a running stack')
@@ -63,6 +64,8 @@ for (const scheme of ['light', 'dark'] as const) {
         ['/why', 'Why this plan'],
         ['/welcome', 'Meet Rico, your travel companion'],
       ] as const) {
+        // Without Rico, /welcome goes straight to the trip form on Plan, which is checked above.
+        if (path === '/welcome' && !ricoHere) continue
         await page.goto(path)
         await expect(page.getByRole('heading', { level: 1, name: heading }).first()).toBeVisible({ timeout: 15_000 })
         // Rico introduces itself over a few seconds, each line fading in: check once it has asked its question.
@@ -73,6 +76,7 @@ for (const scheme of ['light', 'dark'] as const) {
     })
 
     test('the chat with Rico, with a change it offers', async ({ page }) => {
+      test.skip(!ricoHere, ricoLocked)
       await signInAsDemo(page)
       await planTheDay(page)
       await page.getByRole('button', { name: 'Rico, your travel companion. Chat with Rico' }).click()

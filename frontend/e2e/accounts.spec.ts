@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { ricoHere, ricoLocked } from './rico'
 
 // A real account from the home screen, set up with Rico; and the wallet paying for a flight.
 // Needs the full stack with DEMO_LOGIN=true. Skipped when E2E_BASE_URL is unset.
@@ -16,6 +17,7 @@ async function place(page: Page, query: string, name: string) {
 }
 
 test('create an account, meet Rico, and plan a day by chatting', async ({ page }) => {
+  test.skip(!ricoHere, ricoLocked)
   test.setTimeout(150_000)
   const roo = page.getByRole('log', { name: 'Conversation with Rico' })
   const said = (text: string | RegExp) => expect(roo.getByText(text).last()).toBeVisible({ timeout: 30_000 })

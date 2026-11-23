@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test'
+import { ricoHere, ricoLocked } from './rico'
 
 // The signature flow on the sample day, end to end. Needs the full stack with DEMO_LOGIN=true.
 // Skipped when E2E_BASE_URL is unset.
@@ -156,6 +157,7 @@ test('book a train ticket and a cab (simulated)', async ({ page }) => {
 })
 
 test('Rico rides the timeline: tap it to chat, and it changes the day when asked', async ({ page }) => {
+  test.skip(!ricoHere, ricoLocked)
   test.setTimeout(120_000)
   await planFreshDay(page)
   await page.getByRole('button', { name: 'Rico, your travel companion. Chat with Rico' }).click()
