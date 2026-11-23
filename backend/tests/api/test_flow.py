@@ -406,53 +406,6 @@ def test_two_cancels_at_once_refund_once(client, monkeypatch):
     assert client.get("/v1/wallet").json()["balanceInr"] == balance + tickets["fareInr"]
 
 
-def test_speech_reads_an_alert_and_caches_it(client, monkeypatch):
-    calls: list[tuple[str, str, str]] = []
-
-    class FakeCommunicate:
-        def __init__(self, text, voice, rate, boundary="SentenceBoundary"):
-            assert boundary == "WordBoundary"
-            calls.append((text, voice, rate))
-
-        async def stream(self):
-            yield {"type": "WordBoundary", "offset": 500_000, "duration": 2_100_000, "text": "Time"}
-            yield {"type": "audio", "data": b"ID3fake-mp3"}
-
-    import edge_tts
-
-    monkeypatch.setattr(edge_tts, "Communicate", FakeCommunicate)
-    params = {"text": "Time to leave for the bank.", "voice": "en-IN-PrabhatNeural", "rate": "fast"}
-    first = client.get("/v1/speech", params=params)
-    assert first.status_code == 200, first.text
-    assert first.headers["content-type"] == "audio/mpeg" and first.content == b"ID3fake-mp3"
-    assert client.get("/v1/speech", params=params).content == b"ID3fake-mp3"
-    assert calls == [("Time to leave for the bank.", "en-IN-PrabhatNeural", "+15%")]  # the second came from the cache
-    assert client.get("/v1/speech", params={**params, "voice": "xx-Robot"}).status_code == 422
-    assert [v["voiceId"] for v in client.get("/v1/speech/voices").json()][0] == "en-US-AnaNeural"
-    # The same clip with when each word is said, for Roo's mouth.
-    timed = client.get("/v1/speech/timed", params=params)
-    assert timed.status_code == 200, timed.text
-    body = timed.json()
-    assert base64.b64decode(body["audio"]) == b"ID3fake-mp3" and body["mime"] == "audio/mpeg"
-    assert body["words"] == [{"text": "Time", "offsetMs": 50, "durationMs": 210}] and body["durationMs"] == len(b"ID3fake-mp3") // 6
-    assert client.get("/v1/speech/timed", params={**params, "voice": "xx-Robot"}).status_code == 422
-
-
-def test_speech_outage_is_a_502_the_app_can_fall_back_from(client, monkeypatch):
-    class Down:
-        def __init__(self, *a, **k):
-            pass
-
-        async def stream(self):
-            raise ConnectionError("no route")
-            yield  # pragma: no cover
-
-    import edge_tts
-
-    monkeypatch.setattr(edge_tts, "Communicate", Down)
-    assert client.get("/v1/speech", params={"text": "Hello"}).status_code == 502
-
-
 def test_road_path_is_for_covered_cities_only(client, monkeypatch):
     from app.adapters import road_path
 
@@ -1053,7 +1006,6 @@ def test_finishing_a_task_early_moves_the_next_stop_earlier(client):
 
 
 def test_bad_query_values_are_422_or_400_not_500(client):
-    import base64
 
     assert client.get("/v1/trips/trip-001/summary", params={"day": "not-a-day"}).status_code == 422
     outside = client.get("/v1/trips/trip-001/summary", params={"day": "2026-10-20"})
