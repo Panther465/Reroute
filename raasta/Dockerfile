@@ -16,7 +16,7 @@ RUN printf '%s\n' 'openssl_conf = pip_conf' '[pip_conf]' 'ssl_conf = pip_ssl' '[
     'Groups = X25519:prime256v1' > /etc/ssl/pip-openssl.cnf
 COPY pyproject.toml ./
 RUN export OPENSSL_CONF=/etc/ssl/pip-openssl.cnf && pip install --upgrade pip && pip install "fastapi>=0.115,<1" "uvicorn[standard]>=0.32" "pydantic>=2.9,<3" "pydantic-settings>=2.6" \
-    "sqlalchemy>=2.0.36" "psycopg[binary]>=3.2" "alembic>=1.14" "geoalchemy2>=0.16" "redis>=5.2" "pymongo>=4.10" "httpx>=0.28" "pyjwt[crypto]>=2.10"
+    "sqlalchemy>=2.0.36" "psycopg[binary]>=3.2" "alembic>=1.14" "geoalchemy2>=0.16" "redis>=5.2,<8.2" "pymongo>=4.10" "httpx>=0.28" "pyjwt[crypto]>=2.10"
 
 COPY app ./app
 COPY migrations ./migrations
