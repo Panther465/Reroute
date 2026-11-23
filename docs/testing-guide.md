@@ -112,6 +112,25 @@ Each row says which account to use (**D** for demo, **R** for real, **Both**).
 | **Continue with Google** | R | Google's pop-up (only once Google is set up; otherwise the button says it isn't) |
 | **Me → Sign out** | Both | Back to the landing page; the phone forgets the trip and any queued actions |
 
+### Looking after an account
+
+Email goes to Mailpit locally: open http://localhost:8025 to read it and click its links.
+
+| Step | Account | What should happen |
+|---|---|---|
+| Create an account, then open Mailpit | R | "Confirm your email for Reroute", with a **Confirm my email** button |
+| **Me** before confirming | R | Under Profile: "Confirm your email: open the link we sent to…", with **Send the link again** (a second tap within a minute says to wait) |
+| Click the link in the email | R | "Email confirmed", the address bar has no token, and Me no longer asks |
+| Click the same link again | R | "This link has expired or was already used." |
+| **Sign out → Sign in → Forgot your password?** → your email → **Email me a link** | R | "If an account uses … we've emailed it a link"; the same for an email no account has (and nothing in Mailpit) |
+| Click the reset link, choose a new password | R | "Password changed"; the old password now fails, the new one works, and any other browser signed in is signed out at once |
+| **Me → Account → Change your password** (wrong current one, then right) | R | "Your current password is wrong." beside the field; then "Password changed. You're signed out on your other devices." |
+| **Me → Account → Change your name** | R | The new name on Profile |
+| **Me → Account → Download your data** | Both | A file `reroute-data-<date>.json` with your account, trips, tasks, plans, places and wallet; no password or token in it (on Android it's saved to Documents/Reroute) |
+| **Me → Account → Privacy policy / Terms of use** | Both | The pages (also at /privacy and /terms, signed out, and linked from the landing page's footer and the sign-up form) |
+| **Me → Account → Delete my account**, with your password | R | Back to sign in: "Your account and everything kept with it are deleted."; signing in again says the email or password is wrong. The demo account has no delete button |
+| **Plan → Change dates or stay** on your own trip | R | Change the last day or the hotel; "Trip updated." A new hotel re-plans a planned day. Dates that would leave a task out are refused with the reason. The sample trip has no such button |
+
 ### Start a trip
 
 | Step | Account | What should happen |

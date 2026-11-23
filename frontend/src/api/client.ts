@@ -315,7 +315,9 @@ export async function request<T>(method: string, path: string, opts: RequestOpti
   answerListeners.forEach((l) => l())
   if (opts.raw) return res as unknown as T
   if (res.status === 204) return undefined as T
-  return (await res.json()) as T
+  // A 202 (an email queued, say) may carry no body at all.
+  const text = await res.text()
+  return (text ? JSON.parse(text) : undefined) as T
 }
 
 export const api = {

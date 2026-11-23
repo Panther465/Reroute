@@ -39,6 +39,9 @@ Every travel time and fare is an estimate. All demo data is sample data.
 - **Never plans inside a request.** The API saves and queues; an RQ worker plans. Plans are immutable versions, so Undo reactivates an earlier one, and a scheduler checks every trip each five minutes, raises leave-now alerts and plans each morning of a multi-day trip from 06:00 local time.
 - **Built for a bad connection.** An installable PWA: the day is cached, check-ins made offline are queued and replayed with idempotency keys, and live changes arrive over server-sent events with a watchdog that reconnects.
 - **Real accounts, met by Rico.** Create an account with an email and a password (stored as a salted scrypt hash) or Google; a new account meets Rico full screen, which sets up the first trip by chatting and plans it.
+- **Accounts looked after like a real product's.** A new account is emailed a link to confirm its address; **Forgot your password?** emails a one-hour, single-use link, and choosing a new password signs out every device at once. Me → Account changes the name and the password, **downloads a copy of everything** kept about you as JSON, and **deletes the account** with everything in it, in both services (DPDP Act, 2023). Links travel after `#`, so no server log or Referer ever holds them. [Privacy policy](frontend/src/screens/Privacy.tsx) and [terms](frontend/src/screens/Terms.tsx) are pages of the app (`/privacy`, `/terms`).
+- **Trips you can change.** Plan → Change dates or stay moves a trip's dates or where you stay, and re-plans the day when the start and end of it move.
+- **Error reports when you want them.** With a Sentry DSN, crashes in the API, the worker, the scheduler and the web app are reported, stripped of anything personal; without one, nothing is sent.
 - **A wallet, flights and connected services, all simulated.** Cab, train and flight bookings through invented partners (RideNow, AutoGo, ZipBike, RailGo, SkyHop) are paid from a wallet of pretend money, and a short balance says how much to add.
 - **Talk to Rico.** Say "I'm 20 minutes late" and Running late opens with 20 filled in; "done", "I've left" and "what's next" work too. Plain patterns, no AI, and nothing changes without your last tap.
 - **Rico, in 3D everywhere.** Rico is the app's own companion, a plush sprout: he breathes, blinks, follows your pointer and talks with his mouth in time with his voice.
@@ -181,6 +184,17 @@ With only one of the two files, or neither, nothing is pushed and alerts work as
 
 What differs from the browser, and why, is in [decisions](docs/decisions.md#the-android-app-24-october-2026); what isn't done yet is in [known limits](docs/known-limits.md#the-android-app).
 
+## Email
+
+Creating an account sends a link to confirm the address, and **Forgot your password?** sends one to choose a new password. The worker sends them (queue `mail`), so a slow mail server never holds up the app.
+
+- **Locally**, Docker Compose runs [Mailpit](https://mailpit.axllent.org), which catches every message: open http://localhost:8025 to read them and click their links. Nothing leaves the PC.
+- **For real email**, set `SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURITY`, `SMTP_USER`, `SMTP_PASSWORD` and `MAIL_FROM` in the `.env` (backend/.env.example lists providers with free tiers), and `PUBLIC_BASE_URL` to the address people open: the links point there. `docker-compose.prod.yml` leaves Mailpit out, and without `SMTP_HOST` the app simply doesn't offer what needs email. Add SPF, DKIM and DMARC records for `MAIL_FROM`'s domain, or mail lands in spam.
+
+## Error reports
+
+Set `SENTRY_DSN` (a project's DSN from [sentry.io](https://sentry.io), or a self-hosted Sentry) in the `.env` and run `docker compose up -d --build`: the API, the worker and the scheduler report crashes and errors, and the web app is built with the same DSN (`VITE_SENTRY_DSN`), so browsers report theirs too. Reports carry the error, its stack, the path and a trace ID, never a name, email, password, token, request body, query string or the part of a link after `#` (`backend/app/monitoring.py`, `frontend/src/lib/monitoring.ts`); `docs/data-and-privacy.md` lists it. Without a DSN nothing is loaded or sent.
+
 ## Google Maps
 
 Without a key, every map is OpenStreetMap's (OpenFreeMap), and place search and Rico's guide use OpenStreetMap and Wikivoyage: free, and enough to run everything. With a Google Maps Platform key:
@@ -206,11 +220,11 @@ Rico is the owner's own character, and his code is the owner's too: his 3D model
 
 | Suite | Size | Command |
 |---|---|---|
-| Reroute API and planner | 396 tests (the API flow tests need `TEST_DATABASE_URL` pointing at PostGIS) | `cd backend && pytest` |
-| Raasta | 110 tests | `cd raasta && pytest` |
-| Web app, and the Android app's own pieces | 407 tests | `cd frontend && pnpm test` |
-| The demo day over HTTP | 31 requests, 53 assertions | `npx newman run postman/reroute.postman_collection.json --insecure` |
-| End to end with axe | 62 tests, phone and desktop | `cd frontend && E2E_BASE_URL=https://localhost pnpm e2e` |
+| Reroute API and planner | 418 tests (the API flow tests need `TEST_DATABASE_URL` pointing at PostGIS) | `cd backend && pytest` |
+| Raasta | 115 tests | `cd raasta && pytest` |
+| Web app, and the Android app's own pieces | 444 tests | `cd frontend && pnpm test` |
+| The demo day and account calls over HTTP | 38 requests, 66 assertions | `npx newman run postman/reroute.postman_collection.json --insecure` |
+| End to end with axe | 70 tests, phone and desktop, with account emails read from Mailpit | `cd frontend && E2E_BASE_URL=https://localhost pnpm e2e` |
 | The Android app against the web app | 22 tests on an emulator or phone, with its console and Logcat; a 23rd with Firebase set up (`PUSH_E2E=1`): an alert reaching a frozen app as a push; and a 24th (`WAKE_E2E=1` and a debug build): recorded voices saying "hey Rico" wake him on screen and in the background, sound-alikes don't, and Reroute carries on if Rico's ear dies | `cd frontend && pnpm exec playwright test -c playwright.android.config.ts` |
 | Load | 500 virtual users, 95% under 500 ms | `k6 run tests/load/k6.js` |
 

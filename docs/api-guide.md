@@ -76,6 +76,10 @@ POST /v1/trips/:id/bookings/:bookingId/cancel {"idempotencyKey"}  → cancelled,
 - `GET /v1/places?q=…&city=bengaluru` searches places in a covered city: your own places first (`mine: true`), then known places, then OpenStreetMap, each place once. A place a traveller added carries its `category`. 503 `UNAVAILABLE` with `Retry-After: 1` means OpenStreetMap's search (one request a second for everyone) had no turn free and nothing known matched: ask again rather than say nothing was found.
 - `GET /v1/cities?q=…` finds a city by name or in a sentence; without `q` it lists every city on Reroute's list, by name. Each has `lng`, `lat` and `bbox` (west, south, east, north), the area place search and trips stay inside.
 
+## Changing a trip
+
+`PATCH /v1/trips/:id {startDate?, endDate?, stayPlaceId?, stayLabel?}` changes a trip's dates or where you stay (`stayPlaceId` and `stayLabel` go together) and returns `{trip, jobId}`. Its city stays: for another city, start a new trip. Dates that leave a task outside the trip are 409 `TASKS_OUTSIDE_DATES` (move or remove it first); more than 14 days is 422. A new place to stay re-plans a day that has a plan (`jobId`). The sample trip is fixed (409 `SAMPLE_TRIP`).
+
 ## Places of your own
 
 - `POST /v1/me/places {name, category, note?, lng, lat, citySlug, share, idempotencyKey}` adds a place only you see (201). `category` is `food`, `stay`, `sight`, `shop`, `transit` or `other`; the point must be in India and inside the city (422); 200 places a traveller (409 `TOO_MANY_PLACES`) and 50 added a day (429). With `share: true` it's `pending` until a moderator decides.
@@ -91,8 +95,23 @@ POST /v1/trips/:id/bookings/:bookingId/cancel {"idempotencyKey"}  → cancelled,
 
 ## Accounts, the wallet and flights
 
-- `GET /v1/auth/options` (no sign-in needed) says which ways in the server offers: `{demoLogin, google}`. The home page shows Use the demo account only when `demoLogin` is true.
-- `POST /v1/auth/signup {name, email, password}` creates an account (201, the same `TokenOut` as the other sign-ins, and the refresh cookie). A taken email is 409 `EMAIL_TAKEN`. `POST /v1/auth/login {email, password}` signs in; any failure is 401 "Email or password is wrong."
+- `GET /v1/auth/options` (no sign-in needed) says which ways in the server offers: `{demoLogin, google, passwordReset}`. The home page shows Use the demo account only when `demoLogin` is true, and "Forgot your password?" only when `passwordReset` is (the server sends email: `SMTP_HOST`).
+- `POST /v1/auth/signup {name, email, password}` creates an account (201, the same `TokenOut` as the other sign-ins, and the refresh cookie), and emails a link to confirm the address. A taken email is 409 `EMAIL_TAKEN`. `POST /v1/auth/login {email, password}` signs in; any failure is 401 "Email or password is wrong."
+
+### Looking after an account
+
+| Call | What it does |
+|---|---|
+| `POST /v1/auth/password/forgot {email}` | 202 whether or not an account has that email (it never says which exist), and emails that account a link to `/reset-password#token=…`: one hour, once. At most one a minute and 5 a day per account. 503 `EMAIL_OFF` when the server sends no email |
+| `POST /v1/auth/password/reset {token, password}` | 204. Sets the password, confirms the email (the link reached it) and **signs out everywhere**: every refresh token is revoked and every access token issued under the old password is refused at once (they carry a `pwd` stamp). An unknown, used or expired link is 400 `LINK_INVALID` |
+| `POST /v1/auth/email/verify {token}` | 204: confirms the address from the link in the email (`/verify-email#token=…`, 3 days, once) |
+| `POST /v1/me/verification-email` | 202: sends that link again. 409 `ALREADY_VERIFIED`, 429 within a minute of the last, 503 `EMAIL_OFF` |
+| `PATCH /v1/me {name}` | Changes the name (`UserOut`). The demo accounts' is fixed (409 `DEMO_ACCOUNT`) |
+| `POST /v1/me/password {currentPassword, newPassword}` | A new `TokenOut` for this sign-in; every other sign-in ends. A wrong current password is 403 `WRONG_PASSWORD`; a Google-only account is 409 `NO_PASSWORD` (it can set one with "Forgot your password?") |
+| `GET /v1/me/export` | A JSON file of everything kept about the account: profile, trips with their tasks, plans, check-ins, bookings, share links and Reroute log, places, wallet, phones for alerts, live sign-ins and location history. Never a password, token or hash |
+| `POST /v1/me/delete {password}` (or `{email}` for a Google-only account) | 204: deletes the account and everything kept with it, after asking Raasta to delete the rider's recorded rides and unlink the rest (`DELETE /v1/raasta/me`, as the traveller) and deleting the location history. If Raasta or MongoDB can't be reached, nothing is deleted (503). A place other travellers' trips go to, or one a moderator approved for everyone, stays without its owner or note. The demo accounts can't be deleted |
+
+`UserOut` says `emailVerified` and `hasPassword`, and `features.email` whether the server sends email. Email links carry their token after `#`, which browsers never send to a server or pass on as a Referer; the page posts it.
 - `GET /v1/wallet` gives `{balanceInr, entries}`; `POST /v1/wallet/topups {amountInr}` (100 to 50,000) adds simulated money. Both need `SIMULATED_SERVICES`, like bookings, and `features.wallet` says so.
 - `GET /v1/airports` lists the airports; `GET /v1/trips/:id/flight-options?from=BLR&to=DEL&date=2026-10-15` the sample flights. Book one with `POST /v1/trips/:id/bookings {kind: "flight", origin, flightTo, flightDate, flightNo, cabin, passengers}`.
 - Every booking is paid from the wallet: too little money is 409 `INSUFFICIENT_FUNDS`, saying how much to add.

@@ -150,6 +150,117 @@
 							"response": []
 						},
 						{
+							"name": "Forgot password",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/auth/password/forgot",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"auth",
+										"password",
+										"forgot"
+									]
+								},
+								"auth": {
+									"type": "noauth"
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"email\": \"{{email}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Reset password",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/auth/password/reset",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"auth",
+										"password",
+										"reset"
+									]
+								},
+								"auth": {
+									"type": "noauth"
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"token\": \"{{emailToken}}\",\n    \"password\": \"{{newPassword}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Verify email",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/auth/email/verify",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"auth",
+										"email",
+										"verify"
+									]
+								},
+								"auth": {
+									"type": "noauth"
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"token\": \"{{emailToken}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
 							"name": "Refresh token",
 							"request": {
 								"method": "POST",
@@ -245,6 +356,123 @@
 							"response": []
 						},
 						{
+							"name": "Update name",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/me",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"me"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"name\": \"{{name}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Change password",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/me/password",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"me",
+										"password"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"currentPassword\": \"{{password}}\",\n    \"newPassword\": \"{{newPassword}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Resend verification email",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/me/verification-email",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"me",
+										"verification-email"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Export my data",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/me/export",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"me",
+										"export"
+									]
+								}
+							},
+							"response": []
+						},
+						{
 							"name": "Register push device",
 							"request": {
 								"method": "POST",
@@ -318,6 +546,39 @@
 										"me",
 										"location-history"
 									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete account",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/me/delete",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"me",
+										"delete"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"password\": \"{{password}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
 								}
 							},
 							"response": []
@@ -439,6 +700,39 @@
 								"body": {
 									"mode": "raw",
 									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\",\n    \"citySlug\": \"{{citySlug}}\",\n    \"cityName\": \"{{cityName}}\",\n    \"startDate\": \"{{today}}\",\n    \"endDate\": \"{{tomorrow}}\",\n    \"stayPlaceId\": \"{{stayPlaceId}}\",\n    \"stayLabel\": \"Hotel\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update trip",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/{{tripId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										"{{tripId}}"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"startDate\": \"2026-12-01\",\n    \"endDate\": \"2026-12-03\"\n}",
 									"options": {
 										"raw": {
 											"language": "json"
@@ -2948,6 +3242,14 @@
 		},
 		{
 			"key": "fcmToken",
+			"value": ""
+		},
+		{
+			"key": "newPassword",
+			"value": ""
+		},
+		{
+			"key": "emailToken",
 			"value": ""
 		}
 	]

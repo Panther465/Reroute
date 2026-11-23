@@ -15,7 +15,7 @@ from typing import Annotated
 from fastapi import APIRouter, Query, Response
 from fastapi.concurrency import run_in_threadpool
 from rq.job import Job
-from sqlalchemy import and_, delete, or_, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.exc import IntegrityError
 
 from app import events
@@ -54,6 +54,7 @@ from app.schemas import (
     TaskPatch,
     TripIn,
     TripOut,
+    TripPatch,
     TripSummaryOut,
 )
 from app.services import leg_paths, loop, plan_store
@@ -68,6 +69,12 @@ router = APIRouter(prefix="/v1", tags=["trips"])
 
 class TaskEditOut(Api):
     task: TaskOut
+    job_id: str | None = None
+
+
+class TripEditOut(Api):
+    trip: TripOut
+    #: The re-plan the change started: a new place to stay changes where the day begins and ends.
     job_id: str | None = None
 
 
@@ -178,6 +185,37 @@ def list_trips(user: CurrentUser, db: Db, cursor: str | None = None, limit: Anno
 @router.get("/trips/{trip_id}", response_model=TripOut, response_model_by_alias=True)
 def get_trip(trip: OwnedTrip, db: Db) -> TripOut:
     return trip_out(db, trip, now_for(trip.trip_id))
+
+
+@router.patch("/trips/{trip_id}", response_model=TripEditOut, response_model_by_alias=True, summary="Change a trip's dates or where you stay")
+def edit_trip(body: TripPatch, trip: OwnedTrip, db: Db) -> TripEditOut:
+    if trip.sample:
+        raise ApiError(409, "The sample trip's dates and stay are fixed. Start a trip of your own to change them.", code="SAMPLE_TRIP")
+    start = body.start_date or trip.start_date
+    end = body.end_date or trip.end_date
+    if end < start:
+        raise ApiError(422, "The trip must end on or after the day it starts.", code="VALIDATION_ERROR")
+    if (end - start).days > 13:
+        raise ApiError(422, "A trip lasts at most 14 days.", code="VALIDATION_ERROR")
+    outside = db.scalar(select(func.count()).select_from(Task).where(Task.trip_id == trip.trip_id, or_(Task.day < start, Task.day > end)))
+    if outside:
+        days = "a task" if outside == 1 else f"{outside} tasks"
+        raise ApiError(409, f"You have {days} on days outside those dates. Move or remove them first.", code="TASKS_OUTSIDE_DATES")
+    trip.start_date, trip.end_date = start, end
+    left = None
+    if body.stay_place_id and body.stay_label:
+        place = _place(db, body.stay_place_id, trip.city_slug, trip.user_id)
+        if place.place_id != trip.stay_place_id:
+            left = trip.stay_place_id
+        trip.stay_place_id, trip.stay_label = place.place_id, body.stay_label
+    if left:
+        db.flush()
+        release(db, left)
+    db.commit()
+    job_id = None
+    if left and plan_store.active_plan(db, trip.trip_id) is not None:
+        job_id = get_queue().enqueue(jobs.plan_trip, trip.trip_id, "edited").id
+    return TripEditOut(trip=trip_out(db, trip, now_for(trip.trip_id)), job_id=job_id)
 
 
 # ---------- tasks ----------

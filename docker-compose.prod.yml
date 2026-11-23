@@ -16,8 +16,17 @@ x-prod-env: &prod-env
   JWT_SECRET: ${JWT_SECRET:?Set JWT_SECRET (32 or more random bytes)}
   RAASTA_SERVICE_TOKEN: ${RAASTA_SERVICE_TOKEN:?Set RAASTA_SERVICE_TOKEN (32 or more random characters)}
   PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:?Set PUBLIC_BASE_URL (the https address people open)}
+  # A real mail provider's SMTP server (README, "Email"). Empty sends no email: the app then hides
+  # "Forgot your password?" and doesn't ask to confirm addresses.
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_SECURITY: ${SMTP_SECURITY:-starttls}
 
 services:
+  # Development's mail catcher stays out of production: it runs only if its profile is asked for.
+  mailpit:
+    profiles: ["local-mail"]
+
   postgres:
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}

@@ -1,7 +1,7 @@
-import { ArrowUpRight, TriangleAlert } from 'lucide-react'
+import { ArrowUpRight, CircleCheck, TriangleAlert } from 'lucide-react'
 import { useReducedMotion } from 'motion/react'
 import { lazy, Suspense, useState, type ReactNode } from 'react'
-import { Navigate, useLocation, useNavigate } from 'react-router'
+import { Link, Navigate, useLocation, useNavigate } from 'react-router'
 import { ApiError } from '@/api/client'
 import { useAuthOptions } from '@/api/queries'
 import { AuthCard } from '@/components/AuthCard'
@@ -58,6 +58,8 @@ export default function SignIn() {
   // Right after an account is made, Roo takes over: don't bounce to Today first.
   const [arriving, setArriving] = useState(false)
   const from = (location.state as { from?: string } | null)?.from ?? '/'
+  // Something that just happened, said on arrival: the account was deleted, say.
+  const notice = (location.state as { notice?: string } | null)?.notice
   const reduce = !!useReducedMotion()
   useDocumentTitle('Running late? We’ll reroute your day')
 
@@ -124,6 +126,12 @@ export default function SignIn() {
               Hi, I’m Rico!
             </h1>
           </div>
+          {notice && (
+            <p role="status" className="mb-2 flex items-start gap-2 rounded-card bg-green-tint px-3 py-2 t-small font-bold text-green-ink">
+              <CircleCheck size={20} strokeWidth={1.75} aria-hidden="true" className="shrink-0" />
+              {notice}
+            </p>
+          )}
           <AuthCard
             compact
             onLoading={() => {
@@ -173,6 +181,12 @@ export default function SignIn() {
             </ul>
           </div>
           <div id="account" className="scroll-mt-6">
+            {notice && (
+              <p role="status" className="mb-3 flex max-w-[26rem] items-start gap-2 rounded-card bg-green-tint px-4 py-3 t-small font-bold text-green-ink">
+                <CircleCheck size={20} strokeWidth={1.75} aria-hidden="true" className="shrink-0" />
+                {notice}
+              </p>
+            )}
             {account}
           </div>
         </section>
@@ -271,6 +285,14 @@ export default function SignIn() {
           <p className="max-w-[34rem] t-small text-muted lg:text-right">
             A work-trip planner for Indian cities. The demo uses sample places and travel times for Bengaluru; every time and fare is an estimate. <a href={SOURCE} className="font-bold text-ink-2 underline underline-offset-4">Source code</a>
           </p>
+          <nav aria-label="Policies" className="flex gap-2">
+            <Link to="/privacy" className="inline-flex min-h-12 items-center rounded-control px-2 t-small font-bold text-ink-2 underline underline-offset-4">
+              Privacy policy
+            </Link>
+            <Link to="/terms" className="inline-flex min-h-12 items-center rounded-control px-2 t-small font-bold text-ink-2 underline underline-offset-4">
+              Terms of use
+            </Link>
+          </nav>
         </div>
       </footer>
     </div>

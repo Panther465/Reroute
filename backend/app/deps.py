@@ -11,7 +11,7 @@ from app.config import get_settings
 from app.db import get_session
 from app.errors import ApiError
 from app.models import Trip, User
-from app.security import decode_access_token
+from app.security import decode_access_token, password_stamp
 
 Db = Annotated[Session, Depends(get_session)]
 
@@ -23,6 +23,9 @@ def current_user(db: Db, authorization: Annotated[str | None, Header()] = None) 
     user = db.get(User, claims["sub"])
     if user is None:
         raise ApiError(401, "Sign in to continue.")
+    # A password change or reset signs out everywhere at once: tokens issued under the old password stop working.
+    if claims.get("pwd") != password_stamp(user):
+        raise ApiError(401, "Your password changed. Sign in again.", headers={"WWW-Authenticate": "Bearer"})
     return user
 
 

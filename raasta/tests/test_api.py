@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 import threading
 from concurrent.futures import ThreadPoolExecutor
@@ -22,6 +23,7 @@ from app.pagination import encode_cursor
 from app.redis_client import get_redis
 from app.schemas import ApiModel, IdempotencyKey
 from app.security import decode_access_token
+from app.services.erasure import pseudonym
 
 from .conftest import make_token
 
@@ -389,6 +391,22 @@ def test_the_service_token_cannot_write(service_api):
     # With a signed-in user the request is that user's write (refused here only for its city).
     r = service_api.post("/v1/raasta/contributions", json=_contribution(citySlug="mumbai"), headers={**headers, **USER})
     assert r.status_code == 422
+
+
+def test_only_the_rider_can_have_themselves_forgotten(service_api):
+    r = service_api.delete("/v1/raasta/me")
+    assert r.status_code == 401 and r.json()["error"]["code"] == "UNAUTHENTICATED"
+    r = service_api.delete("/v1/raasta/me", headers={"X-Service-Token": SERVICE_TOKEN})
+    assert r.status_code == 403 and r.json()["error"]["code"] == "FORBIDDEN"
+
+
+def test_the_pseudonym_is_stable_and_keyed():
+    one, two = "first-secret-at-least-32-characters", "other-secret-at-least-32-characters"
+    gone = pseudonym("usr-0123456789ab", one)
+    assert gone == pseudonym("usr-0123456789ab", one) and gone.startswith("gone-") and len(gone) == 21
+    assert gone != pseudonym("usr-0123456789ab", two) and gone != pseudonym("usr-0123456789ac", one)
+    # Hashing a guessed ID without the secret never finds it.
+    assert gone != "gone-" + hashlib.sha256(b"usr-0123456789ab").hexdigest()[:16]
 
 
 def test_a_wrong_service_token_is_anonymous(service_api, redis):

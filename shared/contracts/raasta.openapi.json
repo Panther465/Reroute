@@ -711,6 +711,21 @@
           }
         }
       }
+    },
+    "/v1/raasta/me": {
+      "delete": {
+        "tags": [
+          "Your data"
+        ],
+        "summary": "Delete my recorded rides and unlink the rest from me",
+        "description": "For account deletion: rides are deleted, other rows stay under a pseudonym. Safe to repeat; a 503 changed nothing, so retry.",
+        "operationId": "forget_me_v1_raasta_me_delete",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        }
+      }
     }
   },
   "components": {

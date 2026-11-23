@@ -70,6 +70,11 @@ def verify_password(password: str, stored: str | None) -> bool:
     return hmac.compare_digest(got.hex(), digest)
 
 
+def password_stamp(user: User) -> int | None:
+    """The last password change, in milliseconds: access tokens carry it, so one from before a change is refused."""
+    return int(user.password_changed_at.timestamp() * 1000) if user.password_changed_at else None
+
+
 def issue_access_token(user: User, now: datetime | None = None, session_id: str | None = None) -> tuple[str, int]:
     s = get_settings()
     now = now or datetime.now(UTC)
@@ -87,6 +92,9 @@ def issue_access_token(user: User, now: datetime | None = None, session_id: str 
         # The sign-in it belongs to (its refresh token family): a phone registered for push with this token
         # stops getting the traveller's alerts when that sign-in ends.
         claims["sid"] = session_id
+    if (stamp := password_stamp(user)) is not None:
+        # Which password it was issued under: a change or reset makes every earlier token stop working.
+        claims["pwd"] = stamp
     return jwt.encode(claims, s.jwt_secret, algorithm="HS256"), ttl
 
 

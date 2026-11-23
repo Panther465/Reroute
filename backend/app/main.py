@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from rq import Worker
 from sqlalchemy import text
 
-from app import errors
+from app import errors, monitoring
 from app.config import get_settings
 from app.db import engine
 from app.middleware import GuardMiddleware, TraceIdMiddleware
@@ -36,6 +36,7 @@ def _rico(name: str) -> ModuleType | None:
 def create_app() -> FastAPI:
     settings = get_settings()  # validates: DEMO_LOGIN is refused in production
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
+    monitoring.start("api")
     app = FastAPI(
         title="Reroute API",
         version="1.0.0",

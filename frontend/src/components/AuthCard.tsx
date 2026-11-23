@@ -1,6 +1,7 @@
-import { Eye, EyeOff, TriangleAlert } from 'lucide-react'
+import { ArrowLeft, Eye, EyeOff, MailCheck, TriangleAlert } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { useState, type FormEvent } from 'react'
+import { Link } from 'react-router'
 import { ApiError } from '@/api/client'
 import { useAuthOptions } from '@/api/queries'
 import { RooAvatar } from '@/lib/rico'
@@ -9,10 +10,10 @@ import { Segmented } from '@/components/ui/Choice'
 import { Field } from '@/components/ui/Field'
 import { googleEnabled, requestGoogleCode } from '@/lib/google'
 import { EASE_OUT } from '@/lib/motion'
-import { signInDemo, signInWithGoogle, signInWithPassword, signUp } from '@/lib/session'
+import { requestPasswordReset, signInDemo, signInWithGoogle, signInWithPassword, signUp } from '@/lib/session'
 
 type Mode = 'create' | 'signin'
-type Busy = 'form' | 'google' | 'demo' | null
+type Busy = 'form' | 'google' | 'demo' | 'reset' | null
 
 const EMAIL = /^[^@\s]+@[^@\s]+\.[^@\s]+$/
 
@@ -50,6 +51,10 @@ export function AuthCard({ onSignedIn, onLoading, compact = false }: { onSignedI
   // Google needs both ends: this app built with Google's client, and the server able to take its code.
   const googleOn = googleEnabled && options?.google === true
   const [welcome, setWelcome] = useState<string | null>(null)
+  // "Forgot your password?": the card asks for the email instead, then says the link is on its way.
+  const [forgot, setForgot] = useState(false)
+  const [sentTo, setSentTo] = useState<string | null>(null)
+  const resetOn = options?.passwordReset === true
 
   const creating = mode === 'create'
 
@@ -105,6 +110,68 @@ export function AuthCard({ onSignedIn, onLoading, compact = false }: { onSignedI
     setErrors({})
     setProblem(null)
   }
+
+  const sendReset = async (e: FormEvent) => {
+    e.preventDefault()
+    setProblem(null)
+    if (!EMAIL.test(email.trim())) return setErrors({ email: 'Enter an email address, like asha@example.com.' })
+    setErrors({})
+    setBusy('reset')
+    try {
+      await requestPasswordReset(email.trim())
+      setSentTo(email.trim())
+    } catch (err) {
+      setProblem({ text: err instanceof ApiError ? err.message : "Couldn't reach Reroute. Check your connection and try again." })
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const backToSignIn = () => {
+    setForgot(false)
+    setSentTo(null)
+    setProblem(null)
+    setErrors({})
+  }
+
+  const linkClass = 'font-bold text-ink underline underline-offset-4'
+
+  if (forgot)
+    return (
+      <div className={compact ? 'relative w-full' : 'relative w-full max-w-[26rem] rounded-card border border-line bg-surface p-5 shadow-[var(--shadow-toast)]'}>
+        <h2 className="t-title text-ink">Reset your password</h2>
+        {sentTo ? (
+          <div role="status" className="mt-3 flex flex-col gap-3">
+            <p className="flex items-start gap-2 t-body text-ink-2">
+              <MailCheck size={20} strokeWidth={1.75} aria-hidden="true" className="mt-0.5 shrink-0 text-green-ink" />
+              <span>
+                If an account uses <span className="font-bold text-ink [overflow-wrap:anywhere]">{sentTo}</span>, we’ve emailed it a link to choose a new password. It works for an hour. Check your spam folder too.
+              </span>
+            </p>
+            <Button variant="secondary" full onClick={backToSignIn}>
+              Back to sign in
+            </Button>
+          </div>
+        ) : (
+          <form onSubmit={sendReset} noValidate className="mt-3 flex flex-col gap-4">
+            <p className="t-small text-ink-2">Enter your account’s email and we’ll send you a link to choose a new password.</p>
+            <Field label="Email" type="email" inputMode="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} error={errors.email} maxLength={320} />
+            {problem && (
+              <p role="alert" className="flex items-start gap-2 t-small text-red-ink">
+                <TriangleAlert size={20} strokeWidth={1.75} aria-hidden="true" className="shrink-0" />
+                {problem.text}
+              </p>
+            )}
+            <Button type="submit" full loading={busy === 'reset'} loadingLabel="Sending…">
+              Email me a link
+            </Button>
+            <Button variant="tertiary" size="md" className="self-center" icon={<ArrowLeft size={20} strokeWidth={1.75} aria-hidden="true" />} onClick={backToSignIn}>
+              Back to sign in
+            </Button>
+          </form>
+        )}
+      </div>
+    )
 
   const demoButton = (
     <Button variant="tertiary" size="md" loading={busy === 'demo'} loadingLabel="Signing in…" disabled={busy !== null && busy !== 'demo'} onClick={() => void other('demo')}>
@@ -209,6 +276,25 @@ export function AuthCard({ onSignedIn, onLoading, compact = false }: { onSignedI
           <Button type="submit" full loading={busy === 'form'} loadingLabel={creating ? 'Creating your account…' : 'Signing in…'} disabled={busy !== null && busy !== 'form'}>
             {creating ? 'Create my account' : 'Sign in'}
           </Button>
+          {creating ? (
+            <p className={`text-center text-muted ${compact ? 't-caption font-normal' : 't-small'}`}>
+              By creating an account, you agree to the{' '}
+              <Link to="/terms" className={linkClass}>
+                Terms of use
+              </Link>{' '}
+              and the{' '}
+              <Link to="/privacy" className={linkClass}>
+                Privacy policy
+              </Link>
+              .
+            </p>
+          ) : (
+            resetOn && (
+              <Button variant="tertiary" size="md" className="self-center" onClick={() => setForgot(true)}>
+                Forgot your password?
+              </Button>
+            )
+          )}
         </motion.div>
       </form>
 

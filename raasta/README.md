@@ -48,7 +48,13 @@ All paths start with `/v1/raasta`. Reads are open data; writes need a Reroute ac
 | PATCH /contributions/{id} | moderator | Approve, edit or reject a route |
 | GET /fare-reports?status= | moderator | Fare reports waiting for review |
 | PATCH /fare-reports/{id} | moderator | Accept or reject a fare report |
+| DELETE /me | signed in | Delete my recorded rides and unlink the rest from me (for account deletion) |
 | GET /healthz, /readyz | anyone | Liveness and readiness |
+
+`DELETE /me` is called by the Reroute API just before it deletes an account: the rider's recorded
+rides are deleted, and their user ID is replaced everywhere else by a keyed pseudonym (`gone-…`). A
+repeat is 204 too; a 503 changed nothing. The rider's access token can still write for up to 15
+minutes after the erasure, until it expires, because Reroute deletes the account right after.
 
 Conventions shared with the Reroute API:
 

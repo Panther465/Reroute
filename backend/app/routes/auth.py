@@ -1,8 +1,9 @@
-"""Sign-in: an email and password account, Google (authorization code flow) or, locally, the demo account."""
+"""Sign-in: an email and password account, Google (authorization code flow) or, locally, the demo account; and,
+by email, confirming an address and resetting a forgotten password."""
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Annotated, Literal
 
 from fastapi import APIRouter, Cookie, Header, Response
@@ -16,7 +17,7 @@ from app.errors import ApiError
 from app.models import Trip, User
 from app.redis_client import get_redis
 from app.routes.me import user_out
-from app.schemas import AuthOptionsOut, DemoSignIn, GoogleSignIn, LoginIn, RefreshIn, SignUpIn, TokenOut
+from app.schemas import AuthOptionsOut, DemoSignIn, ForgotPasswordIn, GoogleSignIn, LoginIn, RefreshIn, ResetPasswordIn, SignUpIn, TokenOut, VerifyEmailIn
 from app.security import (
     CSRF_COOKIE,
     REFRESH_COOKIE,
@@ -29,7 +30,9 @@ from app.security import (
     start_session,
     verify_password,
 )
-from app.services import wallet
+from app.services import accounts, wallet
+from app.workers import jobs
+from app.workers.queue import get_mail_queue
 
 router = APIRouter(prefix="/v1/auth", tags=["auth"])
 
@@ -53,7 +56,16 @@ def _token(user: User, refresh_token: str | None = None, session_id: str | None 
 @router.get("/options", response_model=AuthOptionsOut, response_model_by_alias=True, summary="Which ways to sign in this server offers")
 def options() -> AuthOptionsOut:
     s = get_settings()
-    return AuthOptionsOut(demo_login=s.demo_login, google=bool(s.google_client_id))
+    return AuthOptionsOut(demo_login=s.demo_login, google=bool(s.google_client_id), password_reset=s.email_on)
+
+
+def send_link(user: User, purpose: str) -> bool:
+    """Queue an email with a link for the account (the worker makes the link). False when this server sends no
+    email, or the account had one of these very recently or too many today."""
+    if not get_settings().email_on or user.is_demo or not accounts.may_email(user.user_id, purpose):
+        return False
+    get_mail_queue().enqueue(jobs.account_email, user.user_id, purpose)
+    return True
 
 
 #: A dummy hash to compare against when no account has the email, so a wrong email takes as long as a wrong password.
@@ -70,6 +82,7 @@ def signup(body: SignUpIn, response: Response, db: Db, client: AppClient = None)
     wallet.credit_welcome(db, user.user_id)
     kept, sid = start_session(db, user, response, app=client == "android")
     db.commit()
+    send_link(user, "verify")
     return _token(user, kept, sid)
 
 
@@ -89,7 +102,8 @@ def google(body: GoogleSignIn, response: Response, db: Db, client: AppClient = N
     identity = sign_in_with_code(body.code)
     user = db.scalar(select(User).where(User.google_sub == identity.sub))
     if user is None:
-        user = User(google_sub=identity.sub, email=identity.email, name=identity.name, role="traveller")
+        # Google has checked the address.
+        user = User(google_sub=identity.sub, email=identity.email, name=identity.name, role="traveller", email_verified_at=datetime.now(UTC))
         db.add(user)
         db.flush()
         wallet.credit_welcome(db, user.user_id)
@@ -153,3 +167,39 @@ def logout(
     out = Response(status_code=204)
     clear_cookies(out)
     return out
+
+
+# ---------- by email ----------
+
+
+@router.post("/password/forgot", status_code=202, summary="Email a link to choose a new password")
+def forgot_password(body: ForgotPasswordIn, db: Db) -> Response:
+    if not get_settings().email_on:
+        raise ApiError(503, "This server can't send email, so a password can't be reset here.", code="EMAIL_OFF")
+    user = db.scalar(select(User).where(func.lower(User.email) == body.email).limit(1))
+    if user is not None:
+        send_link(user, "reset")
+    # The same answer whether or not an account has that email: it doesn't say which accounts exist.
+    return Response(status_code=202)
+
+
+@router.post("/password/reset", status_code=204, summary="Choose a new password with the link from the email")
+def reset_password(body: ResetPasswordIn, db: Db) -> Response:
+    user = accounts.use_link(db, body.token, "reset")
+    now = datetime.now(UTC)
+    user.password_hash = hash_password(body.password)
+    user.password_changed_at = now
+    # The link reached their inbox, so the address is theirs.
+    user.email_verified_at = user.email_verified_at or now
+    # Whoever knew the old password is signed out everywhere.
+    accounts.end_all_sessions(db, user.user_id, now)
+    db.commit()
+    return Response(status_code=204)
+
+
+@router.post("/email/verify", status_code=204, summary="Confirm an email address with the link from the email")
+def verify_email(body: VerifyEmailIn, db: Db) -> Response:
+    user = accounts.use_link(db, body.token, "verify")
+    user.email_verified_at = user.email_verified_at or datetime.now(UTC)
+    db.commit()
+    return Response(status_code=204)

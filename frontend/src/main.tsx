@@ -3,9 +3,11 @@ import ReactDOM from 'react-dom/client'
 import App from './App'
 import './index.css'
 import { isNative } from './lib/platform'
+import { startMonitoring } from './lib/monitoring'
 import { handleStaleChunks } from './lib/reload'
 import { followTextZoom } from './lib/textZoom'
 
+startMonitoring()
 handleStaleChunks()
 // Before the first paint, so big type is sized for the phone's text size from the start.
 followTextZoom()

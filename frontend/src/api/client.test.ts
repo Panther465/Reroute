@@ -42,6 +42,11 @@ describe('api client', () => {
     expect(header(calls[0], 'X-Request-ID')).toMatch(/[0-9a-f-]{36}/)
   })
 
+  it('takes an accepted request with no body (an email queued) as done', async () => {
+    responses.push(() => new Response(null, { status: 202 }))
+    await expect(api.post('/v1/auth/password/forgot', { email: 'asha@example.com' }, { noRefresh: true })).resolves.toBeUndefined()
+  })
+
   it('refreshes once on a 401 with the CSRF header, then retries with the new token', async () => {
     setAccessToken('old')
     responses.push(() => json(401, { error: { code: 'UNAUTHENTICATED', message: 'Sign in to continue.', traceId: 't1' } }))

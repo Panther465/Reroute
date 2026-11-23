@@ -59,6 +59,16 @@ x-api-env: &api-env
   RATE_LIMIT_PER_MINUTE: ${RATE_LIMIT_PER_MINUTE:-60}
   AUTH_RATE_LIMIT_PER_MINUTE: ${AUTH_RATE_LIMIT_PER_MINUTE:-10}
   SESSION_RATE_LIMIT_PER_MINUTE: ${SESSION_RATE_LIMIT_PER_MINUTE:-60}
+  # Email (README, "Email"): confirming an address and resetting a password. Locally, Mailpit below catches every
+  # message (read them at http://localhost:8025); nothing leaves the PC. Production sets a provider's server.
+  SMTP_HOST: ${SMTP_HOST-mailpit}
+  SMTP_PORT: ${SMTP_PORT:-1025}
+  SMTP_SECURITY: ${SMTP_SECURITY:-none}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+  MAIL_FROM: ${MAIL_FROM:-Reroute <no-reply@reroute.example>}
+  # Crash and error reports to Sentry (README, "Error reports"); empty sends none.
+  SENTRY_DSN: ${SENTRY_DSN:-}
 
 services:
   postgres:
@@ -181,12 +191,27 @@ services:
     depends_on:
       api-1: { condition: service_healthy }
 
+  # Every email the app sends, caught for you to read at http://localhost:8025 (MAILPIT_PORT). Development only:
+  # docker-compose.prod.yml leaves it out.
+  mailpit:
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: "500"
+    ports: ["${BIND_ADDR:-127.0.0.1}:${MAILPIT_PORT:-8025}:8025"]
+    healthcheck:
+      test: ["CMD", "/mailpit", "readyz"]
+      interval: 10s
+      retries: 10
+
   web:
     restart: unless-stopped
     build:
       context: ./frontend
       args:
         VITE_GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:-}
+        # A Sentry DSN is public by design: browsers send reports with it. Empty sends none.
+        VITE_SENTRY_DSN: ${SENTRY_DSN:-}
 
   nginx:
     restart: unless-stopped

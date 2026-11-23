@@ -8,7 +8,7 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 import redis
 from geoalchemy2.elements import WKTElement
@@ -97,7 +97,7 @@ def seed(db: Session) -> None:
 
     for u in DEMO_USERS:
         if db.get(User, u["user_id"]) is None:
-            db.add(User(**u, is_demo=True))
+            db.add(User(**u, is_demo=True, email_verified_at=datetime.now(UTC)))
             db.flush()
         # Once per demo account, including ones seeded before the wallet existed.
         wallet.credit_welcome(db, u["user_id"], wallet.DEMO_INR)

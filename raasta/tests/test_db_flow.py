@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 import io
 import json
 import os
 import zipfile
+from collections import Counter
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -16,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.adapters.osrm import get_router
 from app.adapters.rides import RideStoreUnavailable, get_ride_store
+from app.config import get_settings
 from app.db import Base, get_session
 from app.main import create_app
 from app.models import Stand
@@ -47,6 +51,7 @@ class MemoryRides:
 
     def __init__(self) -> None:
         self.saved: dict[str, list] = {}
+        self.owners: dict[str, str] = {}
         self.saves = 0
         self.down = False
 
@@ -58,14 +63,19 @@ class MemoryRides:
         self._check()
         self.saves += 1
         self.saved[contribution_id] = list(points)
+        self.owners[contribution_id] = user_id
 
     def delete(self, contribution_id):  # noqa: ANN001
         self._check()
         self.saved.pop(contribution_id, None)
+        self.owners.pop(contribution_id, None)
 
     def delete_for_user(self, user_id):  # noqa: ANN001
         self._check()
-        return 0
+        theirs = [cid for cid, owner in self.owners.items() if owner == user_id]
+        for cid in theirs:
+            self.delete(cid)
+        return len(theirs)
 
 
 @pytest.fixture
@@ -392,3 +402,87 @@ def test_gtfs_has_only_verified_routes(client):
     with zipfile.ZipFile(io.BytesIO(r.content)) as zf:
         routes = zf.read("routes.txt").decode()
     assert "sample-kor-jay" in routes and "sample-jay-btm" not in routes and "sample-maj-mall" not in routes
+
+
+# ---------- forgetting a rider who deletes their account ----------
+
+#: Every place the tables keep a user ID, written out here so a column the code misses shows up.
+USER_ID_QUERIES = (
+    "SELECT contributor_id FROM raasta.contributions",
+    "SELECT decided_by FROM raasta.contributions",
+    "SELECT contributor_id FROM raasta.routes",
+    "SELECT user_id FROM raasta.confirmations",
+    "SELECT user_id FROM raasta.fare_reports",
+    "SELECT decided_by FROM raasta.fare_reports",
+    "SELECT e ->> 'by' FROM raasta.contributions, jsonb_array_elements(payload -> 'edits') AS e",
+)
+
+
+def _user_ids(engine) -> Counter[str]:  # noqa: ANN001
+    """How many times each user ID appears in the tables."""
+    with engine.connect() as conn:
+        return Counter(v for q in USER_ID_QUERIES for v in conn.execute(text(q)).scalars() if v is not None)
+
+
+def _gone(user_id: str) -> str:
+    """The stand-in, keyed with Raasta's JWT secret, so a plain hash of the ID never matches it."""
+    return "gone-" + hmac.new(get_settings().jwt_secret.encode(), user_id.encode(), hashlib.sha256).hexdigest()[:16]
+
+
+def _rider_activity(client, rider: str, n: int) -> None:  # noqa: ANN001
+    """A recorded ride, a confirmation and a fare report."""
+    assert client.post("/v1/raasta/contributions", json=_ride(f"con-act{n:05d}"), headers=auth(rider)).status_code == 201
+    confirm = client.post("/v1/raasta/routes/sample-kor-jay/confirmations", json={"idempotencyKey": f"conf-act{n:05d}"}, headers=auth(rider))
+    fare = client.post("/v1/raasta/routes/sample-kor-jay/fare-reports", json={"idempotencyKey": f"fr-act{n:05d}", "fareInr": 35}, headers=auth(rider))
+    assert confirm.status_code == fare.status_code == 201
+
+
+def test_forgetting_a_rider_unlinks_their_rows_and_deletes_their_rides(client, engine):
+    _rider_activity(client, "rider-7", 1)
+    _rider_activity(client, "rider-8", 2)  # the same ride, so it merges into rider-7's route
+    before = _user_ids(engine)
+    assert before["rider-7"] == 4  # contribution, route, confirmation, fare report
+    count = client.get("/v1/raasta/routes/sample-kor-jay").json()["confirmationsCount"]
+
+    r = client.delete("/v1/raasta/me", headers=auth("rider-7"))
+    assert r.status_code == 204 and r.content == b""
+    after = _user_ids(engine)
+    assert "rider-7" not in after and after[_gone("rider-7")] == 4
+    assert after - Counter({_gone("rider-7"): 4}) == before - Counter({"rider-7": 4})  # nobody else changed
+    assert list(client.rides.owners.values()) == ["rider-8"]
+    # A distinct stand-in keeps rider-7 counted as a different rider.
+    assert client.get("/v1/raasta/routes/sample-kor-jay").json()["confirmationsCount"] == count
+
+    again = client.delete("/v1/raasta/me", headers=auth("rider-7"))
+    assert again.status_code == 204 and _user_ids(engine) == after
+
+
+def test_forgetting_a_moderator_unlinks_their_decisions_and_edits(client, engine):
+    body = {**_tapped("con-modgone1", [{"standId": "std-maj"}, {"standId": "std-mall8"}]), "vehicleType": "e_rickshaw"}
+    cid = client.post("/v1/raasta/contributions", json=body, headers=auth("rider-4")).json()["contributionId"]
+    mod = auth("mod-7", "moderator")
+    assert client.patch(f"/v1/raasta/contributions/{cid}", json={"action": "edit", "fareInr": 22}, headers=mod).status_code == 200
+    assert client.patch(f"/v1/raasta/contributions/{cid}", json={"action": "approve"}, headers=mod).status_code == 200
+    rep = client.post("/v1/raasta/routes/sample-kor-jay/fare-reports", json={"idempotencyKey": "fr-modgone1", "fareInr": 35}, headers=auth("payer-1")).json()
+    assert client.patch(f"/v1/raasta/fare-reports/{rep['fareReportId']}", json={"action": "accept"}, headers=mod).status_code == 200
+    assert _user_ids(engine)["mod-7"] == 3
+
+    assert client.delete("/v1/raasta/me", headers=mod).status_code == 204
+    ids = _user_ids(engine)
+    assert "mod-7" not in ids and ids[_gone("mod-7")] == 3  # the contribution's decision and edit, the fare report's decision
+    queue = client.get("/v1/raasta/contributions", params={"status": "verified"}, headers=auth("mod-8", "moderator")).json()
+    [c] = [c for c in queue["items"] if c["contributionId"] == cid]
+    assert c["contributorId"] == "rider-4" and c["payload"]["edits"][0]["by"] == _gone("mod-7")
+
+
+def test_forgetting_with_the_ride_store_down_is_503_and_changes_nothing(client, engine):
+    _rider_activity(client, "rider-7", 3)
+    before = _user_ids(engine)
+    client.rides.down = True
+    r = client.delete("/v1/raasta/me", headers=auth("rider-7"))
+    assert r.status_code == 503 and r.json()["error"]["code"] == "UNAVAILABLE"
+    assert _user_ids(engine) == before and list(client.rides.owners.values()) == ["rider-7"]
+
+    client.rides.down = False
+    assert client.delete("/v1/raasta/me", headers=auth("rider-7")).status_code == 204
+    assert "rider-7" not in _user_ids(engine) and client.rides.saved == {}

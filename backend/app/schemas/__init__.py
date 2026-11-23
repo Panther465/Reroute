@@ -61,6 +61,8 @@ class FeaturesOut(Api):
     voice_chat: bool = False
     #: Alerts as push notifications to the Android app, which arrive after it's closed (FCM_CREDENTIALS_FILE).
     push: bool = False
+    #: This server sends email (SMTP_HOST): confirming an address and resetting a password by email.
+    email: bool = False
 
 
 class UserOut(Api):
@@ -69,6 +71,10 @@ class UserOut(Api):
     name: str
     role: Literal["traveller", "moderator", "admin"]
     is_demo: bool = False
+    #: They proved they own the email (a link we sent, or Google).
+    email_verified: bool = False
+    #: The account has a password (not only Google), so it can be changed in Me.
+    has_password: bool = False
     features: FeaturesOut
 
 
@@ -119,6 +125,8 @@ class AuthOptionsOut(Api):
     demo_login: bool
     #: Google sign-in is configured (GOOGLE_CLIENT_ID).
     google: bool
+    #: "Forgot your password?" works: this server sends email (SMTP_HOST).
+    password_reset: bool = False
 
 
 class SignUpIn(Api):
@@ -130,6 +138,39 @@ class SignUpIn(Api):
 class LoginIn(Api):
     email: Email
     password: Annotated[str, StringConstraints(min_length=1, max_length=128)]
+
+
+#: A link token from an email we sent (accounts.new_link): 32 random bytes, URL-safe.
+LinkToken = Annotated[str, StringConstraints(min_length=20, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")]
+
+
+class ForgotPasswordIn(Api):
+    email: Email
+
+
+class ResetPasswordIn(Api):
+    token: LinkToken
+    password: Password
+
+
+class VerifyEmailIn(Api):
+    token: LinkToken
+
+
+class ProfilePatch(Api):
+    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=80)]
+
+
+class PasswordChangeIn(Api):
+    current_password: Annotated[str, StringConstraints(min_length=1, max_length=128)]
+    new_password: Password
+
+
+class DeleteAccountIn(Api):
+    """Proof it's really them: the password, for an account that has one; otherwise the account's email, typed."""
+
+    password: Annotated[str, StringConstraints(min_length=1, max_length=128)] | None = None
+    email: Email | None = None
 
 
 # ---------- wallet (simulated money) ----------
@@ -333,6 +374,21 @@ class TaskOut(Api):
     state: Literal["planned", "in_progress", "done", "skipped", "moved"]
     hours_unknown: bool
     day: date
+
+
+class TripPatch(Api):
+    """Change a trip's dates or where you stay. Its city stays: for another city, start a new trip."""
+
+    start_date: date | None = None
+    end_date: date | None = None
+    stay_place_id: str | None = None
+    stay_label: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=200)] | None = None
+
+    @model_validator(mode="after")
+    def _together(self) -> TripPatch:
+        if (self.stay_place_id is None) != (self.stay_label is None):
+            raise ValueError("Send stayPlaceId and stayLabel together")
+        return self
 
 
 class TripIn(PostBody):

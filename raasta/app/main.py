@@ -14,7 +14,7 @@ from app.errors import install_error_handlers
 from app.jobs import freshness
 from app.middleware import BodyLimitAndIdempotencyMiddleware, RequestIdMiddleware
 from app.redis_client import get_redis
-from app.routes import catalog, community, health
+from app.routes import catalog, community, health, me
 
 PREFIX = "/v1/raasta"
 
@@ -82,6 +82,7 @@ def create_app() -> FastAPI:
     api.include_router(health.router)
     api.include_router(catalog.router)
     api.include_router(community.router)
+    api.include_router(me.router)
     app.include_router(api)
     # Added last runs first: request IDs wrap everything, so every error carries a traceId.
     app.add_middleware(BodyLimitAndIdempotencyMiddleware, redis_getter=lambda: get_redis(), namespace="raasta")

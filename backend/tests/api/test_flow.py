@@ -1034,7 +1034,7 @@ def test_bookings_exist_only_with_simulated_services(client, monkeypatch):
     # The demo account switch doesn't decide it: a real account books (simulated) without it.
     monkeypatch.setattr(get_settings(), "demo_login", False)
     assert client.get("/v1/trips/trip-001/bookings").status_code == 200
-    assert client.get("/v1/auth/options").json() == {"demoLogin": False, "google": False}
+    assert client.get("/v1/auth/options").json() == {"demoLogin": False, "google": False, "passwordReset": False}
     monkeypatch.setattr(get_settings(), "simulated_services", False)
     assert client.get("/v1/wallet").status_code == 404
     assert client.get("/v1/trips/trip-001/bookings").status_code == 404
@@ -1054,6 +1054,7 @@ def test_the_user_says_which_features_are_on(client, monkeypatch):
         "agent": False,
         "voiceChat": False,
         "push": False,
+        "email": False,
     }
     monkeypatch.setattr(get_settings(), "ai_helper_enabled", True)
     monkeypatch.setattr(get_settings(), "tts_enabled", False)
@@ -1067,6 +1068,7 @@ def test_the_user_says_which_features_are_on(client, monkeypatch):
         "agent": False,
         "voiceChat": False,
         "push": False,
+        "email": False,
     }
     monkeypatch.setattr(get_settings(), "gemini_api_key", "test-key")
     assert client.get("/v1/me").json()["features"]["agent"] is True

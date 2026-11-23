@@ -3,6 +3,7 @@ import { useEffect } from 'react'
 import { useRouteError } from 'react-router'
 import { RouteMark } from '@/components/icons'
 import { T } from '@/lib/i18n'
+import { reportError } from '@/lib/monitoring'
 import { isChunkError, reloadOnce } from '@/lib/reload'
 
 /**
@@ -16,7 +17,8 @@ export function RouteError({ full = false }: { full?: boolean }) {
     document.title = 'Something went wrong, Reroute'
     // A chunk from an older deploy: reload once to get the new one.
     if (stale) reloadOnce()
-  }, [stale])
+    else reportError(error)
+  }, [stale, error])
 
   const body = (
     <div role="alert" className="mx-auto max-w-[560px] px-5 pt-10">

@@ -117,6 +117,20 @@ class Settings(BaseSettings):
     #: Its web look-ups go through Gemini with Google Search, with the AI helper's key.
     wikivoyage_url: str = "https://en.wikivoyage.org/w/api.php"
     overpass_url: str = "https://overpass-api.de/api/interpreter"
+    #: Email (verifying an address, resetting a password) through any SMTP server: a provider's, or Mailpit in
+    #: development (docker-compose.yml), which keeps every message for you to read at http://localhost:8025.
+    #: Empty SMTP_HOST sends no email, and the app doesn't offer what needs it.
+    smtp_host: str = ""
+    smtp_port: int = 587
+    #: "starttls" (port 587), "ssl" (port 465) or "none" (Mailpit, inside Docker only).
+    smtp_security: Literal["starttls", "ssl", "none"] = "starttls"
+    smtp_user: str = ""
+    smtp_password: str = ""
+    mail_from: str = "Reroute <no-reply@reroute.example>"
+    #: Crash and error reports to Sentry (sentry.io, or a self-hosted one): the project's DSN. Empty sends nothing.
+    sentry_dsn: str = ""
+    #: The share of requests traced for performance, 0 to 1. Errors are always sent.
+    sentry_traces_sample_rate: float = Field(default=0.0, ge=0, le=1)
     #: Tests run jobs inline. Never set in a deployment: planning must stay in the worker.
     queue_sync: bool = False
 
@@ -149,6 +163,10 @@ class Settings(BaseSettings):
         if "*" in self.cors_origin_list:
             raise ValueError("CORS_ORIGINS lists origins one by one; '*' would let any site call the API.")
         return self
+
+    @property
+    def email_on(self) -> bool:
+        return bool(self.smtp_host)
 
     @property
     def cors_origin_list(self) -> list[str]:

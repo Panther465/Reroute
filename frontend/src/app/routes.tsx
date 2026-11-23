@@ -17,6 +17,11 @@ export const router = createBrowserRouter([
     children: [
       { path: '/signin', Component: SignIn },
       { path: '/shared/:token', lazy: screen(() => import('@/screens/FamilyView')) },
+      // Open signed in or not: the legal pages, and the links we email.
+      { path: '/privacy', lazy: screen(() => import('@/screens/Privacy')) },
+      { path: '/terms', lazy: screen(() => import('@/screens/Terms')) },
+      { path: '/reset-password', lazy: screen(() => import('@/screens/ResetPassword')) },
+      { path: '/verify-email', lazy: screen(() => import('@/screens/VerifyEmail')) },
       // A new account meets Roo full screen, outside the tabs.
       { path: '/welcome', lazy: screen(loadWelcome) },
       {

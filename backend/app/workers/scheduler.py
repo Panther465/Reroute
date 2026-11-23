@@ -93,6 +93,9 @@ def tick(utc_now: datetime | None = None) -> int:
 
 def main() -> None:
     logging.basicConfig(level=logging.INFO)
+    from app.monitoring import start
+
+    start("scheduler")
     log.info("Scheduler started")
     while True:
         try:

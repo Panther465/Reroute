@@ -8,7 +8,8 @@ RUN pnpm install --frozen-lockfile
 COPY . .
 ARG VITE_GOOGLE_CLIENT_ID=""
 ARG VITE_API_BASE=""
-ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID VITE_API_BASE=$VITE_API_BASE
+ARG VITE_SENTRY_DSN=""
+ENV VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID VITE_API_BASE=$VITE_API_BASE VITE_SENTRY_DSN=$VITE_SENTRY_DSN
 RUN pnpm build  && find dist -type f \( -name '*.js' -o -name '*.mjs' -o -name '*.css' -o -name '*.html' -o -name '*.svg' -o -name '*.json' -o -name '*.webmanifest' \) -size +1k -exec gzip -k -9 {} \;
 
 FROM nginx:1.27-alpine

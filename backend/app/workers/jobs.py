@@ -17,7 +17,7 @@ from app.clock import at_minutes, minutes_of_day, now_for, tz_for
 from app.config import get_settings
 from app.db import session_scope
 from app.errors import ApiError
-from app.models import Place, Plan, Task, Trip
+from app.models import Place, Plan, Task, Trip, User
 from app.redis_client import get_redis
 from app.services import leg_paths, loop, morning, push, traffic
 from app.services.day import RULE, DayContext, sense, trip_day
@@ -43,6 +43,26 @@ adapter_factory = default_adapter
 
 def _adapter():
     return adapter_factory()
+
+
+def account_email(user_id: str, purpose: str) -> dict:
+    """Email a traveller a link: to confirm their address ("verify") or choose a new password ("reset"). The link
+    is made here, so it exists only in the email: never in the queue, a log or the database (only its hash)."""
+    from app.adapters import mail
+    from app.services import accounts
+
+    with session_scope() as db:
+        user = db.get(User, user_id)
+        if user is None or (purpose == "verify" and user.email_verified_at is not None):
+            return {"sent": False}
+        raw = accounts.new_link(db, user, purpose)
+        subject, text, page = accounts.link_email(user, purpose, raw)
+        to = user.email
+        db.commit()
+    # A failure raises, and RQ keeps the job as failed; the traveller can ask again.
+    mail.send(to, subject, text, page)
+    log.info("Sent an account email", extra={"userId": user_id, "purpose": purpose})
+    return {"sent": True}
 
 
 def plan_trip(trip_id: str, trigger: str = "created", checkin_id: str | None = None) -> dict:

@@ -3,6 +3,7 @@ import { Fragment, useId, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { api, ApiError } from '@/api/client'
 import { useAgentEnabled, useCurrentTripId, useMe, usePushEnabled, useTrip, useWalletEnabled } from '@/api/queries'
+import { AccountSettings, VerifyEmailBanner } from '@/components/AccountSettings'
 import { ConnectedServices, WalletPanel } from '@/components/money/Money'
 import { HeyRicoSettings } from '@/lib/ricoSettings'
 import { RerouteLog } from '@/components/RerouteLog'
@@ -143,6 +144,7 @@ export default function Me() {
             </div>
           )
         )}
+        {user && <VerifyEmailBanner user={user} />}
       </Section>
 
       {walletOn && (
@@ -349,6 +351,12 @@ export default function Me() {
           )}
         </ul>
       </Section>
+
+      {user && (
+        <Section title="Account">
+          <AccountSettings user={user} />
+        </Section>
+      )}
 
       <div className="mt-10 flex break-inside-avoid flex-col items-start gap-3">
         <Button variant="destructive" onClick={() => setConfirm(true)} disabled={!online}>

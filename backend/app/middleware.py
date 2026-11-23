@@ -31,9 +31,23 @@ from app.security import ROO_STEP_HEADER, ROO_STEP_SECRET, decode_access_token
 log = logging.getLogger("reroute.guard")
 access_log = logging.getLogger("reroute.access")
 
-IDEMPOTENCY_EXEMPT = ("/v1/auth/",)
-#: Sign-in gets the strict per-IP limit; refresh and sign-out their own, looser per-IP one.
-SIGN_IN_PATHS = ("/v1/auth/google", "/v1/auth/demo", "/v1/auth/signup", "/v1/auth/login")
+#: Sign-in and the account calls that take a password: a stored response could carry a token, and they're
+#: safe to repeat anyway.
+IDEMPOTENCY_EXEMPT = ("/v1/auth/", "/v1/me/password", "/v1/me/delete")
+#: Sign-in, and everything that checks a password or sends an email, gets the strict per-IP limit; refresh and
+#: sign-out their own, looser per-IP one.
+SIGN_IN_PATHS = (
+    "/v1/auth/google",
+    "/v1/auth/demo",
+    "/v1/auth/signup",
+    "/v1/auth/login",
+    "/v1/auth/password/forgot",
+    "/v1/auth/password/reset",
+    "/v1/auth/email/verify",
+    "/v1/me/password",
+    "/v1/me/delete",
+    "/v1/me/verification-email",
+)
 SESSION_PATHS = ("/v1/auth/refresh", "/v1/auth/logout")
 #: Live streams must not be buffered or rate limited per event.
 STREAMING_SUFFIX = "/live"

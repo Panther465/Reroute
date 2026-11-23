@@ -110,6 +110,35 @@ export async function signInWithPassword(email: string, password: string) {
   accept(await api.post<Token>('/v1/auth/login', { email, password }, { noRefresh: true }))
 }
 
+/** Email a link to choose a new password. The answer is the same whether or not an account has that email. */
+export async function requestPasswordReset(email: string) {
+  await api.post('/v1/auth/password/forgot', { email }, { noRefresh: true })
+}
+
+/** Choose a new password with the link's token. Every sign-in ends, this one included: sign in afterwards. */
+export async function resetPassword(token: string, password: string) {
+  await api.post('/v1/auth/password/reset', { token, password }, { noRefresh: true })
+}
+
+/** Confirm the account's email with the link's token. */
+export async function verifyEmail(token: string) {
+  await api.post('/v1/auth/email/verify', { token }, { noRefresh: true })
+  void queryClient.invalidateQueries({ queryKey: keys.me })
+}
+
+/** Change the password: every other sign-in ends, and this one carries on with a new token. */
+export async function changePassword(currentPassword: string, newPassword: string) {
+  accept(await api.post<Token>('/v1/me/password', { currentPassword, newPassword }))
+}
+
+/** Delete the account and everything kept with it, then forget it on this phone. */
+export async function deleteAccount(proof: { password?: string; email?: string }) {
+  await api.post('/v1/me/delete', proof)
+  // The server forgot this phone with the account; the Android app forgets its token too.
+  await native.session?.clear().catch(() => {})
+  forgetLocally()
+}
+
 export async function signOut() {
   // The phone stops getting this traveller's alerts as pushes: taken off while the session can still say so. Not
   // for long on a weak signal: ending the session below forgets the phone on the server too.
@@ -132,8 +161,12 @@ export async function signOut() {
   } catch {
     /* offline: the local session still ends */
   }
-  // Nothing of this traveller's stays on the phone: location tracking, saved plan, waiting check-ins,
-  // share links, demo switches.
+  forgetLocally()
+}
+
+/** Nothing of this traveller's stays on the phone: location tracking, saved plan, waiting check-ins, share links,
+ *  demo switches. */
+function forgetLocally() {
   stopTracking()
   cancelPendingCheckins()
   clearQueue()

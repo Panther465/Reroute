@@ -51,6 +51,19 @@ for (const scheme of ['light', 'dark'] as const) {
       await noSeriousIssues(page, 'signin')
     })
 
+    test('the policies, and the pages emailed links open', async ({ page }) => {
+      for (const [path, heading] of [
+        ['/privacy', 'Privacy policy'],
+        ['/terms', 'Terms of use'],
+        ['/reset-password#token=abcdefghijklmnopqrstuvwxyz012345', 'Choose a new password'],
+        ['/verify-email', 'Confirm your email'],
+      ] as const) {
+        await page.goto(path)
+        await expect(page.getByRole('heading', { level: 1, name: heading })).toBeVisible()
+        await noSeriousIssues(page, path.split('#')[0])
+      }
+    })
+
     test('main screens', async ({ page }, info) => {
       await signInAsDemo(page)
       await planTheDay(page)

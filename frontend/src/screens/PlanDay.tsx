@@ -8,6 +8,7 @@ import { api, ApiError, newKey } from '@/api/client'
 import { keys, queryClient, useAiHelperEnabled, useCurrentTripId, useTrip, waitForJob } from '@/api/queries'
 import type { Body, City, JobAccepted, Place, Task, TaskDraft, TaskIn, Trip, TripIn } from '@/api/types'
 import { CityPicker } from '@/components/CityPicker'
+import { EditTripSheet } from '@/components/EditTripSheet'
 import { PlacePicker } from '@/components/PlacePicker'
 import { TripSwitcher } from '@/components/TripSwitcher'
 import { TripBookings } from '@/components/TripBookings'
@@ -418,6 +419,7 @@ export default function PlanDay() {
     if (state?.openAi || state?.newTrip || state?.addTask) navigate(location.pathname, { replace: true, state: null })
   }, [location.state, location.pathname, navigate])
   const [tripsOpen, setTripsOpen] = useState(false)
+  const [editing, setEditing] = useState(false)
   const [moving, setMoving] = useState<string | null>(null)
   const openForm = (task: Task | null) => {
     if (!task) setCreateKey(newKey('task'))
@@ -592,6 +594,11 @@ export default function PlanDay() {
       </dl>
       {trip.sample && <p className="mt-2 t-small text-muted">This is the sample demo trip. Its places and travel times are sample data.</p>}
       <p className="mt-2 flex flex-wrap gap-x-4">
+        {!trip.sample && (
+          <Button variant="tertiary" size="md" className="-ml-2" onClick={() => setEditing(true)} disabled={!online}>
+            Change dates or stay
+          </Button>
+        )}
         <Button variant="tertiary" size="md" className="-ml-2" onClick={() => setTripsOpen(true)}>
           Your trips
         </Button>
@@ -600,6 +607,7 @@ export default function PlanDay() {
         </Button>
       </p>
       <TripSwitcher open={tripsOpen} onOpenChange={setTripsOpen} />
+      {!trip.sample && <EditTripSheet trip={trip} open={editing} onOpenChange={setEditing} />}
       </div>
 
       <section className="mt-8 lg:col-start-1 lg:row-span-3 lg:row-start-2 lg:mt-6" aria-labelledby="tasks-h">

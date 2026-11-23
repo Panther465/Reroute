@@ -182,6 +182,24 @@ reroute = [
     req("Errors share one shape", "GET", "/v1/trips/no-such-trip", status=404, tests=["pm.test('shape', () => pm.expect(pm.response.json().error).to.have.keys('code', 'message', 'traceId'));"]),
 ]
 
+account = [
+    req("Sign-in options", "GET", "/v1/auth/options", auth=False, tests=["pm.test('says if a reset works', () => pm.expect(pm.response.json().passwordReset).to.be.a('boolean'));"]),
+    req("Forgot password: the same answer for any email", "POST", "/v1/auth/password/forgot", data={"email": "nobody@example.com"}, auth=False, status=202),
+    req("A reset link that doesn't exist", "POST", "/v1/auth/password/reset", data={"token": "not-a-real-link-token-0000", "password": "a brand new password"}, auth=False, status=400, tests=["pm.test('LINK_INVALID', () => pm.expect(pm.response.json().error.code).to.eql('LINK_INVALID'));"]),
+    req("Demo sign-in again", "POST", "/v1/auth/demo", data={"as": "traveller"}, auth=False, tests=["pm.collectionVariables.set('accessToken', pm.response.json().accessToken);"]),
+    req(
+        "Download my data",
+        "GET",
+        "/v1/me/export",
+        tests=[
+            "const d = pm.response.json(); pm.test('my account, no secrets', () => { pm.expect(d.account.email).to.eql('demo.traveller@reroute.example'); pm.expect(d.account).to.not.have.property('passwordHash'); });",
+            "pm.test('a file', () => pm.expect(pm.response.headers.get('Content-Disposition')).to.include('reroute-data-'));",
+        ],
+    ),
+    req("The sample trip's dates stay", "PATCH", "/v1/trips/trip-001", data={"endDate": "2026-10-16"}, status=409, tests=["pm.test('SAMPLE_TRIP', () => pm.expect(pm.response.json().error.code).to.eql('SAMPLE_TRIP'));"]),
+    req("The demo account can't be deleted", "POST", "/v1/me/delete", data={"password": "anything"}, status=409, tests=["pm.test('DEMO_ACCOUNT', () => pm.expect(pm.response.json().error.code).to.eql('DEMO_ACCOUNT'));"]),
+]
+
 raasta = [
     req("Route options for a leg", "GET", "/v1/raasta/routes?from=77.6195,12.9352&to=77.5838,12.9255&at=2026-10-14T15:00:00%2B05:30", auth=False, tests=["pm.test('kor-jay', () => pm.expect(pm.response.json().items.map(r => r.routeId)).to.include('sample-kor-jay'));"]),
     req("Route after its last trip", "GET", "/v1/raasta/routes?from=77.6195,12.9352&to=77.5838,12.9255&at=2026-10-14T22:30:00%2B05:30", auth=False, tests=["pm.test('left out', () => pm.expect(pm.response.json().lastTripPassed).to.include('sample-kor-jay'));"]),
@@ -200,7 +218,7 @@ collection = {
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     },
     "variable": [{"key": "baseUrl", "value": "https://localhost"}, {"key": "accessToken", "value": ""}],
-    "item": [{"name": "Reroute", "item": reroute}, {"name": "Raasta", "item": raasta}],
+    "item": [{"name": "Reroute", "item": reroute}, {"name": "Account", "item": account}, {"name": "Raasta", "item": raasta}],
 }
 
 (HERE / "reroute.postman_collection.json").write_text(json.dumps(collection, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

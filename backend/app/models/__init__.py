@@ -44,6 +44,27 @@ class User(Base):
     is_demo: Mapped[bool] = mapped_column(Boolean, default=False)
     #: A scrypt hash (app.security.hash_password), for an account made with email and password.
     password_hash: Mapped[str | None] = mapped_column(Text)
+    #: When the traveller proved they own the email (a link we sent, or Google saying so). Null until then.
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    #: The last password change or reset: access tokens issued before it are refused, so it signs out everywhere.
+    password_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class EmailToken(Base):
+    """A link we emailed: to verify an address or to reset a password. Only its hash is kept, and it works once."""
+
+    __tablename__ = "email_tokens"
+
+    token_id: Mapped[str] = mapped_column(String(40), primary_key=True, default=lambda: new_id("eml"))
+    user_id: Mapped[str] = mapped_column(ForeignKey("users.user_id", ondelete="CASCADE"), index=True)
+    #: "verify" or "reset".
+    purpose: Mapped[str] = mapped_column(String(10))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    #: The address it went to: a link for an old address verifies nothing once the account's email changes.
+    email: Mapped[str] = mapped_column(String(320))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

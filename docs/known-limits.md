@@ -65,12 +65,20 @@ Honest gaps in this build. Each is a deliberate scope choice or waits on the tea
 
 ## API gaps the web app works around
 
-- **A trip's city, dates and place of stay can't be edited** after creation (no `PATCH /v1/trips/:id`); the Plan screen shows them read-only.
+- **A trip's city can't change** after creation: its tasks are places in that city. Its dates and where you stay can (Plan → Change dates or stay), as long as no task falls outside the new dates.
 - **A share link's token is shown once** (only its hash is stored). After a reload the app can't show the link again without creating a new one.
 - **Raasta has no "my contributions" list or contributor names**, so the Raasta tab doesn't list your own routes and the moderator queue shows a short rider ID.
 - **Nearby stands don't carry their route IDs**, so tapping one fills the search instead of opening a route.
 - **Written directions are generated in the app** from leg segments and route stands; the API has no directions field.
 - **Raasta route options carry no ride minutes**, only fare, frequency and walking time.
+
+## Accounts and email
+
+- **Email needs an SMTP server.** Locally, Mailpit catches every message (http://localhost:8025); a deployment sets a provider's server (`SMTP_HOST`, README "Email"). Without one, "Forgot your password?" isn't offered and addresses aren't confirmed; everything else works. Mail from a new domain without SPF, DKIM and DMARC records often lands in spam.
+- **Confirming an email doesn't gate anything.** An unconfirmed account works fully; Me asks to confirm it. The address itself can't be changed yet.
+- **No two-step sign-in or passkeys yet**, and no list of signed-in devices to end one by one: changing the password signs out every other device.
+- **Deleting an account removes it in Raasta through Raasta's API, as the traveller.** For up to 15 minutes afterwards (until the access token expires) that token could still write to Raasta under the old ID. Redis copies of account data expire within 30 days, and server logs keep request lines as long as the server keeps its logs.
+- **Error reports (Sentry) are off unless `SENTRY_DSN` is set**, for the API, worker and scheduler, and `VITE_SENTRY_DSN` when building the web app. They don't cover crashes in the Android app's own Java code, only its web layer.
 
 ## Operations
 
