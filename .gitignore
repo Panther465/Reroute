@@ -45,10 +45,53 @@ google-services.json
 *.keystore
 keystore.properties
 
-# Rico's art: only in frontend/rico/rico.pack, encrypted (frontend/rico/files.txt lists it; node rico/lock.mjs)
+# Rico (his art and his code): only in frontend/rico/rico.pack, encrypted (frontend/rico/files.txt lists him;
+# node rico/lock.mjs)
 frontend/roo3d/roo.blend
 frontend/roo3d/build_roo.py
 frontend/roo3d/render_roo.py
 frontend/src/components/roo3d/assets/roo-*.webp
 frontend/src/components/roo3d/stills/*.webp
 frontend/android/app/src/main/res/drawable-nodpi/rico_wave.webp
+frontend/src/components/Roo.tsx
+frontend/src/components/roo/
+frontend/src/components/roo3d/*.ts
+frontend/src/components/roo3d/*.tsx
+frontend/src/lib/roo/
+frontend/src/lib/speech/channel.ts
+frontend/src/lib/speech/channel.test.ts
+frontend/src/lib/speech/clips.ts
+frontend/src/lib/speech/envelope.ts
+frontend/src/lib/speech/useSpeaking.ts
+frontend/src/lib/voice.ts
+frontend/src/lib/voice.test.ts
+frontend/src/lib/platform.test.ts
+frontend/src/lib/tellLate.test.ts
+frontend/src/native/speech.ts
+frontend/src/native/speech.test.ts
+frontend/src/native/wake.ts
+frontend/src/native/wake.test.ts
+frontend/src/native/ricoBoot.ts
+frontend/src/screens/Welcome.tsx
+frontend/public/audio/rico-mic.js
+frontend/roo3d/stills.html
+frontend/roo3d/stills.mjs
+frontend/e2e/roo-agent.spec.ts
+frontend/e2e/roo-guide.spec.ts
+frontend/e2e/roo3d.spec.ts
+frontend/e2e-android/wake/
+frontend/android/app/src/main/java/com/reroute/app/Rico*.java
+frontend/android/app/src/main/java/com/reroute/app/Wake*.java
+frontend/android/app/src/debug/java/com/reroute/app/DebugWakeReceiver.java
+frontend/android/app/src/test/java/com/reroute/app/WakePhraseTest.java
+backend/app/routes/roo.py
+backend/app/routes/speech.py
+backend/app/services/roo.py
+backend/app/services/roo_voice.py
+backend/app/services/roo_agent/
+backend/app/adapters/gemini_live.py
+backend/app/adapters/tts.py
+backend/tests/api/test_roo*.py
+backend/tests/api/test_tts.py
+backend/tests/fixtures/roo_agent_script.json
+docs/rico.md

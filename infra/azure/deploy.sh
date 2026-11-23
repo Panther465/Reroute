@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Deploys main to Reroute's Azure server (provision.sh made it; infra/azure/README.md). Sends the server its settings
 # (the production .env and Firebase's push key, from the secrets folder on this PC, never git); then, on the server,
-# pulls main from GitHub, opens Rico's art with RICO_KEY, rebuilds and restarts the stack, and gets or renews the
+# pulls main from GitHub, opens Rico with RICO_KEY, rebuilds and restarts the stack, and gets or renews the
 # Let's Encrypt certificate. Run from the repository root:  bash infra/azure/deploy.sh
 set -euo pipefail
 
@@ -35,7 +35,7 @@ git fetch --quiet origin main
 git reset --quiet --hard origin/main
 install -m 600 /opt/reroute/secrets/reroute.env .env
 
-# Rico's art is in git only encrypted: open it with RICO_KEY (from .env) before the web image is built.
+# Rico is in git only encrypted: open him with RICO_KEY (from .env) before the API and web images are built.
 docker run --rm --user "$(id -u):$(id -g)" -v "$PWD":/app -w /app/frontend node:22-alpine node rico/lock.mjs unlock --quiet
 
 compose() { docker compose -p reroute -f docker-compose.yml -f docker-compose.prod.yml -f infra/azure/docker-compose.azure.yml "$@"; }

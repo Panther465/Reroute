@@ -168,8 +168,9 @@ export async function showPushed(alert: { kind: string; body: string; tag: strin
   if (alert.kind === 'nudge') {
     // Rico checking in: his bubble, once (the live stream may have brought it first).
     if (seenAlert(alert.tripId ?? '', alert.tag, `${alert.reason}|${alert.leaveBy}`)) return
-    const { nudgeBubble } = await import('./roo/nudge')
-    setState({ ricoBubble: nudgeBubble(alert) })
+    const { ricoBubble } = await import('./ricoAlerts')
+    const bubble = ricoBubble(alert)
+    if (bubble) setState({ ricoBubble: bubble })
   } else if (alert.kind === 'leave_now') {
     // Already shown from the live stream: a banner the traveller dismissed stays dismissed.
     if (seenAlert(alert.tripId ?? '', alert.tag, alert.body)) return

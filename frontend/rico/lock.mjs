@@ -1,11 +1,12 @@
-// Rico's art (rico/files.txt: his Blender model and its scripts, the sheets of his rendered pieces, his stills, his
-// picture on Android) is kept in the repository only as rico/rico.pack, encrypted with AES-256-GCM. Anyone can
-// download the repository; only someone with the key can open the pack. The key, RICO_KEY (64 hex characters), is
+// Rico (rico/files.txt: his Blender model and its scripts, the sheets of his rendered pieces, his stills, his picture
+// on Android, and his code: his screens and chat, his 3D, his voice, his agent, "Hey Rico", and the notes on how he's
+// built) is kept in the repository only as rico/rico.pack, encrypted with AES-256-GCM. Anyone can download the
+// repository; only someone with the key can open the pack. The key, RICO_KEY (64 hex characters), is
 // read from the environment or else from the nearest .env above this folder, and never goes in git.
 //
 //   node rico/lock.mjs unlock [--quiet]  writes the files from the pack where the app and Blender expect them.
-//                                        Builds run it first; without the key it changes nothing, and the app is
-//                                        built with a plain stand-in for Rico.
+//                                        Builds run it first; without the key it changes nothing, and the website
+//                                        and API are built without Rico.
 //   node rico/lock.mjs lock              packs the files again after changing them (the pack is rewritten only
 //                                        when something changed).
 //   node rico/lock.mjs key               makes a new key (printed once: keep it safe; it can't be recovered).
@@ -18,10 +19,12 @@ import { deflateRawSync, inflateRawSync } from 'node:zlib'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 const FRONTEND = resolve(HERE, '..')
+const REPO = resolve(FRONTEND, '..')
 const PACK = join(HERE, 'rico.pack')
 const MAGIC = Buffer.from('RICO1\n')
 
-/** The files listed in files.txt (paths from frontend/, `*` within one folder) that are here on disk. */
+/** The files listed in files.txt (paths from frontend/, `../` for the rest of the repository, `*` within one
+ *  folder) that are here on disk. */
 export function listed(root = FRONTEND, list = readFileSync(join(HERE, 'files.txt'), 'utf8')) {
   const out = []
   for (const raw of list.split(/\r?\n/)) {
@@ -97,11 +100,11 @@ export function open(pack, hex) {
   return files
 }
 
-/** A file named in the pack, on disk; never outside frontend/. */
+/** A file named in the pack, on disk; never outside the repository. */
 function inside(name) {
   const full = resolve(FRONTEND, name)
-  const rel = relative(FRONTEND, full)
-  if (!rel || rel.startsWith('..') || isAbsolute(rel)) throw new Error(`Not under frontend/: ${name}`)
+  const rel = relative(REPO, full)
+  if (!rel || rel.startsWith('..') || isAbsolute(rel)) throw new Error(`Not in the repository: ${name}`)
   return full
 }
 
@@ -109,7 +112,7 @@ function unlock(quiet) {
   const have = listed()
   const hex = findKey()
   if (!hex) {
-    if (!quiet || have.length === 0) console.log(have.length ? "Rico's art is here (no RICO_KEY to check it against the pack)." : "Rico's art is locked (no RICO_KEY): building with a plain stand-in for Rico.")
+    if (!quiet || have.length === 0) console.log(have.length ? 'Rico is here (no RICO_KEY to check him against the pack).' : 'Rico is locked (no RICO_KEY): building without him.')
     return
   }
   const files = open(readFileSync(PACK), hex)
@@ -121,7 +124,7 @@ function unlock(quiet) {
     writeFileSync(full, data)
     wrote++
   }
-  if (!quiet || wrote) console.log(`Rico's art unlocked: ${files.size} files, ${wrote} written.`)
+  if (!quiet || wrote) console.log(`Rico unlocked: ${files.size} files, ${wrote} written.`)
 }
 
 function lock() {

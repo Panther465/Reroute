@@ -4,22 +4,18 @@ itself is stood in for here."""
 
 from __future__ import annotations
 
-import asyncio
 import json
 import time
 from datetime import datetime
-from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
 
-from app.adapters import google_maps, guide, photos
+from app.adapters import google_maps
 from app.adapters.places import FoundPlace
 from app.cities import city as supported_city
 from app.config import Settings
-from app.schemas import RooAgentOut
 from app.services import places as place_service
-from app.services.roo_agent.tools import Turn, call_tool
 
 TRIP = {
     "tripId": "trip-001",
@@ -193,150 +189,6 @@ def test_place_search_uses_google_with_a_key_and_openstreetmap_without_or_when_g
     monkeypatch.setattr(place_service.google_maps, "search_places", lambda text, where: asked.append("google") or [])
     place_service._search_more("Pattandur Agrahara", where)
     assert asked[-2:] == ["google", "osm"]
-
-
-# ---------- Rico's guide ----------
-
-
-class FakeApi:
-    async def get(self, path: str, **params):
-        raise AssertionError(f"no API call expected: {path}")
-
-
-def _turn() -> Turn:
-    return Turn(api=FakeApi(), trip=TRIP, trips=[], simulated=True)  # type: ignore[arg-type]
-
-
-def test_places_nearby_come_from_google_with_their_rating_and_the_best_known_first(keyed, monkeypatch):
-    seen: list[httpx.Request] = []
-    nearby = {
-        "places": [
-            {**LALBAGH, "userRatingCount": 98765},
-            {
-                "id": "ChIJcubbon",
-                "displayName": {"text": "Cubbon Park"},
-                "location": {"latitude": 12.9763, "longitude": 77.5929},
-                "primaryTypeDisplayName": {"text": "Park"},
-                "rating": 4.6,
-                "userRatingCount": 300,
-            },
-        ]
-    }
-    real = httpx.AsyncClient
-
-    def client(*a, **kw):
-        return real(transport=_google(lambda r: httpx.Response(200, json=nearby), seen))
-
-    monkeypatch.setattr(google_maps.httpx, "AsyncClient", client)
-
-    async def no_overpass(*a, **kw):
-        raise AssertionError("OpenStreetMap isn't asked when Google answers")
-
-    monkeypatch.setattr(guide, "places_near", no_overpass)
-    turn = _turn()
-    out = asyncio.run(call_tool(turn, "places_near", {"kind": "do"}))
-    assert out == {
-        "near": "Hotel near Majestic",
-        "places": [
-            {"name": "Lalbagh Botanical Garden", "what": "botanical garden", "km": 3.2, "rating": 4.5, "wellKnown": True},
-            {"name": "Cubbon Park", "what": "park", "km": 2.3, "rating": 4.6},
-        ],
-    }
-    assert turn.reads == ["Looked on Google Maps for things to do near Hotel near Majestic"]
-    body = json.loads(seen[0].content)
-    assert body["includedTypes"] == ["park", "zoo", "amusement_park", "aquarium"] and body["rankPreference"] == "POPULARITY"
-    assert body["locationRestriction"]["circle"]["center"] == {"latitude": 12.9767, "longitude": 77.5713}
-
-
-def test_places_rico_shows_get_googles_rating_hours_photo_and_page(keyed, monkeypatch):
-    seen: list[httpx.Request] = []
-
-    def answer(request: httpx.Request) -> httpx.Response:
-        if request.url.path.endswith("/media"):
-            return httpx.Response(200, json={"name": "places/ChIJlalbagh/photos/P1/media", "photoUri": "https://lh3.googleusercontent.com/p/abc=w800"})
-        return httpx.Response(200, json={"places": [LALBAGH]})
-
-    real = httpx.AsyncClient
-    monkeypatch.setattr(google_maps.httpx, "AsyncClient", lambda *a, **kw: real(transport=_google(answer, seen)))
-
-    async def commons(place, city=None, client=None):
-        return []
-
-    async def city_guide(city, client=None):
-        return guide.CityGuide("Bengaluru", "Big.", see=(guide.Listing("Lalbagh Botanical Garden", "Glasshouse.", "6AM-7PM", "₹30", True, 12.9507, 77.5848),))
-
-    monkeypatch.setattr(photos, "place_photos", commons)
-    monkeypatch.setattr(guide, "city_guide", city_guide)
-    turn = _turn()
-    asyncio.run(call_tool(turn, "city_guide", {}))
-    out = asyncio.run(call_tool(turn, "show_places", {"places": [{"name": "Lalbagh", "why": "Old trees."}]}))
-    assert out["onScreen"] == ["Lalbagh Botanical Garden"]
-    (card,) = turn.shown["places"]
-    today = datetime.now(ZoneInfo("Asia/Kolkata")).strftime("%A")
-    assert card["rating"] == 4.5 and card["ratings"] == 98765 and card["open_now"] is True
-    assert (
-        card["today_hours"] == "6:00 AM – 7:00 PM"
-        and today in LALBAGH["currentOpeningHours"]["weekdayDescriptions"][datetime.now(ZoneInfo("Asia/Kolkata")).weekday()]
-    )
-    assert card["photo"] == {
-        "url": "https://lh3.googleusercontent.com/p/abc=w800",
-        "thumb_url": "https://lh3.googleusercontent.com/p/abc=w800",
-        "title": "Lalbagh Botanical Garden",
-        "credit": "Google Maps, photo by Asha R",
-        "source_url": "https://maps.google.com/maps/contrib/1",
-    }
-    assert (card["source"], card["maps_url"], card["google_place_id"], card["what"]) == (
-        "Google Maps",
-        "https://maps.google.com/?cid=1",
-        "ChIJlalbagh",
-        "Botanical garden",
-    )
-    # The guide's own hours and price stay; the place is where Google puts it.
-    assert (card["hours"], card["price"], card["km"]) == ("6AM-7PM", "₹30", 3.2)
-    assert "Checked them on Google Maps" in turn.reads and "Found photos on Wikimedia Commons" not in turn.reads
-    # Asked near where the guide put it, and the photo's address without a redirect (it carries no key).
-    search, media = seen
-    assert json.loads(search.content)["locationBias"] == {"circle": {"center": {"latitude": 12.9507, "longitude": 77.5848}, "radius": 3000.0}}
-    assert media.url.params["skipHttpRedirect"] == "true" and media.headers["x-goog-api-key"] == "test-maps-key"
-    RooAgentOut.model_validate({"reply": "Here!", "places": turn.shown})
-
-
-def test_a_google_place_somewhere_else_with_the_same_name_isnt_taken(keyed, monkeypatch):
-    far = {**LALBAGH, "location": {"latitude": 13.2, "longitude": 77.9}}
-    real = httpx.AsyncClient
-    monkeypatch.setattr(google_maps.httpx, "AsyncClient", lambda *a, **kw: real(transport=_google(lambda r: httpx.Response(200, json={"places": [far]}), [])))
-    with pytest.raises(google_maps.GoogleUnavailable):
-        asyncio.run(google_maps.place_details("Lalbagh Botanical Garden", "Bengaluru", (12.9507, 77.5848)))
-
-
-def test_a_google_place_with_no_point_is_put_where_the_guide_put_it_or_not_taken(keyed, monkeypatch):
-    pointless = {k: v for k, v in LALBAGH.items() if k not in ("location", "photos")}
-    real = httpx.AsyncClient
-    monkeypatch.setattr(
-        google_maps.httpx, "AsyncClient", lambda *a, **kw: real(transport=_google(lambda r: httpx.Response(200, json={"places": [pointless]}), []))
-    )
-    found = asyncio.run(google_maps.place_details("Lalbagh Botanical Garden", "Bengaluru", (12.9507, 77.5848)))
-    assert (found.lat, found.lng, found.rating) == (12.9507, 77.5848, 4.5)
-    with pytest.raises(google_maps.GoogleUnavailable):
-        asyncio.run(google_maps.place_details("Lalbagh Botanical Garden", "Bengaluru", None))
-
-
-def test_without_a_key_rico_shows_places_as_before(monkeypatch):
-    monkeypatch.setattr(google_maps, "get_settings", lambda: Settings(app_env="test"))
-
-    async def commons(place, city=None, client=None):
-        return []
-
-    async def city_guide(city, client=None):
-        return guide.CityGuide("Bengaluru", "Big.", see=(guide.Listing("Cubbon Park", "Green.", lat=12.9763, lng=77.5929),))
-
-    monkeypatch.setattr(photos, "place_photos", commons)
-    monkeypatch.setattr(guide, "city_guide", city_guide)
-    turn = _turn()
-    asyncio.run(call_tool(turn, "city_guide", {}))
-    asyncio.run(call_tool(turn, "show_places", {"places": [{"name": "Cubbon Park", "why": "Shade."}]}))
-    (card,) = turn.shown["places"]
-    assert card["source"] == "Wikivoyage" and "rating" not in card and card["photo"] is None
 
 
 # ---------- the app asks which map to draw ----------

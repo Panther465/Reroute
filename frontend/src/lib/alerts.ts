@@ -2,7 +2,7 @@
 // Each one plays the traveller's chosen chime, buzzes, has Roo say it in a natural voice and sends a
 // phone notification, as chosen in Me, and always shows a toast and tells screen readers, so no alert
 // relies on sound alone. Every alert fires once.
-import { enqueue } from './speech/channel'
+import { sayAlert } from './ricoAlerts'
 import { canNotify, notify } from './live'
 import { getState, showToast, type ChimeStyle } from './store'
 
@@ -122,7 +122,7 @@ export function chime(tone: Tone = 'nudge', style: ChimeStyle = getState().alert
 /** Roo says it: the chosen natural voice, or the phone's own voice when that can't be fetched. Resolves once
  *  it's said. An alert cuts in on whatever Roo was saying in the chat (lib/speech/channel.ts). */
 export async function speak(text: string, prefs = getState().alerts) {
-  await enqueue(text, { priority: 'alert', interrupt: true, prefs }).done
+  await sayAlert(text, prefs)
 }
 
 // Alerts sound one after another: two in the same minute (leave soon, and a task ending) never talk over each other.

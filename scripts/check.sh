@@ -19,6 +19,9 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # Paths for Python and pytest: on Windows (Git Bash) /d/… and /tmp/… mean nothing to them, so D:/… instead.
 native() { if command -v cygpath >/dev/null 2>&1; then cygpath -m "$1"; else echo "$1"; fi; }
 NROOT="$(native "$ROOT")"
+# Rico is locked in the repository (frontend/rico/): opened with RICO_KEY from .env, as CI does; without it,
+# everything is checked without him.
+node "$ROOT/frontend/rico/lock.mjs" unlock --quiet
 PORT="${CHECK_PG_PORT:-57998}"
 DB="reroute-check-pg-$$"
 LOGS="$(mktemp -d)"

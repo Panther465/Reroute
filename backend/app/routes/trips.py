@@ -522,8 +522,13 @@ async def talk_to_roo(body: RooIn, trip: OwnedTrip, db: Db) -> RooOut:
     """Rico answers from the day as it is. It only offers a change: the app asks the traveller before making it."""
     if not get_settings().ai_helper_enabled:
         raise ApiError(404, "The AI helper is not enabled on this server.")
-    from app.adapters.llm import roo_chat
-    from app.services.roo import clean_answer, day_context
+    try:
+        from app.services.roo import clean_answer, day_context, roo_chat
+    except ModuleNotFoundError as err:
+        # Rico's code is locked (frontend/rico/README.md) and this server was built without it.
+        if err.name != "app.services.roo":
+            raise
+        raise ApiError(404, "Rico isn't part of this server.") from None
 
     view = await run_in_threadpool(trip_out, db, trip, now_for(trip.trip_id))
     raw = await roo_chat(body.message, [(t.role, t.text) for t in body.history[-12:]], day_context(view))

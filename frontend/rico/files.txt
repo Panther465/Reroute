@@ -14,3 +14,55 @@ src/components/roo3d/stills/*.webp
 
 # His picture in the Android app's "Hey Rico" pop-up
 android/app/src/main/res/drawable-nodpi/rico_wave.webp
+
+# His code in the web and Android app: his screens and chat, his 3D, his voice and lip-sync, his live voice,
+# "Hey Rico" (src/lib/rico.tsx, ricoAlerts.ts, ricoSettings.ts and native/boot.ts stand in for him without the key)
+src/components/Roo.tsx
+src/components/roo/*.ts
+src/components/roo/*.tsx
+src/components/roo3d/*.ts
+src/components/roo3d/*.tsx
+src/lib/roo/*.ts
+src/lib/roo/lipsync/*.ts
+src/lib/roo/live/*.ts
+src/lib/speech/channel.ts
+src/lib/speech/channel.test.ts
+src/lib/speech/clips.ts
+src/lib/speech/envelope.ts
+src/lib/speech/useSpeaking.ts
+src/lib/voice.ts
+src/lib/voice.test.ts
+src/lib/platform.test.ts
+src/lib/tellLate.test.ts
+src/native/speech.ts
+src/native/speech.test.ts
+src/native/wake.ts
+src/native/wake.test.ts
+src/native/ricoBoot.ts
+src/screens/Welcome.tsx
+public/audio/rico-mic.js
+roo3d/stills.html
+roo3d/stills.mjs
+e2e/roo-agent.spec.ts
+e2e/roo-guide.spec.ts
+e2e/roo3d.spec.ts
+e2e-android/wake/*.wav
+android/app/src/main/java/com/reroute/app/Rico*.java
+android/app/src/main/java/com/reroute/app/Wake*.java
+android/app/src/debug/java/com/reroute/app/DebugWakeReceiver.java
+android/app/src/test/java/com/reroute/app/WakePhraseTest.java
+
+# His code on the server: his chat and agent, his voice, his live voice (the API runs without them), and their tests
+../backend/app/routes/roo.py
+../backend/app/routes/speech.py
+../backend/app/services/roo.py
+../backend/app/services/roo_voice.py
+../backend/app/services/roo_agent/*.py
+../backend/app/adapters/gemini_live.py
+../backend/app/adapters/tts.py
+../backend/tests/api/test_roo*.py
+../backend/tests/api/test_tts.py
+../backend/tests/fixtures/roo_agent_script.json
+
+# How he's built
+../docs/rico.md

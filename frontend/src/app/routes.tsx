@@ -1,4 +1,5 @@
 import { createBrowserRouter } from 'react-router'
+import { loadWelcome } from '@/lib/rico'
 import NotFound from '@/screens/NotFound'
 import SignIn from '@/screens/SignIn'
 import { loadShell, loadToday } from './lazy'
@@ -17,7 +18,7 @@ export const router = createBrowserRouter([
       { path: '/signin', Component: SignIn },
       { path: '/shared/:token', lazy: screen(() => import('@/screens/FamilyView')) },
       // A new account meets Roo full screen, outside the tabs.
-      { path: '/welcome', lazy: screen(() => import('@/screens/Welcome')) },
+      { path: '/welcome', lazy: screen(loadWelcome) },
       {
         path: '/',
         lazy: screen(loadShell),

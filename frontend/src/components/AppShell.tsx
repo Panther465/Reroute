@@ -4,7 +4,6 @@ import { motion, MotionConfig, useReducedMotion } from 'motion/react'
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Navigate, NavLink, Outlet, ScrollRestoration, useLocation, useMatches } from 'react-router'
 import { AutoRickshaw, RouteMark } from '@/components/icons'
-import { RooAvatar } from '@/components/roo3d/RooAvatar'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { TodaySkeleton } from '@/components/TodaySkeleton'
 import { Toaster } from '@/components/ui/Toaster'
@@ -21,15 +20,12 @@ import { T } from '@/lib/i18n'
 import { getState, setState, useAnnouncement, useStore } from '@/lib/store'
 import { LateContext } from '@/lib/late'
 import { connectAllOnce } from '@/lib/partners'
+import { hasRico, RicoPal, RicoVoice, Roo, RooAvatar, RooChat } from '@/lib/rico'
 import { localMinutes } from '@/lib/timeline'
 
-// Loaded the first time they're needed, so the shell stays small.
+// Loaded the first time they're needed, so the shell stays small (Rico's pieces too: lib/rico.tsx).
 const RunningLateSheet = lazy(() => import('@/screens/RunningLateSheet').then((m) => ({ default: m.RunningLateSheet })))
 const DemoPanel = lazy(() => import('@/components/DemoPanel').then((m) => ({ default: m.DemoPanel })))
-const Roo = lazy(() => import('@/components/Roo').then((m) => ({ default: m.Roo })))
-const RooChat = lazy(() => import('@/components/roo/RooChat').then((m) => ({ default: m.RooChat })))
-const RicoVoice = lazy(() => import('@/components/roo/RicoVoice').then((m) => ({ default: m.RicoVoice })))
-const RicoPal = lazy(() => import('@/components/roo/RicoPal').then((m) => ({ default: m.RicoPal })))
 
 const TABS = [
   { to: '/', label: 'Today', Icon: CalendarClock, end: true },
@@ -147,7 +143,7 @@ function TopBar({ demo }: { demo?: ReactNode }) {
         {demo}
         <div className={`flex items-center gap-2 ${demo ? '' : 'ml-auto'}`}>
           <ThemeToggle />
-          <AskRoo />
+          {hasRico && <AskRoo />}
         </div>
       </div>
     </header>

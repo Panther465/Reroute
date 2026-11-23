@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import importlib
 import logging
+from types import ModuleType
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,9 +17,20 @@ from app.config import get_settings
 from app.db import engine
 from app.middleware import GuardMiddleware, TraceIdMiddleware
 from app.redis_client import get_redis, get_redis_bytes
-from app.routes import auth, bookings, cities, live, me, places, roads, roo, share, speech, trips, wallet
+from app.routes import auth, bookings, cities, live, me, places, roads, share, trips, wallet
 
 log = logging.getLogger("reroute")
+
+
+def _rico(name: str) -> ModuleType | None:
+    """One of Rico's own routes (his chat and agent, his voice). They're locked with the rest of his code
+    (frontend/rico/README.md): without them the API runs without Rico."""
+    try:
+        return importlib.import_module(f"app.routes.{name}")
+    except ModuleNotFoundError as err:
+        if err.name != f"app.routes.{name}":
+            raise
+        return None
 
 
 def create_app() -> FastAPI:
@@ -46,8 +59,9 @@ def create_app() -> FastAPI:
             expose_headers=["X-Request-ID", "Retry-After", "Idempotent-Replayed"],
             max_age=600,
         )
-    for module in (auth, me, cities, places, roads, speech, trips, roo, bookings, wallet, share, live):
-        app.include_router(module.router)
+    for module in (auth, me, cities, places, roads, _rico("speech"), trips, _rico("roo"), bookings, wallet, share, live):
+        if module is not None:
+            app.include_router(module.router)
 
     @app.get("/v1/healthz", tags=["health"], include_in_schema=False)
     def healthz() -> JSONResponse:

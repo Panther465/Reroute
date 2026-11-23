@@ -31,6 +31,11 @@ jobs:
       EXAMPLES_DIR: ${{ github.workspace }}/examples
     steps:
       - uses: actions/checkout@v5
+      # Rico's code is locked in the repository (frontend/rico/): opened with the RICO_KEY secret, or without it (a
+      # fork) the API is tested without him.
+      - run: node ../frontend/rico/lock.mjs unlock
+        env:
+          RICO_KEY: ${{ secrets.RICO_KEY }}
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -47,7 +52,8 @@ jobs:
           APP_ENV: test
         run: |
           python -c "import json; from pathlib import Path; from app.main import app; Path('/tmp/reroute.openapi.json').write_text(json.dumps(app.openapi(), indent=2, ensure_ascii=False) + chr(10), encoding='utf-8', newline=chr(10))"
-          diff -u ../shared/contracts/reroute.openapi.json /tmp/reroute.openapi.json
+          # Without Rico (no RICO_KEY), the API has none of his routes, so it can't match the contract.
+          if [ -f app/routes/roo.py ]; then diff -u ../shared/contracts/reroute.openapi.json /tmp/reroute.openapi.json; fi
 
   raasta:
     name: Raasta API
@@ -104,8 +110,8 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
-      # Rico's art is locked in the repository (frontend/rico/): opened with the RICO_KEY secret, or without it (a
-      # fork) the app is built with a plain stand-in and the checks of his art skip.
+      # Rico is locked in the repository (frontend/rico/): opened with the RICO_KEY secret, or without it (a fork) the
+      # app is built and tested without him.
       - run: node rico/lock.mjs unlock
         env:
           RICO_KEY: ${{ secrets.RICO_KEY }}
@@ -119,7 +125,7 @@ jobs:
     needs: [backend, raasta, frontend]
     steps:
       - uses: actions/checkout@v5
-      - name: Unlock Rico's art (a plain stand-in without the RICO_KEY secret)
+      - name: Unlock Rico (without the RICO_KEY secret, everything runs without him)
         working-directory: frontend
         env:
           RICO_KEY: ${{ secrets.RICO_KEY }}

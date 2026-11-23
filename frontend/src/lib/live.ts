@@ -5,7 +5,8 @@ import { useEffect } from 'react'
 import { apiBase, credentialsMode, getAccessToken, refreshSession } from '@/api/client'
 import { keys, queryClient } from '@/api/queries'
 import { native } from './platform'
-import { nudgeBubble } from './roo/nudge'
+import { ricoSound } from './rico'
+import { ricoBubble } from './ricoAlerts'
 import { seenAlert } from './push'
 import { getState, setState } from './store'
 
@@ -87,8 +88,11 @@ function handle(tripId: string, e: LiveEvent) {
   if (e.event === 'nudge') {
     // Rico checks in on his own (busy roads ahead, or running behind): his bubble, once, even if a push brought it too.
     if (!seenAlert(tripId, `nudge-${String(e.data.seq)}`, `${String(e.data.reason)}|${String(e.data.leaveBy)}`)) {
-      setState({ ricoBubble: nudgeBubble(e.data) })
-      void import('./roo/sounds').then(({ ricoSound }) => ricoSound('appear'))
+      const bubble = ricoBubble(e.data)
+      if (bubble) {
+        setState({ ricoBubble: bubble })
+        ricoSound('appear')
+      }
     }
   }
   if (e.event === 'leave_now') {
