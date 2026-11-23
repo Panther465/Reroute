@@ -12,9 +12,13 @@ WORKDIR /srv/backend
 RUN groupadd --system app && useradd --system --gid app --home /srv app
 
 # Dependencies first, so code changes don't reinstall them.
+# pip downloads with the classic key exchange: OpenSSL 3.5's larger post-quantum handshake fills a full-size packet,
+# and some networks silently drop those on the way to PyPI (Azure Central India, November 2026).
+RUN printf '%s\n' 'openssl_conf = pip_conf' '[pip_conf]' 'ssl_conf = pip_ssl' '[pip_ssl]' 'system_default = pip_tls' '[pip_tls]' \
+    'Groups = X25519:prime256v1' > /etc/ssl/pip-openssl.cnf
 COPY backend/pyproject.toml ./
 RUN python -c "import tomllib; print('\n'.join(tomllib.load(open('pyproject.toml', 'rb'))['project']['dependencies']))" > /tmp/requirements.txt \
- && pip install -r /tmp/requirements.txt
+ && OPENSSL_CONF=/etc/ssl/pip-openssl.cnf pip install -r /tmp/requirements.txt
 
 COPY backend/ ./
 COPY examples/ /srv/examples/
