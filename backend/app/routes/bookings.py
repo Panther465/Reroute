@@ -20,7 +20,7 @@ from app.errors import ApiError
 from app.models import Booking, Place, Task, Trip
 from app.schemas import AirportOut, BookingIn, BookingOut, CabOptionOut, FlightFareOut, FlightOptionOut, PostBody, TrainClassOut, TrainOptionOut
 from app.services import booking_sim as sim
-from app.services import places, plan_store, wallet
+from app.services import expenses, places, plan_store, wallet
 
 router = APIRouter(prefix="/v1", tags=["bookings"], dependencies=[Depends(simulated_only)])
 
@@ -275,14 +275,7 @@ def create_booking(body: BookingIn, trip: OwnedTrip, user: CurrentUser, db: Db) 
 
 
 def _label(b: Booking) -> str:
-    d = b.details
-    if b.kind == "flight":
-        return f"Flight {d['flightNo']}, {d['originCity']} to {d['destinationCity']}"
-    if b.kind == "train":
-        return f"Train {d['trainNo']} to {d['destination']}"
-    if b.kind == "ticket":
-        return f"{d['partner']} tickets to {d['place']}"
-    return f"{d['providerLabel']} {d['vehicleLabel'].lower()} ride"
+    return expenses.booking_label(b)
 
 
 @router.post("/trips/{trip_id}/bookings/{booking_id}/cancel", response_model=BookingOut, response_model_by_alias=True, summary="Cancel a simulated booking")

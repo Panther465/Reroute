@@ -13,6 +13,12 @@ const KEEP: ReactNode[][] = [
   ],
   ['Sign-in sessions', 'Refresh tokens, stored only as a hash', 'Keeping you signed in', '30 days, and replaced every time one is used'],
   [
+    'Expenses',
+    'What you spent, the amount, the day, the shop, how you paid, the GST and the seller’s GSTIN, your note; the budget and limits you set; your claims; and the receipt photos you attach',
+    'The expense manager, and claiming expenses back from your office',
+    'With the trip, or until you delete your account',
+  ],
+  [
     'Email links',
     'A single-use token for verifying your email or resetting your password, stored only as a hash',
     'Checking the email is yours, or letting you choose a new password',
@@ -77,6 +83,11 @@ const SERVICES: ReactNode[][] = [
     'Only if we switch error reports on for our server. They’re off unless we do',
   ],
   ['Google (sign-in and Calendar)', 'The sign-in code; the Calendar code if you import appointments', 'Only when you use Google sign-in or Calendar import'],
+  [
+    'Google Gemini (receipts)',
+    'The photo of a receipt you choose to scan, to read its shop, date, total and GST. A receipt can show a card’s last digits or a name, as on paper',
+    'Only when you tap Scan a receipt, with our AI helper switched on. A photo you attach without scanning goes nowhere but our database',
+  ],
   ['Google Maps Platform', 'The text you type in place search and the trip’s city; the area Rico’s guide looks around; the map tiles your phone loads, so the area you look at', 'Only when our server has a Google Maps key; otherwise OpenStreetMap’s services above'],
   [
     'Microsoft Azure AI Speech',
@@ -106,7 +117,7 @@ const SERVICES: ReactNode[][] = [
     'Google Gemini',
     <>
       The text you type in “Describe your day”. A message to Rico the phone couldn’t understand by itself, with the last few messages and your trip’s task titles, areas, times and today’s plan. With Rico’s agent, also what it
-      looks up to answer: place names and areas, ride options and fares, your bookings and wallet balance, and what it read in a city’s guide. Never your name, email or location
+      looks up to answer: place names and areas, ride options and fares, your bookings and wallet balance, your trip’s expenses when you ask about money (each one’s title, amount, kind, how it was paid and day, the totals and the budget; never a receipt photo), and what it read in a city’s guide. Never your name, email or location
     </>,
     'Only if the AI helper is on (it’s off by default). Rico answers most messages on the phone, sending nothing',
   ],

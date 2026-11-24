@@ -17,7 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.db import session_scope
-from app.models import Booking, Checkin, Place, Plan, RerouteLog, ShareLink, Task, Trip, User
+from app.models import Booking, Checkin, Expense, ExpenseBudget, ExpenseClaim, Place, Plan, RerouteLog, ShareLink, Task, Trip, User
 
 log = logging.getLogger("reroute.seed")
 
@@ -75,13 +75,14 @@ def _tasks(trip: Trip, data: dict) -> list[Task]:
 
 
 def reset_demo_trip(db: Session, trip: Trip) -> None:
-    """Put the sample day back to its start: no plans, no check-ins, the four sample tasks, and nothing
+    """Put the sample day back to its start: no plans, no check-ins, no expenses, the four sample tasks, and nothing
     remembered in Redis (reported delays, alerts sent, the trip-ended flag, morning plans)."""
     from app.services import wallet
     from app.services.loop import forget_trip_state
 
     data = _demo_file()
-    for model in (Booking, Checkin, RerouteLog, ShareLink, Plan, Task):
+    # Expenses before their claims (a claim can't go while an expense points at it), receipts going with them.
+    for model in (Booking, Checkin, RerouteLog, ShareLink, Expense, ExpenseClaim, ExpenseBudget, Plan, Task):
         db.execute(delete(model).where(model.trip_id == trip.trip_id))
     db.flush()
     db.add_all(_tasks(trip, data))

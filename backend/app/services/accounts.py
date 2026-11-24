@@ -21,6 +21,10 @@ from app.models import (
     Booking,
     Checkin,
     EmailToken,
+    Expense,
+    ExpenseBudget,
+    ExpenseClaim,
+    ExpenseReceipt,
     Place,
     Plan,
     PushDevice,
@@ -159,6 +163,13 @@ def export(db: Session, user: User) -> dict[str, Any]:
                 "bookings": [_row(b) for b in db.scalars(select(Booking).where(Booking.trip_id == tid).order_by(Booking.created_at))],
                 "shareLinks": [_row(s) for s in db.scalars(select(ShareLink).where(ShareLink.trip_id == tid).order_by(ShareLink.created_at))],
                 "rerouteLog": [_row(r) for r in db.scalars(select(RerouteLog).where(RerouteLog.trip_id == tid).order_by(RerouteLog.at))],
+                # Receipt photos stay out of the file (they're images); each expense says whether it has one.
+                "expenses": [
+                    {**_row(x, skip={"source_ref"}), "hasReceipt": db.get(ExpenseReceipt, x.expense_id) is not None}
+                    for x in db.scalars(select(Expense).where(Expense.trip_id == tid).order_by(Expense.day, Expense.created_at))
+                ],
+                "expenseClaims": [_row(c) for c in db.scalars(select(ExpenseClaim).where(ExpenseClaim.trip_id == tid).order_by(ExpenseClaim.submitted_at))],
+                "expenseBudget": _row(budget) if (budget := db.get(ExpenseBudget, tid)) else None,
             }
         )
     live = select(RefreshToken).where(RefreshToken.user_id == user.user_id, RefreshToken.revoked_at.is_(None))

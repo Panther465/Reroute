@@ -1111,6 +1111,181 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/v1/trips/{trip_id}/expenses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** A trip's expenses, totals, budget, alerts and claims */
+        get: operations["list_expenses_v1_trips__trip_id__expenses_get"];
+        put?: never;
+        /** Add an expense */
+        post: operations["add_expense_v1_trips__trip_id__expenses_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/trips/{trip_id}/expenses/{expense_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Remove an expense (one from a booking or the plan is put aside) */
+        delete: operations["remove_expense_v1_trips__trip_id__expenses__expense_id__delete"];
+        options?: never;
+        head?: never;
+        /** Change an expense, or confirm an estimate */
+        patch: operations["edit_expense_v1_trips__trip_id__expenses__expense_id__patch"];
+        trace?: never;
+    };
+    "/v1/trips/{trip_id}/expenses/parse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Work out an expense from a typed line */
+        post: operations["parse_line_v1_trips__trip_id__expenses_parse_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/trips/{trip_id}/expenses/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read a receipt's photo into an expense to check (the AI helper with a Gemini key) */
+        post: operations["scan_v1_trips__trip_id__expenses_scan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/trips/{trip_id}/expenses/{expense_id}/receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The receipt's photo */
+        get: operations["get_receipt_v1_trips__trip_id__expenses__expense_id__receipt_get"];
+        /** Keep a receipt's photo with an expense */
+        put: operations["put_receipt_v1_trips__trip_id__expenses__expense_id__receipt_put"];
+        post?: never;
+        /** Remove the receipt's photo */
+        delete: operations["delete_receipt_v1_trips__trip_id__expenses__expense_id__receipt_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/trips/{trip_id}/expense-budget": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set the trip's budget and the office's limits */
+        put: operations["set_budget_v1_trips__trip_id__expense_budget_put"];
+        post?: never;
+        /** Remove the trip's budget */
+        delete: operations["remove_budget_v1_trips__trip_id__expense_budget_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/trips/{trip_id}/expense-claims": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Claim expenses back from the office */
+        post: operations["submit_claim_v1_trips__trip_id__expense_claims_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/trips/{trip_id}/expense-claims/{claim_id}/reimbursed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark a claim paid back */
+        post: operations["mark_reimbursed_v1_trips__trip_id__expense_claims__claim_id__reimbursed_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/trips/{trip_id}/expense-claims/{claim_id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Withdraw a claim not yet paid back, so its expenses can change */
+        post: operations["withdraw_claim_v1_trips__trip_id__expense_claims__claim_id__withdraw_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/v1/trips/{trip_id}/expenses/export.csv": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The expenses as a CSV file for the office (one claim's with claimId) */
+        get: operations["export_csv_v1_trips__trip_id__expenses_export_csv_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/v1/trips/{trip_id}/share-links": {
         parameters: {
             query?: never;
@@ -1211,6 +1386,13 @@ export interface components {
             city: string;
             /** Name */
             name: string;
+        };
+        /** AmountByOut */
+        AmountByOut: {
+            /** Key */
+            key: string;
+            /** Paise */
+            paise: number;
         };
         /**
          * AuthOptionsOut
@@ -1460,6 +1642,16 @@ export interface components {
             /** Cost */
             cost?: number | null;
         };
+        /** DayAmountOut */
+        DayAmountOut: {
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /** Paise */
+            paise: number;
+        };
         /**
          * DeleteAccountIn
          * @description Proof it's really them: the password, for an account that has one; otherwise the account's email, typed.
@@ -1488,6 +1680,308 @@ export interface components {
              * @enum {string}
              */
             as: "traveller" | "moderator";
+        };
+        /** ExpenseAlertOut */
+        ExpenseAlertOut: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "over_budget" | "heading_over" | "near_budget" | "over_daily" | "over_category" | "needs_receipt" | "possible_duplicate" | "unconfirmed";
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "info" | "warn" | "danger";
+            /** Text */
+            text: string;
+            /** Expenseids */
+            expenseIds?: string[];
+            /** Day */
+            day?: string | null;
+        };
+        /**
+         * ExpenseBookOut
+         * @description A trip's expenses, with what they add up to, the budget, what needs attention, and the claims.
+         */
+        ExpenseBookOut: {
+            /** Tripid */
+            tripId: string;
+            /** Cityname */
+            cityName: string;
+            /**
+             * Currency
+             * @default INR
+             * @constant
+             */
+            currency: "INR";
+            /** Items */
+            items: components["schemas"]["ExpenseOut"][];
+            totals: components["schemas"]["ExpenseTotalsOut"];
+            budget: components["schemas"]["ExpenseBudgetOut"] | null;
+            /** Alerts */
+            alerts: components["schemas"]["ExpenseAlertOut"][];
+            /** Insights */
+            insights: string[];
+            /** Claims */
+            claims: components["schemas"]["ExpenseClaimOut"][];
+            /** Scanning */
+            scanning: boolean;
+        };
+        /** ExpenseBudgetIn */
+        ExpenseBudgetIn: {
+            /** Totalpaise */
+            totalPaise?: number | null;
+            /** Dailypaise */
+            dailyPaise?: number | null;
+            /** Categorydailypaise */
+            categoryDailyPaise?: {
+                [key: string]: number;
+            };
+            /**
+             * Receiptoverpaise
+             * @default 50000
+             */
+            receiptOverPaise: number;
+        };
+        /** ExpenseBudgetOut */
+        ExpenseBudgetOut: {
+            /** Totalpaise */
+            totalPaise?: number | null;
+            /** Dailypaise */
+            dailyPaise?: number | null;
+            /** Categorydailypaise */
+            categoryDailyPaise?: {
+                [key: string]: number;
+            };
+            /**
+             * Receiptoverpaise
+             * @default 50000
+             */
+            receiptOverPaise: number;
+            /** Leftpaise */
+            leftPaise: number | null;
+            /** Usedpercent */
+            usedPercent: number | null;
+        };
+        /** ExpenseClaimIn */
+        ExpenseClaimIn: {
+            /** Idempotencykey */
+            idempotencyKey: string;
+            /** Expenseids */
+            expenseIds?: string[] | null;
+        };
+        /** ExpenseClaimOut */
+        ExpenseClaimOut: {
+            /** Claimid */
+            claimId: string;
+            /** Reference */
+            reference: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "submitted" | "reimbursed";
+            /** Totalpaise */
+            totalPaise: number;
+            /** Count */
+            count: number;
+            /**
+             * Submittedat
+             * Format: date-time
+             */
+            submittedAt: string;
+            /** Reimbursedat */
+            reimbursedAt: string | null;
+        };
+        /**
+         * ExpenseDraftOut
+         * @description An expense worked out from a typed line or a receipt, to check before saving. Anything unknown is null.
+         */
+        ExpenseDraftOut: {
+            /** Title */
+            title: string;
+            /** Merchant */
+            merchant: string | null;
+            /** Amountpaise */
+            amountPaise: number | null;
+            /** Taxpaise */
+            taxPaise: number | null;
+            /** Category */
+            category: ("transport" | "stay" | "food" | "tickets" | "communication" | "office" | "client" | "other") | null;
+            /** Payment */
+            payment: ("cash" | "card" | "upi" | "wallet" | "company") | null;
+            /** Day */
+            day: string | null;
+            /** Gstin */
+            gstin: string | null;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "text" | "receipt";
+        };
+        /** ExpenseIn */
+        ExpenseIn: {
+            /** Idempotencykey */
+            idempotencyKey: string;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "transport" | "stay" | "food" | "tickets" | "communication" | "office" | "client" | "other";
+            /** Title */
+            title: string;
+            /** Merchant */
+            merchant?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Amountpaise */
+            amountPaise: number;
+            /** Taxpaise */
+            taxPaise?: number | null;
+            /** Gstin */
+            gstin?: string | null;
+            /**
+             * Payment
+             * @default cash
+             * @enum {string}
+             */
+            payment: "cash" | "card" | "upi" | "wallet" | "company";
+            /**
+             * Reimbursable
+             * @default true
+             */
+            reimbursable: boolean;
+            /**
+             * Fromreceipt
+             * @default false
+             */
+            fromReceipt: boolean;
+        };
+        /** ExpenseOut */
+        ExpenseOut: {
+            /** Expenseid */
+            expenseId: string;
+            /**
+             * Day
+             * Format: date
+             */
+            day: string;
+            /**
+             * Category
+             * @enum {string}
+             */
+            category: "transport" | "stay" | "food" | "tickets" | "communication" | "office" | "client" | "other";
+            /** Title */
+            title: string;
+            /** Merchant */
+            merchant: string | null;
+            /** Note */
+            note: string | null;
+            /** Amountpaise */
+            amountPaise: number;
+            /** Taxpaise */
+            taxPaise: number | null;
+            /** Gstin */
+            gstin: string | null;
+            /**
+             * Payment
+             * @enum {string}
+             */
+            payment: "cash" | "card" | "upi" | "wallet" | "company";
+            /** Reimbursable */
+            reimbursable: boolean;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "manual" | "receipt" | "booking" | "plan";
+            /** Estimate */
+            estimate: boolean;
+            /** Edited */
+            edited: boolean;
+            /** Hasreceipt */
+            hasReceipt: boolean;
+            /** Claimid */
+            claimId: string | null;
+            /** Claimstatus */
+            claimStatus: ("submitted" | "reimbursed") | null;
+            /** Flags */
+            flags: ("estimate" | "needs_receipt" | "over_limit" | "possible_duplicate")[];
+            /** Duplicateof */
+            duplicateOf?: string | null;
+            /** Overbypaise */
+            overByPaise?: number | null;
+        };
+        /** ExpensePatch */
+        ExpensePatch: {
+            /** Day */
+            day?: string | null;
+            /** Category */
+            category?: ("transport" | "stay" | "food" | "tickets" | "communication" | "office" | "client" | "other") | null;
+            /** Title */
+            title?: string | null;
+            /** Merchant */
+            merchant?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Amountpaise */
+            amountPaise?: number | null;
+            /** Taxpaise */
+            taxPaise?: number | null;
+            /** Gstin */
+            gstin?: string | null;
+            /** Payment */
+            payment?: ("cash" | "card" | "upi" | "wallet" | "company") | null;
+            /** Reimbursable */
+            reimbursable?: boolean | null;
+            /** Confirm */
+            confirm?: boolean | null;
+        };
+        /** ExpenseTextIn */
+        ExpenseTextIn: {
+            /** Idempotencykey */
+            idempotencyKey: string;
+            /** Text */
+            text: string;
+        };
+        /** ExpenseTotalsOut */
+        ExpenseTotalsOut: {
+            /**
+             * Today
+             * Format: date
+             */
+            today: string;
+            /** Spentpaise */
+            spentPaise: number;
+            /** Estimatedpaise */
+            estimatedPaise: number;
+            /** Upcomingpaise */
+            upcomingPaise: number;
+            /** Forecastpaise */
+            forecastPaise: number;
+            /** Pacedailypaise */
+            paceDailyPaise: number;
+            /** Toclaimpaise */
+            toClaimPaise: number;
+            /** Claimedpaise */
+            claimedPaise: number;
+            /** Reimbursedpaise */
+            reimbursedPaise: number;
+            /** Owedtoyoupaise */
+            owedToYouPaise: number;
+            /** Bycategory */
+            byCategory: components["schemas"]["AmountByOut"][];
+            /** Bypayment */
+            byPayment: components["schemas"]["AmountByOut"][];
+            /** Byday */
+            byDay: components["schemas"]["DayAmountOut"][];
         };
         /**
          * FeaturesOut
@@ -5614,6 +6108,544 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WalletOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_expenses_v1_trips__trip_id__expenses_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseBookOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    add_expense_v1_trips__trip_id__expenses_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpenseIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_expense_v1_trips__trip_id__expenses__expense_id__delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                expense_id: string;
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    edit_expense_v1_trips__trip_id__expenses__expense_id__patch: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                expense_id: string;
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpensePatch"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    parse_line_v1_trips__trip_id__expenses_parse_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpenseTextIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseDraftOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    scan_v1_trips__trip_id__expenses_scan_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "image/jpeg": string;
+                "image/png": string;
+                "image/webp": string;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseDraftOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_receipt_v1_trips__trip_id__expenses__expense_id__receipt_get: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                expense_id: string;
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                    "image/jpeg": unknown;
+                    "image/png": unknown;
+                    "image/webp": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    put_receipt_v1_trips__trip_id__expenses__expense_id__receipt_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                expense_id: string;
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "image/jpeg": string;
+                "image/png": string;
+                "image/webp": string;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_receipt_v1_trips__trip_id__expenses__expense_id__receipt_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                expense_id: string;
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    set_budget_v1_trips__trip_id__expense_budget_put: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpenseBudgetIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseBudgetOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    remove_budget_v1_trips__trip_id__expense_budget_delete: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_claim_v1_trips__trip_id__expense_claims_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExpenseClaimIn"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseClaimOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mark_reimbursed_v1_trips__trip_id__expense_claims__claim_id__reimbursed_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                claim_id: string;
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExpenseClaimOut"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    withdraw_claim_v1_trips__trip_id__expense_claims__claim_id__withdraw_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                claim_id: string;
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostBody"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_csv_v1_trips__trip_id__expenses_export_csv_get: {
+        parameters: {
+            query?: {
+                claimId?: string | null;
+            };
+            header?: {
+                authorization?: string | null;
+            };
+            path: {
+                trip_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description UTF-8 with a byte-order mark */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                    "text/csv": unknown;
                 };
             };
             /** @description Validation Error */

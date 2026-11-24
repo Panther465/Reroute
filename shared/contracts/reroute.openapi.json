@@ -4446,6 +4446,1027 @@
         }
       }
     },
+    "/v1/trips/{trip_id}/expenses": {
+      "get": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "A trip's expenses, totals, budget, alerts and claims",
+        "operationId": "list_expenses_v1_trips__trip_id__expenses_get",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseBookOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "Add an expense",
+        "operationId": "add_expense_v1_trips__trip_id__expenses_post",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpenseIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/expenses/{expense_id}": {
+      "patch": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "Change an expense, or confirm an estimate",
+        "operationId": "edit_expense_v1_trips__trip_id__expenses__expense_id__patch",
+        "parameters": [
+          {
+            "name": "expense_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Expense Id"
+            }
+          },
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpensePatch"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "Remove an expense (one from a booking or the plan is put aside)",
+        "operationId": "remove_expense_v1_trips__trip_id__expenses__expense_id__delete",
+        "parameters": [
+          {
+            "name": "expense_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Expense Id"
+            }
+          },
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/expenses/parse": {
+      "post": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "Work out an expense from a typed line",
+        "operationId": "parse_line_v1_trips__trip_id__expenses_parse_post",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpenseTextIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseDraftOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/expenses/scan": {
+      "post": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "Read a receipt's photo into an expense to check (the AI helper with a Gemini key)",
+        "operationId": "scan_v1_trips__trip_id__expenses_scan_post",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseDraftOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          },
+          "required": true
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/expenses/{expense_id}/receipt": {
+      "put": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "Keep a receipt's photo with an expense",
+        "operationId": "put_receipt_v1_trips__trip_id__expenses__expense_id__receipt_put",
+        "parameters": [
+          {
+            "name": "expense_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Expense Id"
+            }
+          },
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "content": {
+            "image/jpeg": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/png": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            },
+            "image/webp": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          },
+          "required": true
+        }
+      },
+      "get": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "The receipt's photo",
+        "operationId": "get_receipt_v1_trips__trip_id__expenses__expense_id__receipt_get",
+        "parameters": [
+          {
+            "name": "expense_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Expense Id"
+            }
+          },
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "image/jpeg": {},
+              "image/png": {},
+              "image/webp": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "Remove the receipt's photo",
+        "operationId": "delete_receipt_v1_trips__trip_id__expenses__expense_id__receipt_delete",
+        "parameters": [
+          {
+            "name": "expense_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Expense Id"
+            }
+          },
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/expense-budget": {
+      "put": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "Set the trip's budget and the office's limits",
+        "operationId": "set_budget_v1_trips__trip_id__expense_budget_put",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpenseBudgetIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseBudgetOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "Remove the trip's budget",
+        "operationId": "remove_budget_v1_trips__trip_id__expense_budget_delete",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/expense-claims": {
+      "post": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "Claim expenses back from the office",
+        "operationId": "submit_claim_v1_trips__trip_id__expense_claims_post",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExpenseClaimIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseClaimOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/expense-claims/{claim_id}/reimbursed": {
+      "post": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "Mark a claim paid back",
+        "operationId": "mark_reimbursed_v1_trips__trip_id__expense_claims__claim_id__reimbursed_post",
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Claim Id"
+            }
+          },
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExpenseClaimOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/expense-claims/{claim_id}/withdraw": {
+      "post": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "Withdraw a claim not yet paid back, so its expenses can change",
+        "operationId": "withdraw_claim_v1_trips__trip_id__expense_claims__claim_id__withdraw_post",
+        "parameters": [
+          {
+            "name": "claim_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Claim Id"
+            }
+          },
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PostBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/v1/trips/{trip_id}/expenses/export.csv": {
+      "get": {
+        "tags": [
+          "expenses"
+        ],
+        "summary": "The expenses as a CSV file for the office (one claim's with claimId)",
+        "operationId": "export_csv_v1_trips__trip_id__expenses_export_csv_get",
+        "parameters": [
+          {
+            "name": "trip_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Trip Id"
+            }
+          },
+          {
+            "name": "claimId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "maxLength": 40
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Claimid"
+            }
+          },
+          {
+            "name": "authorization",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Authorization"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "UTF-8 with a byte-order mark",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "text/csv": {}
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/v1/trips/{trip_id}/share-links": {
       "post": {
         "tags": [
@@ -4809,6 +5830,24 @@
           "name"
         ],
         "title": "AirportOut"
+      },
+      "AmountByOut": {
+        "properties": {
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "paise": {
+            "type": "integer",
+            "title": "Paise"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key",
+          "paise"
+        ],
+        "title": "AmountByOut"
       },
       "AuthOptionsOut": {
         "properties": {
@@ -5554,6 +6593,25 @@
         ],
         "title": "DayAlternativeOut"
       },
+      "DayAmountOut": {
+        "properties": {
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "paise": {
+            "type": "integer",
+            "title": "Paise"
+          }
+        },
+        "type": "object",
+        "required": [
+          "day",
+          "paise"
+        ],
+        "title": "DayAmountOut"
+      },
       "DeleteAccountIn": {
         "properties": {
           "password": {
@@ -5624,6 +6682,1077 @@
         },
         "type": "object",
         "title": "DemoSignIn"
+      },
+      "ExpenseAlertOut": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "over_budget",
+              "heading_over",
+              "near_budget",
+              "over_daily",
+              "over_category",
+              "needs_receipt",
+              "possible_duplicate",
+              "unconfirmed"
+            ],
+            "title": "Kind"
+          },
+          "level": {
+            "type": "string",
+            "enum": [
+              "info",
+              "warn",
+              "danger"
+            ],
+            "title": "Level"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "expenseIds": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Expenseids"
+          },
+          "day": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "level",
+          "text"
+        ],
+        "title": "ExpenseAlertOut"
+      },
+      "ExpenseBookOut": {
+        "properties": {
+          "tripId": {
+            "type": "string",
+            "title": "Tripid"
+          },
+          "cityName": {
+            "type": "string",
+            "title": "Cityname"
+          },
+          "currency": {
+            "type": "string",
+            "const": "INR",
+            "title": "Currency",
+            "default": "INR"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExpenseOut"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/ExpenseTotalsOut"
+          },
+          "budget": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExpenseBudgetOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "alerts": {
+            "items": {
+              "$ref": "#/components/schemas/ExpenseAlertOut"
+            },
+            "type": "array",
+            "title": "Alerts"
+          },
+          "insights": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Insights"
+          },
+          "claims": {
+            "items": {
+              "$ref": "#/components/schemas/ExpenseClaimOut"
+            },
+            "type": "array",
+            "title": "Claims"
+          },
+          "scanning": {
+            "type": "boolean",
+            "title": "Scanning"
+          }
+        },
+        "type": "object",
+        "required": [
+          "tripId",
+          "cityName",
+          "items",
+          "totals",
+          "budget",
+          "alerts",
+          "insights",
+          "claims",
+          "scanning"
+        ],
+        "title": "ExpenseBookOut",
+        "description": "A trip's expenses, with what they add up to, the budget, what needs attention, and the claims."
+      },
+      "ExpenseBudgetIn": {
+        "properties": {
+          "totalPaise": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Totalpaise"
+          },
+          "dailyPaise": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dailypaise"
+          },
+          "categoryDailyPaise": {
+            "additionalProperties": {
+              "type": "integer",
+              "maximum": 100000000.0,
+              "minimum": 0.0
+            },
+            "propertyNames": {
+              "enum": [
+                "transport",
+                "stay",
+                "food",
+                "tickets",
+                "communication",
+                "office",
+                "client",
+                "other"
+              ]
+            },
+            "type": "object",
+            "title": "Categorydailypaise"
+          },
+          "receiptOverPaise": {
+            "type": "integer",
+            "maximum": 100000000.0,
+            "minimum": 0.0,
+            "title": "Receiptoverpaise",
+            "default": 50000
+          }
+        },
+        "type": "object",
+        "title": "ExpenseBudgetIn"
+      },
+      "ExpenseBudgetOut": {
+        "properties": {
+          "totalPaise": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Totalpaise"
+          },
+          "dailyPaise": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dailypaise"
+          },
+          "categoryDailyPaise": {
+            "additionalProperties": {
+              "type": "integer",
+              "maximum": 100000000.0,
+              "minimum": 0.0
+            },
+            "propertyNames": {
+              "enum": [
+                "transport",
+                "stay",
+                "food",
+                "tickets",
+                "communication",
+                "office",
+                "client",
+                "other"
+              ]
+            },
+            "type": "object",
+            "title": "Categorydailypaise"
+          },
+          "receiptOverPaise": {
+            "type": "integer",
+            "maximum": 100000000.0,
+            "minimum": 0.0,
+            "title": "Receiptoverpaise",
+            "default": 50000
+          },
+          "leftPaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Leftpaise"
+          },
+          "usedPercent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Usedpercent"
+          }
+        },
+        "type": "object",
+        "required": [
+          "leftPaise",
+          "usedPercent"
+        ],
+        "title": "ExpenseBudgetOut"
+      },
+      "ExpenseClaimIn": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 4,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Idempotencykey"
+          },
+          "expenseIds": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expenseids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotencyKey"
+        ],
+        "title": "ExpenseClaimIn"
+      },
+      "ExpenseClaimOut": {
+        "properties": {
+          "claimId": {
+            "type": "string",
+            "title": "Claimid"
+          },
+          "reference": {
+            "type": "string",
+            "title": "Reference"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "submitted",
+              "reimbursed"
+            ],
+            "title": "Status"
+          },
+          "totalPaise": {
+            "type": "integer",
+            "title": "Totalpaise"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          },
+          "submittedAt": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Submittedat"
+          },
+          "reimbursedAt": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reimbursedat"
+          }
+        },
+        "type": "object",
+        "required": [
+          "claimId",
+          "reference",
+          "status",
+          "totalPaise",
+          "count",
+          "submittedAt",
+          "reimbursedAt"
+        ],
+        "title": "ExpenseClaimOut"
+      },
+      "ExpenseDraftOut": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant"
+          },
+          "amountPaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amountpaise"
+          },
+          "taxPaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taxpaise"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "transport",
+                  "stay",
+                  "food",
+                  "tickets",
+                  "communication",
+                  "office",
+                  "client",
+                  "other"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "payment": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "cash",
+                  "card",
+                  "upi",
+                  "wallet",
+                  "company"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment"
+          },
+          "day": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          },
+          "gstin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gstin"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "text",
+              "receipt"
+            ],
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "title",
+          "merchant",
+          "amountPaise",
+          "taxPaise",
+          "category",
+          "payment",
+          "day",
+          "gstin",
+          "source"
+        ],
+        "title": "ExpenseDraftOut",
+        "description": "An expense worked out from a typed line or a receipt, to check before saving. Anything unknown is null."
+      },
+      "ExpenseIn": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 4,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Idempotencykey"
+          },
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "transport",
+              "stay",
+              "food",
+              "tickets",
+              "communication",
+              "office",
+              "client",
+              "other"
+            ],
+            "title": "Category"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 120,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "amountPaise": {
+            "type": "integer",
+            "maximum": 100000000.0,
+            "minimum": 1.0,
+            "title": "Amountpaise"
+          },
+          "taxPaise": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taxpaise"
+          },
+          "gstin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gstin"
+          },
+          "payment": {
+            "type": "string",
+            "enum": [
+              "cash",
+              "card",
+              "upi",
+              "wallet",
+              "company"
+            ],
+            "title": "Payment",
+            "default": "cash"
+          },
+          "reimbursable": {
+            "type": "boolean",
+            "title": "Reimbursable",
+            "default": true
+          },
+          "fromReceipt": {
+            "type": "boolean",
+            "title": "Fromreceipt",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotencyKey",
+          "day",
+          "category",
+          "title",
+          "amountPaise"
+        ],
+        "title": "ExpenseIn"
+      },
+      "ExpenseOut": {
+        "properties": {
+          "expenseId": {
+            "type": "string",
+            "title": "Expenseid"
+          },
+          "day": {
+            "type": "string",
+            "format": "date",
+            "title": "Day"
+          },
+          "category": {
+            "type": "string",
+            "enum": [
+              "transport",
+              "stay",
+              "food",
+              "tickets",
+              "communication",
+              "office",
+              "client",
+              "other"
+            ],
+            "title": "Category"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "amountPaise": {
+            "type": "integer",
+            "title": "Amountpaise"
+          },
+          "taxPaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taxpaise"
+          },
+          "gstin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gstin"
+          },
+          "payment": {
+            "type": "string",
+            "enum": [
+              "cash",
+              "card",
+              "upi",
+              "wallet",
+              "company"
+            ],
+            "title": "Payment"
+          },
+          "reimbursable": {
+            "type": "boolean",
+            "title": "Reimbursable"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "manual",
+              "receipt",
+              "booking",
+              "plan"
+            ],
+            "title": "Source"
+          },
+          "estimate": {
+            "type": "boolean",
+            "title": "Estimate"
+          },
+          "edited": {
+            "type": "boolean",
+            "title": "Edited"
+          },
+          "hasReceipt": {
+            "type": "boolean",
+            "title": "Hasreceipt"
+          },
+          "claimId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimid"
+          },
+          "claimStatus": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "submitted",
+                  "reimbursed"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimstatus"
+          },
+          "flags": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "estimate",
+                "needs_receipt",
+                "over_limit",
+                "possible_duplicate"
+              ]
+            },
+            "type": "array",
+            "title": "Flags"
+          },
+          "duplicateOf": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duplicateof"
+          },
+          "overByPaise": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overbypaise"
+          }
+        },
+        "type": "object",
+        "required": [
+          "expenseId",
+          "day",
+          "category",
+          "title",
+          "merchant",
+          "note",
+          "amountPaise",
+          "taxPaise",
+          "gstin",
+          "payment",
+          "reimbursable",
+          "source",
+          "estimate",
+          "edited",
+          "hasReceipt",
+          "claimId",
+          "claimStatus",
+          "flags"
+        ],
+        "title": "ExpenseOut"
+      },
+      "ExpensePatch": {
+        "properties": {
+          "day": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Day"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "transport",
+                  "stay",
+                  "food",
+                  "tickets",
+                  "communication",
+                  "office",
+                  "client",
+                  "other"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 120,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "merchant": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 80
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Merchant"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "amountPaise": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100000000.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Amountpaise"
+          },
+          "taxPaise": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 100000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Taxpaise"
+          },
+          "gstin": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gstin"
+          },
+          "payment": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "cash",
+                  "card",
+                  "upi",
+                  "wallet",
+                  "company"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Payment"
+          },
+          "reimbursable": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reimbursable"
+          },
+          "confirm": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirm"
+          }
+        },
+        "type": "object",
+        "title": "ExpensePatch"
+      },
+      "ExpenseTextIn": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 4,
+            "pattern": "^[A-Za-z0-9._:-]+$",
+            "title": "Idempotencykey"
+          },
+          "text": {
+            "type": "string",
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Text"
+          }
+        },
+        "type": "object",
+        "required": [
+          "idempotencyKey",
+          "text"
+        ],
+        "title": "ExpenseTextIn"
+      },
+      "ExpenseTotalsOut": {
+        "properties": {
+          "today": {
+            "type": "string",
+            "format": "date",
+            "title": "Today"
+          },
+          "spentPaise": {
+            "type": "integer",
+            "title": "Spentpaise"
+          },
+          "estimatedPaise": {
+            "type": "integer",
+            "title": "Estimatedpaise"
+          },
+          "upcomingPaise": {
+            "type": "integer",
+            "title": "Upcomingpaise"
+          },
+          "forecastPaise": {
+            "type": "integer",
+            "title": "Forecastpaise"
+          },
+          "paceDailyPaise": {
+            "type": "integer",
+            "title": "Pacedailypaise"
+          },
+          "toClaimPaise": {
+            "type": "integer",
+            "title": "Toclaimpaise"
+          },
+          "claimedPaise": {
+            "type": "integer",
+            "title": "Claimedpaise"
+          },
+          "reimbursedPaise": {
+            "type": "integer",
+            "title": "Reimbursedpaise"
+          },
+          "owedToYouPaise": {
+            "type": "integer",
+            "title": "Owedtoyoupaise"
+          },
+          "byCategory": {
+            "items": {
+              "$ref": "#/components/schemas/AmountByOut"
+            },
+            "type": "array",
+            "title": "Bycategory"
+          },
+          "byPayment": {
+            "items": {
+              "$ref": "#/components/schemas/AmountByOut"
+            },
+            "type": "array",
+            "title": "Bypayment"
+          },
+          "byDay": {
+            "items": {
+              "$ref": "#/components/schemas/DayAmountOut"
+            },
+            "type": "array",
+            "title": "Byday"
+          }
+        },
+        "type": "object",
+        "required": [
+          "today",
+          "spentPaise",
+          "estimatedPaise",
+          "upcomingPaise",
+          "forecastPaise",
+          "paceDailyPaise",
+          "toClaimPaise",
+          "claimedPaise",
+          "reimbursedPaise",
+          "owedToYouPaise",
+          "byCategory",
+          "byPayment",
+          "byDay"
+        ],
+        "title": "ExpenseTotalsOut"
       },
       "FeaturesOut": {
         "properties": {

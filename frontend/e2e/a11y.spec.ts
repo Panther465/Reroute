@@ -65,11 +65,15 @@ for (const scheme of ['light', 'dark'] as const) {
     })
 
     test('main screens', async ({ page }, info) => {
+      // Ten screens, each settled and checked: a cold first run needs more than the default minute.
+      test.setTimeout(150_000)
       await signInAsDemo(page)
       await planTheDay(page)
       for (const [path, heading] of [
         ['/', 'Bengaluru'],
         ['/plan', /trip/i],
+        ['/expenses', 'Expenses'],
+        ['/expenses/report', 'Expense report'],
         ['/raasta', 'Raasta'],
         ['/me', 'Me'],
         ['/summary', /in Bengaluru|Day summary/],

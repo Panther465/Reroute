@@ -40,6 +40,7 @@ Every travel time and fare is an estimate. All demo data is sample data.
 - **Built for a bad connection.** An installable PWA: the day is cached, check-ins made offline are queued and replayed with idempotency keys, and live changes arrive over server-sent events with a watchdog that reconnects.
 - **Real accounts, met by Rico.** Create an account with an email and a password (stored as a salted scrypt hash) or Google; a new account meets Rico full screen, which sets up the first trip by chatting and plans it.
 - **Accounts looked after like a real product's.** A new account is emailed a link to confirm its address; **Forgot your password?** emails a one-hour, single-use link, and choosing a new password signs out every device at once. Me → Account changes the name and the password, **downloads a copy of everything** kept about you as JSON, and **deletes the account** with everything in it, in both services (DPDP Act, 2023). Links travel after `#`, so no server log or Referer ever holds them. [Privacy policy](frontend/src/screens/Privacy.tsx) and [terms](frontend/src/screens/Terms.tsx) are pages of the app (`/privacy`, `/terms`).
+- **An expense manager for the trip** (the Expenses tab). Type "Lunch 350 cash at Truffles" and it's filled in; snap a receipt and Gemini reads the shop, total, GST and GSTIN (with the AI helper); it remembers how you file each shop. Bookings come in by themselves at what they cost after refunds, and each leg's fare in the plan as an estimate to confirm, never counted twice when you booked a cab for that leg. It forecasts what the trip will cost from your daily pace, warns before the budget runs out, flags meals over the office's daily limit, expenses over ₹500 without a receipt and likely duplicates, then makes a claim with a reference, a printable report with the receipts (save it as PDF) and a CSV for the office's spreadsheet. Amounts keep their paise, as receipts do. **Rico keeps the money with you**: tell him "I paid 80 for an auto" (in his chat or out loud) and it's on his card to add; ask "how much have I spent?", "am I on budget?" or "what can I claim?"; with his agent he sets the budget and the office's limits, confirms the plan's fares and makes the claim on one card, all undoable; and he pops up when the trip goes over its budget or a daily limit.
 - **Trips you can change.** Plan → Change dates or stay moves a trip's dates or where you stay, and re-plans the day when the start and end of it move.
 - **Error reports when you want them.** With a Sentry DSN, crashes in the API, the worker, the scheduler and the web app are reported, stripped of anything personal; without one, nothing is sent.
 - **A wallet, flights and connected services, all simulated.** Cab, train and flight bookings through invented partners (RideNow, AutoGo, ZipBike, RailGo, SkyHop) are paid from a wallet of pretend money, and a short balance says how much to add.
@@ -220,11 +221,11 @@ Rico is the owner's own character, and his code is the owner's too: his 3D model
 
 | Suite | Size | Command |
 |---|---|---|
-| Reroute API and planner | 418 tests (the API flow tests need `TEST_DATABASE_URL` pointing at PostGIS) | `cd backend && pytest` |
+| Reroute API and planner | 692 tests (the API flow tests need `TEST_DATABASE_URL` pointing at PostGIS) | `cd backend && pytest` |
 | Raasta | 115 tests | `cd raasta && pytest` |
-| Web app, and the Android app's own pieces | 444 tests | `cd frontend && pnpm test` |
-| The demo day and account calls over HTTP | 38 requests, 66 assertions | `npx newman run postman/reroute.postman_collection.json --insecure` |
-| End to end with axe | 70 tests, phone and desktop, with account emails read from Mailpit | `cd frontend && E2E_BASE_URL=https://localhost pnpm e2e` |
+| Web app, and the Android app's own pieces | 460 tests | `cd frontend && pnpm test` |
+| The demo day, accounts and expenses over HTTP | 48 requests, 84 assertions | `npx newman run postman/reroute.postman_collection.json --insecure` |
+| End to end with axe | 74 tests, phone and desktop, with account emails read from Mailpit | `cd frontend && E2E_BASE_URL=https://localhost pnpm e2e` |
 | The Android app against the web app | 22 tests on an emulator or phone, with its console and Logcat; a 23rd with Firebase set up (`PUSH_E2E=1`): an alert reaching a frozen app as a push; and a 24th (`WAKE_E2E=1` and a debug build): recorded voices saying "hey Rico" wake him on screen and in the background, sound-alikes don't, and Reroute carries on if Rico's ear dies | `cd frontend && pnpm exec playwright test -c playwright.android.config.ts` |
 | Load | 500 virtual users, 95% under 500 ms | `k6 run tests/load/k6.js` |
 

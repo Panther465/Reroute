@@ -7,7 +7,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Annotated, Generic, Literal, TypeVar
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field, StringConstraints, model_validator
 from pydantic.alias_generators import to_camel
 
 Hhmm = Annotated[str, StringConstraints(pattern=r"^([01]\d|2[0-3]):[0-5]\d$")]
@@ -817,6 +817,192 @@ class SummaryOut(Api):
     reroutes: list[datetime]
     headline: str
     slip_text: str
+
+
+# ---------- expenses ----------
+
+ExpenseCategory = Literal["transport", "stay", "food", "tickets", "communication", "office", "client", "other"]
+Payment = Literal["cash", "card", "upi", "wallet", "company"]
+#: Expenses keep paise, as receipts do (₹612.50 is 61250): the rest of the API rounds to whole rupees.
+Paise = Annotated[int, Field(ge=0, le=100_000_000)]
+#: A seller's GSTIN, as typed or read off a bill: spaces dropped and upper-cased before it's checked.
+Gstin = Annotated[
+    str,
+    BeforeValidator(lambda v: v.replace(" ", "").upper() if isinstance(v, str) else v),
+    StringConstraints(pattern=r"^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$"),
+]
+ExpenseFlag = Literal["estimate", "needs_receipt", "over_limit", "possible_duplicate"]
+
+
+class ExpenseIn(PostBody):
+    day: date
+    category: ExpenseCategory
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)]
+    merchant: Annotated[str, StringConstraints(strip_whitespace=True, max_length=80)] | None = None
+    note: Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)] | None = None
+    amount_paise: int = Field(ge=1, le=100_000_000)
+    tax_paise: Paise | None = None
+    gstin: Gstin | None = None
+    payment: Payment = "cash"
+    reimbursable: bool = True
+    #: Filled from a scanned receipt (its photo is sent next, to the expense's receipt).
+    from_receipt: bool = False
+
+    @model_validator(mode="after")
+    def _tax(self) -> ExpenseIn:
+        if self.tax_paise is not None and self.tax_paise > self.amount_paise:
+            raise ValueError("taxPaise can't be more than amountPaise")
+        return self
+
+
+class ExpensePatch(Api):
+    day: date | None = None
+    category: ExpenseCategory | None = None
+    title: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=120)] | None = None
+    merchant: Annotated[str, StringConstraints(strip_whitespace=True, max_length=80)] | None = None
+    note: Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)] | None = None
+    amount_paise: int | None = Field(default=None, ge=1, le=100_000_000)
+    tax_paise: Paise | None = None
+    gstin: Gstin | None = None
+    payment: Payment | None = None
+    reimbursable: bool | None = None
+    #: An estimate from the plan is what was paid: it counts as spent and can be claimed.
+    confirm: bool | None = None
+
+
+class ExpenseOut(Api):
+    expense_id: str
+    day: date
+    category: ExpenseCategory
+    title: str
+    merchant: str | None
+    note: str | None
+    amount_paise: int
+    tax_paise: int | None
+    gstin: str | None
+    payment: Payment
+    reimbursable: bool
+    #: manual, receipt (filled from a photo), booking (a simulated booking, paid from the wallet) or plan (a leg's fare).
+    source: Literal["manual", "receipt", "booking", "plan"]
+    estimate: bool
+    #: A booking or plan expense the traveller changed: it no longer follows the trip.
+    edited: bool
+    has_receipt: bool
+    claim_id: str | None
+    claim_status: Literal["submitted", "reimbursed"] | None
+    flags: list[ExpenseFlag]
+    #: For possible_duplicate: the expense it looks like.
+    duplicate_of: str | None = None
+    #: For over_limit: how much the day's category is over its limit.
+    over_by_paise: int | None = None
+
+
+class AmountByOut(Api):
+    key: str
+    paise: int
+
+
+class DayAmountOut(Api):
+    day: date
+    paise: int
+
+
+class ExpenseTotalsOut(Api):
+    #: The trip's own today (its city's date, or the demo clock's).
+    today: date
+    #: Up to today, estimates included.
+    spent_paise: int
+    #: The part of spent that is still the plan's estimates.
+    estimated_paise: int
+    #: Planned for later days: bookings and the plan's fares.
+    upcoming_paise: int
+    #: What the whole trip will likely cost: spent, upcoming, and the daily pace of everything else for the days left.
+    forecast_paise: int
+    #: The average a day of what you add yourself (food, stay…), so far.
+    pace_daily_paise: int
+    #: Reimbursable, confirmed and not yet in a claim.
+    to_claim_paise: int
+    claimed_paise: int
+    reimbursed_paise: int
+    #: Reimbursable, paid by you (not the company), and not yet paid back.
+    owed_to_you_paise: int
+    by_category: list[AmountByOut]
+    by_payment: list[AmountByOut]
+    by_day: list[DayAmountOut]
+
+
+class ExpenseBudgetIn(Api):
+    total_paise: Paise | None = None
+    daily_paise: Paise | None = None
+    #: The most a day for some categories: {"food": 80000} is ₹800 a day for meals.
+    category_daily_paise: dict[ExpenseCategory, Paise] = Field(default_factory=dict)
+    #: Receipts needed above this.
+    receipt_over_paise: Paise = 50000
+
+
+class ExpenseBudgetOut(ExpenseBudgetIn):
+    #: The total budget less the forecast (negative: likely over), when there is a total.
+    left_paise: int | None
+    #: Spent so far as a share of the total budget.
+    used_percent: int | None
+
+
+class ExpenseAlertOut(Api):
+    kind: Literal["over_budget", "heading_over", "near_budget", "over_daily", "over_category", "needs_receipt", "possible_duplicate", "unconfirmed"]
+    level: Literal["info", "warn", "danger"]
+    text: str
+    expense_ids: list[str] = Field(default_factory=list)
+    day: date | None = None
+
+
+class ExpenseClaimOut(Api):
+    claim_id: str
+    reference: str
+    status: Literal["submitted", "reimbursed"]
+    total_paise: int
+    count: int
+    submitted_at: datetime
+    reimbursed_at: datetime | None
+
+
+class ExpenseBookOut(Api):
+    """A trip's expenses, with what they add up to, the budget, what needs attention, and the claims."""
+
+    trip_id: str
+    city_name: str
+    currency: Literal["INR"] = "INR"
+    items: list[ExpenseOut]
+    totals: ExpenseTotalsOut
+    budget: ExpenseBudgetOut | None
+    alerts: list[ExpenseAlertOut]
+    #: Short observations: the biggest category, the daily pace, what's owed back.
+    insights: list[str]
+    claims: list[ExpenseClaimOut]
+    #: Receipts can be read automatically (the AI helper with a Gemini key).
+    scanning: bool
+
+
+class ExpenseTextIn(PostBody):
+    text: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=300)]
+
+
+class ExpenseDraftOut(Api):
+    """An expense worked out from a typed line or a receipt, to check before saving. Anything unknown is null."""
+
+    title: str
+    merchant: str | None
+    amount_paise: int | None
+    tax_paise: int | None
+    category: ExpenseCategory | None
+    payment: Payment | None
+    day: date | None
+    gstin: str | None
+    source: Literal["text", "receipt"]
+
+
+class ExpenseClaimIn(PostBody):
+    #: The expenses to claim; left out, every one that's ready (reimbursable, confirmed, not in a claim, up to today).
+    expense_ids: list[str] | None = Field(default=None, max_length=500)
 
 
 # ---------- calendar and drafts ----------

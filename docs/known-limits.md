@@ -72,6 +72,15 @@ Honest gaps in this build. Each is a deliberate scope choice or waits on the tea
 - **Written directions are generated in the app** from leg segments and route stands; the API has no directions field.
 - **Raasta route options carry no ride minutes**, only fare, frequency and walking time.
 
+## Expenses
+
+- **Rupees only.** Every amount is in INR; a receipt in another currency has to be converted by hand.
+- **The plan's fares are estimates** until confirmed, and only legs with a fare count (walking is free). Fares you paid that no plan or booking knows about (a cab you hailed) are typed in.
+- **Reading receipts needs the AI helper and a Gemini key**, and is as good as the photo: check what it fills in. Without it, typing a line and the form work, and a photo can still be attached.
+- **No offline adding yet**: the Expenses tab needs a connection (the plan's check-ins still queue offline).
+- **A claim is a record for you and your office**, with its report and CSV: Reroute sends nothing to an employer's finance system, and "paid back" is marked by hand.
+- **Rico keeps expenses through what he's told**: "I paid 80 for an auto" in his chat, or out loud, goes on a card to add. Without his agent (no AI helper and key) he reads the line on the phone and the server files it; with it, several money changes go on one card. He doesn't read receipt photos himself: those are scanned on the Expenses tab.
+
 ## Accounts and email
 
 - **Email needs an SMTP server.** Locally, Mailpit catches every message (http://localhost:8025); a deployment sets a provider's server (`SMTP_HOST`, README "Email"). Without one, "Forgot your password?" isn't offered and addresses aren't confirmed; everything else works. Mail from a new domain without SPF, DKIM and DMARC records often lands in spam.

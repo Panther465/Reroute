@@ -12,7 +12,7 @@ from pydantic import BaseModel, ValidationError
 from app import errors
 from app.config import Settings, get_settings
 from app.main import app as real_app
-from app.middleware import IDEMPOTENCY_EXEMPT, GuardMiddleware, TraceIdMiddleware
+from app.middleware import IDEMPOTENCY_EXEMPT, UPLOAD_PATH, GuardMiddleware, TraceIdMiddleware
 from app.models import User
 from app.schemas import CheckinIn, TaskIn, TripIn
 from app.security import decode_access_token, issue_access_token
@@ -167,8 +167,8 @@ def test_every_post_requires_an_idempotency_key():
     schemas = spec["components"]["schemas"]
     for path, ops in spec["paths"].items():
         post = ops.get("post")
-        # Sign-in, and the account calls that check a password, are exempt (app/middleware.py): safe to repeat.
-        if not post or path.startswith(IDEMPOTENCY_EXEMPT):
+        # Sign-in, the account calls that check a password, and a receipt's photo are exempt (app/middleware.py): safe to repeat.
+        if not post or path.startswith(IDEMPOTENCY_EXEMPT) or UPLOAD_PATH.match(path.replace("{trip_id}", "t").replace("{expense_id}", "e")):
             continue
         ref = post["requestBody"]["content"]["application/json"]["schema"]["$ref"].split("/")[-1]
         assert "idempotencyKey" in schemas[ref].get("required", []), f"POST {path} lacks a required idempotencyKey"

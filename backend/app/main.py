@@ -17,7 +17,7 @@ from app.config import get_settings
 from app.db import engine
 from app.middleware import GuardMiddleware, TraceIdMiddleware
 from app.redis_client import get_redis, get_redis_bytes
-from app.routes import auth, bookings, cities, live, me, places, roads, share, trips, wallet
+from app.routes import auth, bookings, cities, expenses, live, me, places, roads, share, trips, wallet
 
 log = logging.getLogger("reroute")
 
@@ -60,7 +60,7 @@ def create_app() -> FastAPI:
             expose_headers=["X-Request-ID", "Retry-After", "Idempotent-Replayed"],
             max_age=600,
         )
-    for module in (auth, me, cities, places, roads, _rico("speech"), trips, _rico("roo"), bookings, wallet, share, live):
+    for module in (auth, me, cities, places, roads, _rico("speech"), trips, _rico("roo"), bookings, wallet, expenses, share, live):
         if module is not None:
             app.include_router(module.router)
 

@@ -200,6 +200,33 @@ account = [
     req("The demo account can't be deleted", "POST", "/v1/me/delete", data={"password": "anything"}, status=409, tests=["pm.test('DEMO_ACCOUNT', () => pm.expect(pm.response.json().error.code).to.eql('DEMO_ACCOUNT'));"]),
 ]
 
+expenses = [
+    req(
+        "Expenses, with the plan's fares as estimates",
+        "GET",
+        "/v1/trips/trip-001/expenses",
+        tests=[
+            "const b = pm.response.json(); pm.test('totals and alerts', () => { pm.expect(b.totals).to.have.property('forecastPaise'); pm.expect(b.alerts).to.be.an('array'); });",
+            "pm.test('estimates from the plan', () => pm.expect(b.items.some(e => e.source === 'plan' && e.estimate)).to.be.true);",
+        ],
+    ),
+    req("Read a typed expense", "POST", "/v1/trips/trip-001/expenses/parse", data={"text": "Lunch 350 cash at Truffles", "idempotencyKey": KEY}, tests=["const d = pm.response.json(); pm.test('₹350 food, cash', () => { pm.expect(d.amountPaise).to.eql(35000); pm.expect(d.category).to.eql('food'); pm.expect(d.payment).to.eql('cash'); });"]),
+    req(
+        "Add an expense",
+        "POST",
+        "/v1/trips/trip-001/expenses",
+        data={"day": "2026-10-14", "category": "food", "title": "Lunch at Truffles", "merchant": "Truffles", "amountPaise": 61250, "payment": "card", "idempotencyKey": KEY},
+        status=201,
+        tests=["const e = pm.response.json(); pm.collectionVariables.set('expenseId', e.expenseId); pm.test('needs a receipt', () => pm.expect(e.flags).to.include('needs_receipt'));"],
+    ),
+    req("Set a budget", "PUT", "/v1/trips/trip-001/expense-budget", data={"totalPaise": 500000, "categoryDailyPaise": {"food": 80000}}, tests=["pm.test('limits kept', () => pm.expect(pm.response.json().categoryDailyPaise.food).to.eql(80000));"]),
+    req("Claim what's ready", "POST", "/v1/trips/trip-001/expense-claims", data={"idempotencyKey": KEY}, status=201, tests=["const c = pm.response.json(); pm.collectionVariables.set('claimId', c.claimId); pm.test('a reference', () => pm.expect(c.reference).to.match(/^RR-/));"]),
+    req("A claimed expense can't change", "PATCH", "/v1/trips/trip-001/expenses/{{expenseId}}", data={"amountPaise": 100}, status=409, tests=["pm.test('CLAIMED', () => pm.expect(pm.response.json().error.code).to.eql('CLAIMED'));"]),
+    req("The claim as CSV", "GET", "/v1/trips/trip-001/expenses/export.csv?claimId={{claimId}}", tests=["pm.test('csv', () => pm.expect(pm.response.headers.get('Content-Type')).to.include('text/csv'));"]),
+    req("Withdraw the claim", "POST", "/v1/trips/trip-001/expense-claims/{{claimId}}/withdraw", data={"idempotencyKey": KEY}, status=204),
+    req("Delete the expense", "DELETE", "/v1/trips/trip-001/expenses/{{expenseId}}", status=204),
+]
+
 raasta = [
     req("Route options for a leg", "GET", "/v1/raasta/routes?from=77.6195,12.9352&to=77.5838,12.9255&at=2026-10-14T15:00:00%2B05:30", auth=False, tests=["pm.test('kor-jay', () => pm.expect(pm.response.json().items.map(r => r.routeId)).to.include('sample-kor-jay'));"]),
     req("Route after its last trip", "GET", "/v1/raasta/routes?from=77.6195,12.9352&to=77.5838,12.9255&at=2026-10-14T22:30:00%2B05:30", auth=False, tests=["pm.test('left out', () => pm.expect(pm.response.json().lastTripPassed).to.include('sample-kor-jay'));"]),
@@ -217,8 +244,13 @@ collection = {
         "description": "Replays the Bengaluru demo day (sample data). Run against `docker compose up` with DEMO_LOGIN=true. Times and fares are estimates.",
         "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
     },
-    "variable": [{"key": "baseUrl", "value": "https://localhost"}, {"key": "accessToken", "value": ""}],
-    "item": [{"name": "Reroute", "item": reroute}, {"name": "Account", "item": account}, {"name": "Raasta", "item": raasta}],
+    "variable": [
+        {"key": "baseUrl", "value": "https://localhost"},
+        {"key": "accessToken", "value": ""},
+        {"key": "expenseId", "value": ""},
+        {"key": "claimId", "value": ""},
+    ],
+    "item": [{"name": "Reroute", "item": reroute}, {"name": "Account", "item": account}, {"name": "Expenses", "item": expenses}, {"name": "Raasta", "item": raasta}],
 }
 
 (HERE / "reroute.postman_collection.json").write_text(json.dumps(collection, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")

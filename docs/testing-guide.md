@@ -224,6 +224,22 @@ Email goes to Mailpit locally: open http://localhost:8025 to read it and click i
 | Pay | Both | A boarding pass with a PNR and seats; the wallet shows the charge; **Cancel the flight** refunds all but ₹500 |
 | Book a cab or train with its partner disconnected | R | The sheet asks to connect RideNow or RailGo first |
 
+### Expenses
+
+| Step | Account | What should happen |
+|---|---|---|
+| Plan the day, then open the **Expenses** tab | Both | "Spent so far", what the trip will likely cost, and the day's rides "From the plan" marked **Estimate** (~₹) |
+| Type **Lunch 950 card at Truffles** and tap **Add** | Both | The form opens filled in: ₹950, Food, Card, "Lunch at Truffles", today. **Add the expense** puts it on the list with "Needs a receipt" |
+| Open it, **Add a receipt photo**, save | Both | The photo shows in the form; the row says "Receipt" and the flag is gone |
+| Type **Toit 1800** after filing a Toit expense as Client, by card | Both | The form comes up as Client and Card: Reroute remembers how you file each shop |
+| **Scan a receipt** (with the AI helper and a Gemini key) | Both | The shop, total, GST and GSTIN are read in; check them and save. Without the helper the button isn't there |
+| **Set a budget**: food ₹800 a day | Both | "Food on …: ₹950, ₹150 over the ₹800 a day allowed." and the row flagged "Over the limit by ₹150"; a total budget shows a bar and warns before it's spent |
+| Book a cab for a leg (Today → the leg → Book a ride) | D | Expenses shows the booking at its fare, paid from the wallet, and that leg's estimate goes; cancel it and the estimate is back |
+| Type the same ₹ for a cab you already booked | D | Both rows flagged "Possible duplicate" |
+| Tap an estimate → **Confirm ₹… as paid**, or change its amount | Both | It's no longer an estimate and can be claimed |
+| **Claim ₹… back** → **Make the claim** | Both | A claim like RR-7Q4K2M; its expenses say "Claimed" and can't change until **Withdraw**; **Mark paid back** moves it to "Paid back" |
+| **CSV** and **Report** on the claim | Both | A CSV that opens in Excel or Sheets with ₹ intact, and a report page with the receipts' photos; **Print or save as PDF** (web only) |
+
 ### Share, summary, settings
 
 | Step | Account | What should happen |

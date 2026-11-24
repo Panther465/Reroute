@@ -49,6 +49,10 @@ SIGN_IN_PATHS = (
     "/v1/me/verification-email",
 )
 SESSION_PATHS = ("/v1/auth/refresh", "/v1/auth/logout")
+#: A receipt's photo (expenses): a raw image, larger than a JSON body may be, with no idempotency key (it's
+#: safe to send again). The route itself checks its type and size.
+UPLOAD_PATH = re.compile(r"^/v1/trips/[^/]+/expenses/(?:scan|[^/]+/receipt)$")
+UPLOAD_MAX_BYTES = 2_100_000
 #: Live streams must not be buffered or rate limited per event.
 STREAMING_SUFFIX = "/live"
 #: Share tokens are secrets (only their hash is stored), so request logs never show them.
@@ -119,8 +123,9 @@ class GuardMiddleware(BaseHTTPMiddleware):
         path = request.url.path
 
         # 413: refuse oversized bodies before reading them.
+        upload = bool(UPLOAD_PATH.match(path))
         length = request.headers.get("content-length")
-        if length and length.isdigit() and int(length) > settings.max_body_bytes:
+        if length and length.isdigit() and int(length) > (UPLOAD_MAX_BYTES if upload else settings.max_body_bytes):
             return JSONResponse(error_body("PAYLOAD_TOO_LARGE", "The request body is too large.", trace), status_code=413)
 
         if not path.startswith("/v1/") or path.endswith("/healthz"):
@@ -156,7 +161,7 @@ class GuardMiddleware(BaseHTTPMiddleware):
                     headers={"Retry-After": str(60 - int(time.time()) % 60)},
                 )
 
-        if request.method != "POST" or path.startswith(IDEMPOTENCY_EXEMPT):
+        if request.method != "POST" or path.startswith(IDEMPOTENCY_EXEMPT) or upload:
             return await call_next(request)
 
         # Idempotency for every other POST.

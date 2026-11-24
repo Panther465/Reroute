@@ -133,6 +133,9 @@ export default function Summary() {
 
       <div className="mt-8 lg:mt-6">
         <ExpenseSlip summary={s} offset={offset} />
+        <ButtonLink to="/expenses" variant="tertiary" size="md" className="-ml-2 mt-3">
+          All your expenses, receipts and claims
+        </ButtonLink>
       </div>
       </div>
     </PushedScreen>

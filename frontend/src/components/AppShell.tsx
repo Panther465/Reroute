@@ -1,5 +1,5 @@
 import * as Tooltip from '@radix-ui/react-tooltip'
-import { CalendarClock, CircleUserRound, ListChecks } from 'lucide-react'
+import { CalendarClock, CircleUserRound, ListChecks, ReceiptIndianRupee } from 'lucide-react'
 import { motion, MotionConfig, useReducedMotion } from 'motion/react'
 import { lazy, Suspense, useEffect, useRef, useState, type ReactNode } from 'react'
 import { Navigate, NavLink, Outlet, ScrollRestoration, useLocation, useMatches } from 'react-router'
@@ -30,6 +30,7 @@ const DemoPanel = lazy(() => import('@/components/DemoPanel').then((m) => ({ def
 const TABS = [
   { to: '/', label: 'Today', Icon: CalendarClock, end: true },
   { to: '/plan', label: 'Plan', Icon: ListChecks, end: false },
+  { to: '/expenses', label: 'Expenses', Icon: ReceiptIndianRupee, end: false },
   { to: '/raasta', label: 'Raasta', Icon: AutoRickshaw, end: false },
   { to: '/me', label: 'Me', Icon: CircleUserRound, end: false },
 ] as const
@@ -71,7 +72,7 @@ function useFocusHeadingOnNavigate(pathname: string) {
 function TabBar() {
   return (
     <nav aria-label="Main" className="pb-safe fixed inset-x-0 bottom-0 z-30 border-t border-line bg-surface">
-      <ul className="mx-auto grid h-16 max-w-[560px] grid-cols-4">
+      <ul className="mx-auto grid h-16 max-w-[560px] grid-cols-5">
         {TABS.map(({ to, label, Icon, end }) => (
           <li key={to}>
             <NavLink

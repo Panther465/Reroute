@@ -1635,6 +1635,487 @@
 					]
 				},
 				{
+					"name": "Expenses",
+					"item": [
+						{
+							"name": "List expenses",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/{{tripId}}/expenses",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										"{{tripId}}",
+										"expenses"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Parse expense text",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/{{tripId}}/expenses/parse",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										"{{tripId}}",
+										"expenses",
+										"parse"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"text\": \"Lunch 350 cash at Truffles\",\n    \"idempotencyKey\": \"{{$guid}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Add expense",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/{{tripId}}/expenses",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										"{{tripId}}",
+										"expenses"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"day\": \"2026-10-14\",\n    \"category\": \"food\",\n    \"title\": \"Lunch at Truffles\",\n    \"merchant\": \"Truffles\",\n    \"amountPaise\": 61250,\n    \"payment\": \"card\",\n    \"idempotencyKey\": \"{{$guid}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Update expense",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/{{tripId}}/expenses/{{expenseId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										"{{tripId}}",
+										"expenses",
+										"{{expenseId}}"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"amountPaise\": 58000\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Confirm estimate",
+							"request": {
+								"method": "PATCH",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/{{tripId}}/expenses/{{expenseId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										"{{tripId}}",
+										"expenses",
+										"{{expenseId}}"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"confirm\": true\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Scan receipt",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "image/jpeg"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/{{tripId}}/expenses/scan",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										"{{tripId}}",
+										"expenses",
+										"scan"
+									]
+								},
+								"body": {
+									"mode": "file",
+									"file": {
+										"src": ""
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Upload receipt",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "image/jpeg"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/{{tripId}}/expenses/{{expenseId}}/receipt",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										"{{tripId}}",
+										"expenses",
+										"{{expenseId}}",
+										"receipt"
+									]
+								},
+								"body": {
+									"mode": "file",
+									"file": {
+										"src": ""
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Get receipt",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/{{tripId}}/expenses/{{expenseId}}/receipt",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										"{{tripId}}",
+										"expenses",
+										"{{expenseId}}",
+										"receipt"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete receipt",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/{{tripId}}/expenses/{{expenseId}}/receipt",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										"{{tripId}}",
+										"expenses",
+										"{{expenseId}}",
+										"receipt"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete expense",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/{{tripId}}/expenses/{{expenseId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										"{{tripId}}",
+										"expenses",
+										"{{expenseId}}"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Set budget",
+							"request": {
+								"method": "PUT",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/{{tripId}}/expense-budget",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										"{{tripId}}",
+										"expense-budget"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"totalPaise\": 1500000,\n    \"dailyPaise\": 500000,\n    \"categoryDailyPaise\": {\n        \"food\": 80000\n    },\n    \"receiptOverPaise\": 50000\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Delete budget",
+							"request": {
+								"method": "DELETE",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/{{tripId}}/expense-budget",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										"{{tripId}}",
+										"expense-budget"
+									]
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Submit claim",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/{{tripId}}/expense-claims",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										"{{tripId}}",
+										"expense-claims"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Mark claim reimbursed",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/{{tripId}}/expense-claims/{{claimId}}/reimbursed",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										"{{tripId}}",
+										"expense-claims",
+										"{{claimId}}",
+										"reimbursed"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Withdraw claim",
+							"request": {
+								"method": "POST",
+								"header": [
+									{
+										"key": "Content-Type",
+										"value": "application/json"
+									}
+								],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/{{tripId}}/expense-claims/{{claimId}}/withdraw",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										"{{tripId}}",
+										"expense-claims",
+										"{{claimId}}",
+										"withdraw"
+									]
+								},
+								"body": {
+									"mode": "raw",
+									"raw": "{\n    \"idempotencyKey\": \"{{$guid}}\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								}
+							},
+							"response": []
+						},
+						{
+							"name": "Export CSV",
+							"request": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{baseUrl}}/v1/trips/{{tripId}}/expenses/export.csv?claimId={{claimId}}",
+									"host": [
+										"{{baseUrl}}"
+									],
+									"path": [
+										"v1",
+										"trips",
+										"{{tripId}}",
+										"expenses",
+										"export.csv"
+									],
+									"query": [
+										{
+											"key": "claimId",
+											"value": "{{claimId}}"
+										}
+									]
+								}
+							},
+							"response": []
+						}
+					]
+				},
+				{
 					"name": "Bookings",
 					"item": [
 						{
@@ -3250,6 +3731,14 @@
 		},
 		{
 			"key": "emailToken",
+			"value": ""
+		},
+		{
+			"key": "expenseId",
+			"value": ""
+		},
+		{
+			"key": "claimId",
 			"value": ""
 		}
 	]

@@ -22,6 +22,8 @@ export const router = createBrowserRouter([
       { path: '/terms', lazy: screen(() => import('@/screens/Terms')) },
       { path: '/reset-password', lazy: screen(() => import('@/screens/ResetPassword')) },
       { path: '/verify-email', lazy: screen(() => import('@/screens/VerifyEmail')) },
+      // The expense report prints on its own, without the app around it.
+      { path: '/expenses/report', lazy: screen(() => import('@/screens/ExpenseReport')) },
       // A new account meets Roo full screen, outside the tabs.
       { path: '/welcome', lazy: screen(loadWelcome) },
       {
@@ -34,6 +36,7 @@ export const router = createBrowserRouter([
             children: [
               { index: true, lazy: screen(loadToday) },
               { path: 'plan', lazy: screen(() => import('@/screens/PlanDay')) },
+              { path: 'expenses', lazy: screen(() => import('@/screens/Expenses')) },
               { path: 'raasta', lazy: screen(() => import('@/screens/Raasta')) },
               { path: 'raasta/add', lazy: screen(() => import('@/screens/AddRoute')), handle: { pushed: true } },
               { path: 'raasta/route/:routeId', lazy: () => import('@/screens/Raasta').then((m) => ({ Component: m.RaastaRoute })), handle: { pushed: true } },

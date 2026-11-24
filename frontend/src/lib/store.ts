@@ -77,6 +77,8 @@ export interface UiState {
   ricoBubble: RicoBubble | null
   /** A line for Rico to start the chat with when it next opens (a check-in, where he can't talk out loud). */
   rooChatSay: string | null
+  /** What the traveller asks Rico when the chat next opens, from a button on another screen ("Ask Rico"). */
+  rooChatAsk: string | null
 }
 
 export interface RicoBubble {
@@ -123,6 +125,7 @@ function defaults(): UiState {
     ricoGuide: false,
     ricoBubble: null,
     rooChatSay: null,
+    rooChatAsk: null,
     optimisticDone: [],
     started: null,
     rooChat: false,

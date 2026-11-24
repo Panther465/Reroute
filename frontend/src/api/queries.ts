@@ -10,6 +10,7 @@ import type {
   AuthOptions,
   Booking,
   City,
+  ExpenseBook,
   Contribution,
   ContributionsPage,
   Job,
@@ -50,6 +51,7 @@ export const keys = {
   trips: ['trips'] as const,
   trip: (id: string) => ['trip', id] as const,
   summary: (id: string, day?: string) => ['summary', id, day ?? ''] as const,
+  expenses: (id: string) => ['expenses', id] as const,
   insight: (id: string, version: number) => ['insight', id, version] as const,
   shared: (token: string) => ['shared', token] as const,
   places: (q: string, city: string) => ['places', city, q] as const,
@@ -240,6 +242,16 @@ export function useInsight(tripId: string | null, version: number | null) {
 export function useSummary(tripId: string | null) {
   const signedIn = useSessionStatus() === 'signedIn'
   return useQuery({ queryKey: keys.summary(tripId ?? 'none'), queryFn: () => api.get<Summary>(`/v1/trips/${tripId}/summary`), enabled: whileSignedIn(!!tripId && signedIn) })
+}
+
+/** The trip's expenses, totals, budget, alerts and claims (the expense manager). */
+export function useExpenses(tripId: string | null) {
+  const signedIn = useSessionStatus() === 'signedIn'
+  return useQuery({
+    queryKey: keys.expenses(tripId ?? 'none'),
+    queryFn: () => api.get<ExpenseBook>(`/v1/trips/${tripId}/expenses`),
+    enabled: whileSignedIn(!!tripId && signedIn),
+  })
 }
 
 export function useShared(token: string) {

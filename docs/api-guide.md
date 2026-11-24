@@ -80,6 +80,28 @@ POST /v1/trips/:id/bookings/:bookingId/cancel {"idempotencyKey"}  → cancelled,
 
 `PATCH /v1/trips/:id {startDate?, endDate?, stayPlaceId?, stayLabel?}` changes a trip's dates or where you stay (`stayPlaceId` and `stayLabel` go together) and returns `{trip, jobId}`. Its city stays: for another city, start a new trip. Dates that leave a task outside the trip are 409 `TASKS_OUTSIDE_DATES` (move or remove it first); more than 14 days is 422. A new place to stay re-plans a day that has a plan (`jobId`). The sample trip is fixed (409 `SAMPLE_TRIP`).
 
+## Expenses
+
+Every route is under `/v1/trips/:id`. Amounts are in **paise** (`amountPaise: 61250` is ₹612.50), unlike the rest of the API's whole rupees, because receipts have paise.
+
+| Call | What it does |
+|---|---|
+| `GET /expenses` | The trip's expenses (newest day first), `totals` (spent up to the trip's today, upcoming, the forecast, the daily pace, to claim, owed to you, by category, payment and day), the `budget`, `alerts`, `insights`, `claims`, and whether receipts can be `scanning`. Reading it first brings the bookings and plan's fares in step (below) |
+| `POST /expenses {day, category, title, amountPaise, payment, …}` | Adds one (201). `category` is transport, stay, food, tickets, communication, office, client or other; `payment` cash, card, upi, wallet or company (company-paid is never reimbursable). Optional `merchant`, `note`, `taxPaise` (GST included), `gstin`, `reimbursable`, `fromReceipt`. The day must be within 30 days of the trip |
+| `PATCH /expenses/:eid` | Changes one; `{confirm: true}` confirms a plan estimate as paid. A booking or plan expense the traveller changes is theirs from then on (`edited`) |
+| `DELETE /expenses/:eid` | Deletes one added by hand; one from a booking or the plan is put aside instead, so it doesn't come back |
+| `POST /expenses/parse {text}` | A draft from a typed line ("Uber to airport Rs. 612.50 upi"): amount, category, payment, day, GST, GSTIN, shop. A shop the traveller has filed before gets their category and payment |
+| `POST /expenses/scan` (a JPEG, PNG or WebP as the body, up to 2 MB) | A draft read from a receipt's photo by Gemini: 503 `SCAN_OFF` without the AI helper and a key, 422 `SCAN_FAILED` if no total can be read, 40 a day per traveller |
+| `PUT /expenses/:eid/receipt` (the photo as the body), `GET`, `DELETE` | The receipt's photo, kept with the expense. The type is checked from the file's first bytes, not just its Content-Type |
+| `PUT /expense-budget {totalPaise, dailyPaise, categoryDailyPaise, receiptOverPaise}`, `DELETE` | The budget and the office's limits, each optional (`categoryDailyPaise: {"food": 80000}` is ₹800 a day for meals; receipts needed above ₹500 unless changed) |
+| `POST /expense-claims {expenseIds?}` | A claim (201) of every expense that's ready (reimbursable, confirmed, not claimed, up to today), or those listed, with a reference like `RR-7Q4K2M`. Claimed expenses can't change (409 `CLAIMED`). 409 `NOTHING_TO_CLAIM` |
+| `POST /expense-claims/:cid/reimbursed`, `POST /expense-claims/:cid/withdraw` | Marks it paid back; or withdraws one not yet paid back, so its expenses can change |
+| `GET /expenses/export.csv?claimId=` | A CSV for the office (UTF-8 with a byte-order mark, so spreadsheets show ₹): date, category, description, shop, payment, reimbursable, amount, GST, GSTIN, receipt, estimate, claim. A cell starting with `= + - @` is kept as text, so a spreadsheet never runs it |
+
+**Kept in step:** each booking is an expense at what it cost after any refund (a cancelled train keeps its fee), paid from the wallet; each leg with a fare in a day's plan is an estimate, except a leg a cab was booked for. Re-planning updates or removes the estimates; one the traveller changed, put aside or claimed stays.
+
+**Alerts:** over budget, heading over (the forecast is past the budget), nearly spent (80%), a day over the daily budget, a category over its daily limit, expenses over the receipt limit without a photo, likely duplicates (the same amount, day and kind, at least one typed in), and plan estimates on past days still to confirm.
+
 ## Places of your own
 
 - `POST /v1/me/places {name, category, note?, lng, lat, citySlug, share, idempotencyKey}` adds a place only you see (201). `category` is `food`, `stay`, `sight`, `shop`, `transit` or `other`; the point must be in India and inside the city (422); 200 places a traveller (409 `TOO_MANY_PLACES`) and 50 added a day (429). With `share: true` it's `pending` until a moderator decides.

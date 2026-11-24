@@ -259,6 +259,8 @@ export interface RequestOptions {
   noRefresh?: boolean
   /** Give up after this long (default 20 s; streams and downloads, `raw`, never time out). */
   timeoutMs?: number
+  /** A file as the whole body (a receipt's photo), sent with its own type and no idempotency key. */
+  file?: Blob
 }
 
 /** No answer in time: nothing is known to be saved, so it behaves like a dropped connection (a check-in queues). */
@@ -274,8 +276,10 @@ export async function request<T>(method: string, path: string, opts: RequestOpti
   const url = new URL(`${BASE}${path}`, window.location.origin)
   for (const [k, v] of Object.entries(opts.query ?? {})) if (v !== undefined && v !== null && v !== '') url.searchParams.set(k, String(v))
 
-  let body: string | undefined
-  if (method === 'POST') {
+  let body: string | Blob | undefined
+  if (opts.file) {
+    body = opts.file
+  } else if (method === 'POST') {
     const key = opts.idempotencyKey ?? newKey()
     body = JSON.stringify({ ...((opts.body as object | undefined) ?? {}), idempotencyKey: key })
   } else if (opts.body !== undefined) {
@@ -284,7 +288,8 @@ export async function request<T>(method: string, path: string, opts: RequestOpti
 
   const send = () => {
     const headers: Record<string, string> = { Accept: 'application/json', 'X-Request-ID': crypto.randomUUID() }
-    if (body !== undefined) headers['Content-Type'] = 'application/json'
+    if (opts.file) headers['Content-Type'] = opts.file.type || 'application/octet-stream'
+    else if (body !== undefined) headers['Content-Type'] = 'application/json'
     if (accessToken) headers.Authorization = `Bearer ${accessToken}`
     if (native.session && path.startsWith('/v1/auth/')) Object.assign(headers, APP_CLIENT)
     return fetch(url, { method, headers, body, credentials: credentialsMode, signal: withTimeout(opts.signal, opts.raw ? undefined : (opts.timeoutMs ?? 20_000)) })
@@ -325,6 +330,9 @@ export const api = {
   post: <T>(path: string, body?: unknown, opts?: RequestOptions) => request<T>('POST', path, { ...opts, body }),
   patch: <T>(path: string, body: unknown, opts?: RequestOptions) => request<T>('PATCH', path, { ...opts, body }),
   delete: <T>(path: string, opts?: RequestOptions) => request<T>('DELETE', path, opts),
+  put: <T>(path: string, body: unknown, opts?: RequestOptions) => request<T>('PUT', path, { ...opts, body }),
+  /** A file as the request's body: `PUT` or `POST`, with the file's own Content-Type. */
+  upload: <T>(method: 'PUT' | 'POST', path: string, file: Blob, opts?: RequestOptions) => request<T>(method, path, { timeoutMs: 45_000, ...opts, file }),
 }
 
 export const apiBase = BASE

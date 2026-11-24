@@ -15,6 +15,7 @@ from sqlalchemy import (
     ForeignKey,
     Index,
     Integer,
+    LargeBinary,
     String,
     Text,
     UniqueConstraint,
@@ -331,3 +332,85 @@ class RerouteLog(Base):
     previous_plan_id: Mapped[str | None] = mapped_column(String(40))
     reason_codes: Mapped[list[str]] = mapped_column(ARRAY(String(40)).with_variant(JSON(), "sqlite"), default=list)
     undone_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class ExpenseClaim(Base):
+    """A claim for reimbursement: the expenses sent to the office together, then marked paid back."""
+
+    __tablename__ = "expense_claims"
+
+    claim_id: Mapped[str] = mapped_column(String(40), primary_key=True, default=lambda: new_id("clm"))
+    trip_id: Mapped[str] = mapped_column(ForeignKey("trips.trip_id", ondelete="CASCADE"), index=True)
+    #: Short and readable, for the office: "RR-7Q4K2M".
+    reference: Mapped[str] = mapped_column(String(20), unique=True)
+    #: submitted, then reimbursed.
+    status: Mapped[str] = mapped_column(String(12), default="submitted")
+    total_paise: Mapped[int] = mapped_column(Integer)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    reimbursed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class Expense(Base):
+    """Money spent on a trip. Amounts are in paise, as on a receipt (the rest of the API rounds to rupees).
+
+    A traveller adds one by hand, from a typed line or a receipt; others come by themselves (`source`): a
+    booking (exact, paid from the wallet) and each leg's fare in the plan (an estimate until confirmed).
+    Those stay in step with the trip until the traveller changes one (`edited`) or puts it aside (`dismissed`).
+    """
+
+    __tablename__ = "expenses"
+    __table_args__ = (Index("uq_expenses_source", "trip_id", "source_ref", unique=True, postgresql_where=text("source_ref IS NOT NULL")),)
+
+    expense_id: Mapped[str] = mapped_column(String(40), primary_key=True, default=lambda: new_id("exp"))
+    trip_id: Mapped[str] = mapped_column(ForeignKey("trips.trip_id", ondelete="CASCADE"), index=True)
+    day: Mapped[date] = mapped_column(Date)
+    #: transport, stay, food, tickets, communication, office, client or other.
+    category: Mapped[str] = mapped_column(String(16))
+    title: Mapped[str] = mapped_column(String(120))
+    merchant: Mapped[str | None] = mapped_column(String(80))
+    note: Mapped[str | None] = mapped_column(String(500))
+    amount_paise: Mapped[int] = mapped_column(Integer)
+    #: GST included in the amount, and the seller's GSTIN, for the office's input tax credit.
+    tax_paise: Mapped[int | None] = mapped_column(Integer)
+    gstin: Mapped[str | None] = mapped_column(String(15))
+    #: cash, card, upi, wallet (Reroute's) or company (paid by the office directly).
+    payment: Mapped[str] = mapped_column(String(10))
+    #: Claimed back from the office. Off for something personal, or paid by the company.
+    reimbursable: Mapped[bool] = mapped_column(Boolean, default=True)
+    #: manual, receipt, booking or plan.
+    source: Mapped[str] = mapped_column(String(10), default="manual")
+    source_ref: Mapped[str | None] = mapped_column(String(160))
+    #: A plan's fare, not yet confirmed as what was paid.
+    estimate: Mapped[bool] = mapped_column(Boolean, default=False)
+    edited: Mapped[bool] = mapped_column(Boolean, default=False)
+    dismissed: Mapped[bool] = mapped_column(Boolean, default=False)
+    claim_id: Mapped[str | None] = mapped_column(ForeignKey("expense_claims.claim_id", ondelete="SET NULL"), index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+
+
+class ExpenseReceipt(Base):
+    """The photo of a receipt, kept with its expense (at most a few hundred kilobytes once the phone shrinks it)."""
+
+    __tablename__ = "expense_receipts"
+
+    expense_id: Mapped[str] = mapped_column(ForeignKey("expenses.expense_id", ondelete="CASCADE"), primary_key=True)
+    content_type: Mapped[str] = mapped_column(String(20))
+    data: Mapped[bytes] = mapped_column(LargeBinary)
+    size: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class ExpenseBudget(Base):
+    """A trip's budget and the office's rules: amounts in paise, each optional."""
+
+    __tablename__ = "expense_budgets"
+
+    trip_id: Mapped[str] = mapped_column(ForeignKey("trips.trip_id", ondelete="CASCADE"), primary_key=True)
+    total_paise: Mapped[int | None] = mapped_column(Integer)
+    daily_paise: Mapped[int | None] = mapped_column(Integer)
+    #: The most a day for some categories ({"food": 80000}), as many offices set for meals.
+    category_daily_paise: Mapped[dict] = mapped_column(JsonB, default=dict)
+    #: Receipts are needed above this (₹500 unless changed).
+    receipt_over_paise: Mapped[int] = mapped_column(Integer, default=50000)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
