@@ -106,9 +106,12 @@ test('tell Rico what you spent, ask him how much, and it’s in your expenses', 
   // What he's told he puts on a card; nothing is added until it's tapped.
   await chat.getByLabel('Message Rico').fill('I paid 80 for an auto, cash')
   await chat.getByRole('button', { name: 'Send' }).click()
-  await expect(log).toContainText('Shall I add ₹80 to your expenses?')
+  await expect(log).toContainText('Got it, ₹80. Here’s how I’ll file it')
+  // The card shows the expense itself before the tap.
+  await expect(chat.getByRole('region', { name: 'Add to your expenses' })).toContainText('Travel · Cash')
   await chat.getByRole('button', { name: 'Add it' }).click()
-  await expect(log).toContainText(/Added ₹80 for Auto, under travel\./, { timeout: 15_000 })
+  await expect(log).toContainText(/Added! ₹80 for Auto, under travel\./, { timeout: 15_000 })
+  await expect(chat.getByRole('region', { name: 'Added to your expenses' })).toBeVisible()
   await page.keyboard.press('Escape')
   await expect(main.getByRole('button', { name: /^Auto/ })).toBeVisible({ timeout: 15_000 })
 })

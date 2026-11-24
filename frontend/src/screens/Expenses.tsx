@@ -1,5 +1,6 @@
 import { CircleAlert, Download, FileText, Info, PencilLine, Plus, ReceiptText, ScanLine, Sparkles, TriangleAlert, Wallet } from 'lucide-react'
-import { useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from 'react'
+import { useLocation, useNavigate } from 'react-router'
 import { api, ApiError } from '@/api/client'
 import { keys, queryClient, useCurrentTripId, useExpenses, useTrip } from '@/api/queries'
 import type { Expense, ExpenseAlert, ExpenseBook, ExpenseClaim, ExpenseDraft, Trip } from '@/api/types'
@@ -503,6 +504,18 @@ export default function Expenses() {
   useDocumentTitle('Expenses')
   // Rico speaks up when the trip goes over its budget or one of the office's limits.
   useRicoMoneyNudge(q.data)
+  // Sent here to open something: an expense (its receipt, from Rico's card), or a form filled in from what was said.
+  const location = useLocation()
+  const navigate = useNavigate()
+  useEffect(() => {
+    const st = location.state as { openExpense?: string; draft?: ExpenseDraft } | null
+    if (!st || !q.data) return
+    const found = st.openExpense ? q.data.items.find((x) => x.expenseId === st.openExpense) : undefined
+    if (found) open({ expense: found })
+    else if (st.draft) open({ draft: st.draft })
+    navigate(location.pathname, { replace: true, state: null })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state, q.data])
 
   const open = (s: SheetStart) => {
     setStart(s)
