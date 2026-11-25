@@ -4,9 +4,10 @@
 import { useEffect } from 'react'
 import type { ExpenseBook } from '@/api/types'
 import { hasRico } from './rico'
-import { getState, setState } from './store'
+import { getState, setState, type RicoBubble } from './store'
 
-type Money = typeof import('./roo/money')
+/** What's used here of Rico's money (lib/roo/money.ts), spelled out: a build without his code has no file to type it from. */
+type Money = { moneyNudge: (book: ExpenseBook, seen: Set<string>) => { bubble: RicoBubble; key: string } | null }
 const money = Object.values(import.meta.glob<Money>('./roo/money.ts', { eager: true }))[0] as Money | undefined
 
 /** Rico can talk about money in this build. */

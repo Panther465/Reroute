@@ -8,11 +8,11 @@ import io
 from datetime import UTC, date, datetime, timedelta, timezone
 
 import pytest
-from app.services.expense_text import ExpenseDraft
 
 from app.adapters import receipts as receipt_reader
 from app.routes import expenses as expense_routes
 from app.services import expenses as expense_service
+from app.services.expense_text import ExpenseDraft
 
 from .conftest import key
 from .test_flow import plan_v1

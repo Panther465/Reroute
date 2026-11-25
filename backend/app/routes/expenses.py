@@ -7,7 +7,6 @@ from dataclasses import replace
 from datetime import date
 from typing import Annotated
 
-from app.services.expense_text import ExpenseDraft, merchant_key, parse_expense
 from fastapi import APIRouter, Query, Request, Response
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy import select
@@ -32,6 +31,7 @@ from app.schemas import (
     PostBody,
 )
 from app.services import expenses
+from app.services.expense_text import ExpenseDraft, merchant_key, parse_expense
 
 router = APIRouter(prefix="/v1/trips/{trip_id}", tags=["expenses"])
 
