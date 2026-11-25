@@ -1,4 +1,11 @@
 @import 'tailwindcss';
+/* Rico's files are git-ignored (kept locked, rico/files.txt), and Tailwind skips git-ignored files unless they're
+   named here: without these his screens build unstyled. A build without his key has none of them, and that's fine. */
+@source './components/Roo.tsx';
+@source './components/roo';
+@source './components/roo3d';
+@source './lib/roo';
+@source './screens/Welcome.tsx';
 /* Fonts are self-hosted (no third-party request, cached by the service worker for offline use).
    Archivo carries its width axis, so font-stretch: 75% works. */
 @import '@fontsource-variable/archivo/wdth.css';
